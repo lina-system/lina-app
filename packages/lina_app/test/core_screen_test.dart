@@ -134,6 +134,24 @@ void main() {
       expect(find.text('Received by Core'), findsOneWidget);
     },
   );
+  testWidgets('keyboard submit cannot bypass the negotiated capability', (
+    tester,
+  ) async {
+    final core = DisplayCore()..live();
+    core.welcome = ProtocolWelcome.fromJson({
+      ...core.welcome!.toJson(),
+      'capabilities': <Object?>[],
+    });
+    await mount(tester, core);
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Example preset agent').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('composer')), '보내지 않음');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+    expect(core.requests, isEmpty);
+  });
   testWidgets('system accessibility and explicit desktop fallbacks combine', (
     tester,
   ) async {

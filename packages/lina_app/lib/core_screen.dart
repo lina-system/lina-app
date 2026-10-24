@@ -67,6 +67,7 @@ class _CoreScreenState extends State<CoreScreen> {
         _compositionEnding ||
         _draft.text.isEmpty ||
         _agent == null ||
+        !widget.connection.hasCapability('conversation') ||
         widget.connection.phase != ConnectionPhase.connected)
       return;
     final text = _draft.text;

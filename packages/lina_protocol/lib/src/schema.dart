@@ -124,17 +124,23 @@ class Schema {
   }
 
   static bool _date(String text) {
-    final date = DateTime.tryParse(text);
-    if (date == null) return false;
-    final parts = RegExp(r'^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})')
-        .firstMatch(text);
+    final parts = RegExp(
+      r'^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|[+-](\d{2}):(\d{2}))$',
+    ).firstMatch(text);
     if (parts == null) return false;
-    return date.year == int.parse(parts[1]!) &&
-        date.month == int.parse(parts[2]!) &&
-        date.day == int.parse(parts[3]!) &&
+    final year = int.parse(parts[1]!);
+    final month = int.parse(parts[2]!);
+    final day = int.parse(parts[3]!);
+    // Validate the original civil date, before a timezone offset changes it.
+    final civil = DateTime.utc(year, month, day);
+    return civil.year == year &&
+        civil.month == month &&
+        civil.day == day &&
         int.parse(parts[4]!) < 24 &&
         int.parse(parts[5]!) < 60 &&
-        int.parse(parts[6]!) < 60;
+        int.parse(parts[6]!) < 60 &&
+        (parts[7] == null || int.parse(parts[7]!) < 24) &&
+        (parts[8] == null || int.parse(parts[8]!) < 60);
   }
 
   /// Remove only additive payload fields; maps declared by the schema stay maps.

@@ -76,6 +76,23 @@ void main() {
     expect(receiver.malformed, 1);
     expect(receiver.unknownKinds, 0);
   });
+  test('offset timestamps validate their original civil date', () {
+    final date = {'type': 'string', 'format': 'date-time'};
+    for (final value in [
+      '2026-01-01T00:00:00+09:00',
+      '2026-01-01T23:30:00-08:00',
+      '2024-02-29T12:00:00Z',
+    ]) {
+      expect(() => protocolSchema.check(value, date), returnsNormally);
+    }
+    for (final value in [
+      '2026-02-30T00:00:00+09:00',
+      '2026-01-01T24:00:00Z',
+      '2026-01-01T12:00:00+99:00',
+    ]) {
+      expect(() => protocolSchema.check(value, date), throwsFormatException);
+    }
+  });
   test(
     'exact numeric comparison distinguishes uint64 overflow and fractions',
     () {

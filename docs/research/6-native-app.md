@@ -79,7 +79,8 @@ its child processes. A development manifest is never a release acceptance row.
 ## Captures and remaining acceptance
 
 `docs/captures/6/` contains Flutter-rendered disconnected, connected, rejected and
-mobile/large-text screens, plus separate macOS design-package goldens. The
+mobile/large-text screens, plus separate macOS 27 design-package goldens. macOS 26 CI runs the same
+layout/semantics assertions without comparing against a different OS rasterizer. The
 existing Linux design goldens are retained. No desktop screen-capture permission
 was requested. Refresh the app captures with:
 

@@ -148,7 +148,9 @@ void main() {
     expect(count, 1);
   });
   for (final mode in LinaThemeMode.values) {
-    testWidgets('${mode.name} shared widgets golden', (tester) async {
+    testWidgets('${mode.name} shared widgets layout and reference raster', (
+      tester,
+    ) async {
       final selected = TextEditingController(text: '선택한 문장')
         ..selection = const TextSelection(baseOffset: 0, extentOffset: 6);
       addTearDown(selected.dispose);
@@ -231,8 +233,12 @@ void main() {
           ? 'high-contrast'
           : mode.name;
       // CoreText and FreeType rasterize the bundled fonts differently. Keep
-      // separate reviewed baselines; other hosts still run layout/semantics.
-      if (Platform.isLinux || Platform.isMacOS) {
+      // separate reviewed baselines; macOS 26 CI has different CoreText output
+      // from the macOS 27 reference. Other hosts run layout/semantics only.
+      final macBaseline =
+          Platform.isMacOS &&
+          Platform.operatingSystemVersion.startsWith('Version 27.');
+      if (Platform.isLinux || macBaseline) {
         final capture = Platform.isMacOS
             ? '../../../docs/captures/6/design-macos-$filename.png'
             : '../../../docs/captures/5/$filename.png';

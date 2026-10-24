@@ -140,7 +140,8 @@ CI compiles Linux, Android, Windows, macOS, iOS device and iOS simulator targets
 Compilation does not establish device input, startup, memory, signing acceptance
 or the platform's Core compatibility row. The existing Linux design goldens
 remain unchanged; macOS has reviewed CoreText baselines in `docs/captures/6/`.
-Other hosts run layout/semantics tests without a pixel-baseline claim.
+Other hosts, including macOS 26 CI, run layout/semantics tests without a
+pixel-baseline claim; the local macOS baseline is pinned to macOS 27.
 
 ## Design-source discrepancy
 

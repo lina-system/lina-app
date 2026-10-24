@@ -24,7 +24,9 @@ boundary. The foreground AppKit matcher rejects repeats and extra modifiers;
 duplicate native event timestamps toggle once. A registration conflict is
 shown in the native status label. Reopening the app still opens the panel.
 No system shortcuts or preferences are changed. Command-comma focuses the
-native Open at login setting. Quit releases the shortcut and both engines.
+native Open at login setting. A programmatic Cocoa Edit menu preserves standard
+cut/copy/paste/select-all and undo/redo responder-chain shortcuts for both native
+and Flutter editors. Quit releases the shortcut and both engines.
 
 The first show waits for Dart's `waitUntilFirstFrameRasterized`; an early show
 request queues, a second toggle cancels it. The hidden engine starts explicitly
@@ -115,3 +117,10 @@ log check. The unlocked session was unavailable; no physical pass is claimed.
 follows #31's fixed split and the measured embedding boundary in #89. Replacing
 the answer renderer with a native view leaves window, input, list and key
 ownership intact; nothing here forecloses a fully native panel.
+
+The first macOS CI run kept the external fixture PID unchanged through show,
+`abc` and Escape, but reported `NSApp.isActive == true` while the key panel was
+visible. This process-local AppKit flag is retained as a diagnostic; it is not
+the foreground-app assertion. The verifier requires the fixture's own active
+state at each sample and no `didResignActive` notification from the independent
+fixture, in addition to unchanged foreground PID, typed text and dismissal.

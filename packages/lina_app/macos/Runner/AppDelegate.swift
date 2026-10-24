@@ -32,6 +32,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.mainMenu = LauncherMenus.makeMainMenu()
         // Loading fonts for AppKit uses the same already-bundled design assets.
         if let assets = Bundle.main.privateFrameworksURL?.appendingPathComponent("App.framework/Resources/flutter_assets/packages/lina_design/assets/fonts") {
             for file in ["Pretendard-Regular.otf", "Pretendard-Bold.otf"] {
@@ -190,7 +191,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         var samples: [[String: Any]] = []
         func record(_ phase: String) {
             samples.append(["phase": phase, "frontmostPID": NSWorkspace.shared.frontmostApplication?.processIdentifier ?? -1,
-                            "fixturePID": expected!, "appActive": NSApp.isActive, "panelKey": host.panel.isKeyWindow,
+                            "fixturePID": expected!, "fixtureActive": NSRunningApplication(processIdentifier: expected!)?.isActive ?? false,
+                            "appActive": NSApp.isActive, "panelKey": host.panel.isKeyWindow,
                             "visible": host.panel.isVisible, "query": content.input.stringValue])
         }
         record("hidden-ready")

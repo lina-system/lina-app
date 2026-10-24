@@ -7,7 +7,8 @@ ScreenCaptureKit's own-process API. It cannot include another app's pixels.
 
 The fixture records the frontmost PID before show, after show, after sending
 `abc` through the panel's AppKit event dispatch, and after Escape. The verifier
-requires the fixture's PID at every step, the inactive LINA process, the key
+requires the fixture's PID and active state at every step, zero fixture
+deactivation notifications, the key
 panel, the typed text and dismissal. This is automated AppKit input evidence,
 not physical keyboard, Korean IME, Safari fullscreen, Space switching or a
 multi-display hardware test.

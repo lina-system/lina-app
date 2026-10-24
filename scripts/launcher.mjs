@@ -2,6 +2,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { verifyFocusEvidence } from './verify/launcher-evidence.mjs';
 import { consoleSessionState } from './verify/mac-session.mjs';
 const root = process.cwd();
 const app = resolve('packages/lina_app/build/macos/Build/Products/Release/LINA.app');
@@ -55,15 +56,13 @@ print(json.dumps([{'IOConsoleUsers':[{k:u[k] for k in ('kCGSSessionOnConsoleKey'
     if (!ready?.ready || ready.visible || ready.activationPolicy !== 1 || !ready.uiElement || ready.loginItem !== 'disabledInTests') throw Error('Hidden prewarm or test login guard failed');
     if (mode === 'evidence') {
       const evidence = JSON.parse(lines.find(l => l.startsWith('LINA_EVIDENCE '))?.slice('LINA_EVIDENCE '.length) ?? 'null');
-      if (evidence?.samples?.length !== 4 || !evidence.firstFrameReady || evidence.samples.some(s => s.frontmostPID !== fixture.child.pid || s.appActive) ||
-          !evidence.samples[1].panelKey || !evidence.samples[2].panelKey || evidence.samples[2].query !== 'abc' || evidence.samples[3].visible) {
-        throw Error(`Focus/typing/dismissal failed: ${JSON.stringify(evidence)}`);
-      }
+      try { verifyFocusEvidence(evidence, fixture.child.pid, fixture.output()); }
+      catch (error) { throw Error(`${error.message}: ${JSON.stringify(evidence)}; fixture: ${fixture.output()}`); }
       const capture = lines.find(l => l.startsWith('LINA_CAPTURE '))?.slice('LINA_CAPTURE '.length);
       if (!capture) throw Error('Own-window compositor capture missing');
       mkdirSync('docs/captures/31', { recursive: true });
       writeFileSync('docs/captures/31/launcher.png', Buffer.from(capture, 'base64'));
-      writeFileSync('docs/captures/31/focus.json', JSON.stringify({ ...evidence, collectedAt: new Date().toISOString(),
+      writeFileSync('docs/captures/31/focus.json', JSON.stringify({ ...evidence, fixtureLog: fixture.output(), collectedAt: new Date().toISOString(),
         os: run('sw_vers', ['-productVersion']).trim(), sourceRevision: run('git', ['rev-parse', 'HEAD']).trim(),
         dirty: run('git', ['status', '--porcelain']).length > 0, signing: 'ad-hoc, codesign --verify --deep --strict passed',
         physicalShortcut: 'not exercised by this fixture; see Safari acceptance',

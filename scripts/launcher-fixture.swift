@@ -13,7 +13,13 @@ label.font = .systemFont(ofSize: 24)
 window.contentView?.addSubview(label)
 window.makeKeyAndOrderFront(nil)
 app.activate(ignoringOtherApps: true)
+var observer: NSObjectProtocol?
 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+    guard app.isActive else { print("LINA_FIXTURE_FAILED inactive"); fflush(stdout); app.terminate(nil); return }
+    observer = NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification,
+                                                       object: app, queue: .main) { _ in
+        print("LINA_FIXTURE_DEACTIVATED"); fflush(stdout)
+    }
     print("LINA_FIXTURE_READY \(getpid())"); fflush(stdout)
 }
 DispatchQueue.main.asyncAfter(deadline: .now() + 60) { app.terminate(nil) }

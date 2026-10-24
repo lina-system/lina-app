@@ -13,7 +13,7 @@ void main() {
         .where(
           (f) =>
               f.path.endsWith('.json') &&
-              !RegExp(r'/(cases|invalid|application)/').hasMatch(f.path),
+              !RegExp(r'/(cases|invalid|application)/').hasMatch(f.uri.path),
         );
     expect(files.length, greaterThan(200));
     for (final file in files) {
@@ -31,7 +31,9 @@ void main() {
     final cases = root
         .listSync(recursive: true)
         .whereType<File>()
-        .where((f) => f.path.contains('/cases/') && f.path.endsWith('.json'));
+        .where(
+          (f) => f.uri.path.contains('/cases/') && f.path.endsWith('.json'),
+        );
     expect(cases.length, greaterThan(40));
     for (final file in cases) {
       final spec = exactDecode(file.readAsStringSync()) as Map;

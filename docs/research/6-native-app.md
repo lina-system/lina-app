@@ -25,8 +25,9 @@ The installed copy occupies **46,476 KiB**; actual disk
 allocation is distinct from the content-byte inventory. Startup and resident
 memory are **unverified**, not zero. No release artifact has been published.
 
-The artifact records include a source revision and dirty-tree flag: these local
-runs verify the working tree, while CI verifies the committed candidate. The
+The artifact records include a source revision and dirty-tree flag. Each local
+artifact names the implementation commit it built; CI rebuilds every native
+target at the final PR head. The
 source-controlled release manifest retains their sizes, hashes and signing
 provenance. `build/artifacts/<target>.json` includes the full file inventory.
 

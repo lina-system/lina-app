@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import AppKit
+import ApplicationServices
 import MacPanelPlatform
 
 // Synthetic native-only harness; it never enables the general clipboard.
@@ -7,6 +8,18 @@ import MacPanelPlatform
 // --self-test is headless and uses a private pasteboard.
 func require(_ value: @autoclosure () -> Bool, _ message: String) {
     if !value() { fputs("FAIL: \(message)\n", stderr); exit(1) }
+}
+if CommandLine.arguments.contains("--preflight") {
+    // Read-only checks: never trigger a TCC prompt or request a grant.
+    let result: [String: Any] = [
+        "screenRecordingAllowed": CGPreflightScreenCaptureAccess(),
+        "accessibilityTrusted": AXIsProcessTrusted(),
+        "requestedPermissions": false,
+        "capturedFrames": 0,
+    ]
+    let data = try! JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
+    print(String(data: data, encoding: .utf8)!)
+    exit(0)
 }
 if CommandLine.arguments.contains("--self-test") {
     let history = ClipboardHistory(capacity: 2)
@@ -31,7 +44,7 @@ if CommandLine.arguments.contains("--self-test") {
     exit(0)
 }
 guard CommandLine.arguments.contains("--measure") else {
-    print("Usage: mac-panel-native --self-test | --measure"); exit(2)
+    print("Usage: mac-panel-native --self-test | --preflight | --measure"); exit(2)
 }
 // No permission request, unlock, focus injection or input-method change.
 let app = NSApplication.shared

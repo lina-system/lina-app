@@ -55,6 +55,7 @@ Tools, without Flutter:
 
 ```sh
 dv heavy -- node scripts/mac-panel.mjs native
+node scripts/mac-panel.mjs permissions # read-only; never requests a grant
 node scripts/mac-panel.mjs measure
 ```
 

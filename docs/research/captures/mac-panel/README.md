@@ -7,6 +7,7 @@ All content is synthetic. Absolute local paths in logs are normalized to
 | --- | --- |
 | `flutter-panel.png` | Headless Flutter widget rendering; no IME/Spaces claim |
 | `flutter-measurement.json` | Signed Flutter process RSS and programmatic ordering/focus observations |
+| `permissions.json` | Signed-harness Screen Recording / Accessibility preflight; no prompt or recording |
 | `native-measurement.json` | Signed native harness RSS and ordering proxy; different workload |
 | `native-green.log` | XCTest clipboard and shortcut validation results |
 | `native-red.log` | Initial CLT lacked XCTest; a tooling limitation, not behavioral red |

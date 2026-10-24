@@ -7,7 +7,8 @@ clipboard; retain Flutter for the panel UI provisionally.** The embedded
 Flutter panel became key without changing the foreground app in this run.
 The physical Korean IME, full-screen/Spaces, dismissal and visible-latency
 checks remain unverified in [#102](https://github.com/lina-system/lina-app/issues/102).
-This does not close or decide #2.
+This does not close or decide #2. The evidence table and recommendation are
+[posted on #2](https://github.com/lina-system/lina-app/issues/2#issuecomment-6382797958).
 
 ## Build and evidence
 
@@ -84,6 +85,23 @@ only committed nonblank text, then clears the field; Shift+Enter remains a
 newline. Key repeats do not submit. Autocorrect and suggestions are off. The
 local counter is diagnostic only; it does not prove Core ledger exactly-once
 behavior in #1. There is no custom IME bridge and no character-limit rewrite.
+
+## Permission blocker for visible-latency collection
+
+The read-only preflight on this host returned `screenRecordingAllowed: false`
+and `accessibilityTrusted: false`; see [permissions.json](captures/mac-panel/permissions.json).
+Reproduce it with `node scripts/mac-panel.mjs permissions` after building the
+ad-hoc-signed native harness. The helper first verifies the signature, then calls
+`CGPreflightScreenCaptureAccess()` and `AXIsProcessTrusted()` inside that harness.
+It requests no permission, records no frames and does not post a key.
+
+Consequently this session cannot run an authorized display-frame recorder or
+an automated system-key stimulus through the native harness. A manual physical
+shortcut can avoid the Accessibility requirement, but screen recording still
+needs an owner grant (or an external camera/operator). The existing rendered PNG
+and ordering telemetry cannot replace this missing endpoint. #102 explicitly
+tracks that owner-required setup and the actual shortcut-to-visible collection;
+this is an observed permission blocker, not a claim that the measurement passed.
 
 ## Measurements
 

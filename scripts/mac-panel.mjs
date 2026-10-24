@@ -17,7 +17,7 @@ function extractMetrics(output) {
   return JSON.stringify(JSON.parse(line.slice('LINA_PANEL_METRICS '.length)), null, 2);
 }
 const mode = process.argv[2];
-if (process.platform !== 'darwin' || !['native', 'measure', 'flutter', 'measure-flutter', 'smoke-flutter'].includes(mode)) {
+if (process.platform !== 'darwin' || !['native', 'permissions', 'measure', 'flutter', 'measure-flutter', 'smoke-flutter'].includes(mode)) {
   throw new Error('On macOS: dv heavy -- node scripts/mac-panel.mjs native|flutter; node scripts/mac-panel.mjs measure|measure-flutter');
 }
 const bundle = resolve(root, 'build/mac-panel-native/PanelNative.app');
@@ -35,6 +35,9 @@ if (mode === 'native') {
   run('codesign', ['--force', '--sign', '-', bundle]);
   run('codesign', ['--verify', '--strict', bundle]);
   console.log(run(`${bundle}/Contents/MacOS/mac-panel-native`, ['--self-test']));
+} else if (mode === 'permissions') {
+  run('codesign', ['--verify', '--strict', bundle]);
+  console.log(run(`${bundle}/Contents/MacOS/mac-panel-native`, ['--preflight']).trim());
 } else if (mode === 'measure' || mode === 'measure-flutter' || mode === 'smoke-flutter') {
   // Fail closed when the lock state cannot be established. Never unlock.
   const state = run('/usr/sbin/ioreg', ['-l', '-d', '1']);

@@ -60,6 +60,14 @@ see Core #1765, Core #1707 and app #120. The app never grants permission or
 retargets an attachment locally. Neutral `AgentMark` slots remain in use: the
 owner's character/accent choice is still open in [#4](https://github.com/lina-system/lina-app/issues/4).
 
+The [owner's scope decision](https://github.com/lina-system/lina-app/issues/10#issuecomment-6386327521)
+accepts the existing-schema implementation for #10. The remaining UI/API context
+agreement and real-artifact runs against Core on every supported platform are
+tracked in [#145](https://github.com/lina-system/lina-app/issues/145), dependent
+on Core #1765. Those checks remain unverified; the scope decision does not count
+them as passes. Deferred selection-recovery review findings are tracked in
+[#139](https://github.com/lina-system/lina-app/issues/139).
+
 ## Evidence
 
 All fixtures and captures are synthetic. The initial six-test run had five
@@ -92,3 +100,11 @@ acceptance. Native artifacts are compiled by the existing CI platform matrix;
 physical interaction and real-Core acceptance on macOS, Windows, Linux, iOS and
 Android remain unverified and are recorded in
 [this #107 comment](https://github.com/lina-system/lina-app/issues/107#issuecomment-6385044217).
+
+A clean Linux release artifact at `059e3306da9cb9f144e5cdc7a7def9f31efb51cd`
+was also exercised under virtual X11 against a synthetic TCP Core peer. The run
+verified create, choose, rename, cancel/confirm deletion, retained deleted-agent
+drafts, separate input targets and the single-agent header. Its wire log contained
+exactly the two expected inputs to their respective conversations. This evidence
+belongs to that revision and does not establish physical-device or real-Core
+acceptance, or execution of the later merged document-read fixes.

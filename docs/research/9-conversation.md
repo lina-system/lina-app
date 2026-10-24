@@ -39,8 +39,11 @@ submission until the person explicitly chooses an available agent.
   close control; keeping the composer alongside the phone panel remains #120.
   A newer result card preserves the loaded version and offers Read latest.
   Version-pinned result reads collect every returned
-  text page, and stale reads cannot replace a newer selected result. Saved status
-  comes exclusively from Core.
+  text page, and stale reads cannot replace a newer selected result. A failure
+  from a superseded read cannot set the error on the document now being read,
+  while a read of the selected document that loses the connection still asks
+  the person to reopen it after reconnecting. Saved status comes exclusively
+  from Core.
 - All visual values come from `lina_design`, including three new layout tokens.
   One `AgentMark` widget supplies the neutral identity placeholder. No expression
   is invented, and `PlatformSlots.launcher` is untouched.
@@ -53,8 +56,10 @@ The red widget run failed because startup did not discover a conversation and
 switching agents retained the wrong draft. The final widget tests cover draft
 isolation, navigation/reconnect/resize reading position, all eight labels,
 composition guards, capability/removed-agent checks, late replies, duplicate and
-gapped streams, stop/retry, uncertain input without resend, full document pages,
-and conversation → delegation → question → restart/reconnect with a fixture Core.
+gapped streams, stop/retry,
+uncertain input without resend, full document pages, superseded document read
+failures and disconnect hints, and conversation → delegation → question → restart/reconnect with a
+fixture Core.
 
 `topic_window_test.dart` covers replacement/deduplication, gaps, foreign topics,
 old revisions, epoch changes, exponent-form integer cursors and uint64 precision.

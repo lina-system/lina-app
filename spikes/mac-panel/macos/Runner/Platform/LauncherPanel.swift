@@ -36,6 +36,7 @@ public final class PanelHost {
     public var onChange: (() -> Void)?
     public private(set) var lastOrderMs: Double?
     public private(set) var originalAppStayedActive: Bool?
+    public private(set) var originalAppWasExternal: Bool?
     private var outsideMonitor: Any?
     private var localMonitor: Any?
     private var originalPID: pid_t?
@@ -60,6 +61,7 @@ public final class PanelHost {
     public func show(startedAt: TimeInterval = ProcessInfo.processInfo.systemUptime) {
         guard !panel.isVisible else { return }
         originalPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        originalAppWasExternal = originalPID.map { $0 != ProcessInfo.processInfo.processIdentifier }
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
         if let frame = screen?.visibleFrame {

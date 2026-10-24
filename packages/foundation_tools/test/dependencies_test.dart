@@ -98,6 +98,57 @@ packages:
     'accepts an exact hosted dependency with hash, license and notice',
     check,
   );
+  test(
+    'registered hyphenated directory uses its canonical Dart package name',
+    () {
+      const path = 'spikes/korean-input';
+      put('$path/pubspec.yaml', 'name: korean_input\n');
+      put('$path/pubspec.lock', 'packages: {}\n');
+      put(
+        '$path/.dart_tool/package_graph.json',
+        '{"packages":[{"name":"korean_input","dependencies":[]}]}',
+      );
+      expect(() => validateRepository(root.path, [path]), returnsNormally);
+      put('$path/pubspec.yaml', 'name: unrelated\n');
+      expect(
+        () => validateRepository(root.path, [path]),
+        throwsFormatException,
+      );
+    },
+  );
+  test(
+    'version-qualified reviews preserve separately locked runtime versions',
+    () {
+      final inventory = jsonDecode(
+        File('${root.path}/scripts/verify/licenses.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
+      final packages = inventory['packages'] as Map<String, dynamic>;
+      packages['collection'] = {
+        'version': '1.20.0',
+        'license': 'BSD-3-Clause',
+        'notice': 'collection',
+      };
+      final specific = {
+        'version': '1.19.1',
+        'license': 'BSD-3-Clause',
+        'notice': 'collection',
+      };
+      packages['collection@1.19.1'] = specific;
+      void save() => put('scripts/verify/licenses.json', jsonEncode(inventory));
+      save();
+      expect(check, returnsNormally);
+      specific['version'] = '1.19.0';
+      save();
+      expect(check, throwsFormatException);
+      specific['version'] = '1.19.1';
+      specific['license'] = 'GPL-3.0-only';
+      save();
+      expect(check, throwsFormatException);
+      packages.remove('collection@1.19.1');
+      save();
+      expect(check, throwsFormatException);
+    },
+  );
   test('rejects ranges, any, git sources, overrides and malformed YAML', () {
     for (final spec in [
       '^1.19.1',

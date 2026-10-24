@@ -5,7 +5,9 @@ All content is synthetic. Absolute local paths in logs are normalized to
 
 | File | What it establishes |
 | --- | --- |
-| `visible-latency.json`, `visible-frame-01.png` … `visible-frame-10.png` | Ten foreground native shortcut → WindowServer displayed Flutter frames, timestamps and hashes; no global-routing claim |
+| `visible-latency.json`, `visible-frame-01.png` … `visible-frame-10.png` | Ten real Carbon global-shortcut → WindowServer displayed Flutter frames, external foreground condition, timestamps and hashes |
+| `foreground-visible-latency.json`, `foreground-visible-frame-*.png` | Separate earlier AppKit foreground condition, never labeled global |
+| `visible-run.json`, `global-collection.log`, `probe-stimulus.log` | Signed probe provenance, source hashes and actual global-key collection logs |
 | `visible-validation-*.log`, `local-shortcut-*.log`, `shortcut-event-*.log`, `visible-evidence-*.log` | Collector, key matching, Carbon ID and evidence-validation red/green tests |
 | `visible-lock-guard.log` | Locked-session GUI collection refused before app launch |
 | `flutter-panel.png` | Headless Flutter widget rendering; no IME/Spaces claim |

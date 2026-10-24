@@ -65,25 +65,31 @@ compare the native harness's RSS with a Flutter app as if their features match.
 
 ## Shortcut-to-visible frame collection
 
-The committed run uses the foreground AppKit shortcut route, on the actual Mac:
+The primary committed run uses the registered Carbon global-hotkey route on the actual Mac:
 
 ```sh
 dv heavy -- node scripts/mac-panel.mjs flutter
-node scripts/mac-panel.mjs measure-visible-local
-# On each LINA_VISIBLE_READY: send Control+Option+Space to the app's
-# synthetic foreground fixture using physical keys or the existing UI driver.
+node scripts/mac-panel.mjs measure-visible
+scripts/benchmarks/probe/run.sh panel-shortcut
+# On each LINA_VISIBLE_READY: click Send panel shortcut in the probe.
+# Its existing Accessibility grant supplies one fixed global HID key chord.
 node scripts/mac-panel-evidence.mjs
 node --test spikes/mac-panel/visible-evidence.test.mjs
 ```
 
 The same configured shortcut has two native routes: AppKit keyDown while the
 app is active and Carbon RegisterEventHotKey in the background. Every sample
-records its route. The foreground result does not claim global-key delivery.
+records its route. The primary result requires the Carbon route and an external foreground app.
+The separately preserved foreground run does not claim global-key delivery.
 To collect the separate background condition, start `node scripts/mac-panel.mjs
 fixture` and `node scripts/mac-panel.mjs measure-visible`, then use physical
 Control+Option+Space presses while the external fixture is frontmost. CUA's
 app-bound key driver bypasses macOS global-hotkey routing and cannot test that
-condition. Neither collector synthesizes a key or calls its handler directly.
+condition. Neither collector synthesizes a key or calls its handler directly. The stable
+probe is the separate, already-authorized stimulus driver; rebuild it with
+`dv heavy -- scripts/benchmarks/probe/build.sh` and retain its signing identity.
+The alternate `measure-visible-local` mode uses a same-process synthetic
+foreground fixture and AppKit keyDown events; its samples are labeled separately.
 
 On macOS 14.4+, the recorder captures only its own panel via
 `SCShareableContent.currentProcess`, which does not need a global TCC grant.

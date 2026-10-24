@@ -20,6 +20,11 @@ export function verifyVisibleEvidence(data, directory) {
     if (sample.inputSource === 'appkit-local-keyDown') {
       assert.equal(data.backgroundGlobalHotkeyLatency, 'unverified');
       assert.equal(sample.appWasActive, true);
+    } else {
+      assert.equal(data.backgroundGlobalHotkeyLatency, 'measured');
+      assert.equal(sample.originalAppWasExternal, true);
+      assert.equal(sample.originalAppStayedActive, true);
+      assert.equal(sample.externalAppStillFrontmostAtFrame, true);
     }
     for (const flag of ['windowOnScreen', 'markerMatches', 'panelBecameKey']) assert.equal(sample[flag], true);
     for (const key of ['shortcutEventTimeSeconds', 'windowServerDisplayTimeSeconds', 'captureReceivedTimeSeconds', 'shortcutToVisibleMs', 'observationUpperBoundMs']) {
@@ -34,7 +39,7 @@ export function verifyVisibleEvidence(data, directory) {
       [0, 4].includes(frame.status) && frame.displayTimeSeconds === sample.windowServerDisplayTimeSeconds);
     assert.ok(accepted, 'accepted sample must have a corresponding raw frame');
     assert.ok(Math.abs(accepted.displayTimeTicks * data.timebaseNumer / data.timebaseDenom / 1e9 - sample.windowServerDisplayTimeSeconds) < 0.000001);
-    assert.equal(sample.frame, `visible-frame-${String(index + 1).padStart(2, '0')}.png`);
+    assert.ok([`visible-frame-${String(index + 1).padStart(2, '0')}.png`, `foreground-visible-frame-${String(index + 1).padStart(2, '0')}.png`].includes(sample.frame));
     const bytes = readFileSync(new URL(sample.frame, directory));
     assert.equal(bytes.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
     assert.equal(createHash('sha256').update(bytes).digest('hex'), sample.frameSha256);

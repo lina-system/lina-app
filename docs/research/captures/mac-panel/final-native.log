@@ -1,0 +1,47 @@
+Building for debugging...
+[1 / 4]
+[2 / 5] MacPanelPlatform
+[3 / 6] MacPanelPlatform
+[9 / 12] MacPanelPlatform
+[12 / 15] MacPanelPlatformTests-product
+[14 / 15] MacPanelPlatformTests-product
+[15 / 17] MacPanelPlatformTests-product
+[20 / 24] mac-panel-native-product
+[22 / 26] mac-panel-native-product
+[25 / 26] mac-panel-native-product
+Build complete! (3.07초)
+Test Suite 'Selected tests' started at 2026-10-24 20:11:42.123.
+Test Suite 'MacPanelPlatformTests.xctest' started at 2026-10-24 20:11:42.124.
+Test Suite 'ClipboardTests' started at 2026-10-24 20:11:42.124.
+Test Case '-[MacPanelPlatformTests.ClipboardTests testEveryMarkerRejectsWholeCopyBeforeReadingText]' started.
+Test Case '-[MacPanelPlatformTests.ClipboardTests testEveryMarkerRejectsWholeCopyBeforeReadingText]' passed (0.000 seconds).
+Test Case '-[MacPanelPlatformTests.ClipboardTests testIgnoredSourcesAndOversizedOrEmptyText]' started.
+Test Case '-[MacPanelPlatformTests.ClipboardTests testIgnoredSourcesAndOversizedOrEmptyText]' passed (0.000 seconds).
+Test Case '-[MacPanelPlatformTests.ClipboardTests testOptInBaselineDisableDedupAndCapacity]' started.
+Test Case '-[MacPanelPlatformTests.ClipboardTests testOptInBaselineDisableDedupAndCapacity]' passed (0.000 seconds).
+Test Case '-[MacPanelPlatformTests.ClipboardTests testPrivatePasteboardScansAllItemsAndDoesNotReplayRejectedChange]' started.
+Test Case '-[MacPanelPlatformTests.ClipboardTests testPrivatePasteboardScansAllItemsAndDoesNotReplayRejectedChange]' passed (0.004 seconds).
+Test Suite 'ClipboardTests' passed at 2026-10-24 20:11:42.129.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.005 (0.005) seconds
+Test Suite 'ShortcutTests' started at 2026-10-24 20:11:42.129.
+Test Case '-[MacPanelPlatformTests.ShortcutTests testConfiguredShortcutMatchesNativeKeyDownWithoutRepeatsOrExtraModifiers]' started.
+Test Case '-[MacPanelPlatformTests.ShortcutTests testConfiguredShortcutMatchesNativeKeyDownWithoutRepeatsOrExtraModifiers]' passed (0.000 seconds).
+Test Case '-[MacPanelPlatformTests.ShortcutTests testShortcutRequiresRealModifierAndKnownPhysicalKey]' started.
+Test Case '-[MacPanelPlatformTests.ShortcutTests testShortcutRequiresRealModifierAndKnownPhysicalKey]' passed (0.000 seconds).
+Test Case '-[MacPanelPlatformTests.ShortcutTests testUnrelatedCarbonHotkeyCannotStartPanelTiming]' started.
+Test Case '-[MacPanelPlatformTests.ShortcutTests testUnrelatedCarbonHotkeyCannotStartPanelTiming]' passed (0.000 seconds).
+Test Suite 'ShortcutTests' passed at 2026-10-24 20:11:42.130.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'VisibleLatencyTests' started at 2026-10-24 20:11:42.130.
+Test Case '-[MacPanelPlatformTests.VisibleLatencyTests testInvalidClocksCannotProduceMeasurements]' started.
+Test Case '-[MacPanelPlatformTests.VisibleLatencyTests testInvalidClocksCannotProduceMeasurements]' passed (0.000 seconds).
+Test Case '-[MacPanelPlatformTests.VisibleLatencyTests testMarkerRequiresAllFourOpaqueColorsInOrder]' started.
+Test Case '-[MacPanelPlatformTests.VisibleLatencyTests testMarkerRequiresAllFourOpaqueColorsInOrder]' passed (0.000 seconds).
+Test Case '-[MacPanelPlatformTests.VisibleLatencyTests testOrderingStaleHiddenAndUnpaintedFramesCannotCompleteATrial]' started.
+Test Case '-[MacPanelPlatformTests.VisibleLatencyTests testOrderingStaleHiddenAndUnpaintedFramesCannotCompleteATrial]' passed (0.000 seconds).
+Test Suite 'VisibleLatencyTests' passed at 2026-10-24 20:11:42.131.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'MacPanelPlatformTests.xctest' passed at 2026-10-24 20:11:42.131.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 0.006 (0.007) seconds
+Test Suite 'Selected tests' passed at 2026-10-24 20:11:42.131.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 0.006 (0.008) seconds

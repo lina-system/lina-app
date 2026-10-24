@@ -1,0 +1,51 @@
+LINA_VISIBLE_READY {"nextTrial":1,"targetCount":10}
+LINA_VISIBLE_HOTKEY status=0 signature=1279872577 id=1
+LINA_VISIBLE_DISPATCH {"armed":true,"finished":false,"visible":false}
+LINA_VISIBLE_SHORTCUT {"inputSource":"carbon-global-hotkey","nativeEventTime":45963.778339833334,"trial":1}
+LINA_VISIBLE_SAMPLE {"shortcutToVisibleMs":242.26366666698596,"trial":1}
+LINA_VISIBLE_READY {"nextTrial":2,"targetCount":10}
+LINA_VISIBLE_HOTKEY status=0 signature=1279872577 id=1
+LINA_VISIBLE_DISPATCH {"armed":true,"finished":false,"visible":false}
+LINA_VISIBLE_SHORTCUT {"inputSource":"carbon-global-hotkey","nativeEventTime":45973.89156425,"trial":2}
+LINA_VISIBLE_SAMPLE {"shortcutToVisibleMs":113.23937500128523,"trial":2}
+LINA_VISIBLE_READY {"nextTrial":3,"targetCount":10}
+LINA_VISIBLE_HOTKEY status=0 signature=1279872577 id=1
+LINA_VISIBLE_DISPATCH {"armed":true,"finished":false,"visible":false}
+LINA_VISIBLE_SHORTCUT {"inputSource":"carbon-global-hotkey","nativeEventTime":45983.207485875006,"trial":3}
+LINA_VISIBLE_SAMPLE {"shortcutToVisibleMs":230.46524999517715,"trial":3}
+LINA_VISIBLE_READY {"nextTrial":4,"targetCount":10}
+LINA_VISIBLE_HOTKEY status=0 signature=1279872577 id=1
+LINA_VISIBLE_DISPATCH {"armed":true,"finished":false,"visible":false}
+LINA_VISIBLE_SHORTCUT {"inputSource":"carbon-global-hotkey","nativeEventTime":45994.905086916668,"trial":4}
+LINA_VISIBLE_SAMPLE {"shortcutToVisibleMs":132.81029166682856,"trial":4}
+LINA_VISIBLE_READY {"nextTrial":5,"targetCount":10}
+LINA_VISIBLE_HOTKEY status=0 signature=1279872577 id=1
+LINA_VISIBLE_DISPATCH {"armed":true,"finished":false,"visible":false}
+LINA_VISIBLE_SHORTCUT {"inputSource":"carbon-global-hotkey","nativeEventTime":46004.030272916672,"trial":5}
+LINA_VISIBLE_SAMPLE {"shortcutToVisibleMs":240.10766666469863,"trial":5}
+LINA_VISIBLE_READY {"nextTrial":6,"targetCount":10}
+LINA_VISIBLE_HOTKEY status=0 signature=1279872577 id=1
+LINA_VISIBLE_DISPATCH {"armed":true,"finished":false,"visible":false}
+LINA_VISIBLE_SHORTCUT {"inputSource":"carbon-global-hotkey","nativeEventTime":46015.492671,"trial":6}
+LINA_VISIBLE_SAMPLE {"shortcutToVisibleMs":145.18162499734899,"trial":6}
+LINA_VISIBLE_READY {"nextTrial":7,"targetCount":10}
+LINA_VISIBLE_HOTKEY status=0 signature=1279872577 id=1
+LINA_VISIBLE_DISPATCH {"armed":true,"finished":false,"visible":false}
+LINA_VISIBLE_SHORTCUT {"inputSource":"carbon-global-hotkey","nativeEventTime":46024.660703875001,"trial":7}
+LINA_VISIBLE_SAMPLE {"shortcutToVisibleMs":129.04583333875053,"trial":7}
+LINA_VISIBLE_READY {"nextTrial":8,"targetCount":10}
+LINA_VISIBLE_HOTKEY status=0 signature=1279872577 id=1
+LINA_VISIBLE_DISPATCH {"armed":true,"finished":false,"visible":false}
+LINA_VISIBLE_SHORTCUT {"inputSource":"carbon-global-hotkey","nativeEventTime":46034.694070541671,"trial":8}
+LINA_VISIBLE_SAMPLE {"shortcutToVisibleMs":127.15766666224226,"trial":8}
+LINA_VISIBLE_READY {"nextTrial":9,"targetCount":10}
+LINA_VISIBLE_HOTKEY status=0 signature=1279872577 id=1
+LINA_VISIBLE_DISPATCH {"armed":true,"finished":false,"visible":false}
+LINA_VISIBLE_SHORTCUT {"inputSource":"carbon-global-hotkey","nativeEventTime":46045.908917708337,"trial":9}
+LINA_VISIBLE_SAMPLE {"shortcutToVisibleMs":129.23970833071508,"trial":9}
+LINA_VISIBLE_READY {"nextTrial":10,"targetCount":10}
+LINA_VISIBLE_HOTKEY status=0 signature=1279872577 id=1
+LINA_VISIBLE_DISPATCH {"armed":true,"finished":false,"visible":false}
+LINA_VISIBLE_SHORTCUT {"inputSource":"carbon-global-hotkey","nativeEventTime":46055.360528458339,"trial":10}
+LINA_VISIBLE_SAMPLE {"shortcutToVisibleMs":127.34808332606917,"trial":10}
+{"status":"measured","summary":{"count":10,"medianMs":131.02499999877182,"p90Ms":240.10766666469863},"evidence":"docs/research/captures/mac-panel/visible-latency.json"}

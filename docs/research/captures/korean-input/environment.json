@@ -1,0 +1,18 @@
+{
+  "system": "Linux",
+  "release": "7.0.0-30-generic",
+  "machine": "x86_64",
+  "flutter": {
+    "frameworkVersion": "3.47.8",
+    "channel": "stable",
+    "frameworkRevision": "737ba8f885dc774b53b442759999a312c9461e4e",
+    "engineRevision": "cf636b1dfb818dd6a3ff16e390e93b1a036969c8",
+    "dartSdkVersion": "3.13.7"
+  },
+  "packages": "fcitx5\t5.1.19-1\nfcitx5-frontend-gtk3\t5.1.6-1\nfcitx5-hangul:amd64\t5.1.9-1\nlibgtk-3-0t64:amd64\t3.24.52-0ubuntu1\nlibhangul1:amd64\t0.2.0-1build1\n",
+  "backend": "Xvfb X11 / XTest / GTK_IM_MODULE=fcitx",
+  "physicalDevice": false,
+  "binarySha256": "c86da5ac58358b73e845f73f46dc49d74bdd744644e7ba20497e9f019a698f67",
+  "sourceSha256": "d096ed184aca91320cbae9460793778bc0e93daa03eaf7950a455b52162d7c37",
+  "hangulConfig": "Keyboard=Dubeolsik; HanjaMode=False; HanjaModeToggleKey=F9"
+}

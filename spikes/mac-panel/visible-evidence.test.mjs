@@ -8,6 +8,8 @@ const evidence = JSON.parse(readFileSync(new URL('../../docs/research/captures/m
 const frames = new URL('../../docs/research/captures/mac-panel/', import.meta.url);
 test('accepted evidence has ten real shortcut/WindowServer frame pairs', () => {
   assert.equal(verifyVisibleEvidence(evidence, frames).count, 10);
+  const foreground = JSON.parse(readFileSync(new URL('foreground-visible-latency.json', frames)));
+  assert.equal(verifyVisibleEvidence(foreground, frames).count, 10);
 });
 test('ordering-only, stale, hidden, mismatched or fabricated summaries cannot pass', () => {
   for (const modify of [
@@ -15,10 +17,12 @@ test('ordering-only, stale, hidden, mismatched or fabricated summaries cannot pa
     d => { d.samples[0].windowServerDisplayTimeSeconds = d.samples[0].shortcutEventTimeSeconds - 1; },
     d => { d.samples[0].windowOnScreen = false; },
     d => { d.samples[0].markerMatches = false; },
+    d => { d.samples[0].originalAppWasExternal = false; },
+    d => { d.samples[0].externalAppStillFrontmostAtFrame = false; },
     d => { d.samples[0].inputSource = 'direct-show'; },
     d => { d.samples[0].frameSha256 = '0'.repeat(64); },
     d => { d.summary.medianMs = 1; },
-    d => { d.backgroundGlobalHotkeyLatency = 'measured'; },
+    d => { d.samples[0].inputSource = 'appkit-local-keyDown'; d.backgroundGlobalHotkeyLatency = 'measured'; },
   ]) {
     const changed = structuredClone(evidence);
     modify(changed);

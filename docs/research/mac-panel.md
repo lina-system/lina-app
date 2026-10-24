@@ -6,7 +6,7 @@ Research for [#89](https://github.com/lina-system/lina-app/issues/89), informing
 clipboard; retain Flutter for the panel UI provisionally.** The embedded
 Flutter panel became key without changing the foreground app in this run.
 Shortcut-to-visible Flutter frames are now measured below. Physical Korean IME,
-full-screen/Spaces, dismissal and background-global-shortcut checks remain in [#102](https://github.com/lina-system/lina-app/issues/102).
+full-screen/Spaces, dismissal and alternate-shortcut checks remain in [#102](https://github.com/lina-system/lina-app/issues/102).
 This does not close or decide #2. The evidence table and recommendation are
 [posted on #2](https://github.com/lina-system/lina-app/issues/2#issuecomment-6382797958).
 
@@ -39,7 +39,8 @@ dv heavy -- node scripts/mac-panel.mjs flutter
 node scripts/mac-panel.mjs smoke-flutter
 node scripts/mac-panel.mjs measure
 node scripts/mac-panel.mjs measure-flutter
-node scripts/mac-panel.mjs measure-visible-local
+scripts/benchmarks/probe/run.sh panel-shortcut
+node scripts/mac-panel.mjs measure-visible
 node scripts/mac-panel-evidence.mjs
 swift test --package-path spikes/mac-panel -j 2 --filter MacPanelPlatformTests
 dv heavy -- node scripts/foundation.mjs
@@ -62,12 +63,12 @@ unverified, not a failure of Flutter and not a pass inferred from code.
 
 | #2 item | Status | Evidence and limits |
 | --- | --- | --- |
-| Configurable global shortcut opens/closes while another app is frontmost | **Unverified** | Carbon registration succeeds in the signed runs; validation is tested and the UI offers two saved combinations. Physical key delivery, alternate registration, conflict handling and repeated toggling in another app need #102. |
+| Configurable global shortcut opens/closes while another app is frontmost | **Unverified** | Ten real registered Carbon global-key events open the panel while the external probe stays foreground. The configured key matcher and Carbon ID validation are tested. Alternate-shortcut registration, conflict handling and physical open/close toggling remain in #102. |
 | Non-activating panel above the active app, receiving keys; Esc/outside click; full-screen/Spaces | **Unverified** overall | **Pass** for ordinary-window ordering: ten embedded-Flutter shows made the panel key while the original external app stayed foreground, including after hiding. Actual typing, Esc/outside-click focus return, full-screen and Spaces need #102. NSPanel flags alone are not proof. |
 | Korean input and no submission on composition Enter | **Unverified** | Synthetic Flutter editing-value tests pass for composing Enter, the same-frame commit guard, committed Enter exactly once and Shift+Enter/Escape routing. Physical macOS 2-Set is not emulated by those tests; see the per-criterion table below. |
 | Local clipboard history skips concealed/transient items and never reaches Core | **Pass** for the spike | XCTest uses a private NSPasteboard with multiple items; a marker on any item rejects the whole copy before reading text. Five modern/legacy markers, source ignores, opt-in baseline, bounds, deduplication and clearing are covered. No Core/network/persistence API exists. Real password-manager integrations were not exercised. |
 | Flutter renders token-based UI; native code owns window/shortcut/clipboard; API documented | **Pass** | Embedded release builds and the hidden first-frame/channel handshake pass. `SpikeTokens` keeps this study workload fixed; production screens use the now-landed `lina_design` package from #5. Boundary below. |
-| Signed-app shortcut-to-visible latency and resident memory | **Measured** | Ten native foreground shortcut events to matching WindowServer-displayed Flutter frames: median **140.83 ms**, p90 **248.95 ms**. Signed release RSS: **117.59 MiB** in the separate idle/ordering run. Background Carbon delivery and physical key-to-photon timing are not established by this foreground measurement. |
+| Signed-app shortcut-to-visible latency and resident memory | **Measured** | Ten registered Carbon global-shortcut events to matching WindowServer-displayed Flutter frames: median **131.02 ms**, p90 **240.11 ms**. Signed release RSS: **117.59 MiB** in the separate idle/ordering run. The probe supplies real OS key events; physical keyboard-to-photon and matched baseline comparisons are not claimed. |
 | Record every result with recordings/logs; define native replacement for failures | **Unverified** for device recordings | This table, raw logs, measurements, ten actual captured compositor frames and the widget-rendered PNG are committed. #102 supplies real-device recordings. No physical check has established a failing Flutter component; no larger native replacement is justified yet. |
 
 ### Korean criteria, separately
@@ -91,71 +92,83 @@ behavior in #1. There is no custom IME bridge and no character-limit rewrite.
 ## Shortcut-to-visible measurement
 
 On the reference M2 Pro Mac, the ad-hoc-signed, sandboxed Flutter 3.47.8 release
-produced **10 measured native-shortcut-to-visible-frame samples: median
-140.83 ms, nearest-rank p90 248.95 ms**. One warm-up was excluded. All ten
-accepted frames show the complete Flutter panel and the expected alternating
-marker; [the first captured frame](../captures/LA-89/shortcut-visible.png) is an
-actual ScreenCaptureKit image, not a widget golden.
+produced **10 measured background global-shortcut-to-visible-frame samples:
+median 131.02 ms, nearest-rank p90 240.11 ms**. One warm-up was excluded.
+Every sample entered the registered Carbon hotkey handler; the original app was
+external to the panel process and remained foreground when the matching Flutter
+frame was displayed. These booleans are recorded per sample.
 
-Command: `node scripts/mac-panel.mjs measure-visible-local`. After each
-`LINA_VISIBLE_READY`, the existing CUA driver sent `ctrl+alt+space` to the
-synthetic **foreground window in the same app**. That native AppKit keyDown
-passes the configured physical-key/modifier matcher and the normal shortcut
-callback. No timer, method-channel call or direct `show()` call starts a trial.
-The separate background route continues to use Carbon `RegisterEventHotKey`.
+Commands, after the documented release builds:
 
-The measured interval starts at **`NSEvent.timestamp` for the shortcut key** and
+```sh
+node scripts/mac-panel.mjs measure-visible
+scripts/benchmarks/probe/run.sh panel-shortcut
+# Click the probe's Send panel shortcut control once per LINA_VISIBLE_READY.
+node scripts/mac-panel-evidence.mjs
+```
+
+The stable **LINA Probe** app already held Accessibility and Screen Recording
+grants. It was rebuilt with the same signing identity and verified to retain
+those grants. Its narrowly scoped control posts one fixed Control+Option+Space
+HID chord per click. The collector receives the actual registered Carbon event,
+not a direct callback, timer, method-channel invocation or programmatic `show`.
+No permission was requested and no security/session setting changed.
+
+The interval starts at **`GetEventTime` for the registered Carbon shortcut** and
 ends at **`SCStreamFrameInfo.displayTime` of the first accepted frame**, converted
 from mach absolute ticks with the recorded timebase. Apple's SDK defines that
 attachment as the time when the WindowServer displayed the frame. The callback
-receipt timestamp supplies an independent observation upper bound. The collector
-requires a complete frame, an on-screen/visible window and the expected Flutter
-marker; hidden, stale, blank and wrong-marker frames cannot complete a trial.
+receipt timestamp supplies an observation upper bound. Only a complete frame,
+a visible/on-screen window and the expected alternating Flutter marker can
+complete a trial. Hidden, stale, blank and wrong-marker frames are rejected.
 
-| Trial | Native shortcut → displayed Flutter frame (ms) |
+| Trial | Global shortcut → displayed Flutter frame (ms) |
 | --- | --- |
-| 1 | 125.07 |
-| 2 | 258.09 |
-| 3 | 144.14 |
-| 4 | 135.44 |
-| 5 | 142.94 |
-| 6 | 243.44 |
-| 7 | 127.48 |
-| 8 | 138.72 |
-| 9 | 137.31 |
-| 10 | 248.95 |
+| 1 | 242.26 |
+| 2 | 113.24 |
+| 3 | 230.47 |
+| 4 | 132.81 |
+| 5 | 240.11 |
+| 6 | 145.18 |
+| 7 | 129.05 |
+| 8 | 127.16 |
+| 9 | 129.24 |
+| 10 | 127.35 |
 
-Raw native/WindowServer/receipt timestamps, frame decisions, per-frame SHA-256,
-app/Dart binary hashes and the exact input route are in
-[visible-latency.json](captures/mac-panel/visible-latency.json). The ten PNGs
-are `visible-frame-01.png` through `visible-frame-10.png` beside it. Run
-`node scripts/mac-panel-evidence.mjs` to recompute all durations/statistics and
-verify hashes, raw-frame matches and input-route claims. CI also proves that
-stale/hidden frames, modified hashes, ordering-only evidence, invented summaries
-and a false global-route claim fail this validator.
+[visible-latency.json](captures/mac-panel/visible-latency.json) contains raw native,
+WindowServer and receipt timestamps, frame decisions, input route, summary and
+per-frame/executable/Dart SHA-256 hashes. The ten actual PNGs are
+`visible-frame-01.png` through `visible-frame-10.png`; [the first frame](../captures/LA-89/shortcut-visible.png)
+shows the displayed panel. [visible-run.json](captures/mac-panel/visible-run.json)
+records commands, hardware/toolchain, source hashes and signed-probe provenance.
+The stimulus and collector logs are preserved beside them.
 
-**Scope of the result:** this is a warm foreground AppKit shortcut measurement
-with an opaque, read-only synthetic panel and clipboard off. It includes input
-delivery to the app, app handling, Flutter rendering and WindowServer presentation
-for that condition. It is neither a programmatic ordering proxy nor physical
-keyboard-to-photon latency. It does not establish background Carbon routing,
-external-app focus preservation, full-screen/Spaces, cold launch or Spotlight
-parity. The prior ordering numbers remain separate below. No acceptance speed
-threshold is inferred from these ten samples.
+`node scripts/mac-panel-evidence.mjs` recomputes durations/statistics and verifies
+frame hashes, raw-frame matches and the external foreground condition. CI checks
+that ordering-only evidence, stale/hidden frames, wrong hashes, invented summaries
+and falsely labeling a local key as global all fail validation.
 
-The previous global Screen Recording preflight did not describe the narrower
-capture capability. macOS 14.4's `SCShareableContent.currentProcess` explicitly
-returns content capturable by the current process without TCC consent. The
-collector filters it to its own PID/window, captures no other app, and uses an
-opaque surface so no private background can enter the PNGs. No permission was
-granted. A locked session was refused before collection; the successful run
-occurred after the owner had unlocked it.
+**Scope:** a warm panel with synthetic content, opaque material, a read-only field
+and clipboard off. The endpoint is the first accepted freshly rendered Flutter
+marker frame displayed by WindowServer, not only window ordering. The stimulus
+is a genuine synthetic OS key event; physical keyboard hardware and photon
+scanout are outside this clock interval. This measures the global route while
+another app is frontmost, but does not establish full-screen/Spaces behavior,
+cold launch or Spotlight parity. No acceptance-speed threshold is inferred.
+Normal background development workloads remained running.
 
-CUA's app-bound keyboard driver does not enter the system global-hotkey router,
-so that route cannot be inferred from these samples. The collector also supports
-`measure-visible` with physical global shortcut input and an external synthetic
-fixture for the remaining background checks in #102. Those are separate test
-conditions; the foreground visible-frame measurement above is complete in #89.
+The earlier foreground AppKit run is retained separately in
+[foreground-visible-latency.json](captures/mac-panel/foreground-visible-latency.json)
+and `foreground-visible-frame-*.png` (median 140.83 ms, p90 248.95 ms). It is not
+used as evidence of background-global routing. The native app supports both
+normal AppKit foreground shortcuts and Carbon background registration.
+
+The original global Screen Recording preflight did not describe the narrower
+capture capability: macOS 14.4's `SCShareableContent.currentProcess` returns
+content capturable by the current process without TCC consent. The collector
+captures only its own PID/window, never another app. The synthetic opaque panel
+prevents private background pixels from entering captures. A locked session
+was refused; the successful runs occurred after the owner unlocked the Mac.
 
 ## Separate ordering and resident-memory measurements
 
@@ -267,8 +280,8 @@ fixtures and quit both test apps afterward.
    across Spaces, including the first invocation.
 3. Run all five Korean rows above, including candidate-window placement and
    fast typing. Use recordings, not pasted Hangul, as IME evidence.
-4. Extend the completed foreground visible-frame result to physical background
-   Carbon shortcuts and matched baseline conditions, recording raw timing rows. Rerun RSS with the same workload and
+4. Extend the completed global-shortcut visible-frame result to physical keyboard
+   and matched Spotlight/Raycast baseline conditions, recording raw timing rows. Rerun RSS with the same workload and
    sample schedule before any production comparison.
 5. Update this table and the evidence comment on #2. The owner decides whether
    the unverified checks pass and whether a named native fallback is required.

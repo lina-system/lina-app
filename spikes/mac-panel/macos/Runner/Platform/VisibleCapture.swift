@@ -163,6 +163,8 @@ public final class VisibleCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             "shortcutToVisibleMs": result.frameLatencyMs, "observationUpperBoundMs": result.observationUpperBoundMs,
             "windowOnScreen": visible, "markerMatches": matched, "panelBecameKey": host.panel.isKeyWindow,
             "originalAppStayedActive": host.originalAppStayedActive == true,
+            "originalAppWasExternal": host.originalAppWasExternal == true,
+            "externalAppStillFrontmostAtFrame": NSWorkspace.shared.frontmostApplication?.processIdentifier != ProcessInfo.processInfo.processIdentifier,
             "framePngBase64": png.base64EncodedString()]
         samples.append(sample)
         emit("LINA_VISIBLE_SAMPLE", ["trial": samples.count, "shortcutToVisibleMs": result.frameLatencyMs])

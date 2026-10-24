@@ -62,11 +62,14 @@ class ConversationController extends ChangeNotifier {
   }
   final CoreConnection core;
   final Map<String, AgentPresentation> _agents = {};
+  final List<AgentPresentation> _retired = [];
+  List<ProtocolAgent> _catalog = const [];
   late final StreamSubscription<void> _changes;
   late final StreamSubscription<Envelope> _events;
   ProtocolWelcome? _welcome;
   Object _generation = Object();
   Object _selection = Object();
+  Object get selectionVersion => _selection;
   bool _disposed = false;
   String? selectedId;
   String page = 'Home';
@@ -76,7 +79,22 @@ class ConversationController extends ChangeNotifier {
   bool get canForward => _forward.isNotEmpty;
   final _unselected = AgentPresentation('');
   AgentPresentation get selected => _agents[selectedId] ?? _unselected;
-  List<ProtocolAgent> get agents => core.welcome?.agents ?? const [];
+  List<ProtocolAgent> get agents => _catalog;
+  String? agentOperation;
+  String? agentFeedback;
+  bool agentsUncertain = false;
+  bool _selectionUncertain = false;
+  bool get agentBusy => agentOperation != null;
+  bool get canManageAgents =>
+      core.phase == ConnectionPhase.connected &&
+      core.hasCapability('agents') &&
+      !agentBusy &&
+      !agentsUncertain;
+  bool get canChooseAgent =>
+      core.phase == ConnectionPhase.connected &&
+      !agentBusy &&
+      !agentsUncertain &&
+      (core.hasCapability('agents') || core.hasCapability('conversation'));
   bool get selectionAvailable => agents.any((a) => a.agentId == selectedId);
   String get selectedName =>
       agents.where((a) => a.agentId == selectedId).firstOrNull?.name ??
@@ -89,6 +107,8 @@ class ConversationController extends ChangeNotifier {
       selected.ready &&
       core.phase == ConnectionPhase.connected &&
       core.hasCapability('conversation') &&
+      !agentBusy &&
+      !_selectionUncertain &&
       !selected.sending &&
       !selected.composing &&
       !selected.compositionEnding;
@@ -124,6 +144,12 @@ class ConversationController extends ChangeNotifier {
   void _connectionChanged() {
     if (core.phase != ConnectionPhase.connected) {
       _generation = Object();
+      if (agentBusy) {
+        agentsUncertain = true;
+        agentFeedback =
+            '모름 · Reconnect and refresh agents to check the outcome.';
+        agentOperation = null;
+      }
       for (final state in _agents.values) {
         state.ready = false;
       }
@@ -137,7 +163,24 @@ class ConversationController extends ChangeNotifier {
     }
     final previous = _welcome;
     _welcome = welcome;
+    _catalog = welcome.agents;
     _generation = Object();
+    agentOperation = null;
+    agentsUncertain = false;
+    _selectionUncertain = false;
+    if (previous != null &&
+        (previous.mainId != welcome.mainId ||
+            previous.personId != welcome.personId)) {
+      // Never restore a draft or document into a different owner/workspace,
+      // even if that Core happens to use the same agent ids.
+      selected.focus.unfocus();
+      _retired.addAll(_agents.values);
+      _agents.clear();
+      _unselected.draft.clear();
+      selectedId = null;
+      _selection = Object();
+      agentFeedback = null;
+    }
     _refreshing.clear();
     progress = null;
     _progress.needsSnapshot = true;
@@ -146,26 +189,23 @@ class ConversationController extends ChangeNotifier {
       state.window?.needsSnapshot = true;
       state.replyCompleted = false;
       state.stopConfirmed = false;
-      if (previous != null &&
-          (previous.mainId != welcome.mainId ||
-              previous.personId != welcome.personId)) {
-        state.window = null;
-        state.conversationId = null;
-        state.document = null;
-      }
+      if (!selectionAvailable && state.agentId == selectedId)
+        _removeConversation(state);
     }
     if (core.hasCapability('conversation')) {
       if (selectedId == null) {
         unawaited(_discover());
       } else if (selectionAvailable) {
-        unawaited(_load(selected));
+        // Reconcile Core's saved choice without replaying a selection write.
+        _selectionUncertain = true;
+        unawaited(_discover(reconcile: true));
       }
     }
     if (core.hasCapability('progress')) unawaited(_loadProgress());
     _notify();
   }
 
-  Future<void> _discover() async {
+  Future<void> _discover({bool reconcile = false}) async {
     final generation = _generation;
     final selection = _selection;
     try {
@@ -176,15 +216,22 @@ class ConversationController extends ChangeNotifier {
       if (_disposed ||
           generation != _generation ||
           selection != _selection ||
-          selectedId != null)
+          (!reconcile && selectedId != null))
         return;
       if (reply.kind != 'history' || reply.error != null) return;
       final history = reply.typedPayload as ProtocolHistory;
       final id = history.agentId;
       if (id == null || !agents.any((a) => a.agentId == id)) return;
+      final initial = selectedId == null;
+      if (selectedId != id) {
+        selected.restoreFocus = selected.focus.hasFocus;
+        selected.focus.unfocus();
+      }
       selectedId = id;
+      _selectionUncertain = false;
+      if (reconcile) agentFeedback = null;
       final state = _agent(id);
-      _carryInitialDraft(state);
+      if (initial) _carryInitialDraft(state);
       await _acceptHistory(state, history, generation);
     } on ConnectionLost {
       _notify();
@@ -194,7 +241,14 @@ class ConversationController extends ChangeNotifier {
   }
 
   Future<void> choose(String id) async {
-    if (!agents.any((a) => a.agentId == id)) return;
+    if (!canChooseAgent || !agents.any((a) => a.agentId == id)) return;
+    final generation = _generation;
+    if (core.hasCapability('agents') && !await _requestAgent('choose', id: id))
+      return;
+    if (_disposed ||
+        generation != _generation ||
+        !agents.any((a) => a.agentId == id))
+      return;
     final state = _agent(id);
     if (selectedId == null) _carryInitialDraft(state);
     selected.restoreFocus = selected.focus.hasFocus;
@@ -207,6 +261,125 @@ class ConversationController extends ChangeNotifier {
         core.phase == ConnectionPhase.connected &&
         core.hasCapability('conversation'))
       await _load(state);
+  }
+
+  Future<bool> createAgent(String name) => _requestAgent('create', name: name);
+  Future<bool> renameAgent(String id, String name) =>
+      _requestAgent('rename', id: id, name: name);
+  Future<bool> deleteAgent(String id) => _requestAgent('delete', id: id);
+
+  Future<void> refreshAgents() async {
+    if (await _requestAgent('list')) {
+      if (_selectionUncertain && selectionAvailable) {
+        await _discover(reconcile: true);
+      } else if (selectionAvailable && !selected.ready) {
+        await _load(selected);
+      }
+    }
+  }
+
+  Future<bool> _requestAgent(
+    String operation, {
+    String? id,
+    String? name,
+  }) async {
+    if (_disposed ||
+        core.phase != ConnectionPhase.connected ||
+        !core.hasCapability('agents') ||
+        agentBusy ||
+        (agentsUncertain && operation != 'list') ||
+        (id != null && !agents.any((a) => a.agentId == id)) ||
+        (name != null && name.trim().isEmpty))
+      return false;
+    final generation = _generation;
+    // Invalidate an initial history request before an explicit selection.
+    if (operation == 'choose') _selection = Object();
+    agentOperation = operation;
+    agentFeedback = 'Waiting for Core';
+    _notify();
+    void uncertain() {
+      agentsUncertain = true;
+      if (operation == 'choose' || (operation == 'delete' && id == selectedId))
+        _selectionUncertain = true;
+      agentFeedback =
+          '모름 · Refresh agents to check the outcome before trying again.';
+    }
+
+    try {
+      final reply = await core.request(
+        'agent_request',
+        ProtocolAgentRequest.fromJson({
+          'operation': operation,
+          if (id != null) 'agent_id': id,
+          if (name != null) 'name': name,
+        }),
+      );
+      if (_disposed || generation != _generation) return false;
+      if (reply.error != null ||
+          const [
+            'refused',
+            'failed',
+            'cancelled',
+          ].contains(reply.effectState)) {
+        agentFeedback =
+            'Core could not $operation the agent. Refresh agents and try again.';
+        return false;
+      }
+      final expectedEffect = operation == 'list' || operation == 'choose'
+          ? 'none'
+          : 'applied';
+      if (reply.kind != 'agent_result' || reply.effectState != expectedEffect) {
+        uncertain();
+        return false;
+      }
+      final result = reply.typedPayload as ProtocolAgentResult;
+      final rows = result.agents;
+      if (result.operation != operation ||
+          rows == null ||
+          (id != null && result.agentId != id) ||
+          rows.any((a) => a.agentId.isEmpty) ||
+          rows.map((a) => a.agentId).toSet().length != rows.length ||
+          (operation == 'create' &&
+              !rows.any((a) => a.agentId == result.agentId)) ||
+          (operation == 'choose' && !rows.any((a) => a.agentId == id)) ||
+          (operation == 'delete' && rows.any((a) => a.agentId == id))) {
+        uncertain();
+        return false;
+      }
+      _catalog = rows;
+      for (final entry in _agents.entries) {
+        if (!rows.any((a) => a.agentId == entry.key))
+          _removeConversation(entry.value);
+      }
+      agentsUncertain = false;
+      if (operation == 'choose') _selectionUncertain = false;
+      agentFeedback = switch (operation) {
+        'create' => 'Agent created by Core.',
+        'rename' => 'Name changed by Core.',
+        'delete' => 'Agent deleted by Core. Choose another agent to continue.',
+        _ => null,
+      };
+      return true;
+    } on ConnectionLost {
+      if (!_disposed && generation == _generation) uncertain();
+      return false;
+    } on FormatException {
+      if (!_disposed && generation == _generation) uncertain();
+      return false;
+    } finally {
+      if (generation == _generation) agentOperation = null;
+      _notify();
+    }
+  }
+
+  void _removeConversation(AgentPresentation state) {
+    state.ready = false;
+    state.window = null;
+    state.conversationId = null;
+    state.documentRequest = Object();
+    state.document = null;
+    state.newerDocument = null;
+    state.active = false;
   }
 
   void _carryInitialDraft(AgentPresentation state) {
@@ -252,7 +425,9 @@ class ConversationController extends ChangeNotifier {
     ProtocolHistory history,
     Object generation,
   ) async {
-    if (history.agentId != state.agentId || history.conversationId == null)
+    if (!agents.any((a) => a.agentId == state.agentId) ||
+        history.agentId != state.agentId ||
+        history.conversationId == null)
       return;
     final topic = 'conversation:${history.conversationId}';
     state.conversationId = history.conversationId;
@@ -414,9 +589,12 @@ class ConversationController extends ChangeNotifier {
     }
   }
 
-  Future<void> send() async {
+  Future<void> send({AgentPresentation? target}) async {
     final state = selected;
-    if (!canSend || state.draft.text.isEmpty) return;
+    if ((target != null && !identical(target, state)) ||
+        !canSend ||
+        state.draft.text.isEmpty)
+      return;
     final text = state.draft.text;
     final edit = state.editVersion;
     final generation = _generation;
@@ -473,9 +651,12 @@ class ConversationController extends ChangeNotifier {
     }
   }
 
-  Future<void> stop() async {
+  Future<void> stop({AgentPresentation? target}) async {
     final state = selected;
-    if (!selectionAvailable ||
+    if ((target != null && !identical(target, state)) ||
+        agentBusy ||
+        _selectionUncertain ||
+        !selectionAvailable ||
         !state.ready ||
         !state.active ||
         state.stopping ||
@@ -624,6 +805,9 @@ class ConversationController extends ChangeNotifier {
     _changes.cancel();
     _events.cancel();
     for (final state in _agents.values) {
+      state.dispose();
+    }
+    for (final state in _retired) {
       state.dispose();
     }
     _unselected.dispose();

@@ -55,7 +55,8 @@ build define. TCP belongs on the private tailnet; Core's listener authenticates
 the device/owner. No client identity field grants permission, and no model,
 worker or external service is contacted by this app.
 
-The app offers client **1.0**, conversation, read-only progress and the eight basic result card
+The app offers client **1.0**, conversation, agent management (`agents` 1.0),
+read-only progress and the eight basic result card
 types. Parsing the broader fixture corpus does not advertise client 1.1 surfaces,
 mini apps or mocks. Welcome must match the request/RPC ids, Core sender/main,
 epoch, selected version and an offered subset of capabilities. A typed refusal
@@ -65,6 +66,9 @@ exists. The client never substitutes the TUI identity to bypass that table.
 
 The screen holds only presentation preferences, current topic snapshots, request
 correlation and per-agent drafts, search, focus and reading position in memory.
+Agent management uses the generated list/create/choose/rename/delete requests;
+create currently uses Core’s Lina default because the schema has no preset selector.
+See the [agent verification record](../research/10-agents.md) for the tracked gaps.
 Core discovers the selected main conversation; snapshots and cursor checks route
 updates independently of the currently visible agent. The conversation
 [verification record](../research/9-conversation.md) distinguishes shipped

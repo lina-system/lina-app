@@ -34,6 +34,9 @@ class ConversationCore extends CoreConnection {
   final answers = <String, Envelope>{};
   final snapshots = <String, List<Map<String, dynamic>>>{};
   bool holdHistory = false;
+  String selectedAgent = 'lina';
+  bool holdAgents = false;
+  final agentReplies = <Completer<Envelope>>[];
   final histories = <Completer<Envelope>>[];
   @override
   Stream<Envelope> get events => messages.stream;
@@ -45,6 +48,7 @@ class ConversationCore extends CoreConnection {
       ...fixture('welcome')['payload'] as Map<String, dynamic>,
       'capabilities': [
         {'name': 'conversation', 'version': '1.0'},
+        {'name': 'agents', 'version': '1.0'},
       ],
       'epoch': epoch,
       'agents':
@@ -86,13 +90,28 @@ class ConversationCore extends CoreConnection {
   }) async {
     requests.add((kind: kind, payload: payload));
     if (answers.containsKey(kind)) return answers[kind]!;
+    if (kind == 'agent_request') {
+      if (holdAgents) {
+        final c = Completer<Envelope>();
+        agentReplies.add(c);
+        return c.future;
+      }
+      if (payload.json['operation'] == 'choose')
+        selectedAgent = payload.json['agent_id'] as String;
+      return event('agent_result', {
+        'operation': payload.json['operation'],
+        if (payload.json['agent_id'] != null)
+          'agent_id': payload.json['agent_id'],
+        'agents': welcome!.agents.map((a) => a.toJson()).toList(),
+      });
+    }
     if (kind == 'history_get' || kind == 'conversation_start') {
       if (holdHistory) {
         final c = Completer<Envelope>();
         histories.add(c);
         return c.future;
       }
-      return history(payload.json['agent_id'] as String? ?? 'lina');
+      return history(payload.json['agent_id'] as String? ?? selectedAgent);
     }
     if (kind == 'subscribe') return event('item_done', {});
     final c = Completer<Envelope>();

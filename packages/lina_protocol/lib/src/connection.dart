@@ -35,6 +35,7 @@ class CoreConnection {
   static const productVersion = '0.1.0-dev';
   static const capabilities = [
     {'name': 'conversation', 'version': '1.0'},
+    {'name': 'agents', 'version': '1.0'},
     {'name': 'progress', 'version': '1.0'},
     {
       'name': 'results',

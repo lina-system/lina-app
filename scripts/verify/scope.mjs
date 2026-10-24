@@ -14,6 +14,7 @@ const rootFiles = new Set([
 // Each tool has a dedicated CI job; do not admit arbitrary executable files.
 const researchFiles = new Set([
   'scripts/launcher-fixture.swift',
+  'scripts/dictionary.mjs', // native-macos: offline Dictionary Services and evidence validation
   'design/tokens/core/tokens.swift',
   'scripts/benchmarks/launcher_baseline.py',
   'scripts/benchmarks/tests/test_launcher_baseline.py',
@@ -49,6 +50,7 @@ export function classify(paths, registry = components) {
         /^docs\/captures\/[^/]+\/[^/]+\.png$/.test(path) ||
         /^docs\/captures\/31\/[^/]+\.(?:md|json|log|mp4)$/.test(path) ||
         /^docs\/captures\/49\/[^/]+\.(?:md|json)$/.test(path) ||
+        /^docs\/captures\/44\/[^/]+\.(?:md|json)$/.test(path) ||
         /^docs\/research\/captures\/mac-panel\/[^/]+\.(?:md|log|json|png)$/.test(path) ||
         /^docs\/research\/captures\/korean-input\/[^/]+\.(png|gif|json|txt)$/.test(path) ||
         /^\.github\/(workflows|ISSUE_TEMPLATE)\/[^/]+\.ya?ml$/.test(path) ||

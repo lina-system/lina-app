@@ -2,8 +2,9 @@
 
 The production macOS host in `packages/lina_app/macos/Runner/Launcher` owns the
 non-activating NSPanel, native NSTextField, NSTableView, navigation and dismissal.
-A hidden Flutter engine runs `launcherMain` from `lina_app` and draws only the
-answer area. Search providers, launcher-capability requests, mini-app content,
+A hidden Flutter engine runs `launcherMain` from `lina_app` and draws the
+answer area for ordinary queries. `define <word>` uses the native device dictionary
+view in that area; see [dictionary verification](44-dictionary.md). Search providers, launcher-capability requests, mini-app content,
 Korean first-key acceptance, Liquid Glass and Command-Space takeover remain in
 their owning issues. The current answer area explicitly says search is not
 connected and offers the native **Open LINA** action for the existing app.
@@ -75,8 +76,9 @@ error: String?, activationPolicy: Int, uiElement: Bool}`. Login status is `enabl
 `notFound`, `unsupported`, `unknown` or `disabledInTests`. Unknown methods return
 `FlutterMethodNotImplemented`. No network, file, URL, arbitrary command, input
 injection, login mutation or Core method is exposed over the channel. Login
-changes require the native checkbox action. The reserved result list accepts
-native `LauncherResult` display models; filling it belongs to the search work.
+changes require the native checkbox action. The result list accepts native `LauncherResult` display models. The local dictionary
+provider supplies a row and handles Return/row activation without sending the
+query or submit over this channel; other providers remain in their owning issues.
 
 ## Verification and limits
 

@@ -11,7 +11,7 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
     public let input = NSTextField()
     public let results = LauncherResultsTable()
     public let loginButton = NSButton(checkboxWithTitle: "Open at login", target: nil, action: nil)
-    public let status = NSTextField(labelWithString: "Search is not connected yet")
+    public let status = NSTextField(labelWithString: "Type define <word> for the device dictionary")
     public var onQuery: ((String) -> Void)?
     public var onSubmit: ((String, String?) -> Void)?
     public var onDismiss: (() -> Void)?
@@ -19,9 +19,14 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
     public var onLoginChange: ((Bool) -> Void)?
     public private(set) var items: [LauncherResult] = []
     private let answer: NSViewController
+    private let dictionary: LauncherDictionary
     private let loginStatus = NSTextField(labelWithString: "")
 
-    public init(answer: NSViewController) { self.answer = answer; super.init(nibName: nil, bundle: nil) }
+    public init(answer: NSViewController, dictionary: LauncherDictionary? = nil) {
+        self.answer = answer
+        self.dictionary = dictionary ?? LauncherDictionary()
+        super.init(nibName: nil, bundle: nil)
+    }
     required init?(coder: NSCoder) { fatalError("Use init(answer:)") }
     public override func loadView() {
         view = NSView(frame: NSRect(x: 0, y: 0, width: LinaAppTokens.launcherWidth, height: LinaAppTokens.launcherHeight))
@@ -68,6 +73,17 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
             child.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(child)
         }
+        addChild(dictionary)
+        dictionary.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(dictionary.view)
+        NSLayoutConstraint.activate([
+            dictionary.view.leadingAnchor.constraint(equalTo: answer.view.leadingAnchor),
+            dictionary.view.trailingAnchor.constraint(equalTo: answer.view.trailingAnchor),
+            dictionary.view.topAnchor.constraint(equalTo: answer.view.topAnchor),
+            dictionary.view.bottomAnchor.constraint(equalTo: answer.view.bottomAnchor),
+        ])
+        dictionary.onResults = { [weak self] in self?.setResults($0) }
+        dictionary.onOpened = { [weak self] in self?.onDismiss?() }
         let gap = LinaTokens.Space.inline
         let inset = LinaTokens.Space.gutter
         for child in [title, input, status, scroll, answer.view, footer, loginStatus] {
@@ -105,7 +121,7 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
     @objc private func openApp() { onOpenApp?() }
     @objc private func activateSelection() {
         guard results.selectedRow >= 0, results.selectedRow < items.count else { return }
-        onSubmit?(input.stringValue, items[results.selectedRow].id)
+        submitSelection(id: items[results.selectedRow].id)
     }
     public func numberOfRows(in tableView: NSTableView) -> Int { items.count }
     public func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
@@ -114,7 +130,17 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
         label.textColor = LinaTokens.Color.text
         return label
     }
-    public func controlTextDidChange(_ obj: Notification) { onQuery?(input.stringValue) }
+    public func controlTextDidChange(_ obj: Notification) {
+        let composing = (input.currentEditor() as? NSTextView)?.hasMarkedText() ?? false
+        let local = dictionary.update(query: input.stringValue, composing: composing)
+        dictionary.view.isHidden = !local
+        answer.view.isHidden = local
+        if !local { onQuery?(input.stringValue) }
+    }
+    private func submitSelection(id: String?) {
+        if dictionary.active { dictionary.activate(query: input.stringValue) }
+        else { onSubmit?(input.stringValue, id) }
+    }
     public func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         // AppKit/IME consumes marked-text commands before our navigation actions.
         guard !textView.hasMarkedText() else { return false }
@@ -130,7 +156,7 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
         case #selector(NSResponder.insertNewline(_:)):
             guard NSApp.currentEvent?.isARepeat != true else { return true }
             let id = items.indices.contains(results.selectedRow) ? items[results.selectedRow].id : nil
-            onSubmit?(input.stringValue, id)
+            submitSelection(id: id)
             return true
         default: return false
         }

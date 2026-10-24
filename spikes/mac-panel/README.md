@@ -26,7 +26,11 @@ For manual tests, launch `spikes/mac-panel/build/macos/Build/Products/Release/ma
 The app starts hidden. Control+Option+Space toggles the panel. Its menu bar item
 can open the panel and quit the study. Choose Command+Shift+Space in the panel
 to test reconfiguration; registration conflicts keep the working shortcut.
-Only the shortcut preference is saved. Clipboard history is off on every launch,
+Only the shortcut preference is saved, and a measurement run
+(`LINA_PANEL_VISIBLE=1`, set by `measure-visible` and `measure-visible-local`)
+neither restores it nor overwrites it: it registers the study chord from
+`macos/Runner/Platform/PanelMeasurementChord.swift` and refuses
+`configureShortcut`, so the run always hears the chord the LINA Probe posts. Clipboard history is off on every launch,
 is text-only, and lives in memory until disabled, locked, or quit. Do not enable
 history or collect recordings around personal content; use a synthetic fixture.
 Submission increments a local counter and clears committed input; it sends

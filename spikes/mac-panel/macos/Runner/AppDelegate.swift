@@ -145,6 +145,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             case "state": break
             case "hide": host.hide()
             case "configureShortcut":
+                // A measurement run keeps the probe chord registered and must
+                // not overwrite the preference the user chose outside it.
+                guard !measuringVisible else { throw ShortcutError.invalid }
                 guard let args = call.arguments as? [String: Any],
                       let code = args["keyCode"] as? Int,
                       let modifiers = args["modifiers"] as? [String] else { throw ShortcutError.invalid }

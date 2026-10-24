@@ -4,14 +4,21 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, lstatSync, readdirSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { classify, components } from './scope.mjs';
+import { findWindowsLauncher, windowsInvocation } from './launcher.mjs';
 
 const exact = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const read = (root, path) => readFileSync(join(root, path), 'utf8');
 const json = (root, path) => JSON.parse(read(root, path));
-export function execute(command, args, cwd) {
-  const env = { ...process.env, CI: 'true', PUB_HOSTED_URL: 'https://pub.dev', FLUTTER_SUPPRESS_ANALYTICS: 'true' };
+export function execute(command, args, cwd, { platform = process.platform, spawn = spawnSync, env: baseEnv = process.env, exists = existsSync } = {}) {
+  const env = { ...baseEnv, CI: 'true', PUB_HOSTED_URL: 'https://pub.dev', FLUTTER_SUPPRESS_ANALYTICS: 'true' };
   for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
-  const result = spawnSync(command, args, { cwd, env, encoding: 'utf8', timeout: 600_000, maxBuffer: 16 * 1024 * 1024 });
+  const options = { cwd, env, encoding: 'utf8', timeout: 600_000, maxBuffer: 16 * 1024 * 1024 };
+  const launcher = platform === 'win32' ? findWindowsLauncher(command, { env: baseEnv, exists }) : null;
+  const invocation = launcher
+    ? windowsInvocation(launcher, args, { comspec: env.ComSpec ?? env.COMSPEC ?? 'cmd.exe' })
+    : { command, args };
+  if (launcher) options.windowsVerbatimArguments = true;
+  const result = spawn(invocation.command, invocation.args, options);
   if (result.error || result.status !== 0) {
     throw new Error(`${command} ${args.join(' ')} failed (${result.status ?? result.signal}): ${result.error?.message ?? ''}\n${result.stdout ?? ''}${result.stderr ?? ''}`);
   }

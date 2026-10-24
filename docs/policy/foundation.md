@@ -5,6 +5,13 @@ and Node 24.20.0 on PATH. CI runs the same command. On shared development
 hosts use `dv heavy -- node scripts/foundation.mjs` for this full gate.
 There are no credentials, Core service, signing keys or device accounts needed.
 
+On Windows the standard Flutter SDK ships `flutter.bat` and `dart.bat`. Node
+refuses to spawn a batch file without a shell, so the subprocess runner resolves
+the command through `PATH` and `PATHEXT` and runs a batch launcher through
+`cmd.exe /d /s /c` with each argument quoted and `%`/`"` caret-escaped; resolved
+executables such as `git` keep their direct spawn. CI does not run this gate on
+Windows, so only the command construction is covered by tests.
+
 ## Layout and registration
 
 | Component | Path | Current state |

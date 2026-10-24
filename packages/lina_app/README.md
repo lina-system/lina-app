@@ -30,8 +30,12 @@ A development-only test manifest does not establish release acceptance.
 
 The composer sends once, preserves Korean composition and waits for Core before
 clearing the matching draft. The screen shows connection loss, rejection,
-preview/saved results and unknown outcomes explicitly. Appearance settings and
-drafts are in-memory presentation state. There is no local canonical database.
+preview/saved results and unknown outcomes explicitly. A typed refusal names the
+cause Core reported and the next action; an access refusal is not described as a
+version/platform mismatch. A welcome without the `conversation` capability
+disables the composer and says conversation is not available from this Core
+instead of inviting a send. Appearance settings and drafts are in-memory
+presentation state. There is no local canonical database.
 
 [Host contract](../../docs/policy/host-protocol.md) ·
 [Native verification evidence](../../docs/research/6-native-app.md)
@@ -46,6 +50,10 @@ Shift+Enter inserts a newline. Command/control-Enter also sends. Composition and
 its commit frame never trigger a send; mobile soft return remains a newline.
 Invalid Core addresses and unreachable sockets show a cause and recovery action
 in the connection form, preserving both the address and the conversation draft.
+A `not_authorized` refusal says access was refused and points to device approval
+in Core; other refusal codes keep their own wording, and the rejected state and
+draft survive EOF. A welcome that does not negotiate `conversation` says so
+without inviting a send.
 See the [conversation verification record](../../docs/research/9-conversation.md)
 for captures, tests and the explicitly tracked remaining rich-input/thread work.
 

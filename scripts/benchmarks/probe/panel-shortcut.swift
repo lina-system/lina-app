@@ -4,8 +4,9 @@ import ApplicationServices
 import CoreGraphics
 
 /// Manual, narrowly-scoped stimulus for the mac-panel timing study.
-/// Clicking the control posts exactly one Control+Option+Space chord through
-/// the existing authorized probe. It never requests a permission or types text.
+/// Clicking the control posts exactly one PanelMeasurementChord through the
+/// existing authorized probe. The panel registers that same shared chord in
+/// measurement mode. It never requests a permission or types text.
 final class PanelShortcutControl: NSObject {
   private let window = NSWindow(contentRect: NSRect(x: 180, y: 180, width: 620, height: 300),
                                 styleMask: [.titled, .closable], backing: .buffered, defer: false)
@@ -21,7 +22,7 @@ final class PanelShortcutControl: NSObject {
     app.setActivationPolicy(.regular)
     window.title = "LINA Probe — panel shortcut stimulus"
     window.isReleasedWhenClosed = false
-    let text = NSTextField(labelWithString: "Synthetic foreground fixture\nSend one Control+Option+Space chord per recorder-ready event.")
+    let text = NSTextField(labelWithString: "Synthetic foreground fixture\nSend one \(PanelMeasurementChord.name) chord per recorder-ready event.")
     text.frame = NSRect(x: 30, y: 175, width: 560, height: 80)
     let button = NSButton(title: "Send panel shortcut", target: self, action: #selector(send))
     button.frame = NSRect(x: 30, y: 110, width: 250, height: 40)
@@ -56,14 +57,15 @@ final class PanelShortcutControl: NSObject {
       label.stringValue = "Refused: recorder absent, locked session, missing access, or ten sent"
       return
     }
-    guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 49, keyDown: true),
-          let up = CGEvent(keyboardEventSource: nil, virtualKey: 49, keyDown: false) else { return }
-    down.flags = [.maskControl, .maskAlternate]
-    up.flags = [.maskControl, .maskAlternate]
+    let key = CGKeyCode(PanelMeasurementChord.keyCode)
+    guard let down = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: true),
+          let up = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: false) else { return }
+    down.flags = PanelMeasurementChord.cgEventFlags
+    up.flags = PanelMeasurementChord.cgEventFlags
     down.post(tap: .cghidEventTap)
     up.post(tap: .cghidEventTap)
     count += 1
-    label.stringValue = "Sent \(count) of 10 Control+Option+Space chords"
+    label.stringValue = "Sent \(count) of 10 \(PanelMeasurementChord.name) chords"
     print("LINA_PROBE_SHORTCUT_SENT \(count)")
     fflush(stdout)
     if count == 10 { DispatchQueue.main.asyncAfter(deadline: .now() + 3) { finish(0) } }

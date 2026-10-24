@@ -110,7 +110,10 @@ node scripts/mac-panel-evidence.mjs
 The stable **LINA Probe** app already held Accessibility and Screen Recording
 grants. It was rebuilt with the same signing identity and verified to retain
 those grants. Its narrowly scoped control posts one fixed Control+Option+Space
-HID chord per click. The collector receives the actual registered Carbon event,
+HID chord per click; the panel and the probe compile that chord from
+[PanelMeasurementChord.swift](../../spikes/mac-panel/macos/Runner/Platform/PanelMeasurementChord.swift),
+and a measurement run registers it instead of the shortcut saved in the study
+UI. The collector receives the actual registered Carbon event,
 not a direct callback, timer, method-channel invocation or programmatic `show`.
 No permission was requested and no security/session setting changed.
 

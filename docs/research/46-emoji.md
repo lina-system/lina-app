@@ -15,7 +15,8 @@ Select a result to **Pin/Unpin**, choose a **Skin tone**, or enter comma-separat
 English and spaces. Searching is case-insensitive and accepts decomposed Hangul.
 There are at most 80 matching rows, sorted by exact names/user keywords, exact
 annotation keywords, then other token matches, with shorter English names first.
-The list remains scrollable with native keyboard selection.
+The common names `heart` and `하트` explicitly rank ❤️ first so Return copies
+the expected sequence. The list remains scrollable with native keyboard selection.
 
 Empty search shows up to 50 most recently copied entries first, then remaining
 pins, followed by calculator history. Duplicate recent/pinned entries appear
@@ -29,8 +30,8 @@ Preferences live in the local UserDefaults key `launcher.emoji.preferences.v1`:
 base glyph recents/pins, up to 20 keywords of 100 characters per entry and a tone
 index (default plus five tones). Search drafts are not stored. No cloud API,
 external service, input injection or automatic paste is used. Paste into the
-front app belongs to #85. Test/evidence app modes use in-memory preferences and
-the existing isolated clipboard. The window lifecycle is unchanged.
+front app belongs to #85. Test/evidence app modes use in-memory preferences. Native copy tests inject
+an isolated clipboard. The window lifecycle is unchanged.
 
 The catalog is generated offline from pinned CLDR 47.0.0 English/Korean
 annotations and Unicode Emoji 16.0, under Unicode-3.0. See the

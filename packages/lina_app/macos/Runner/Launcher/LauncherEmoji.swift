@@ -71,7 +71,9 @@ final class EmojiCatalog {
             let haystack = (searchable[entry.glyph] ?? "") + " " + aliases.joined(separator: " ")
             guard glyphMatch || words.allSatisfy({ haystack.contains($0) }) else { return nil }
             let rank: Int
-            if glyphMatch || aliases.contains(term.text) || names.contains(term.text) { rank = 0 }
+            // These common heart names should copy the red-heart sequence, not the card suit.
+            if entry.glyph == "❤️" && ["heart", "하트"].contains(term.text) { rank = -1 }
+            else if glyphMatch || aliases.contains(term.text) || names.contains(term.text) { rank = 0 }
             else if entry.keywords.contains(where: { Self.normalize($0) == term.text }) { rank = 1 }
             else { rank = 2 }
             return (entry, rank)
@@ -248,6 +250,7 @@ public final class LauncherEmoji: NSViewController {
         guard !composing, !self.composing, self.query == query, let entry = matches[id] else { return true }
         guard write(display(entry)) else { message = "Could not copy emoji. Try again."; return true }
         preferences.record(entry.glyph)
+        onChange?()
         message = "Copied · Recents stay on this Mac"
         return true
     }

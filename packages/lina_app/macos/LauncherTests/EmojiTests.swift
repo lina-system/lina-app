@@ -9,7 +9,7 @@ final class EmojiTests: XCTestCase {
         let emoji = LauncherEmoji(defaults: nil)
         for query in ["heart", "하트", "HEART", "  하트  ", "하트".decomposedStringWithCanonicalMapping] {
             let rows = emoji.update(query: query, composing: false)
-            XCTAssertTrue(rows.contains { $0.id == "emoji.❤️" })
+            XCTAssertEqual(rows.first?.id, "emoji.❤️")
         }
         XCTAssertTrue(emoji.update(query: "저작권", composing: false).contains { $0.id == "emoji.©️" })
         emoji.preferences.setKeywords(["우리 사랑", "my favorite"], for: "❤️")
@@ -21,6 +21,9 @@ final class EmojiTests: XCTestCase {
         XCTAssertTrue(emoji.update(query: "", composing: false).isEmpty)
         XCTAssertTrue(emoji.update(query: "emoji", composing: false).count > 10)
         XCTAssertTrue(emoji.update(query: "1234", composing: false).isEmpty)
+        XCTAssertEqual(emoji.update(query: "❤️", composing: false).first?.id, "emoji.❤️")
+        emoji.preferences.tone = 5
+        XCTAssertTrue(emoji.update(query: "👍🏽", composing: false).first?.title.hasPrefix("👍🏽") == true)
         XCTAssertTrue(emoji.update(query: "heart", composing: true).isEmpty)
     }
 
@@ -62,12 +65,15 @@ final class EmojiTests: XCTestCase {
             content.input.stringValue = query
             content.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
         }
-        type("red heart")
+        type("하트")
         XCTAssertEqual(content.items.first?.id, "emoji.❤️")
         XCTAssertTrue(content.control(content.input, textView: NSTextView(), doCommandBy: #selector(NSResponder.insertNewline(_:))))
         XCTAssertEqual(board.string(forType: .string), "❤️")
         type("")
         XCTAssertEqual(content.items.prefix(2).map(\.id), ["emoji.❤️", "emoji.👍"])
+        content.results.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
+        content.results.onActivate?()
+        XCTAssertEqual(content.items.first?.id, "emoji.👍", "Copying from empty search moves that recent entry first immediately")
         type("thumbs up")
         emoji.toneButton.selectItem(at: 3)
         emoji.changeTone(nil)
@@ -113,6 +119,14 @@ final class EmojiTests: XCTestCase {
         XCTAssertEqual(emoji.preferences.recent, ["❤️"])
     }
 
+    func testReleaseAppBundlesTheSameBilingualCatalog() throws {
+        guard let path = ProcessInfo.processInfo.environment["LINA_EMOJI_APP_RESOURCE"] else { return }
+        struct Catalog: Decodable { let entries: [EmojiEntry] }
+        let app = try JSONDecoder().decode(Catalog.self, from: Data(contentsOf: URL(fileURLWithPath: path)))
+        XCTAssertEqual(app.entries.map(\.glyph), EmojiCatalog.shared.entries.map(\.glyph))
+        XCTAssertEqual(app.entries.first(where: { $0.glyph == "❤️" })?.en, "red heart")
+    }
+
     @MainActor func testCaptureNativeEmojiSearchAndPreferences() throws {
         guard let directory = ProcessInfo.processInfo.environment["LINA_EMOJI_CAPTURES"] else { return }
         _ = NSApplication.shared
@@ -127,10 +141,10 @@ final class EmojiTests: XCTestCase {
         window.contentView = background
         defer { window.close() }
         content.setLoginState("disabledInTests")
+        emoji.preferences.tone = 3
+        emoji.preferences.togglePin("👍")
+        emoji.preferences.record("❤️")
         for (name, query) in [("korean", "하트"), ("english", "heart"), ("skin-tone", "thumbs up"), ("recents", "")] {
-            emoji.preferences.tone = 3
-            emoji.preferences.togglePin("👍")
-            emoji.preferences.record("❤️")
             content.input.stringValue = query
             content.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
             content.view.layoutSubtreeIfNeeded()

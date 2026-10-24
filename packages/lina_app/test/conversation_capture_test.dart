@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lina_app/core_screen.dart';
 import 'package:lina_app/lina_app.dart';
+import 'package:lina_protocol/lina_protocol.dart';
 
 import 'support/conversation_core.dart';
 
@@ -93,4 +94,74 @@ void main() {
       });
     }
   }
+  Future<void> capture(WidgetTester tester, String name) async {
+    if (Platform.environment['LINA_UPDATE_CAPTURES'] == '1') {
+      await expectLater(
+        find.byType(Scaffold),
+        matchesGoldenFile('../../../docs/captures/9/$name.png'),
+      );
+    }
+  }
+
+  testWidgets('authorization refusal shows access guidance', (tester) async {
+    tester.view.physicalSize = const Size(1280, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final core = ConversationCore();
+    addTearDown(core.dispose);
+    final p = DisplayPreferences();
+    addTearDown(p.dispose);
+    await tester.pumpWidget(
+      LinaApp(
+        preferences: p,
+        home: CoreScreen(connection: core, preferences: p),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('composer')),
+      'Keep my draft',
+    );
+    core.reject('not_authorized');
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'Core refused access for this device. Approve this device in Core, then connect again.',
+      ),
+      findsWidgets,
+    );
+    expect(find.text('not_authorized'), findsNothing);
+    expect(tester.takeException(), isNull);
+    await capture(tester, 'connection-not-authorized');
+  });
+
+  testWidgets('welcome without conversation shows unavailable', (tester) async {
+    tester.view.physicalSize = const Size(1280, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final core = ConversationCore();
+    core.welcome = ProtocolWelcome.fromJson({
+      ...core.welcome!.toJson(),
+      'capabilities': <Object?>[],
+    });
+    addTearDown(core.dispose);
+    final p = DisplayPreferences();
+    addTearDown(p.dispose);
+    await tester.pumpWidget(
+      LinaApp(
+        preferences: p,
+        home: CoreScreen(connection: core, preferences: p),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Conversation is not available from this Core.'),
+      findsWidgets,
+    );
+    expect(find.text('What is on your mind?'), findsNothing);
+    expect(tester.takeException(), isNull);
+    await capture(tester, 'conversation-unavailable');
+  });
 }

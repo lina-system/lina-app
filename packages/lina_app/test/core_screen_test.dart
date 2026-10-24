@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lina_app/core_screen.dart';
 import 'package:lina_app/lina_app.dart';
@@ -8,10 +12,16 @@ import 'package:lina_protocol/lina_protocol.dart';
 
 import 'support/conversation_core.dart';
 
+const notAuthorized =
+    'Core refused access for this device. Approve this device in Core, then connect again.';
+const versionRefused =
+    'This app and Core cannot connect with their current versions or platform. Update the app or Core, then connect again.';
+const conversationUnavailable = 'Conversation is not available from this Core.';
+
 void main() {
   Future<void> mount(
     WidgetTester tester,
-    ConversationCore core, {
+    CoreConnection core, {
     PlatformSlots slots = const PlatformSlots(),
     DisplayPreferences? preferences,
   }) async {
@@ -111,6 +121,91 @@ void main() {
       },
     );
   }
+  testWidgets(
+    'not_authorized refusal explains access and keeps the draft after EOF',
+    (tester) async {
+      final server = await tester.runAsync(
+        () => ServerSocket.bind(InternetAddress.loopbackIPv4, 0),
+      );
+      addTearDown(server!.close);
+      await tester.runAsync(() async {
+        server.listen((socket) {
+          addTearDown(socket.destroy);
+          socket
+              .cast<List<int>>()
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())
+              .listen((line) {
+                final request = exactDecode(line) as Map;
+                final refusal = fixture('outcomes/not_authorized');
+                refusal['reply_to'] = request['params']['message_id'];
+                socket.write(
+                  '${exactEncode({'jsonrpc': '2.0', 'id': request['id'], 'result': refusal})}\n',
+                );
+                socket.close();
+              });
+        });
+      });
+      final core = CoreConnection(platform: 'linux/amd64');
+      await mount(tester, core);
+      final composer = find.byKey(const ValueKey('composer'));
+      await tester.enterText(composer, 'Keep my draft');
+      final draft = tester.widget<TextField>(composer).controller!;
+      await tester.runAsync(
+        () => core.connect('tcp://127.0.0.1:${server.port}'),
+      );
+      await tester.pumpAndSettle();
+      expect(core.phase, ConnectionPhase.rejected);
+      expect(core.refusalCode, 'not_authorized');
+      expect(find.text(notAuthorized), findsWidgets);
+      expect(find.textContaining('versions or platform'), findsNothing);
+      expect(find.text('not_authorized'), findsNothing);
+      expect(draft.text, 'Keep my draft');
+      // The peer closes the socket after the refusal. EOF must not clear the
+      // rejected state or the draft.
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(core.phase, ConnectionPhase.rejected);
+      expect(find.text(notAuthorized), findsWidgets);
+      expect(draft.text, 'Keep my draft');
+    },
+    skip: Platform.isWindows,
+  );
+  testWidgets('version refusal keeps its own wording', (tester) async {
+    final core = ConversationCore();
+    await mount(tester, core);
+    core.reject('unsupported_combination');
+    await tester.pumpAndSettle();
+    expect(find.text(versionRefused), findsWidgets);
+    expect(find.text(notAuthorized), findsNothing);
+    expect(find.textContaining('refused access'), findsNothing);
+  });
+  testWidgets(
+    'welcome without conversation says unavailable and never invites sending',
+    (tester) async {
+      final core = ConversationCore();
+      await mount(tester, core);
+      final composer = find.byKey(const ValueKey('composer'));
+      await tester.enterText(composer, 'Keep my draft');
+      final draft = tester.widget<TextField>(composer).controller!;
+      core.welcome = ProtocolWelcome.fromJson({
+        ...core.welcome!.toJson(),
+        'capabilities': <Object?>[],
+      });
+      core.updates.add(null);
+      await tester.pumpAndSettle();
+      expect(find.text(conversationUnavailable), findsWidgets);
+      expect(find.text('What is on your mind?'), findsNothing);
+      expect(find.text('What would you like to work on?'), findsNothing);
+      expect(find.text('A draft until Core confirms receipt.'), findsNothing);
+      expect(tester.widget<TextField>(composer).enabled, isFalse);
+      expect(draft.text, 'Keep my draft');
+      final send = find.widgetWithText(TextButton, 'Send');
+      expect(tester.widget<TextButton>(send).onPressed, isNull);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(core.requests.where((r) => r.kind == 'input'), isEmpty);
+    },
+  );
   testWidgets('keyboard cannot bypass missing conversation capability', (
     tester,
   ) async {
@@ -120,7 +215,9 @@ void main() {
       'capabilities': <Object?>[],
     });
     await mount(tester, core);
-    await tester.enterText(find.byKey(const ValueKey('composer')), 'Not sent');
+    final composer = find.byKey(const ValueKey('composer'));
+    expect(tester.widget<TextField>(composer).enabled, isFalse);
+    expect(find.text(conversationUnavailable), findsWidgets);
     await tester.testTextInput.receiveAction(TextInputAction.send);
     await tester.pump();
     expect(core.requests, isEmpty);

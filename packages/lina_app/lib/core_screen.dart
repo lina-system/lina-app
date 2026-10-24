@@ -289,10 +289,15 @@ class _CoreScreenState extends State<CoreScreen> {
     );
   }
 
+  bool get _conversationOffered =>
+      widget.connection.phase == ConnectionPhase.connected &&
+      widget.connection.hasCapability('conversation');
+
   Widget _transcript() {
     final t = LinaTokens.of(context);
     final state = _conversation.selected;
     final query = state.search.text.toLowerCase();
+    final connected = widget.connection.phase == ConnectionPhase.connected;
     return Column(
       key: ValueKey(state.agentId),
       children: [
@@ -333,7 +338,9 @@ class _CoreScreenState extends State<CoreScreen> {
                 Padding(
                   padding: EdgeInsets.symmetric(vertical: t.spaceSection),
                   child: LinaText(
-                    _conversation.selectionAvailable
+                    connected && !_conversationOffered
+                        ? 'Conversation is not available from this Core.'
+                        : _conversation.selectionAvailable
                         ? 'What would you like to work on?'
                         : 'Choose an available agent to continue. Your draft stays here.',
                     style: Theme.of(context).textTheme.titleLarge,
@@ -510,6 +517,9 @@ class _CoreScreenState extends State<CoreScreen> {
     final t = LinaTokens.of(context);
     final state = _conversation.selected;
     final connected = widget.connection.phase == ConnectionPhase.connected;
+    // A welcome without conversation can hold a draft, but it must not offer
+    // an editor or a send action that Core cannot accept.
+    final composeAllowed = !connected || _conversationOffered;
     final turn = !connected ? TurnPresentation.disconnected : state.turn;
     final label = switch (turn) {
       TurnPresentation.composing => 'Composing',
@@ -569,14 +579,17 @@ class _CoreScreenState extends State<CoreScreen> {
                     key: const ValueKey('composer'),
                     controller: state.draft,
                     focusNode: state.focus,
+                    enabled: composeAllowed,
                     keyboardType: TextInputType.multiline,
                     maxLines: null,
                     textInputAction: TextInputAction.newline,
                     onEditingComplete: () {},
                     onSubmitted: (_) => unawaited(_conversation.send()),
-                    decoration: const InputDecoration(
-                      labelText: 'What is on your mind?',
-                      hintText: '한국어로 편하게 적어 보세요.',
+                    decoration: InputDecoration(
+                      labelText: composeAllowed
+                          ? 'What is on your mind?'
+                          : 'Conversation unavailable',
+                      hintText: composeAllowed ? '한국어로 편하게 적어 보세요.' : null,
                     ),
                   ),
             ),
@@ -602,7 +615,7 @@ class _CoreScreenState extends State<CoreScreen> {
               FilterChip(
                 label: const LinaText('Queue next'),
                 selected: state.queue,
-                onSelected: _conversation.setQueue,
+                onSelected: composeAllowed ? _conversation.setQueue : null,
                 showCheckmark: false,
               ),
               if (state.active)
@@ -618,10 +631,9 @@ class _CoreScreenState extends State<CoreScreen> {
           Semantics(
             liveRegion: true,
             child: LinaText(
-              state.feedback ??
-                  (connected && !widget.connection.hasCapability('conversation')
-                      ? 'Conversation is unavailable. Check your Core connection.'
-                      : 'A draft until Core confirms receipt.'),
+              connected && !_conversationOffered
+                  ? 'Conversation is not available from this Core.'
+                  : state.feedback ?? 'A draft until Core confirms receipt.',
             ),
           ),
         ],
@@ -690,8 +702,11 @@ class _CoreScreenState extends State<CoreScreen> {
           if (!_conversation.selected.items.any((i) => i.kind == 'result'))
             const LinaText('No results in this conversation yet.'),
         ] else
-          const LinaText(
-            'This view is not available yet. You can ask your agent below.',
+          LinaText(
+            widget.connection.phase == ConnectionPhase.connected &&
+                    !_conversationOffered
+                ? 'Conversation is not available from this Core.'
+                : 'This view is not available yet. You can ask your agent below.',
           ),
       ],
     );
@@ -794,11 +809,35 @@ class _CoreScreenState extends State<CoreScreen> {
     );
   }
 
-  String? get _connectionProblem => switch (widget.connection.problem) {
-    ConnectionProblem.invalidAddress => 'The Core address is not valid. Use unix:///path or tcp://host:port, then connect again.',
-    ConnectionProblem.unavailable => 'Core could not be reached. Start Core and check its address, then connect again.',
-    null => null,
-  };
+  String? get _connectionProblem {
+    final core = widget.connection;
+    if (core.phase == ConnectionPhase.rejected) {
+      // A typed refusal is not always a version or platform mismatch. Name the
+      // cause Core reported and the action the person can take next.
+      return switch (core.refusalCode) {
+        'not_authorized' =>
+          'Core refused access for this device. '
+              'Approve this device in Core, then connect again.',
+        'unsupported_combination' =>
+          'This app and Core cannot connect with their current versions or '
+              'platform. Update the app or Core, then connect again.',
+        'capability_not_negotiated' =>
+          'Core did not accept the capabilities this app offered. '
+              'Update the app or Core, then connect again.',
+        'unavailable' =>
+          'Core is not available for this app right now. '
+              'Start Core, then connect again.',
+        _ =>
+          'Core rejected this connection. Check the app version and Core '
+              'settings, then connect again.',
+      };
+    }
+    return switch (core.problem) {
+      ConnectionProblem.invalidAddress => 'The Core address is not valid. Use unix:///path or tcp://host:port, then connect again.',
+      ConnectionProblem.unavailable => 'Core could not be reached. Start Core and check its address, then connect again.',
+      null => null,
+    };
+  }
 
   Future<void> _connectFromDialog(BuildContext context) async {
     if (widget.connection.phase == ConnectionPhase.connecting) return;

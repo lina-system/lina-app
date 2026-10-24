@@ -40,7 +40,7 @@ const researchFiles = new Set([
 ]);
 // Conversation sources/tests are covered by lina_app and lina_protocol above.
 // Theme/width and connection-error captures accompany their widget regressions.
-const conversationCaptures = /^docs\/captures\/9\/(?:(?:light|dark|high-contrast)-(?:desktop|phone)|connection-(?:invalid|unavailable))\.png$/;
+const conversationCaptures = /^docs\/captures\/9\/(?:(?:light|dark|high-contrast)-(?:desktop|phone)|connection-(?:invalid|unavailable|not-authorized)|conversation-unavailable)\.png$/;
 const designStudyAssets = /^docs\/research\/90-accent\/(?:[^/]+\.(?:md|json)|fonts\/(?:OFL\.txt|Pretendard-(?:Bold|Regular)\.otf)|(?:icons|marks|renders)\/[^/]+\.svg)$/;
 export function classify(paths, registry = components) {
   const selected = new Set();

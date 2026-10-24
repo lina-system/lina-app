@@ -20,6 +20,43 @@ final class TranslationTests: XCTestCase {
         content.input.stringValue = ""
         content.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
     }
+    @MainActor func testEmojiAndTranslationKeepSelectionAndActionsSeparate() {
+        _ = NSApplication.shared
+        let board = NSPasteboard.withUniqueName()
+        defer { board.releaseGlobally() }
+        let answer = NSViewController()
+        let emoji = LauncherEmoji(defaults: nil)
+        let translation = LauncherTranslation(service: TranslationFixture())
+        let content = LauncherContent(answer: answer, history: CalculatorHistory(defaults: nil),
+                                      pasteboard: board, emoji: emoji, translation: translation)
+        _ = content.view
+        content.onQuery = { _ in XCTFail("Local query forwarded") }
+        content.onSubmit = { _, _ in XCTFail("Local action forwarded") }
+        type("하트", into: content)
+        content.results.onActivate?()
+        XCTAssertEqual(board.string(forType: .string), "❤️")
+        let ready = expectation(description: "translation after emoji")
+        translation.onChange = { if translation.translated != nil { ready.fulfill() } }
+        type("tr good morning", into: content)
+        wait(for: [ready], timeout: 5)
+        translation.onChange = nil
+        XCTAssertEqual(content.items.first?.id, LauncherTranslation.resultID)
+        XCTAssertTrue(emoji.view.isHidden)
+        XCTAssertTrue(answer.view.isHidden, "A late translation row must keep the ordinary answer hidden")
+        var drafts: [String] = []
+        content.onConversationDraft = { text, done in drafts.append(text); done(true) }
+        content.results.onActivate?()
+        XCTAssertEqual(drafts.count, 1)
+        XCTAssertEqual(board.string(forType: .string), "❤️")
+        type("heart", into: content)
+        XCTAssertTrue(translation.view.isHidden)
+        XCTAssertFalse(emoji.view.isHidden)
+        content.results.onActivate?()
+        XCTAssertEqual(drafts.count, 1)
+        type("", into: content)
+        XCTAssertEqual(content.items.first?.id, "emoji.❤️")
+    }
+
     func testCommandBoundariesAndExplicitPairs() {
         XCTAssertNil(TranslationCommand.parse("translate hello", defaultPair: .initial))
         XCTAssertNil(TranslationCommand.parse("trouble", defaultPair: .initial))

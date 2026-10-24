@@ -54,6 +54,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         content = LauncherContent(answer: flutter, history: CalculatorHistory(defaults: testMode ? nil : .standard),
                                   pasteboard: calculatorPasteboard ?? .general,
                                   locale: arguments.contains("--calculator-smoke") ? Locale(identifier: "en_US") : .current,
+                                  emoji: LauncherEmoji(defaults: testMode ? nil : .standard),
                                   translation: LauncherTranslation(defaults: testMode ? nil : .standard))
         _ = content.view
         host = LauncherPanelHost(content: content, focusView: content.input, defaults: testMode ? nil : .standard)

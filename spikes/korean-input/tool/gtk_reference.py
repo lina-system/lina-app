@@ -20,19 +20,25 @@ box.pack_start(field, False, False, 0)
 button = Gtk.Button(label='Focus target')
 box.pack_start(button, False, False, 0)
 buffer = field.get_buffer()
+current_preedit = ''
 
 
 def trace(event, preedit=None):
+    global current_preedit
+    if preedit is not None:
+        current_preedit = preedit
     print('GTK_TRACE ' + json.dumps({
         'event': event,
         'text': buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter(), True),
         'cursor': buffer.get_property('cursor-position'),
-        'preedit': preedit,
+        'preedit': current_preedit,
         'focused': field.has_focus(),
     }, ensure_ascii=False), flush=True)
 
 
 buffer.connect('changed', lambda *_: trace('edit'))
+buffer.connect('mark-set', lambda _, location, mark:
+               trace('selection') if mark.get_name() == 'insert' else None)
 field.connect('preedit-changed', lambda _, text: trace('preedit', text))
 field.connect('focus-in-event', lambda *_: trace('focus-in'))
 field.connect('focus-out-event', lambda *_: trace('focus-out'))

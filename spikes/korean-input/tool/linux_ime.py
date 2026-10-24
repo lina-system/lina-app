@@ -7,6 +7,7 @@ Infrastructure failures (missing window/trace/Hangul) exit nonzero.
 """
 import json
 import hashlib
+import ctypes
 import os
 from pathlib import Path
 import subprocess
@@ -18,7 +19,6 @@ import platform
 
 BINARY = Path(sys.argv[1]).resolve()
 OUTPUT = Path(sys.argv[2]).resolve()
-PHRASE = '동해물과 백두산이'
 # 동(ehd) 해(go) 물(anf) 과(rhk) 백(qor) 두(en) 산(tks) 이(dl)
 KEYS = 'ehdgoanfrhk qorentksdl'
 records = []
@@ -41,7 +41,34 @@ def run(*args, check=True):
 
 
 def key(*keys):
-    run('xdotool', 'key', '--clearmodifiers', *keys)
+    if keys == ('F9',):
+        # xdotool's keysym lookup selected Alt+F9 on this Xvfb map. Inject
+        # the physical F9 key without a synthetic modifier; retain IME routing.
+        x11 = ctypes.CDLL('libX11.so.6')
+        xtest = ctypes.CDLL('libXtst.so.6')
+        x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+        x11.XOpenDisplay.restype = ctypes.c_void_p
+        x11.XKeysymToKeycode.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+        x11.XKeysymToKeycode.restype = ctypes.c_uint
+        x11.XFlush.argtypes = [ctypes.c_void_p]
+        x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+        xtest.XTestFakeKeyEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint,
+                                          ctypes.c_int, ctypes.c_ulong]
+        display = x11.XOpenDisplay(None)
+        if not display:
+            raise RuntimeError('cannot open X display for physical F9')
+        try:
+            code = x11.XKeysymToKeycode(display, 0xffc6)
+            if not code:
+                raise RuntimeError('F9 is absent from the X keymap')
+            for pressed in (1, 0):
+                xtest.XTestFakeKeyEvent(display, code, pressed, 0)
+                x11.XFlush(display)
+                time.sleep(0.02)
+        finally:
+            x11.XCloseDisplay(display)
+    else:
+        run('xdotool', 'key', '--clearmodifiers', *keys)
     time.sleep(0.18)
 
 
@@ -147,16 +174,34 @@ def scenarios(kind, args, title, prefix, env):
         run('fcitx5-remote', '-c')
         key('F9')
         snap(f'{kind}-13-shortcut-idle', path, prefix)
-        # Bounded stress at three XTest delays, not a physical typing claim.
-        for delay in (0, 1, 12):
-            for trial in range(5):
-                reset(wid)
-                type_keys(KEYS, delay=delay)
-                events = trace(path, prefix)
-                last = events[-1]
-                records.append({'scenario': f'flutter-speed-{delay}-{trial}', 'last': last})
-        if not any(e.get('text') == PHRASE for e in trace(path, prefix)):
-            raise RuntimeError('real fcitx path never delivered the Korean phrase')
+    reset(wid)
+    type_keys(KEYS, delay=80)
+    snap(f'{kind}-14-slow-preedit', path, prefix)
+    key('Return')
+    snap(f'{kind}-15-slow-first-enter', path, prefix)
+    key('Return')
+    snap(f'{kind}-16-slow-second-enter', path, prefix)
+    reset(wid)
+    type_keys('rk')
+    key('Right', 'shift+Return')
+    type_keys('gks')
+    key('F9')
+    snap(f'{kind}-17-candidates-second-line', path, prefix)
+    key('Escape')
+    # Bounded stress at three XTest delays, not a physical typing claim.
+    for delay in (0, 1, 12):
+        for trial in range(5):
+            reset(wid)
+            type_keys(KEYS, delay=delay)
+            last = trace(path, prefix)[-1]
+            key('Right')
+            committed = trace(path, prefix)[-1]
+            records.append({'scenario': f'{kind}-speed-{delay}-{trial}',
+                            'last': last, 'afterCommit': committed})
+    if kind == 'flutter':
+        if not any(any('\uac00' <= c <= '\ud7a3' for c in e.get('text', ''))
+                   for e in trace(path, prefix)):
+            raise RuntimeError('real fcitx path never delivered a Hangul syllable')
     events = trace(path, prefix)
     (OUTPUT / f'{kind}-events.json').write_text(
         json.dumps(events, ensure_ascii=False, indent=2) + '\n')
@@ -179,7 +224,7 @@ try:
         'physicalDevice': False,
         'binarySha256': hashlib.sha256(BINARY.read_bytes()).hexdigest(),
         'sourceSha256': hashlib.sha256(Path('lib/main.dart').read_bytes()).hexdigest(),
-        'hangulConfig': 'Keyboard=2; HanjaMode=False; HanjaKey=F9',
+        'hangulConfig': 'Keyboard=Dubeolsik; HanjaMode=False; HanjaModeToggleKey=F9',
     }, indent=2) + '\n')
     with tempfile.TemporaryDirectory(prefix='korean-ime-') as temporary:
         config = Path(temporary) / 'config'
@@ -201,7 +246,7 @@ Layout=
 0=Research
 ''')
         (config / 'fcitx5' / 'conf' / 'hangul.conf').write_text(
-            'Keyboard=2\nHanjaMode=False\n[HanjaKey]\n0=F9\n')
+            'Keyboard=Dubeolsik\nHanjaMode=False\n[HanjaModeToggleKey]\n0=F9\n')
         env = dict(os.environ, XDG_CONFIG_HOME=str(config),
                    XDG_CACHE_HOME=str(Path(temporary) / 'cache'),
                    GTK_IM_MODULE='fcitx', QT_IM_MODULE='fcitx',
@@ -238,7 +283,7 @@ Layout=
         # Keep only key-event diagnostics; exclude environment/absolute paths.
         lines = ime_path.read_text(errors='replace').splitlines()
         (OUTPUT / 'fcitx-keys.txt').write_text(
-            '\n'.join(line for line in lines if 'key_trace' in line) + '\n')
+            '\n'.join(line for line in lines if 'KeyEvent' in line) + '\n')
 finally:
     recording_stop.set()
     for process in reversed(processes):

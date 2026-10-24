@@ -1,0 +1,10202 @@
+[
+  {
+    "event": "focus",
+    "text": "",
+    "selection": [
+      -1,
+      -1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㅎ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "하",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "한",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "閑閑",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "閑閑",
+    "selection": [
+      0,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㄷ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "도",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동ㅎ",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동햄",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해무",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해묽",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물고",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과ㅂ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과배",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백ㄷ",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백둣",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두사",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산ㅇ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산이",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 9
+  },
+  {
+    "event": "key:Enter",
+    "text": "동해물과백두산 이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 0,
+    "receipt": "",
+    "markers": 0,
+    "committedCharacters": 9
+  },
+  {
+    "event": "send",
+    "text": "동해물과백두산 이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "key:Enter",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㅎ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "하",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "한",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "하",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "하",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "하",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "ㄱ하",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "가하",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "가하",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "가하",
+    "selection": [
+      0,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㅎ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "하",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "한",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "한",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 1
+  },
+  {
+    "event": "focus",
+    "text": "한",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": false,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 1
+  },
+  {
+    "event": "focus",
+    "text": "한",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "한ㄱ",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "한그",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "한글",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "한글",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "한글",
+    "selection": [
+      0,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㅎ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "하",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "한",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "한",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 1
+  },
+  {
+    "event": "key:Enter",
+    "text": "한",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "한\n",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "한\n",
+    "selection": [
+      0,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "key:F9",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 0,
+    "committedCharacters": 0
+  },
+  {
+    "event": "marker",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㄷ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "도",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동ㅎ",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동햄",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해무",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해묽",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물고",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ㅂ",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 배",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백ㄷ",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백둣",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두사",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산ㅇ",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      8,
+      9
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      8,
+      9
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "key:Enter",
+    "text": "동해물과 백두산이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이\n",
+    "selection": [
+      10,
+      10
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 10
+  },
+  {
+    "event": "key:Enter",
+    "text": "동해물과 백두산이\n",
+    "selection": [
+      10,
+      10
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 1,
+    "receipt": "동해물과백두산 이",
+    "markers": 1,
+    "committedCharacters": 10
+  },
+  {
+    "event": "send",
+    "text": "동해물과 백두산이\n",
+    "selection": [
+      10,
+      10
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 10
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㄱ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "가",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "가",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "key:Enter",
+    "text": "가",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "가\n",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "가\nㅎ",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "가\n하",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "가\n한",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "가\n한",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "가\n한",
+    "selection": [
+      0,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㄷ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "도",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동ㅎ",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동햄",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해무",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해묽",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물고",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과ㅂ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과배",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백ㄷ",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백둣",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두사",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산ㅇ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산이",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      0,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㄷ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "도",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동ㅎ",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동햄",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해무",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해묽",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물고",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과ㅂ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과배",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백ㄷ",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백둣",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두사",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산ㅇ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산이",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      0,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㄷ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "도",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동ㅎ",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동햄",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해무",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해묽",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물고",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과ㅂ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과배",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백ㄷ",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백둣",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두사",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산ㅇ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산이",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      0,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㄷ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "도",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동ㅎ",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동햄",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해무",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해묽",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물고",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과ㅂ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과배",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백ㄷ",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백둣",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두사",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산ㅇ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산이",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      0,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㄷ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "도",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동ㅎ",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동햄",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해무",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해묽",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물고",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과ㅂ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과배",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백ㄷ",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백둣",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두사",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산ㅇ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산이",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      0,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㄷ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "도",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동ㅎ",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동햄",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해무",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해묽",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물고",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과ㅂ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과배",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백ㄷ",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백둣",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두사",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산ㅇ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산이",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      0,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㄷ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "도",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동ㅎ",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동햄",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해무",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해묽",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물고",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과ㅂ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과배",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백ㄷ",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백둣",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두사",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산ㅇ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산이",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      0,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㄷ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "도",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동ㅎ",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동햄",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해무",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해묽",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물고",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과ㅂ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과배",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백ㄷ",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백둣",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두사",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산ㅇ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산이",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      0,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㄷ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "도",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동ㅎ",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동햄",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해무",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해묽",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물고",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과ㅂ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과배",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백ㄷ",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백둣",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두사",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산ㅇ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산이",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      0,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㄷ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "도",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동ㅎ",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동햄",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해무",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해묽",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물고",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과ㅂ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과배",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백ㄷ",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백둣",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두사",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산ㅇ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산이",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 ",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "selection": [
+      0,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㄷ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "도",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동ㅎ",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동햄",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해무",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해묽",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물고",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ㅂ",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 배",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백ㄷ",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백둣",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두사",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산ㅇ",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      8,
+      9
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      8,
+      9
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "selection": [
+      0,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㄷ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "도",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동ㅎ",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동햄",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해무",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해묽",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물고",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ㅂ",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 배",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백ㄷ",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백둣",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두사",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산ㅇ",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      8,
+      9
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      8,
+      9
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "selection": [
+      0,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㄷ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "도",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동ㅎ",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동햄",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해무",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해묽",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물고",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과ㅂ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과배",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백ㄷ",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백둣",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두사",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산ㅇ",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      8,
+      9
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      8,
+      9
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "selection": [
+      0,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㄷ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "도",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동ㅎ",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동햄",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해무",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해묽",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물고",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ㅂ",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 배",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      5,
+      6
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백ㄷ",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백둣",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두사",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산ㅇ",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      8,
+      9
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      8,
+      9
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "selection": [
+      0,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "selection": [
+      0,
+      0
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "ㄷ",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "도",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      0,
+      1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 0
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "selection": [
+      1,
+      1
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동ㅎ",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동햄",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      1,
+      2
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 1
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "selection": [
+      2,
+      2
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해무",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해묽",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      2,
+      3
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 2
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "selection": [
+      3,
+      3
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물고",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      3,
+      4
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 3
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "selection": [
+      4,
+      4
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과ㅂ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과배",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      4,
+      5
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 4
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "selection": [
+      5,
+      5
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 5
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "selection": [
+      6,
+      6
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백ㄷ",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백둣",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      6,
+      7
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 6
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "selection": [
+      7,
+      7
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두사",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      7,
+      8
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 7
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "selection": [
+      8,
+      8
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산ㅇ",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      8,
+      9
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      8,
+      9
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 8
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "selection": [
+      9,
+      9
+    ],
+    "composing": [
+      -1,
+      -1
+    ],
+    "focused": true,
+    "sent": 2,
+    "receipt": "동해물과 백두산이\n",
+    "markers": 1,
+    "committedCharacters": 9
+  }
+]

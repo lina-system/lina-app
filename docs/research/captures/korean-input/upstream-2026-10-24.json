@@ -1,0 +1,60 @@
+{
+  "checkedOn": "2026-10-24",
+  "evaluatedFlutter": "3.47.8",
+  "issues": [
+    {
+      "closedAt": null,
+      "number": 189491,
+      "state": "OPEN",
+      "stateReason": "",
+      "title": "[Windows] Windows Hangul syllable loss",
+      "updatedAt": "2026-08-06T19:32:46Z",
+      "url": "https://github.com/flutter/flutter/issues/189491"
+    },
+    {
+      "closedAt": null,
+      "number": 91798,
+      "state": "OPEN",
+      "stateReason": "",
+      "title": "[Linux Desktop - TextField] Cant input text with iBus/fcitx enabled ",
+      "updatedAt": "2024-06-27T22:11:26Z",
+      "url": "https://github.com/flutter/flutter/issues/91798"
+    },
+    {
+      "closedAt": null,
+      "number": 126329,
+      "state": "OPEN",
+      "stateReason": "",
+      "title": "[Linux] when entering Chinese using Sogou/fcitx, the candidate list is not below TextField",
+      "updatedAt": "2024-06-07T17:07:42Z",
+      "url": "https://github.com/flutter/flutter/issues/126329"
+    },
+    {
+      "closedAt": null,
+      "number": 191196,
+      "state": "OPEN",
+      "stateReason": "",
+      "title": "[Windows] IME composition survives a text-client change and leaks into the next TextField (AbortComposing is skipped when ime_active_ is false)",
+      "updatedAt": "2026-09-17T06:38:57Z",
+      "url": "https://github.com/flutter/flutter/issues/191196"
+    },
+    {
+      "closedAt": null,
+      "number": 140537,
+      "state": "OPEN",
+      "stateReason": "",
+      "title": "when using 3-set korean keyboard, textField ignores ' ' - word spacing (space bar key) on Windows",
+      "updatedAt": "2025-03-18T07:19:00Z",
+      "url": "https://github.com/flutter/flutter/issues/140537"
+    },
+    {
+      "closedAt": "2026-10-02T02:31:07Z",
+      "number": 139143,
+      "state": "CLOSED",
+      "stateReason": "COMPLETED",
+      "title": "[Documentation] enableSuggestions: false breaks non-English keyboards that required suggestions to work",
+      "updatedAt": "2026-10-16T03:01:41Z",
+      "url": "https://github.com/flutter/flutter/issues/139143"
+    }
+  ]
+}

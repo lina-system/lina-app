@@ -46,8 +46,9 @@ Without devflow, run those two commands directly on a dedicated machine.
 The script creates a private X server, D-Bus session and temporary fcitx5
 configuration. It sends ASCII 2-beolsik key sequences with XTest, never
 `enterText`, clipboard paste or precomposed Unicode. It runs the same editing
-cases against a native GTK TextView. It records screenshots, traces and
-`observations.json`. Existing login-session IME settings are untouched.
+cases against a native GTK TextView. It records screenshots, a sampled animated GIF, traces and
+`observations.json`. F9 uses a physical XTest key event because xdotool
+resolved that keysym to Alt+F9 on the evaluated Xvfb keymap. Existing login-session IME settings are untouched.
 
 This recorder exits nonzero for missing infrastructure or absent Hangul input.
 A completed recording may contain failed acceptance criteria: read the evidence,

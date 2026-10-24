@@ -51,7 +51,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if arguments.contains("--calculator-smoke") { calculatorPasteboard = NSPasteboard.withUniqueName() }
         content = LauncherContent(answer: flutter, history: CalculatorHistory(defaults: testMode ? nil : .standard),
                                   pasteboard: calculatorPasteboard ?? .general,
-                                  locale: arguments.contains("--calculator-smoke") ? Locale(identifier: "en_US") : .current)
+                                  locale: arguments.contains("--calculator-smoke") ? Locale(identifier: "en_US") : .current,
+                                  emoji: LauncherEmoji(defaults: testMode ? nil : .standard))
         _ = content.view
         host = LauncherPanelHost(content: content, focusView: content.input, defaults: testMode ? nil : .standard)
         statusItem = StatusItemController(openLauncher: { [weak self] in self?.host.show() },

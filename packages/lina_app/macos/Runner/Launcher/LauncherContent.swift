@@ -24,13 +24,15 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
     private var calculatorItems: [String: CalculatorAnswer] = [:]
     private let answer: NSViewController
     private let dictionary: LauncherDictionary
+    private let emoji: LauncherEmoji
     private let loginStatus = NSTextField(labelWithString: "")
 
     public init(answer: NSViewController, history: CalculatorHistory = CalculatorHistory(),
                 pasteboard: NSPasteboard = .general, locale: Locale = .current,
-                dictionary: LauncherDictionary? = nil) {
+                dictionary: LauncherDictionary? = nil, emoji: LauncherEmoji? = nil) {
         self.answer = answer; self.history = history; self.pasteboard = pasteboard; self.locale = locale
         self.dictionary = dictionary ?? LauncherDictionary()
+        self.emoji = emoji ?? LauncherEmoji()
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { fatalError("Use init(answer:)") }
@@ -88,6 +90,23 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
             dictionary.view.topAnchor.constraint(equalTo: answer.view.topAnchor),
             dictionary.view.bottomAnchor.constraint(equalTo: answer.view.bottomAnchor),
         ])
+        addChild(emoji)
+        emoji.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(emoji.view)
+        NSLayoutConstraint.activate([
+            emoji.view.leadingAnchor.constraint(equalTo: answer.view.leadingAnchor),
+            emoji.view.trailingAnchor.constraint(equalTo: answer.view.trailingAnchor),
+            emoji.view.topAnchor.constraint(equalTo: answer.view.topAnchor),
+            emoji.view.bottomAnchor.constraint(equalTo: answer.view.bottomAnchor),
+        ])
+        emoji.onChange = { [weak self] in
+            guard let self else { return }
+            let selected = self.items.indices.contains(self.results.selectedRow) ? self.items[self.results.selectedRow].id : nil
+            self.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+            if let index = self.items.firstIndex(where: { $0.id == selected }) {
+                self.results.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+            }
+        }
         dictionary.onResults = { [weak self] in self?.setResults($0) }
         dictionary.onOpened = { [weak self] in self?.onDismiss?() }
         let gap = LinaTokens.Space.inline
@@ -110,12 +129,20 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
             footer.bottomAnchor.constraint(equalTo: loginStatus.topAnchor, constant: -gap),
             loginStatus.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -inset),
         ])
+        controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
     }
     public func setResults(_ items: [LauncherResult]) {
         self.items = items
         results.reloadData()
         if items.isEmpty { results.deselectAll(nil) }
         else { results.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false) }
+        updateEmojiSelection()
+    }
+    public func tableViewSelectionDidChange(_ notification: Notification) { updateEmojiSelection() }
+    private func updateEmojiSelection() {
+        let id = items.indices.contains(results.selectedRow) ? items[results.selectedRow].id : nil
+        emoji.select(id: id)
+        answer.view.isHidden = dictionary.active || emoji.active
     }
     public func setLoginState(_ state: String) {
         loginButton.state = state == "enabled" || state == "requiresApproval" ? .on : .off
@@ -138,6 +165,8 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
     }
     public func controlTextDidChange(_ obj: Notification) {
         calculatorItems.removeAll()
+        _ = emoji.update(query: "", composing: true)
+        emoji.view.isHidden = true
         let composing = (input.currentEditor() as? NSTextView)?.hasMarkedText() ?? false
         let local = dictionary.update(query: input.stringValue, composing: composing)
         dictionary.view.isHidden = !local
@@ -160,12 +189,24 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
             let title = query.isEmpty ? "\(answer.expression) = \(answer.formatted(locale: locale))" : answer.formatted(locale: locale)
             return LauncherResult(id: id, title: title)
         }
-        setResults(rows)
+        let emojiRows = rows.isEmpty || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? emoji.update(query: query, composing: false) : []
+        setResults(emojiRows + rows)
+        if emoji.active {
+            status.stringValue = emoji.message
+            return
+        }
         status.stringValue = rows.isEmpty ? "Search is not connected yet" : "Calculator · ↩ Copy · ⌥⌘C Copy unformatted · History on this Mac"
         if rows.isEmpty { onQuery?(query) }
     }
     private func submitSelection(id: String?) {
         if dictionary.active { dictionary.activate(query: input.stringValue) }
+        else if emoji.copy(id: id, query: input.stringValue,
+                           composing: (input.currentEditor() as? NSTextView)?.hasMarkedText() == true,
+                           write: { [pasteboard] value in
+                               pasteboard.clearContents()
+                               return pasteboard.setString(value, forType: .string)
+                           }) { status.stringValue = emoji.message }
         else if !copyCalculator(unformatted: false) { onSubmit?(input.stringValue, id) }
     }
     @objc public func copyCalculatorUnformatted(_ sender: Any?) { _ = copyCalculator(unformatted: true) }

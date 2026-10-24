@@ -200,6 +200,7 @@ jobs:
       - name: Test production launcher, menu bar status and opt-in guards
         if: matrix.target == 'macos'
         env:
+          LINA_EMOJI_CAPTURES: ${{ github.workspace }}/docs/captures/46
           LINA_DICTIONARY_CAPTURES: ${{ github.workspace }}/docs/captures/44
         run: swift test --package-path packages/lina_app/macos -j 2
       - name: Verify Dictionary Services with network denied
@@ -225,6 +226,7 @@ jobs:
             docs/captures/31/
             docs/captures/49/
             docs/captures/44/
+            docs/captures/46/
             docs/captures/40/
           if-no-files-found: error
       - name: Preserve native verification and artifact digests

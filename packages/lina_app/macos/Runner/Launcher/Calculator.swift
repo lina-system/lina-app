@@ -17,7 +17,14 @@ public struct CalculatorAnswer: Codable, Equatable {
         formatter.numberStyle = .decimal
         formatter.usesSignificantDigits = true
         formatter.maximumSignificantDigits = 15
-        return formatter.string(from: NSNumber(value: value == 0 ? 0 : value)) ?? unformatted
+        let number = NSNumber(value: value == 0 ? 0 : value)
+        if let decimal = formatter.string(from: number), decimal.count <= 24 { return decimal }
+        // Bound leading/trailing zeros and grouping so the result fits the launcher
+        // while retaining its significant digits and exponent in display and copy.
+        formatter.numberStyle = .scientific
+        formatter.exponentSymbol = "e"
+        formatter.usesGroupingSeparator = false
+        return formatter.string(from: number) ?? unformatted
     }
 }
 

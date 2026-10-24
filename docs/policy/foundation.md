@@ -19,6 +19,7 @@ Windows, so only the command construction is covered by tests.
 | LINA app | `packages/lina_app/` | Active native Flutter thin client |
 | Protocol package | `packages/lina_protocol/` | Active generated codec, conformance and socket tests |
 | Design package | `packages/lina_design/` | Active generated tokens, themes, widgets, fonts and goldens |
+| Korean input research | `spikes/korean-input/` | Standalone native-only experiment for #88; outside production visual-token/codegen paths |
 | Foundation tooling | `packages/foundation_tools/` | Active Dart policy validator and tests; never shipped |
 | Policy | `docs/policy/` | Foundation and dependency contracts |
 | Gate | `scripts/foundation.mjs`, `scripts/verify/` | Node orchestration, path map and codegen registrations |

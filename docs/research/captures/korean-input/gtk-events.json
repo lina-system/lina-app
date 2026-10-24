@@ -1,0 +1,4601 @@
+[
+  {
+    "event": "focus-in",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "focus-out",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": false
+  },
+  {
+    "event": "focus-in",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "하",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "한",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "한",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "韓",
+    "cursor": 1,
+    "preedit": "한",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "韓",
+    "cursor": 1,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "韓",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "도",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "해",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "무",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "물",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "고",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "ㅂ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "배",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "배",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "두",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "사",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "ㅇ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이\n",
+    "cursor": 10,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이\n\n",
+    "cursor": 11,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이\n\n",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "하",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "한",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "하",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "하",
+    "cursor": 1,
+    "preedit": "하",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "하",
+    "cursor": 1,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "하",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "하",
+    "cursor": 0,
+    "preedit": "ㄱ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "하",
+    "cursor": 0,
+    "preedit": "가",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "가하",
+    "cursor": 1,
+    "preedit": "가",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "가하",
+    "cursor": 1,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "가하",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "하",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "한",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "한",
+    "cursor": 1,
+    "preedit": "한",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "한",
+    "cursor": 1,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "focus-out",
+    "text": "한",
+    "cursor": 1,
+    "preedit": "",
+    "focused": false
+  },
+  {
+    "event": "focus-in",
+    "text": "한",
+    "cursor": 1,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "한",
+    "cursor": 1,
+    "preedit": "ㄱ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "한",
+    "cursor": 1,
+    "preedit": "그",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "한",
+    "cursor": 1,
+    "preedit": "글",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "한글",
+    "cursor": 2,
+    "preedit": "글",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "한글",
+    "cursor": 2,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "한글",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "하",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "한",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "한",
+    "cursor": 1,
+    "preedit": "한",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "한",
+    "cursor": 1,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "한",
+    "cursor": 1,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "한\n",
+    "cursor": 2,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "한\n",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "도",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "해",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "무",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "물",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "고",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "ㅂ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "배",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "두",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "사",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "ㅇ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이\n",
+    "cursor": 10,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이\n\n",
+    "cursor": 11,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이\n\n",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㄱ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "가",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "가",
+    "cursor": 1,
+    "preedit": "가",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "가",
+    "cursor": 1,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "가",
+    "cursor": 1,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "가\n",
+    "cursor": 2,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "가\n",
+    "cursor": 2,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "가\n",
+    "cursor": 2,
+    "preedit": "하",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "가\n",
+    "cursor": 2,
+    "preedit": "한",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "가\n",
+    "cursor": 2,
+    "preedit": "한",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "가\n한",
+    "cursor": 3,
+    "preedit": "한",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "가\n한",
+    "cursor": 3,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "가\n한",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "도",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "해",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "무",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "물",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "고",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "ㅂ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "배",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "두",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "사",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "ㅇ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "도",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "해",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "무",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "물",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "고",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "ㅂ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "배",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "두",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "사",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "ㅇ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "도",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "해",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "무",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "물",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "고",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "ㅂ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "배",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "cursor": 5,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백",
+    "cursor": 5,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백",
+    "cursor": 5,
+    "preedit": "두",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백",
+    "cursor": 5,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "cursor": 6,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백두",
+    "cursor": 6,
+    "preedit": "사",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백두",
+    "cursor": 6,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "cursor": 7,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백두산",
+    "cursor": 7,
+    "preedit": "ㅇ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백두산",
+    "cursor": 7,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 ",
+    "cursor": 8,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "cursor": 9,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백두산 이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과백두산 이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과백두산 이",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "도",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "해",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "무",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "물",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "고",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "ㅂ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "배",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "cursor": 5,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백",
+    "cursor": 5,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백",
+    "cursor": 5,
+    "preedit": "두",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백",
+    "cursor": 5,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "cursor": 6,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백두",
+    "cursor": 6,
+    "preedit": "사",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백두",
+    "cursor": 6,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "cursor": 7,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백두산",
+    "cursor": 7,
+    "preedit": "ㅇ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백두산",
+    "cursor": 7,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 ",
+    "cursor": 8,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "cursor": 9,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백두산 이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과백두산 이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과백두산 이",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "도",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "해",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "무",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "물",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "고",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "ㅂ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "배",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백",
+    "cursor": 5,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백",
+    "cursor": 5,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백",
+    "cursor": 5,
+    "preedit": "두",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백",
+    "cursor": 5,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두",
+    "cursor": 6,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백두",
+    "cursor": 6,
+    "preedit": "사",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백두",
+    "cursor": 6,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산",
+    "cursor": 7,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백두산",
+    "cursor": 7,
+    "preedit": "ㅇ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백두산",
+    "cursor": 7,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 ",
+    "cursor": 8,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과백두산 이",
+    "cursor": 9,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과백두산 이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과백두산 이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과백두산 이",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "도",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "해",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "무",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "물",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "고",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "ㅂ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "배",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "두",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "사",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "ㅇ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "도",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "해",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "무",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "물",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "고",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "ㅂ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "배",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "두",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "사",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "ㅇ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "도",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "해",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "무",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "물",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "고",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "ㅂ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "배",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "두",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "사",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "ㅇ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "도",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "해",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "무",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "물",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "고",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "ㅂ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "배",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "두",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "사",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "ㅇ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "도",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "해",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "무",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "물",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "고",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "ㅂ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "배",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "두",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "사",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "ㅇ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "도",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "해",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "무",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "물",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "고",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "ㅂ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "배",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "두",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "사",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "ㅇ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "도",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "해",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "무",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "물",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "고",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "ㅂ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "배",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "두",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "사",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "ㅇ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "도",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "해",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "무",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "물",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "고",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "ㅂ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "배",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "두",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "사",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "ㅇ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "도",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "해",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "무",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "물",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "고",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "ㅂ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "배",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "두",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "사",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "ㅇ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "도",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "",
+    "cursor": 0,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "동",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "ㅎ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "해",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동",
+    "cursor": 1,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "햄",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "무",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "물",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해",
+    "cursor": 2,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "묽",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "고",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물",
+    "cursor": 3,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "과",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과",
+    "cursor": 4,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "ㅂ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "배",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 ",
+    "cursor": 5,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "백",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "ㄷ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "두",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백",
+    "cursor": 6,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "둣",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "사",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두",
+    "cursor": 7,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "산",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "ㅇ",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산",
+    "cursor": 8,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "edit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "이",
+    "focused": true
+  },
+  {
+    "event": "preedit",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  },
+  {
+    "event": "selection",
+    "text": "동해물과 백두산이",
+    "cursor": 9,
+    "preedit": "",
+    "focused": true
+  }
+]

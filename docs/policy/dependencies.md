@@ -78,6 +78,13 @@ code licenses are MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, BSD-4-Clause and 
 OFL-1.1 is additionally allowed **for fonts only**. Copyleft runtime code must
 not enter the app process. The tooling package is never bundled with the app.
 
+When separately locked packages use different versions, the inventory can add
+an exact `name@version` entry alongside the default `name` entry. The exact
+entry takes precedence and must still match the locked version, an approved
+license and a complete notice. Missing/mismatched reviews remain failures.
+This preserves the Korean-input experiment's meta 1.18.3 and vector_math 2.4.0
+without upgrading the dependencies under already recorded measurements.
+
 The validator checks declared review metadata and notice presence. Human review
 must establish actual upstream license terms, completeness of notice text,
 font provenance and release-bundle coverage. This is not a vulnerability scanner

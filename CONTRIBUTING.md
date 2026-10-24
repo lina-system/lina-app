@@ -12,4 +12,6 @@ The LINA app is licensed under the Apache License, Version 2.0 ([LICENSE](LICENS
   [dependency](docs/policy/dependencies.md) policies. Commit every Dart package
   lockfile; verify with `node scripts/foundation.mjs` before requesting review.
 - Keep new packages in `packages/` and register them in
-  `scripts/verify/scope.mjs`. Unknown paths and missing checks fail the gate.
+  `scripts/verify/scope.mjs`. The explicitly scoped #88 research app lives in
+  `spikes/korean-input/` and is registered with the same dependency/analyze/test
+  gate. Unknown paths and missing checks fail the gate.

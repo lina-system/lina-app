@@ -1,0 +1,302 @@
+[
+  {
+    "scenario": "flutter-speed-0-0",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 8
+    }
+  },
+  {
+    "scenario": "flutter-speed-0-1",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 8
+    }
+  },
+  {
+    "scenario": "flutter-speed-0-2",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 8
+    }
+  },
+  {
+    "scenario": "flutter-speed-0-3",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 8
+    }
+  },
+  {
+    "scenario": "flutter-speed-0-4",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 8
+    }
+  },
+  {
+    "scenario": "flutter-speed-1-0",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 8
+    }
+  },
+  {
+    "scenario": "flutter-speed-1-1",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 8
+    }
+  },
+  {
+    "scenario": "flutter-speed-1-2",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 8
+    }
+  },
+  {
+    "scenario": "flutter-speed-1-3",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 8
+    }
+  },
+  {
+    "scenario": "flutter-speed-1-4",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 8
+    }
+  },
+  {
+    "scenario": "flutter-speed-12-0",
+    "last": {
+      "event": "edit",
+      "text": "동해물과 백두산이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        8,
+        9
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 8
+    }
+  },
+  {
+    "scenario": "flutter-speed-12-1",
+    "last": {
+      "event": "edit",
+      "text": "동해물과 백두산이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        8,
+        9
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 8
+    }
+  },
+  {
+    "scenario": "flutter-speed-12-2",
+    "last": {
+      "event": "edit",
+      "text": "동해물과 백두산이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        8,
+        9
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 8
+    }
+  },
+  {
+    "scenario": "flutter-speed-12-3",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 8
+    }
+  },
+  {
+    "scenario": "flutter-speed-12-4",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백 두산이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        8,
+        9
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 8
+    }
+  }
+]

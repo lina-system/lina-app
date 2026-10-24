@@ -49,6 +49,9 @@ test('benchmark and design-study registrations admit their files but no hidden e
   for (const path of [
     'scripts/benchmarks/launcher_baseline.py',
     'scripts/benchmarks/tests/test_launcher_baseline.py',
+    'scripts/benchmarks/probe/main.swift',
+    'scripts/benchmarks/probe/build.sh',
+    'scripts/benchmarks/probe/run.sh',
     'docs/research/launcher-baseline-template.csv',
     'scripts/design-study/package.json',
     'scripts/design-study/package-lock.json',
@@ -66,12 +69,25 @@ test('benchmark and design-study registrations admit their files but no hidden e
   ]) assert.doesNotThrow(() => classify([path]), path);
   for (const path of [
     'scripts/benchmarks/unreviewed.py',
+    'scripts/benchmarks/probe/hidden.swift',
     'scripts/design-study/unreviewed.mjs',
     'docs/research/90-accent/hidden.py',
     'docs/research/90-accent/fonts/hidden.mjs',
     'docs/research/90-accent/renders/hidden.dart',
     'docs/research/91-unknown/study.json',
   ]) assert.throws(() => classify([path]), /unmapped/, path);
+});
+
+test('research spike and evidence are registered without allowing executable docs', () => {
+  assert.deepEqual(classify(['spikes/korean-input/lib/main.dart']), ['korean_input']);
+  assert.doesNotThrow(() => classify([
+    'docs/research/captures/korean-input/observations.json',
+    'docs/research/captures/korean-input/linux-x11.gif',
+    'docs/research/90-accent/renders/a-cobalt-light.svg',
+    'scripts/design-study/study.test.mjs',
+  ]));
+  assert.throws(() => classify(['docs/research/captures/korean-input/hidden.dart']), /unmapped/);
+  assert.throws(() => classify(['spikes/unknown/pubspec.yaml']), /unmapped/);
 });
 
 test('runs enforced install, dependency validation, analysis and tests with evidence', t => {

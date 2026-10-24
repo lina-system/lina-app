@@ -188,7 +188,10 @@ Generated from the pinned Core source plus app extensions. Do not edit.
 | launcher.height | `{"value":600,"unit":"px"}` | `{"value":600,"unit":"px"}` | `{"value":600,"unit":"px"}` |
 | launcher.resultsHeight | `{"value":96,"unit":"px"}` | `{"value":96,"unit":"px"}` | `{"value":96,"unit":"px"}` |
 | launcher.width | `{"value":680,"unit":"px"}` | `{"value":680,"unit":"px"}` | `{"value":680,"unit":"px"}` |
+| layout.composerHeight | `{"value":160,"unit":"px"}` | `{"value":160,"unit":"px"}` | `{"value":160,"unit":"px"}` |
+| layout.desktopWidth | `{"value":1000,"unit":"px"}` | `{"value":1000,"unit":"px"}` | `{"value":1000,"unit":"px"}` |
 | layout.readingWidth | `{"value":760,"unit":"px"}` | `{"value":760,"unit":"px"}` | `{"value":760,"unit":"px"}` |
+| layout.sidebarWidth | `{"value":216,"unit":"px"}` | `{"value":216,"unit":"px"}` | `{"value":216,"unit":"px"}` |
 | motion.activityElapsed | `{"value":1000,"unit":"ms"}` | `{"value":1000,"unit":"ms"}` | `{"value":1000,"unit":"ms"}` |
 | motion.activityFrame | `{"value":100,"unit":"ms"}` | `{"value":100,"unit":"ms"}` | `{"value":100,"unit":"ms"}` |
 | motion.reduced | `{"value":0,"unit":"ms"}` | `{"value":0,"unit":"ms"}` | `{"value":0,"unit":"ms"}` |

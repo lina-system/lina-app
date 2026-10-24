@@ -12,7 +12,7 @@ import 'package:lina_app/platform_slots.dart';
 import 'package:lina_app/status_item.dart';
 import 'package:lina_protocol/lina_protocol.dart';
 
-import 'core_screen_test.dart' show ReconnectCore, fixture;
+import 'support/conversation_core.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -120,7 +120,7 @@ void main() {
   testWidgets('menu follows the actual selection, rename and removal', (
     tester,
   ) async {
-    final core = ReconnectCore()..live();
+    final core = ConversationCore();
     final preferences = DisplayPreferences();
     addTearDown(core.dispose);
     addTearDown(preferences.dispose);
@@ -143,24 +143,28 @@ void main() {
       isNotEmpty,
       reason: 'the conversation must publish its initial status',
     );
-    expect((calls.last.arguments as Map)['agentName'], isNull);
+    expect((calls.last.arguments as Map)['agentName'], 'Lina');
     await tester.tap(find.byType(DropdownButtonFormField<String>));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Example preset agent').last);
+    await tester.tap(find.text('Sion').last);
     await tester.pumpAndSettle();
-    expect((calls.last.arguments as Map)['agentName'], 'Example preset agent');
-    final selected = core.welcome!.agents.first.toJson();
-    core.deliverWelcome([
-      {...selected, 'name': '새 이름'},
-    ]);
+    expect((calls.last.arguments as Map)['agentName'], 'Sion');
+    final selected = core.welcome!.agents
+        .singleWhere((a) => a.agentId == 'sion')
+        .toJson();
+    core.live(
+      agents: [
+        {...selected, 'name': '새 이름'},
+      ],
+    );
     await tester.pumpAndSettle();
     expect((calls.last.arguments as Map)['agentName'], '새 이름');
-    core.deliverWelcome([]);
+    core.live(agents: []);
     await tester.pumpAndSettle();
     expect((calls.last.arguments as Map)['agentName'], isNull);
     await tester.pumpWidget(const SizedBox());
     final count = calls.length;
-    core.deliverWelcome([selected]);
+    core.live(agents: [selected]);
     await tester.pump();
     expect(calls, hasLength(count));
   });

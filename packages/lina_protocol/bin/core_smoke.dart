@@ -36,6 +36,9 @@ Future<void> main(List<String> arguments) async {
         ],
       }),
     );
+    // Core admits only private control directories, including the temp root.
+    final permissions = await Process.run('chmod', ['-R', 'go-rwx', root.path]);
+    if (permissions.exitCode != 0) throw StateError('Cannot secure smoke root');
     final process = await Process.start(
       binary,
       [

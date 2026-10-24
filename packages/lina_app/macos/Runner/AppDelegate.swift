@@ -20,6 +20,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var channel: FlutterMethodChannel!
     private var mainChannel: FlutterMethodChannel?
     private var mainWindow: NSWindow?
+    private var draftReady = false
+    private var pendingDraft: (id: UUID, text: String, completion: (Bool) -> Void)?
     private var statusItem: StatusItemController!
     private var statusChannel: StatusItemChannel?
     private var menuBarGuidance: MenuBarGuidance!
@@ -51,7 +53,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if arguments.contains("--calculator-smoke") { calculatorPasteboard = NSPasteboard.withUniqueName() }
         content = LauncherContent(answer: flutter, history: CalculatorHistory(defaults: testMode ? nil : .standard),
                                   pasteboard: calculatorPasteboard ?? .general,
-                                  locale: arguments.contains("--calculator-smoke") ? Locale(identifier: "en_US") : .current)
+                                  locale: arguments.contains("--calculator-smoke") ? Locale(identifier: "en_US") : .current,
+                                  translation: LauncherTranslation(defaults: testMode ? nil : .standard))
         _ = content.view
         host = LauncherPanelHost(content: content, focusView: content.input, defaults: testMode ? nil : .standard)
         statusItem = StatusItemController(openLauncher: { [weak self] in self?.host.show() },
@@ -60,6 +63,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         prepareMainApp()
         content.onDismiss = { [weak self] in self?.host.hide() }
         content.onOpenApp = { [weak self] in self?.openMainApp() }
+        content.onConversationDraft = { [weak self] text, completion in
+            guard let self, self.pendingDraft == nil else { completion(false); return }
+            let id = UUID()
+            self.pendingDraft = (id, text, completion)
+            self.prepareMainApp()
+            self.deliverDraft()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+                guard let self, self.pendingDraft?.id == id else { return }
+                self.pendingDraft = nil
+                completion(false)
+            }
+        }
         content.onQuery = { [weak self] text in self?.channel.invokeMethod("queryChanged", arguments: ["query": text]) }
         content.onSubmit = { [weak self] text, id in
             self?.channel.invokeMethod("submit", arguments: ["query": text, "resultID": id as Any? ?? NSNull()])
@@ -146,6 +161,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             mainChannel?.setMethodCallHandler { [weak self] call, result in
                 guard let self else { return }
                 switch call.method {
+                case "draftReady": self.draftReady = true; self.deliverDraft(); result(nil)
                 case "show": self.host.show(); result(nil)
                 case "hide": self.host.hide(); result(nil)
                 default: result(FlutterMethodNotImplemented)
@@ -164,6 +180,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 fputs("LINA conversation engine failed to start\n", stderr)
                 NSApp.terminate(nil)
             }
+        }
+    }
+    private func deliverDraft() {
+        guard draftReady, let draft = pendingDraft else { return }
+        // Clear before invoking: readiness notifications cannot deliver twice.
+        pendingDraft = nil
+        mainChannel?.invokeMethod("appendDraft", arguments: ["text": draft.text]) { [weak self] response in
+            let accepted = (response as? Bool) == true
+            if accepted { self?.openMainApp() }
+            draft.completion(accepted)
         }
     }
     private func openMainApp() {

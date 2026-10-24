@@ -1,0 +1,7 @@
+{
+  "sandboxProfile": "(version 1)(allow default)(deny network*)",
+  "test": "TranslationTests/testInstalledLanguagesTranslateOfflineAndContinueAsDraft",
+  "networkProbe": "EPERM/EACCES required by XCTest in the translation process",
+  "installedLanguageSeam": "passed: Korean result, download=false, local routing, unsent draft",
+  "realAppleOfflineTranslation": "unverified; physical acceptance tracked in #116"
+}

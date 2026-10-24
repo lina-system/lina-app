@@ -40,6 +40,7 @@ class _CoreScreenState extends State<CoreScreen> {
     super.initState();
     _endpoint.text = widget.endpoint;
     _conversation = ConversationController(widget.connection);
+    widget.slots.conversationDraft?.attach(_appendDraft);
     final statusHost = widget.slots.statusItem;
     if (statusHost != null) {
       _statusItem = StatusItemBinding(
@@ -66,9 +67,29 @@ class _CoreScreenState extends State<CoreScreen> {
   void dispose() {
     _conversation.removeListener(_publishSelectedAgent);
     _statusItem?.dispose();
+    widget.slots.conversationDraft?.detach();
     _conversation.dispose();
     _endpoint.dispose();
     super.dispose();
+  }
+
+  bool _appendDraft(String text) {
+    if (!mounted) return false;
+    final state = _conversation.selected;
+    final composition = state.draft.value.composing;
+    if (state.composing ||
+        state.compositionEnding ||
+        (composition.isValid && !composition.isCollapsed))
+      return false;
+    final combined = state.draft.text.isEmpty
+        ? text
+        : '${state.draft.text}\n\n$text';
+    state.draft.value = TextEditingValue(
+      text: combined,
+      selection: TextSelection.collapsed(offset: combined.length),
+    );
+    state.focus.requestFocus();
+    return true;
   }
 
   @override

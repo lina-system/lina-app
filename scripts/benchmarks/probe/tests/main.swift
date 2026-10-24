@@ -57,3 +57,16 @@ for invalidRect in [[], [0, 0, 1], [0, 0, 0, 1], [0, 0, Double.nan, 1], [-1, 0, 
   do { try invalid.validate(); fatalError("invalid rectangle accepted") } catch {}
 }
 print("Frozen rectangle validation: 6 checks passed")
+
+let approvedRegion: [Double] = [100, 200, 300, 50]
+check(queryFieldIsApproved(["x": "100", "y": "200", "width": "300", "height": "50"], region: approvedRegion),
+      "calibrated query field is approved")
+check(!queryFieldIsApproved(["x": "800", "y": "200", "width": "300", "height": "50"], region: approvedRegion),
+      "a rejected preference/onboarding field must never receive cleanup")
+check(!queryFieldIsApproved(["x": "100", "y": "200", "width": "300", "height": "50"], region: nil),
+      "uncalibrated attempts cannot clean up")
+check(!queryFieldIsApproved(["x": "nan", "y": "200", "width": "300", "height": "50"], region: approvedRegion),
+      "nonfinite geometry fails closed")
+check(!queryFieldIsApproved(["x": "100", "y": "200", "width": "0", "height": "50"], region: approvedRegion),
+      "empty geometry fails closed")
+print("Query field approval: 5 checks passed")

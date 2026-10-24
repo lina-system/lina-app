@@ -188,3 +188,18 @@ func requireUnlockedSession(locked: Bool, frontBundle: String?) throws {
     throw ProbeError.message("desktop_locked_or_unavailable; no key posting or capture")
   }
 }
+
+// Shared by letter delivery and every cleanup key. A launcher-owned text field
+// is insufficient: it must still be the calibrated query field, not preferences
+// or onboarding. The tolerance is the same four display points used at entry.
+func queryFieldIsApproved(_ field: [String: String], region: [Double]?) -> Bool {
+  guard let region, region.count == 4,
+        let x = Double(field["x"] ?? ""), let y = Double(field["y"] ?? ""),
+        let width = Double(field["width"] ?? ""), let height = Double(field["height"] ?? "") else { return false }
+  let values = region + [x, y, width, height]
+  guard values.allSatisfy({ $0.isFinite }), width > 0, height > 0,
+        region[2] > 0, region[3] > 0 else { return false }
+  return x >= region[0] - 4 && y >= region[1] - 4
+    && x + width <= region[0] + region[2] + 4
+    && y + height <= region[1] + region[3] + 4
+}

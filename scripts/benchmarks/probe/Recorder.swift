@@ -500,6 +500,8 @@ func runPilot(_ configURL: URL) async throws {
   var stream: SCStream?
   var neutral: NSRunningApplication?
   var target: NSRunningApplication?
+  var approvedFieldRect: [Double]?
+  var queryStarted = false
   do {
     try watch.start()
     try checkDesktop()
@@ -526,6 +528,10 @@ func runPilot(_ configURL: URL) async throws {
     let filter = SCContentFilter(display: display, excludingWindows: [])
     let sc = SCStreamConfiguration()
     let scale = Double(CGDisplayPixelsWide(display.displayID)) / Double(display.width)
+    let displayOrigin = CGDisplayBounds(display.displayID).origin
+    approvedFieldRect = [config.sourceRect[0] + displayOrigin.x + config.fieldRect[0] / scale,
+                         config.sourceRect[1] + displayOrigin.y + config.fieldRect[1] / scale,
+                         config.fieldRect[2] / scale, config.fieldRect[3] / scale]
     sc.sourceRect = cgRect(config.sourceRect)
     guard CGRect(origin: .zero, size: CGSize(width: display.width, height: display.height)).contains(sc.sourceRect)
     else { throw ProbeError.message("source rectangle outside main display") }
@@ -567,19 +573,15 @@ func runPilot(_ configURL: URL) async throws {
       try checkDesktop()
       guard hasLauncherWindow(target.processIdentifier), let field = focusedField(target.processIdentifier),
             inputSourceID() == config.inputSourceId else { throw ProbeError.message("focus_or_input_source_mismatch") }
-      let displayOrigin = CGDisplayBounds(display.displayID).origin
-      let expectedField = CGRect(x: config.sourceRect[0] + displayOrigin.x + config.fieldRect[0] / scale,
-                                 y: config.sourceRect[1] + displayOrigin.y + config.fieldRect[1] / scale,
-                                 width: config.fieldRect[2] / scale, height: config.fieldRect[3] / scale)
-      guard let x = Double(field["x"] ?? ""), let y = Double(field["y"] ?? ""),
-            let width = Double(field["width"] ?? ""), let height = Double(field["height"] ?? ""),
-            expectedField.insetBy(dx: -4, dy: -4).contains(CGRect(x: x, y: y, width: width, height: height))
-      else { throw ProbeError.message("focused_field_outside_frozen_query_region") }
+      guard queryFieldIsApproved(field, region: approvedFieldRect) else {
+        throw ProbeError.message("focused_field_outside_frozen_query_region")
+      }
       if lastDown == nil {
         trial.setup["initial_field"] = field["value"] ?? ""
         guard field["value"] == "" else { throw ProbeError.message("query_not_blank") }
       }
       let down = try postKey(code, down: true, pid: target.processIdentifier)
+      queryStarted = true
       trial.keys.append(down); lastDown = down.before
       trial.keys.append(try postKey(code, down: false, pid: target.processIdentifier))
     }
@@ -603,23 +605,26 @@ func runPilot(_ configURL: URL) async throws {
   }
   writer.flush()
   if let fault = watch.fault { trial.faults.append(fault) }
-  // Do not interfere with the person's foreground after any physical input.
-  if watch.fault == nil, !desktopLocked(), let target, hasLauncherWindow(target.processIdentifier),
-     focusedField(target.processIdentifier) != nil {
+  // Do not interfere with the person's foreground after physical input, and
+  // never erase a field rejected by the query guard or pre-existing query text.
+  trial.setup["cleanup"] = "skipped; no posted query or approved focus"
+  if queryStarted, watch.fault == nil, !desktopLocked(), let target {
     do {
-      try watch.check()
-      _ = try postKey(0, down: true, flags: .maskCommand, pid: target.processIdentifier)
-      _ = try postKey(0, down: false, pid: target.processIdentifier)
-      try watch.check()
-      _ = try postKey(51, down: true, pid: target.processIdentifier)
-      _ = try postKey(51, down: false, pid: target.processIdentifier)
-      try watch.check()
-      _ = try postKey(53, down: true, pid: target.processIdentifier)
-      _ = try postKey(53, down: false, pid: target.processIdentifier)
-      neutral?.activate(options: [])
-      trial.setup["cleanup"] = "select-all/delete/escape targeted to launcher; neutral reactivated"
+      for code: UInt16 in [0, 51, 53] {
+        try watch.check()
+        try checkDesktop()
+        guard hasLauncherWindow(target.processIdentifier),
+              let field = focusedField(target.processIdentifier),
+              queryFieldIsApproved(field, region: approvedFieldRect) else {
+          throw ProbeError.message("cleanup_field_outside_frozen_query_region")
+        }
+        _ = try postKey(code, down: true, flags: code == 0 ? .maskCommand : [], pid: target.processIdentifier)
+        _ = try postKey(code, down: false, pid: target.processIdentifier)
+      }
+      trial.setup["cleanup"] = "select-all/delete/escape; approved query field rechecked before each key"
     } catch { trial.faults.append("cleanup: \(error)") }
   }
+  if watch.fault == nil, !desktopLocked(), !trial.keys.isEmpty { neutral?.activate(options: []) }
   if let fault = watch.fault { trial.faults.append(fault) }
   watch.stop()
   trial.frames = writer.frames; trial.faults += writer.faults

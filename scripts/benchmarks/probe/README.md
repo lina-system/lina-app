@@ -131,7 +131,10 @@ the system's focused field belongs to the target and lies inside the frozen
 query region. Letters go directly to that PID, preventing a race from typing
 into another app. This conservative safety check adds measurable overhead and
 may abort a trial before the panel is ready: such failures remain evidence.
-The actual first-key delay, intervals and posting-call brackets are retained.
+Cleanup rechecks that same frozen field before every key and only clears text
+if this trial posted query keys; rejected fields and pre-existing queries are
+never cleared. The actual first-key delay, intervals and posting-call brackets
+are retained.
 **Targeted delivery plus AX safety checks is a pilot-method deviation** requiring
 physical-key validation before these measurements can establish a baseline.
 

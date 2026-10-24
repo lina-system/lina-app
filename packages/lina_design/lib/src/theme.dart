@@ -34,11 +34,33 @@ ThemeData linaTheme(LinaThemeMode mode) {
     fontSize: t.typeSize,
     fontWeight: t.typeWeight,
     height: t.typeLineHeight,
-    color: t.colorText,
+    color: _DisabledAwareTextColor(t.colorText, t.colorDisabled),
   );
-  return ThemeData(
+  ButtonStyle controlStyle({required Color? disabledBackground}) => ButtonStyle(
+    minimumSize: WidgetStatePropertyAll(
+      Size(t.controlMinimum, t.controlMinimum),
+    ),
+    foregroundColor: WidgetStateProperty.resolveWith(
+      (states) =>
+          states.contains(WidgetState.disabled) ? t.colorDisabled : null,
+    ),
+    backgroundColor: WidgetStateProperty.resolveWith(
+      (states) =>
+          states.contains(WidgetState.disabled) ? disabledBackground : null,
+    ),
+  );
+  TextStyle stateLabel(Set<WidgetState> states) => body.copyWith(
+    color: states.contains(WidgetState.disabled)
+        ? t.colorDisabled
+        : states.contains(WidgetState.error)
+        ? t.colorError
+        : t.colorMuted,
+  );
+  final theme = ThemeData(
     colorScheme: scheme,
     scaffoldBackgroundColor: t.colorCanvas,
+    visualDensity: VisualDensity.standard,
+    materialTapTargetSize: MaterialTapTargetSize.padded,
     extensions: [t],
     textTheme: TextTheme(
       bodyLarge: body,
@@ -52,7 +74,56 @@ ThemeData linaTheme(LinaThemeMode mode) {
       labelLarge: body,
       labelMedium: body.copyWith(fontSize: t.typeLabelSize),
     ),
+    inputDecorationTheme: InputDecorationThemeData(
+      labelStyle: WidgetStateTextStyle.resolveWith(stateLabel),
+      floatingLabelStyle: WidgetStateTextStyle.resolveWith(
+        (states) => body.copyWith(
+          color: states.contains(WidgetState.disabled)
+              ? t.colorDisabled
+              : states.contains(WidgetState.error)
+              ? t.colorError
+              : states.contains(WidgetState.focused)
+              ? t.colorAccent
+              : t.colorMuted,
+        ),
+      ),
+      hintStyle: WidgetStateTextStyle.resolveWith(
+        (states) => body.copyWith(
+          color: states.contains(WidgetState.disabled)
+              ? t.colorDisabled
+              : t.colorMuted,
+        ),
+      ),
+      helperStyle: WidgetStateTextStyle.resolveWith(
+        (states) => body.copyWith(
+          fontSize: t.typeLabelSize,
+          color: states.contains(WidgetState.disabled)
+              ? t.colorDisabled
+              : t.colorMuted,
+        ),
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: controlStyle(disabledBackground: t.colorSurface),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: controlStyle(disabledBackground: t.colorSurface),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: controlStyle(disabledBackground: null),
+    ),
     iconTheme: IconThemeData(size: t.iconSize, color: t.colorText),
+    iconButtonTheme: IconButtonThemeData(
+      style: ButtonStyle(
+        minimumSize: WidgetStatePropertyAll(
+          Size(t.controlMinimum, t.controlMinimum),
+        ),
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (states) =>
+              states.contains(WidgetState.disabled) ? t.colorDisabled : null,
+        ),
+      ),
+    ),
     textSelectionTheme: TextSelectionThemeData(
       cursorColor: t.colorAccent,
       selectionColor: t.colorSelection,
@@ -89,6 +160,24 @@ ThemeData linaTheme(LinaThemeMode mode) {
       ),
     ),
   );
+  return theme;
+}
+
+/// Text color that maps Material's dimmed body derivation to the token.
+///
+/// Material derives the disabled TextField input color as an opacity of
+/// `bodyLarge.color`, which [InputDecorationThemeData] cannot reach. That
+/// disabled derivation is the only framework path that dims this color, so it
+/// resolves to `color.disabled`; the painted enabled color stays the text
+/// token.
+class _DisabledAwareTextColor extends Color {
+  _DisabledAwareTextColor(Color enabled, this.disabled)
+    : super(enabled.toARGB32());
+
+  final Color disabled;
+
+  @override
+  Color withOpacity(double opacity) => disabled;
 }
 
 TextStyle linaCodeStyle(BuildContext context) {

@@ -30,6 +30,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(LinaTokens.of(context).colorText, LinaTokens.highContrast.colorText);
     expect(
+      tester
+          .widget<MaterialApp>(find.byType(MaterialApp))
+          .themeAnimationDuration,
+      LinaTokens.light.motionReduced,
+    );
+    expect(
       LinaTokens.of(context).colorCanvas,
       LinaTokens.highContrast.colorCanvas,
     );

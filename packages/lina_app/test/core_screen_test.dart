@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lina_app/lina_app.dart';
 import 'package:lina_app/core_screen.dart';
 import 'package:lina_protocol/lina_protocol.dart';
+import 'package:lina_design/lina_design.dart';
 
 Map<String, dynamic> fixture(String path) => exactDecode(
   File('../../protocol/core/fixtures/client/1.0/$path.json').readAsStringSync(),
@@ -144,6 +145,12 @@ void main() {
     expect(MediaQuery.of(context).disableAnimations, isTrue);
     expect(MediaQuery.of(context).textScaler.scale(10), greaterThan(10));
     expect(Theme.of(context).brightness, Brightness.dark);
+    expect(
+      tester
+          .widget<MaterialApp>(find.byType(MaterialApp))
+          .themeAnimationDuration,
+      LinaTokens.light.motionReduced,
+    );
   });
   for (final name in ['disconnected', 'connected', 'rejected', 'mobile']) {
     testWidgets('capture $name and preserve accessible status labels', (

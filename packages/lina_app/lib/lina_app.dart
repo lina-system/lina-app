@@ -5,7 +5,7 @@ import 'package:lina_design/lina_design.dart';
 import 'preferences.dart';
 export 'preferences.dart';
 
-class LinaApp extends StatelessWidget {
+class LinaApp extends StatefulWidget {
   const LinaApp({
     super.key,
     required this.home,
@@ -16,10 +16,41 @@ class LinaApp extends StatelessWidget {
   final ThemeMode themeMode;
   final DisplayPreferences? preferences;
   @override
+  State<LinaApp> createState() => _LinaAppState();
+}
+
+class _LinaAppState extends State<LinaApp> with WidgetsBindingObserver {
+  DisplayPreferences? get preferences => widget.preferences;
+  ThemeMode get themeMode => widget.themeMode;
+  Widget get home => widget.home;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAccessibilityFeatures() => setState(() {});
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: preferences ?? const _NoPreferences(),
     builder: (context, _) => MaterialApp(
       title: 'LINA',
+      themeAnimationDuration:
+          preferences?.reducedMotion == true ||
+              WidgetsBinding
+                  .instance
+                  .platformDispatcher
+                  .accessibilityFeatures
+                  .disableAnimations
+          ? LinaTokens.light.motionReduced
+          : LinaTokens.light.motionSettle,
       debugShowCheckedModeBanner: false,
       themeMode: preferences?.themeMode ?? themeMode,
       theme: linaTheme(

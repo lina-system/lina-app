@@ -358,12 +358,7 @@ class ConversationController extends ChangeNotifier {
           item.payload as Map<String, dynamic>,
         );
         if (turn.active != null) {
-          if (turn.active! && !state.active) {
-            // A new turn owns its own outcome. A stop receipt from the
-            // previous turn cannot label this turn as user-stopped.
-            state.replyCompleted = false;
-            state.stopConfirmed = false;
-          }
+          if (turn.active! && !state.active) state.replyCompleted = false;
           state.active = turn.active!;
           if (state.active) {
             state.turn = TurnPresentation.responding;

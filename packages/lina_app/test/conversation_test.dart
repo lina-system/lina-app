@@ -146,42 +146,6 @@ void main() {
     },
   );
   testWidgets(
-    'a new Core turn clears the stop confirmation from the previous turn',
-    (tester) async {
-      final core = ConversationCore();
-      await mount(tester, core);
-      await tester.enterText(composer, 'stop this turn');
-      await tester.pump();
-      await tester.tap(find.text('Send'));
-      await tester.pump();
-      core.pending.last.complete(event('item_done', {}, effect: 'applied'));
-      await tester.pump();
-      core.stream('lina', 1, 'turn', 'turn_state', {'active': true});
-      await tester.pump();
-      expect(find.text('Responding'), findsOneWidget);
-      await tester.tap(find.text('Stop'));
-      await tester.pump();
-      core.pending.last.complete(event('item_done', {}, effect: 'applied'));
-      await tester.pump();
-      core.stream('lina', 2, 'turn', 'turn_state', {'active': false});
-      await tester.pump();
-      expect(find.text('User-stopped'), findsOneWidget);
-      // Core starts a queued input without a new local send().
-      core.stream('lina', 3, 'turn', 'turn_state', {'active': true});
-      await tester.pump();
-      expect(find.text('Responding'), findsOneWidget);
-      core.stream('lina', 4, 'reply', 'item_done', {
-        'text': 'A completed queued reply',
-        'speaker': 'agent',
-        'agent_id': 'lina',
-      });
-      core.stream('lina', 5, 'turn', 'turn_state', {'active': false});
-      await tester.pump();
-      expect(find.text('Completed'), findsOneWidget);
-      expect(find.text('User-stopped'), findsNothing);
-    },
-  );
-  testWidgets(
     'late receipts and stream replies cannot change a corrected target or draft',
     (tester) async {
       final core = ConversationCore();

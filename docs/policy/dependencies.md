@@ -83,9 +83,11 @@ must establish actual upstream license terms, completeness of notice text,
 font provenance and release-bundle coverage. This is not a vulnerability scanner
 or proof that a newly added native plugin has been legally audited. A plugin's
 native dependencies must join the same review before its first release.
-Currently no app runtime package or font is bundled; the runtime inventory is
-empty deliberately. `THIRD-PARTY-NOTICES.md` records this boundary, the reviewed
-SDK/tooling inputs and Pretendard's planned OFL terms.
+The active app/design runtime closure contains Flutter, sky_engine and five
+hosted SDK dependencies; every version and notice is inventoried. Pretendard
+1.3.9 and JetBrains Mono v2.304 are bundled under OFL-1.1. Lucide v0.468.0
+paths carry ISC and Feather MIT notices. Theme verification checks the reviewed
+asset digests. Native engine-artifact notice verification remains with #6.
 
 Generator versions and entry-script hashes are pinned as described in the
 [foundation policy](foundation.md#generated-sources-and-lint). Theme/lint work is

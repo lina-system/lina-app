@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import 'package:flutter/material.dart';
 
-/// Isolated research tokens. Replace with lina_design when #5 lands.
+/// Isolated research tokens. Production screens use lina_design; these values keep the study workload fixed.
 abstract final class SpikeTokens {
   static const accent = Color(0xff2f4bdb);
   static const ink = Color(0xff1c2030);

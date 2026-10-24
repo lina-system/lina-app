@@ -15,6 +15,7 @@ This does not close or decide #2.
 - SDK: Flutter 3.47.8 stable, Dart 3.13.7; Xcode 27.1 (27A9275), Swift 6.4.
 - Both apps use release builds and an ad-hoc signature (`codesign --sign -`),
   verified with `codesign --verify --strict` (also `--deep` for Flutter).
+  The Flutter re-sign explicitly preserves its App Sandbox entitlement.
   There is no Developer ID signature or notarization; this is research for an
   unsigned alpha, not a signed distribution claim.
 - The screen was unlocked when the measured runs began. No lock/sleep/input
@@ -25,7 +26,7 @@ This does not close or decide #2.
   was built with Command Line Tools. A later license check passed without this
   task changing the license or developer-directory setting; the full Flutter
   build and XCTest checks then ran successfully. Xcode is not a remaining blocker.
-- Normal background applications and repository verification were left running. Background agent/Core/LIFE
+- Normal background applications and development workloads were left running. Background agent/Core/LIFE
   counts and whole-machine load were not measured. These are process-local
   spike numbers, not a non-competition or production-load acceptance result.
 
@@ -46,7 +47,10 @@ Raw results are in [captures/mac-panel](captures/mac-panel/README.md). The
 using synthetic state, not a screen recording or physical IME proof. It is
 produced by `MAC_PANEL_CAPTURE=1 flutter test --no-pub test/capture_test.dart`
 from `spikes/mac-panel/`. The system font is read only for local evidence and
-is not bundled. CI tests the layout without relying on that font.
+is not bundled. CI tests the spike layout without relying on that font. After merging #5,
+the repository gate on macOS reaches three design-package Linux-reference golden
+differences (about 2.3%); those references are unchanged. Linux CI validates the
+canonical golden images. The spike's three widget tests still pass locally.
 
 ## Evidence for each Done-when item in #2
 
@@ -59,7 +63,7 @@ unverified, not a failure of Flutter and not a pass inferred from code.
 | Non-activating panel above the active app, receiving keys; Esc/outside click; full-screen/Spaces | **Unverified** overall | **Pass** for ordinary-window ordering: ten embedded-Flutter shows made the panel key while the original external app stayed foreground, including after hiding. Actual typing, Esc/outside-click focus return, full-screen and Spaces need #102. NSPanel flags alone are not proof. |
 | Korean input and no submission on composition Enter | **Unverified** | Synthetic Flutter editing-value tests pass for composing Enter, the same-frame commit guard, committed Enter exactly once and Shift+Enter/Escape routing. Physical macOS 2-Set is not emulated by those tests; see the per-criterion table below. |
 | Local clipboard history skips concealed/transient items and never reaches Core | **Pass** for the spike | XCTest uses a private NSPasteboard with multiple items; a marker on any item rejects the whole copy before reading text. Five modern/legacy markers, source ignores, opt-in baseline, bounds, deduplication and clearing are covered. No Core/network/persistence API exists. Real password-manager integrations were not exercised. |
-| Flutter renders token-based UI; native code owns window/shortcut/clipboard; API documented | **Pass** | Embedded release builds and the hidden first-frame/channel handshake pass. `SpikeTokens` isolates research values; #5 will replace them with the production theme. Boundary below. |
+| Flutter renders token-based UI; native code owns window/shortcut/clipboard; API documented | **Pass** | Embedded release builds and the hidden first-frame/channel handshake pass. `SpikeTokens` keeps this study workload fixed; production screens use the now-landed `lina_design` package from #5. Boundary below. |
 | Signed-app shortcut-to-visible latency and resident memory | **Unverified** overall | **Pass** for ad-hoc signing and process RSS. Ordering proxy samples are recorded below; no physical shortcut/display presentation measurement was run. #102 collects that missing measurement. |
 | Record every result with recordings/logs; define native replacement for failures | **Unverified** for device recordings | This table, raw logs, measurements and rendered PNG are committed. #102 supplies real-device recordings. No physical check has established a failing Flutter component; no larger native replacement is justified yet. |
 
@@ -86,7 +90,7 @@ behavior in #1. There is no custom IME bridge and no character-limit rewrite.
 | Release app | n | Ordering proxy median (ms) | p90 (ms) | RSS after run (MiB) |
 | --- | --- | --- | --- | --- |
 | Native harness | 10 | 5.97 | 13.24 | 51.16 |
-| Flutter panel | 10 | 7.39 | 10.86 | 117.50 |
+| Flutter panel | 10 | 2.50 | 2.62 | 117.59 |
 
 `PanelMeasurement` starts the monotonic timer immediately before a programmatic
 `PanelHost.show`, and stops after `makeKeyAndOrderFront` and first-responder

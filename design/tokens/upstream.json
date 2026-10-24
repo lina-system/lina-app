@@ -1,0 +1,10 @@
+{
+  "repository": "lina-system/lina",
+  "revision": "83de7a325186e0c16c8fcbaf768e4455ccb5ad0b",
+  "path": "design/tokens",
+  "sha256": {
+    "light.json": "a3e48109d03b33cf78de41708e5367aeac124a26b5381587a4529f3086061e7d",
+    "dark.json": "d50ade9545f54575e9257f9f024b2924c249fb9210c68d2f8ca52eb81c13d2ed",
+    "high-contrast.json": "3efd6c17ce6bf0ff8f3491bc5cda6590ca9126faf7cdbcae394d2af1d78bd8fc"
+  }
+}

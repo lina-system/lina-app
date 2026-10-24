@@ -34,7 +34,7 @@ jobs:
         run: |
           flutter pub get --enforce-lockfile
           flutter build macos --release --no-pub
-          codesign --force --deep --sign - build/macos/Build/Products/Release/mac_panel.app
+          codesign --force --sign - --entitlements macos/Runner/Release.entitlements build/macos/Build/Products/Release/mac_panel.app
           codesign --verify --deep --strict build/macos/Build/Products/Release/mac_panel.app
       - name: Verify the hidden Flutter first frame reaches the platform channel
         run: node scripts/mac-panel.mjs smoke-flutter
@@ -89,6 +89,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
+      - name: Test token generation, contrast and visual lint regressions
+        run: node --test scripts/verify/design.test.mjs
       - name: Run the app foundation gate
         run: node scripts/foundation.mjs
       - name: Preserve foundation evidence

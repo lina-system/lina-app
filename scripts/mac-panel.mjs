@@ -59,6 +59,11 @@ if (mode === 'native') {
   console.log(run('flutter', ['pub', 'get', '--enforce-lockfile']));
   console.log(run('flutter', ['build', 'macos', '--release', '--no-pub']));
   const app = `${spike}/build/macos/Build/Products/Release/mac_panel.app`;
-  run('codesign', ['--force', '--deep', '--sign', '-', app]);
+  // Explicit entitlements prevent an ad-hoc re-sign from dropping the sandbox.
+  run('codesign', ['--force', '--sign', '-', '--entitlements', `${spike}/macos/Runner/Release.entitlements`, app]);
   run('codesign', ['--verify', '--deep', '--strict', app]);
+  const entitlements = run('codesign', ['--display', '--entitlements', '-', '--xml', app]);
+  if (!/<key>com\.apple\.security\.app-sandbox<\/key>\s*<true\s*\/>/.test(entitlements)) {
+    throw new Error('Signed Flutter release lost its App Sandbox entitlement');
+  }
 }

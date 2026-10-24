@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lina_app/lina_app.dart';
 import 'package:lina_app/core_screen.dart';
 import 'package:lina_app/platform_slots.dart';
+import 'package:lina_app/conversation_draft.dart';
 import 'package:lina_protocol/lina_protocol.dart';
 import 'package:lina_design/lina_design.dart';
 
@@ -65,6 +66,14 @@ class ReconnectCore extends DisplayCore {
   }
 }
 
+class DraftFixture implements ConversationDraftHost {
+  bool Function(String)? append;
+  @override
+  void attach(bool Function(String) handler) => append = handler;
+  @override
+  void detach() => append = null;
+}
+
 void main() {
   setUpAll(() async {
     final font = FontLoader('packages/lina_design/Pretendard');
@@ -102,6 +111,43 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets(
+    'translation appends an unsent draft and preserves IME composition',
+    (tester) async {
+      final core = DisplayCore()..live();
+      final host = DraftFixture();
+      await mount(tester, core, slots: PlatformSlots(conversationDraft: host));
+      final composer = find.byKey(const ValueKey('composer'));
+      final controller = tester.widget<TextField>(composer).controller!;
+      const translation =
+          'Translation (English → Korean)\ngood morning\n\n좋은 아침';
+      expect(host.append!(translation), isTrue);
+      await tester.pump();
+      expect(controller.text, translation);
+      await tester.enterText(composer, 'Existing draft');
+      expect(host.append!(translation), isTrue);
+      await tester.pump();
+      expect(controller.text, 'Existing draft\n\n$translation');
+      expect(core.requests, isEmpty);
+      controller.value = const TextEditingValue(
+        text: '한',
+        selection: TextSelection.collapsed(offset: 1),
+        composing: TextRange(start: 0, end: 1),
+      );
+      expect(host.append!(translation), isFalse);
+      expect(controller.value.composing, const TextRange(start: 0, end: 1));
+      expect(controller.text, '한');
+      controller.value = const TextEditingValue(text: '한글');
+      expect(host.append!(translation), isFalse);
+      await tester.pump();
+      expect(host.append!(translation), isTrue);
+      expect(controller.text, '한글\n\n$translation');
+      expect(core.requests, isEmpty);
+      await tester.pumpWidget(const SizedBox());
+      expect(host.append, isNull);
+    },
+  );
 
   testWidgets(
     'Korean composition remains unchanged; one input waits for Core confirmation',

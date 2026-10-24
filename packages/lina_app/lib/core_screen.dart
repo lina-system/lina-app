@@ -42,6 +42,7 @@ class _CoreScreenState extends State<CoreScreen> {
     super.initState();
     _endpoint.text = widget.endpoint;
     _draft.addListener(_compositionChanged);
+    widget.slots.conversationDraft?.attach(_appendDraft);
     _changes = widget.connection.changes.listen((_) => _reconcileSelection());
     _reconcileSelection();
     final statusHost = widget.slots.statusItem;
@@ -95,10 +96,24 @@ class _CoreScreenState extends State<CoreScreen> {
   void dispose() {
     _changes?.cancel();
     _statusItem?.dispose();
+    widget.slots.conversationDraft?.detach();
     _draft.dispose();
     _endpoint.dispose();
     _focus.dispose();
     super.dispose();
+  }
+
+  bool _appendDraft(String text) {
+    // Preserve both the existing draft and any active IME composition. A refused
+    // handoff stays available in the launcher for an explicit retry.
+    if (!mounted || _wasComposing || _compositionEnding) return false;
+    final combined = _draft.text.isEmpty ? text : '${_draft.text}\n\n$text';
+    _draft.value = TextEditingValue(
+      text: combined,
+      selection: TextSelection.collapsed(offset: combined.length),
+    );
+    _focus.requestFocus();
+    return true;
   }
 
   Future<void> _send() async {

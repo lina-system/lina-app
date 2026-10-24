@@ -97,7 +97,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     required this.launcherHeight,
     required this.launcherResultsHeight,
     required this.launcherWidth,
+    required this.layoutComposerHeight,
+    required this.layoutDesktopWidth,
     required this.layoutReadingWidth,
+    required this.layoutSidebarWidth,
     required this.motionActivityElapsed,
     required this.motionActivityFrame,
     required this.motionReduced,
@@ -210,7 +213,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
   final double launcherHeight;
   final double launcherResultsHeight;
   final double launcherWidth;
+  final double layoutComposerHeight;
+  final double layoutDesktopWidth;
   final double layoutReadingWidth;
+  final double layoutSidebarWidth;
   final Duration motionActivityElapsed;
   final Duration motionActivityFrame;
   final Duration motionReduced;
@@ -325,7 +331,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     launcherHeight: 600.0,
     launcherResultsHeight: 96.0,
     launcherWidth: 680.0,
+    layoutComposerHeight: 160.0,
+    layoutDesktopWidth: 1000.0,
     layoutReadingWidth: 760.0,
+    layoutSidebarWidth: 216.0,
     motionActivityElapsed: Duration(milliseconds: 1000),
     motionActivityFrame: Duration(milliseconds: 100),
     motionReduced: Duration(milliseconds: 0),
@@ -439,7 +448,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     launcherHeight: 600.0,
     launcherResultsHeight: 96.0,
     launcherWidth: 680.0,
+    layoutComposerHeight: 160.0,
+    layoutDesktopWidth: 1000.0,
     layoutReadingWidth: 760.0,
+    layoutSidebarWidth: 216.0,
     motionActivityElapsed: Duration(milliseconds: 1000),
     motionActivityFrame: Duration(milliseconds: 100),
     motionReduced: Duration(milliseconds: 0),
@@ -553,7 +565,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     launcherHeight: 600.0,
     launcherResultsHeight: 96.0,
     launcherWidth: 680.0,
+    layoutComposerHeight: 160.0,
+    layoutDesktopWidth: 1000.0,
     layoutReadingWidth: 760.0,
+    layoutSidebarWidth: 216.0,
     motionActivityElapsed: Duration(milliseconds: 1000),
     motionActivityFrame: Duration(milliseconds: 100),
     motionReduced: Duration(milliseconds: 0),
@@ -668,7 +683,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     double? launcherHeight,
     double? launcherResultsHeight,
     double? launcherWidth,
+    double? layoutComposerHeight,
+    double? layoutDesktopWidth,
     double? layoutReadingWidth,
+    double? layoutSidebarWidth,
     Duration? motionActivityElapsed,
     Duration? motionActivityFrame,
     Duration? motionReduced,
@@ -800,7 +818,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     launcherHeight: launcherHeight ?? this.launcherHeight,
     launcherResultsHeight: launcherResultsHeight ?? this.launcherResultsHeight,
     launcherWidth: launcherWidth ?? this.launcherWidth,
+    layoutComposerHeight: layoutComposerHeight ?? this.layoutComposerHeight,
+    layoutDesktopWidth: layoutDesktopWidth ?? this.layoutDesktopWidth,
     layoutReadingWidth: layoutReadingWidth ?? this.layoutReadingWidth,
+    layoutSidebarWidth: layoutSidebarWidth ?? this.layoutSidebarWidth,
     motionActivityElapsed: motionActivityElapsed ?? this.motionActivityElapsed,
     motionActivityFrame: motionActivityFrame ?? this.motionActivityFrame,
     motionReduced: motionReduced ?? this.motionReduced,
@@ -1054,9 +1075,18 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
           (other.launcherResultsHeight - this.launcherResultsHeight) * t,
       launcherWidth:
           this.launcherWidth + (other.launcherWidth - this.launcherWidth) * t,
+      layoutComposerHeight:
+          this.layoutComposerHeight +
+          (other.layoutComposerHeight - this.layoutComposerHeight) * t,
+      layoutDesktopWidth:
+          this.layoutDesktopWidth +
+          (other.layoutDesktopWidth - this.layoutDesktopWidth) * t,
       layoutReadingWidth:
           this.layoutReadingWidth +
           (other.layoutReadingWidth - this.layoutReadingWidth) * t,
+      layoutSidebarWidth:
+          this.layoutSidebarWidth +
+          (other.layoutSidebarWidth - this.layoutSidebarWidth) * t,
       motionActivityElapsed: t < 0.5
           ? this.motionActivityElapsed
           : other.motionActivityElapsed,

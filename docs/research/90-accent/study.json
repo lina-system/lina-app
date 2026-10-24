@@ -1,0 +1,22 @@
+{
+  "status": "proposal-only; owner decision remains in issue #4",
+  "modes": {
+    "light": { "canvas": "#F5F6F8", "surface": "#FFFFFF", "text": "#17191F", "secondary": "#595F6B", "border": "#D9DDE4", "onAccent": "#FFFFFF" },
+    "dark": { "canvas": "#15171C", "surface": "#1E2128", "text": "#F5F6F8", "secondary": "#B2B8C4", "border": "#3D4451", "onAccent": "#080B10" },
+    "high-contrast": { "canvas": "#000000", "surface": "#0C0E12", "text": "#FFFFFF", "secondary": "#CFD5E1", "border": "#8D96A5", "onAccent": "#000000" }
+  },
+  "candidates": [
+    { "id": "a-cobalt", "name": "A · Cobalt", "recommendation": "Recommended · matches Core", "light": "#2F4BDB", "dark": "#5685FF", "high-contrast": "#6795FF" },
+    { "id": "b-teal", "name": "B · Teal", "recommendation": "Alternative · quieter character", "light": "#006E73", "dark": "#47B8BC", "high-contrast": "#61D9D9" },
+    { "id": "c-iris", "name": "C · Iris", "recommendation": "Alternative · more expressive", "light": "#6742C9", "dark": "#B196FF", "high-contrast": "#C2ADFF" }
+  ],
+  "placements": {
+    "conversation-header": 40,
+    "message": 28,
+    "active-work": 16,
+    "life-author": 24,
+    "notification": 32,
+    "card": 24,
+    "agent-list": 40
+  }
+}

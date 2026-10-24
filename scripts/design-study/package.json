@@ -1,0 +1,14 @@
+{
+  "name": "lina-design-study",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test study.test.mjs",
+    "render": "node render.mjs",
+    "check": "node render.mjs --check"
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "0.1.100"
+  }
+}

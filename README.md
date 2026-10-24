@@ -18,6 +18,10 @@ Only open-source components are used. No paid or source-restricted UI kit is par
 
 ## Contributing
 
+The [accent and agent identity study](docs/research/90-accent/README.md) contains
+rendered design candidates and contrast evidence for the owner's design decision.
+Its values are proposals, not the app's production theme.
+
 - Issues and ideas for the app go to this repository's [Issues](https://github.com/thisisjun786/lina-app/issues). Problems in Core go to [`thisisjun786/lina`](https://github.com/thisisjun786/lina/issues).
 - Pull requests target `main`, follow the pull request template, and link their issue with `Closes #n`.
 - PR and issue text is written in English.

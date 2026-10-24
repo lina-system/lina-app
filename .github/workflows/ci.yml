@@ -13,6 +13,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  design-study:
+    name: design-study
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: scripts/design-study/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: scripts/design-study
+      - name: Verify contrast, expression rules and committed renders
+        working-directory: scripts/design-study
+        run: npm test && npm run check
   flutter:
     name: flutter
     runs-on: ubuntu-latest

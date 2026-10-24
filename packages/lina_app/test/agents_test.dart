@@ -457,4 +457,48 @@ void main() {
       expect(controller.canSend, isFalse);
     },
   );
+  testWidgets(
+    'creating the first agent opens its main conversation without a switcher',
+    (tester) async {
+      final core = ConversationCore()..live(agents: []);
+      await mount(tester, core);
+      await tester.tap(find.text('Agents'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('New agent'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('agent-name')), 'Mira');
+      await tester.pump();
+      core.answers['agent_request'] = agentReply('create', [
+        {'agent_id': 'mira', 'name': 'Mira', 'preset': 'lina'},
+      ], id: 'mira');
+      core.selectedAgent = 'mira';
+      await tester.tap(find.text('Create'));
+      await tester.pumpAndSettle();
+      expect(find.text('Main conversation · Mira'), findsOneWidget);
+      expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+      expect(find.text('New agent'), findsNothing);
+    },
+  );
+
+  testWidgets('an error with unknown effect still fences mutation and input', (
+    tester,
+  ) async {
+    final core = ConversationCore();
+    final controller = ConversationController(core);
+    addTearDown(controller.dispose);
+    addTearDown(core.dispose);
+    await tester.pump();
+    core.answers['agent_request'] = event(
+      'error',
+      {},
+      effect: 'unknown',
+      error: {'code': 'unavailable', 'detail': 'Receipt unavailable'},
+    );
+    await controller.choose('sion');
+    expect(controller.canManageAgents, isFalse);
+    expect(controller.canSend, isFalse);
+    final count = core.requests.length;
+    await controller.createAgent('Mira');
+    expect(core.requests.length, count);
+  });
 }

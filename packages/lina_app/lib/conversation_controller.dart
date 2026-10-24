@@ -263,7 +263,31 @@ class ConversationController extends ChangeNotifier {
       await _load(state);
   }
 
-  Future<bool> createAgent(String name) => _requestAgent('create', name: name);
+  Future<bool> createAgent(String name) async {
+    final generation = _generation;
+    final applied = await _requestAgent('create', name: name);
+    if (applied &&
+        !_disposed &&
+        generation == _generation &&
+        selectedId == null &&
+        agents.singleOrNull != null &&
+        core.hasCapability('conversation')) {
+      unawaited(_openFirstAgent(generation));
+    }
+    return applied;
+  }
+
+  Future<void> _openFirstAgent(Object generation) async {
+    final selection = _selection;
+    await _discover();
+    if (!_disposed &&
+        generation == _generation &&
+        selection == _selection &&
+        selectionAvailable &&
+        selected.ready)
+      navigate('Home');
+  }
+
   Future<bool> renameAgent(String id, String name) =>
       _requestAgent('rename', id: id, name: name);
   Future<bool> deleteAgent(String id) => _requestAgent('delete', id: id);
@@ -315,12 +339,11 @@ class ConversationController extends ChangeNotifier {
         }),
       );
       if (_disposed || generation != _generation) return false;
-      if (reply.error != null ||
-          const [
-            'refused',
-            'failed',
-            'cancelled',
-          ].contains(reply.effectState)) {
+      if (const [
+        'refused',
+        'failed',
+        'cancelled',
+      ].contains(reply.effectState)) {
         agentFeedback =
             'Core could not $operation the agent. Refresh agents and try again.';
         return false;
@@ -328,7 +351,9 @@ class ConversationController extends ChangeNotifier {
       final expectedEffect = operation == 'list' || operation == 'choose'
           ? 'none'
           : 'applied';
-      if (reply.kind != 'agent_result' || reply.effectState != expectedEffect) {
+      if (reply.error != null ||
+          reply.kind != 'agent_result' ||
+          reply.effectState != expectedEffect) {
         uncertain();
         return false;
       }

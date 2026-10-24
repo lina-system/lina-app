@@ -15,7 +15,8 @@ Multiple agents have a keyboard-accessible dropdown and labeled list actions.
 An unavailable retained agent keeps its draft and requires an explicit selection,
 even when only one other agent remains. Removed agents' transcripts and documents
 are cleared from the display. Creation does not switch away from an existing
-conversation.
+conversation. Creating the first agent discovers its main conversation through
+Core and opens Home directly, without a one-agent switcher.
 
 When agent management is negotiated, a switch sends `choose` and waits for Core's
 `none` effect response (the current protocol's successful choose effect). Sending

@@ -22,6 +22,10 @@ The baseline is explicitly unverified until the device measurements are recorded
 
 ## Contributing
 
+The [accent and agent identity study](docs/research/90-accent/README.md) contains
+rendered design candidates and contrast evidence for the owner's design decision.
+Its values are proposals, not the app's production theme.
+
 - Issues and ideas for the app go to this repository's [Issues](https://github.com/thisisjun786/lina-app/issues). Problems in Core go to [`thisisjun786/lina`](https://github.com/thisisjun786/lina/issues).
 - Pull requests target `main`, follow the pull request template, and link their issue with `Closes #n`.
 - PR and issue text is written in English.
@@ -34,3 +38,10 @@ Report a vulnerability privately to the repository owner, as described in [SECUR
 ## License
 
 Licensed under the Apache License, Version 2.0 ([LICENSE](LICENSE), [NOTICE](NOTICE)). Contributions are accepted under the same license.
+
+## Foundation gate
+
+Run `node scripts/foundation.mjs` with the pinned SDKs. See the
+[foundation policy](docs/policy/foundation.md) for component paths, evidence,
+codegen ownership and the native-build matrix, and the
+[dependency policy](docs/policy/dependencies.md) for exact pins and updates.

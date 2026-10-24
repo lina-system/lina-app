@@ -19,6 +19,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var observers: [NSObjectProtocol] = []
     private var ready = false
     private var measuring = false
+    /// `measure-visible` and `measure-visible-local` set this collector flag.
+    private var measuringVisible: Bool { ProcessInfo.processInfo.environment["LINA_PANEL_VISIBLE"] == "1" }
     private var engine: FlutterEngine?
     private var visibleCapture: AnyObject?
     private var captureSequence = -1
@@ -36,7 +38,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         material.material = .hudWindow
         material.blendingMode = .behindWindow
         material.state = .active
-        let capturing = ProcessInfo.processInfo.environment["LINA_PANEL_VISIBLE"] == "1"
+        let capturing = measuringVisible
         if capturing {
             let opaque = NSView(frame: material.frame)
             opaque.wantsLayer = true
@@ -108,11 +110,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     }
                     shortcut = hotkey
                 }
-                let saved = UserDefaults.standard.dictionary(forKey: "panelShortcut")
-                let configuration = try Shortcut(keyCode: saved?["keyCode"] as? Int ?? 49,
-                                                  modifiers: saved?["modifiers"] as? [String] ?? ["control", "option"])
+                let configuration = try PanelShortcutPreference.configuration(
+                    measurement: measuringVisible, saved: UserDefaults.standard.dictionary(forKey: "panelShortcut"))
                 try shortcut?.register(configuration)
-                if ProcessInfo.processInfo.environment["LINA_PANEL_VISIBLE"] == "1", visibleCapture == nil {
+                if measuringVisible, visibleCapture == nil {
                     if #available(macOS 14.4, *) {
                         captureSequence = 0
                         visibleCapture = VisibleCapture(host: host) { [weak self] sequence in

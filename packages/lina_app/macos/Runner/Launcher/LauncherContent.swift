@@ -11,11 +11,12 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
     public let input = NSTextField()
     public let results = LauncherResultsTable()
     public let loginButton = NSButton(checkboxWithTitle: "Open at login", target: nil, action: nil)
-    public let status = NSTextField(labelWithString: "Type define <word> for the device dictionary")
+    public let status = NSTextField(labelWithString: "Type define <word> or tr <text> for device lookup")
     public var onQuery: ((String) -> Void)?
     public var onSubmit: ((String, String?) -> Void)?
     public var onDismiss: (() -> Void)?
     public var onOpenApp: (() -> Void)?
+    public var onConversationDraft: ((String, @escaping (Bool) -> Void) -> Void)?
     public var onLoginChange: ((Bool) -> Void)?
     public private(set) var items: [LauncherResult] = []
     private let history: CalculatorHistory
@@ -24,13 +25,15 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
     private var calculatorItems: [String: CalculatorAnswer] = [:]
     private let answer: NSViewController
     private let dictionary: LauncherDictionary
+    private let translation: LauncherTranslation
     private let loginStatus = NSTextField(labelWithString: "")
 
     public init(answer: NSViewController, history: CalculatorHistory = CalculatorHistory(),
                 pasteboard: NSPasteboard = .general, locale: Locale = .current,
-                dictionary: LauncherDictionary? = nil) {
+                dictionary: LauncherDictionary? = nil, translation: LauncherTranslation? = nil) {
         self.answer = answer; self.history = history; self.pasteboard = pasteboard; self.locale = locale
         self.dictionary = dictionary ?? LauncherDictionary()
+        self.translation = translation ?? LauncherTranslation()
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { fatalError("Use init(answer:)") }
@@ -90,6 +93,29 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
         ])
         dictionary.onResults = { [weak self] in self?.setResults($0) }
         dictionary.onOpened = { [weak self] in self?.onDismiss?() }
+        addChild(translation)
+        translation.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(translation.view)
+        NSLayoutConstraint.activate([
+            translation.view.leadingAnchor.constraint(equalTo: answer.view.leadingAnchor),
+            translation.view.trailingAnchor.constraint(equalTo: answer.view.trailingAnchor),
+            translation.view.topAnchor.constraint(equalTo: answer.view.topAnchor),
+            translation.view.bottomAnchor.constraint(equalTo: answer.view.bottomAnchor),
+        ])
+        translation.onResults = { [weak self] in self?.setResults($0) }
+        translation.canAct = { [weak self] in
+            guard let self else { return false }
+            return (self.input.currentEditor() as? NSTextView)?.hasMarkedText() != true
+        }
+        translation.onReplaceQuery = { [weak self] query in
+            guard let self else { return }
+            self.input.stringValue = query
+            self.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+        }
+        translation.onContinue = { [weak self] text, completion in
+            guard let handler = self?.onConversationDraft else { completion(false); return }
+            handler(text, completion)
+        }
         let gap = LinaTokens.Space.inline
         let inset = LinaTokens.Space.gutter
         for child in [title, input, status, scroll, answer.view, footer, loginStatus] {
@@ -141,7 +167,13 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
         let composing = (input.currentEditor() as? NSTextView)?.hasMarkedText() ?? false
         let local = dictionary.update(query: input.stringValue, composing: composing)
         dictionary.view.isHidden = !local
-        answer.view.isHidden = local
+        let translating = translation.update(query: input.stringValue, composing: composing)
+        translation.view.isHidden = !translating
+        answer.view.isHidden = local || translating
+        if translating {
+            status.stringValue = "Device translation · ↩ Continue in conversation"
+            return
+        }
         if local {
             status.stringValue = "Device dictionary · ↩ Open in Dictionary"
             return
@@ -165,7 +197,8 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
         if rows.isEmpty { onQuery?(query) }
     }
     private func submitSelection(id: String?) {
-        if dictionary.active { dictionary.activate(query: input.stringValue) }
+        if translation.active { translation.activate(query: input.stringValue) }
+        else if dictionary.active { dictionary.activate(query: input.stringValue) }
         else if !copyCalculator(unformatted: false) { onSubmit?(input.stringValue, id) }
     }
     @objc public func copyCalculatorUnformatted(_ sender: Any?) { _ = copyCalculator(unformatted: true) }

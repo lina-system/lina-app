@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lina_app/launcher.dart';
+import 'package:lina_app/conversation_draft.dart';
 import 'package:lina_app/lina_app.dart';
 import 'package:lina_design/lina_design.dart';
 
@@ -30,6 +31,44 @@ void main() {
       expect(calls.every((c) => c.arguments == null), isTrue);
     },
   );
+  test('draft channel handshakes and validates acknowledgements', () async {
+    final calls = <String>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(launcherChannel, (call) async {
+      calls.add(call.method);
+      return null;
+    });
+    const host = MacConversationDraftHost();
+    final drafts = <String>[];
+    host.attach((text) {
+      drafts.add(text);
+      return true;
+    });
+    await Future<void>.delayed(Duration.zero);
+    expect(calls, ['draftReady']);
+    Future<Object?> deliver(Object? args) async {
+      Object? response;
+      await messenger.handlePlatformMessage(
+        launcherChannel.name,
+        const StandardMethodCodec().encodeMethodCall(
+          MethodCall('appendDraft', args),
+        ),
+        (bytes) {
+          response = const StandardMethodCodec().decodeEnvelope(bytes!);
+        },
+      );
+      return response;
+    }
+
+    expect(await deliver({'text': '좋은 아침'}), isTrue);
+    expect(await deliver({'text': ''}), isFalse);
+    expect(await deliver({'text': 1}), isFalse);
+    expect(await deliver(null), isFalse);
+    expect(drafts, ['좋은 아침']);
+    host.detach();
+    messenger.setMockMethodCallHandler(launcherChannel, null);
+  });
   testWidgets(
     'embedded view owns replies and never creates an input or result list',
     (tester) async {

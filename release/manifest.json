@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "status": "development-only",
+  "flutter": { "version": "3.47.8", "channel": "stable" },
+  "targets": ["ios", "android", "macos", "windows", "linux"],
+  "artifacts": []
+}

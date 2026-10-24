@@ -1,0 +1,22 @@
+{
+  "checks": [
+    {
+      "id": "theme",
+      "status": "deferred",
+      "owner": "lina-system/lina-app#5",
+      "outputs": ["packages/lina_design/lib/generated/", "DESIGN.md"]
+    },
+    {
+      "id": "visual-values",
+      "status": "deferred",
+      "owner": "lina-system/lina-app#5",
+      "outputs": ["packages/lina_app/lib/", "packages/lina_design/lib/"]
+    },
+    {
+      "id": "protocol",
+      "status": "deferred",
+      "owner": "lina-system/lina-app#6",
+      "outputs": ["packages/lina_app/lib/protocol/generated/"]
+    }
+  ]
+}

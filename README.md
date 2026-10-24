@@ -30,3 +30,10 @@ Report a vulnerability privately to the repository owner, as described in [SECUR
 ## License
 
 Licensed under the Apache License, Version 2.0 ([LICENSE](LICENSE), [NOTICE](NOTICE)). Contributions are accepted under the same license.
+
+## Foundation gate
+
+Run `node scripts/foundation.mjs` with the pinned SDKs. See the
+[foundation policy](docs/policy/foundation.md) for component paths, evidence,
+codegen ownership and the native-build matrix, and the
+[dependency policy](docs/policy/dependencies.md) for exact pins and updates.

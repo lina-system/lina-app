@@ -49,6 +49,9 @@ test('benchmark and design-study registrations admit their files but no hidden e
   for (const path of [
     'scripts/benchmarks/launcher_baseline.py',
     'scripts/benchmarks/tests/test_launcher_baseline.py',
+    'scripts/benchmarks/probe/main.swift',
+    'scripts/benchmarks/probe/build.sh',
+    'scripts/benchmarks/probe/run.sh',
     'docs/research/launcher-baseline-template.csv',
     'scripts/design-study/package.json',
     'scripts/design-study/package-lock.json',
@@ -66,6 +69,7 @@ test('benchmark and design-study registrations admit their files but no hidden e
   ]) assert.doesNotThrow(() => classify([path]), path);
   for (const path of [
     'scripts/benchmarks/unreviewed.py',
+    'scripts/benchmarks/probe/hidden.swift',
     'scripts/design-study/unreviewed.mjs',
     'docs/research/90-accent/hidden.py',
     'docs/research/90-accent/fonts/hidden.mjs',

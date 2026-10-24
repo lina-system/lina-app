@@ -12,6 +12,11 @@ const rootFiles = new Set([
 const researchFiles = new Set([
   'scripts/benchmarks/launcher_baseline.py',
   'scripts/benchmarks/tests/test_launcher_baseline.py',
+  'scripts/benchmarks/probe/main.swift',
+  'scripts/benchmarks/probe/Info.plist',
+  'scripts/benchmarks/probe/build.sh',
+  'scripts/benchmarks/probe/run.sh',
+  'scripts/benchmarks/probe/README.md',
   'docs/research/launcher-baseline-template.csv',
   'scripts/design-study/package.json',
   'scripts/design-study/package-lock.json',

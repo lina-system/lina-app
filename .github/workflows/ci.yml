@@ -63,6 +63,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
+      - name: Test token generation, contrast and visual lint regressions
+        run: node --test scripts/verify/design.test.mjs
       - name: Run the app foundation gate
         run: node scripts/foundation.mjs
       - name: Preserve foundation evidence

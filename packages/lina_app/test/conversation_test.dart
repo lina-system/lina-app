@@ -419,6 +419,13 @@ void main() {
             .toList(),
         contains('First page\nLast page'),
       );
+      core.stream('lina', 1, 'document', 'result', {
+        ...result,
+        'revision': 2,
+      }, revision: 2);
+      await tester.pumpAndSettle();
+      expect(find.text('First page\nLast page'), findsOneWidget);
+      expect(find.text('Read latest'), findsOneWidget);
       expect(find.text('Saved by Core'), findsNothing);
       expect(find.text('Preview · Not saved'), findsWidgets);
       await tester.tap(find.text('Full screen'));
@@ -481,4 +488,33 @@ void main() {
       expect(find.text('Nothing to decide now.'), findsNothing);
     },
   );
+
+  testWidgets('phone document does not advertise an unsupported view toggle', (
+    tester,
+  ) async {
+    final core = ConversationCore();
+    final result = {
+      ...fixture('results/document_draft')['payload'] as Map<String, dynamic>,
+      'text': 'A complete synthetic document',
+    };
+    core.snapshots['lina'] = [
+      {'kind': 'result', 'key': 'document', 'revision': 1, 'payload': result},
+    ];
+    await mount(tester, core);
+    tester.view.physicalSize = const Size(390, 844);
+    await tester.pumpAndSettle();
+    final list = tester
+        .widget<ListView>(find.byKey(const PageStorageKey('conversation:lina')))
+        .controller!;
+    list.jumpTo(list.position.maxScrollExtent);
+    await tester.pump();
+    await tester.tap(find.text('Read'));
+    await tester.pumpAndSettle();
+    expect(find.text('A complete synthetic document'), findsOneWidget);
+    expect(find.text('Full screen'), findsNothing);
+    expect(find.text('Split view'), findsNothing);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(composer, findsOneWidget);
+  });
 }

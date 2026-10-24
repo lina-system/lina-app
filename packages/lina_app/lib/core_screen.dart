@@ -651,11 +651,14 @@ class _CoreScreenState extends State<CoreScreen> {
             child: Wrap(
               spacing: t.spaceInline,
               children: [
-                TextButton(
-                  onPressed: () =>
-                      setState(() => _fullDocument = !_fullDocument),
-                  child: LinaText(_fullDocument ? 'Split view' : 'Full screen'),
-                ),
+                if (MediaQuery.sizeOf(context).width >= t.layoutDesktopWidth)
+                  TextButton(
+                    onPressed: () =>
+                        setState(() => _fullDocument = !_fullDocument),
+                    child: LinaText(
+                      _fullDocument ? 'Split view' : 'Full screen',
+                    ),
+                  ),
                 TextButton(
                   onPressed: () {
                     _scaffold.currentState?.closeEndDrawer();
@@ -671,6 +674,13 @@ class _CoreScreenState extends State<CoreScreen> {
               padding: EdgeInsets.all(t.spaceGutter),
               children: [
                 _resultStatus(result),
+                if (_conversation.selected.newerDocument != null)
+                  TextButton(
+                    onPressed: () => _conversation.openDocument(
+                      _conversation.selected.newerDocument,
+                    ),
+                    child: const LinaText('Read latest'),
+                  ),
                 SizedBox(height: t.spaceSection),
                 LinaText(
                   result.title,

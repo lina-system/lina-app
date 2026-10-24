@@ -26,6 +26,7 @@ class AgentPresentation {
   String? conversationId;
   TopicWindow? window;
   ProtocolResult? document;
+  ProtocolResult? newerDocument;
   String? documentError;
   bool documentLoading = false;
   Object documentRequest = Object();
@@ -373,7 +374,9 @@ class ConversationController extends ChangeNotifier {
         );
         if (result.resultId == state.document!.resultId &&
             state.document!.revision.compareTo(result.revision).isNegative) {
-          state.document = result;
+          // A notification is a card, not the versioned content being read.
+          // Keep even an in-flight paginated read pinned until explicit choice.
+          state.newerDocument = result;
         }
       }
     }
@@ -540,6 +543,7 @@ class ConversationController extends ChangeNotifier {
     final state = selected;
     state.documentRequest = Object();
     state.document = result;
+    state.newerDocument = null;
     state.documentError = null;
     state.documentLoading = false;
     _notify();

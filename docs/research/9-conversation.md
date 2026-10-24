@@ -31,7 +31,10 @@ submission until the person explicitly chooses an available agent.
   in Core #1707; these labels do not certify delegated-work completion.
 - Prose is selectable and long fenced code scrolls horizontally. Document cards
   open a read-only panel covering half the desktop window or a phone sheet; full
-  screen keeps the composer. Version-pinned result reads collect every returned
+  screen on desktop keeps the composer. Phone sheets have only the supported
+  close control; keeping the composer alongside the phone panel remains #120.
+  A newer result card preserves the loaded version and offers Read latest.
+  Version-pinned result reads collect every returned
   text page, and stale reads cannot replace a newer selected result. Saved status
   comes exclusively from Core.
 - All visual values come from `lina_design`, including three new layout tokens.

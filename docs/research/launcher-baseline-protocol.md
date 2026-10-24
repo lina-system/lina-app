@@ -18,10 +18,15 @@ recorder. The Python analyzer does not post keys, capture screens or run OCR.
    ScreenCaptureKit and Vision APIs. Record its source revision, build command,
    SDK/Swift versions, SHA-256 and `codesign --verify --strict` result. Keep one
    stable signed executable for TCC grants; do not treat a separately authorized
-   shell or probe as permission for the recorder. Capture-tool preparation and
-   actual signature validation are still outstanding, not supplied by this PR.
-3. The operator enables Accessibility and Screen Recording for that executable.
-   Verify permission before any injection; fail without it. Capture only the
+   shell or probe as permission for the recorder. That executable is
+   [LINA Probe](../../scripts/benchmarks/probe/README.md): add recorder commands
+   to `scripts/benchmarks/probe/` and rebuild with its `build.sh`, which keeps the
+   path, bundle ID `dev.lina.probe` and certificate-based signature fixed so the
+   grants survive rebuilds. Run it only through `run.sh`; do not wrap the
+   recorder in another app, sign it ad hoc, or execute its binary from a shell.
+3. The operator enables Accessibility and Screen Recording for LINA Probe.
+   `scripts/benchmarks/probe/run.sh status` must exit 0 before any injection;
+   fail without it. Capture only the
    synthetic account. Do not disable SIP, edit TCC databases or silently remap
    system shortcuts. Never use paste or Unicode insertion to simulate Korean
    typing: it bypasses the input method being measured.

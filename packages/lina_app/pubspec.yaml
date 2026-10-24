@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+name: lina_app
+description: LINA app presentation entry point; native runners belong to issue 6.
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: '>=3.13.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+  lina_design:
+    path: ../lina_design
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

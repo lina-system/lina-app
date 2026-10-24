@@ -2,21 +2,48 @@
   "checks": [
     {
       "id": "theme",
-      "status": "deferred",
+      "status": "active",
       "owner": "lina-system/lina-app#5",
-      "outputs": ["packages/lina_design/lib/generated/", "DESIGN.md"]
+      "outputs": [
+        "packages/lina_design/lib/generated/",
+        "DESIGN.md"
+      ],
+      "generator": {
+        "name": "lina-design",
+        "version": "1.0.0",
+        "sha256": "fb114ee47d0a11d3c747cac58617a26072c17452b87bb82ab5f43ee20472a6e2"
+      },
+      "command": [
+        "node",
+        "scripts/verify/design.mjs",
+        "--check"
+      ]
     },
     {
       "id": "visual-values",
-      "status": "deferred",
+      "status": "active",
       "owner": "lina-system/lina-app#5",
-      "outputs": ["packages/lina_app/lib/", "packages/lina_design/lib/"]
+      "outputs": [
+        "packages/lina_app/lib/",
+        "packages/lina_design/lib/"
+      ],
+      "generator": {
+        "name": "lina-visual-values",
+        "version": "1.0.0",
+        "sha256": "174747d37552a2c76a5e2da410fcffb8665814bfc01949448b091971a170163e"
+      },
+      "command": [
+        "node",
+        "scripts/verify/visual-values.mjs"
+      ]
     },
     {
       "id": "protocol",
       "status": "deferred",
       "owner": "lina-system/lina-app#6",
-      "outputs": ["packages/lina_app/lib/protocol/generated/"]
+      "outputs": [
+        "packages/lina_app/lib/protocol/generated/"
+      ]
     }
   ]
 }

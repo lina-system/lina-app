@@ -1,0 +1,152 @@
+{
+  "$extensions": {
+    "lina.theme": "light"
+  },
+  "color": {
+    "onAccent": {
+      "$type": "color",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "alpha": 1,
+        "hex": "#FFFFFF"
+      }
+    },
+    "success": {
+      "$type": "color",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.09019608,
+          0.38823529,
+          0.23921569
+        ],
+        "alpha": 1,
+        "hex": "#17633D"
+      }
+    },
+    "warning": {
+      "$type": "color",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.50196078,
+          0.31372549,
+          0.0
+        ],
+        "alpha": 1,
+        "hex": "#805000"
+      }
+    },
+    "error": {
+      "$type": "color",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.67843137,
+          0.16078431,
+          0.25098039
+        ],
+        "alpha": 1,
+        "hex": "#AD2940"
+      }
+    },
+    "unknown": {
+      "$type": "color",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.38431373,
+          0.41176471,
+          0.47058824
+        ],
+        "alpha": 1,
+        "hex": "#626978"
+      }
+    },
+    "diffAdded": {
+      "$type": "color",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.09019608,
+          0.38823529,
+          0.23921569
+        ],
+        "alpha": 1,
+        "hex": "#17633D"
+      }
+    },
+    "diffRemoved": {
+      "$type": "color",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.67843137,
+          0.16078431,
+          0.25098039
+        ],
+        "alpha": 1,
+        "hex": "#AD2940"
+      }
+    },
+    "diffAddedBackground": {
+      "$type": "color",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.88627451,
+          0.94509804,
+          0.90980392
+        ],
+        "alpha": 1,
+        "hex": "#E2F1E8"
+      }
+    },
+    "diffRemovedBackground": {
+      "$type": "color",
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.98823529,
+          0.90588235,
+          0.9254902
+        ],
+        "alpha": 1,
+        "hex": "#FCE7EC"
+      }
+    },
+    "focus": {
+      "$type": "color",
+      "$value": "{color.accent}"
+    },
+    "border": {
+      "$type": "color",
+      "$value": "{color.muted}"
+    },
+    "selection": {
+      "$type": "color",
+      "$value": "{color.surface}"
+    },
+    "onSelection": {
+      "$type": "color",
+      "$value": "{color.text}"
+    },
+    "working": {
+      "$type": "color",
+      "$value": "{color.accent}"
+    },
+    "waiting": {
+      "$type": "color",
+      "$value": "{color.accent}"
+    },
+    "disabled": {
+      "$type": "color",
+      "$value": "{color.muted}"
+    }
+  }
+}

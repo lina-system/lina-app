@@ -54,4 +54,32 @@ final class CalculatorTests: XCTestCase {
         XCTAssertEqual(CalculatorHistory(defaults: defaults).entries, history.entries)
         XCTAssertTrue(CalculatorHistory(defaults: nil).entries.isEmpty)
     }
+
+    func testLongDecimalAnswersKeepSignificantDigitsAndMagnitude() throws {
+        let cases = [
+            ("1/1e300", "1e-300", "1e-300"),
+            ("1.23456789012345e150*1e150", "1.23456789012345e300", "1,23456789012345e300"),
+            ("-1.23456789012345e-150/1e150", "-1.23456789012345e-300", "-1,23456789012345e-300"),
+            ("-1e150*1e150", "-1e300", "-1e300"),
+        ]
+        for (query, english, german) in cases {
+            let answer = try XCTUnwrap(Calculator.evaluate(query), query)
+            XCTAssertEqual(answer.formatted(locale: Locale(identifier: "en_US")), english, query)
+            XCTAssertEqual(answer.formatted(locale: Locale(identifier: "de_DE")), german, query)
+            XCTAssertEqual(Double(answer.unformatted), Double(english), query)
+        }
+        for (query, expected) in [("1e-8*2", "0.00000002"), ("1e12*2", "2,000,000,000,000"), ("0*-1", "0")] {
+            XCTAssertEqual(Calculator.evaluate(query)?.formatted(locale: Locale(identifier: "en_US")), expected)
+        }
+        // Subnormals have fewer meaningful digits; the compact copy must still
+        // round-trip to the same nonzero Double rather than rounding to zero.
+        for query in ["1e-320/2", "5e-324*1"] {
+            let answer = try XCTUnwrap(Calculator.evaluate(query))
+            let formatted = answer.formatted(locale: Locale(identifier: "en_US"))
+            XCTAssertLessThanOrEqual(formatted.count, 24)
+            XCTAssertNotEqual(answer.value, 0)
+            XCTAssertEqual(Double(formatted), answer.value)
+            XCTAssertEqual(Double(answer.unformatted), answer.value)
+        }
+    }
 }

@@ -21,6 +21,7 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		44D1C7100000000000000001 /* LauncherDictionary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44D1C7100000000000000002; };
 		331C80D8294CF71000263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C80D7294CF71000263BE5 /* RunnerTests.swift */; };
 		335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 335BBD1A22A9A15E00E9071D /* GeneratedPluginRegistrant.swift */; };
 		33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC10F02044A3C60003C045 /* AppDelegate.swift */; };
@@ -72,6 +73,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		44D1C7100000000000000002 /* LauncherDictionary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/Launcher/LauncherDictionary.swift"; sourceTree = SOURCE_ROOT; };
 		331C80D5294CF71000263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		331C80D7294CF71000263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		333000ED22D3DE5D00554162 /* Warnings.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Warnings.xcconfig; sourceTree = "<group>"; };
@@ -197,6 +199,7 @@
 				E4D78D0D933F1303952ED0F5 /* LauncherPanel.swift */,
 				CA1C00000000000000000002 /* Calculator.swift */,
 				598969F46B9152450F582E7D /* LauncherContent.swift */,
+				44D1C7100000000000000002 /* LauncherDictionary.swift */,
 				0B162EB1515193D4F9DB9D91 /* GlobalShortcut.swift */,
 				031006336B3745EA9FB32454 /* LinaTokens.swift */,
 				3A1AA888C03EB05AE48E8C5B /* LinaAppTokens.swift */,
@@ -397,6 +400,7 @@
 				D00330133549CABAFAEF4B55 /* LauncherPanel.swift in Sources */,
 				CA1C00000000000000000001 /* Calculator.swift in Sources */,
 				3930343698391577EF23316F /* LauncherContent.swift in Sources */,
+				44D1C7100000000000000001 /* LauncherDictionary.swift in Sources */,
 				A3BA257D363994C164798532 /* GlobalShortcut.swift in Sources */,
 				3455972699484BCBB390D464 /* LinaTokens.swift in Sources */,
 				A1B474ED6EDC63193E015FEB /* LinaAppTokens.swift in Sources */,

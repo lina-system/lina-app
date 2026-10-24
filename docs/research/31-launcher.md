@@ -2,8 +2,9 @@
 
 The production macOS host in `packages/lina_app/macos/Runner/Launcher` owns the
 non-activating NSPanel, native NSTextField, NSTableView, navigation and dismissal.
-A hidden Flutter engine runs `launcherMain` from `lina_app` and draws only the
-answer area. Search providers, launcher-capability requests, mini-app content,
+A hidden Flutter engine runs `launcherMain` from `lina_app` and draws the
+answer area for ordinary queries. `define <word>` uses the native device dictionary
+view in that area; see [dictionary verification](44-dictionary.md). Search providers, launcher-capability requests, mini-app content,
 Korean first-key acceptance, Liquid Glass and Command-Space takeover remain in
 their owning issues. The current answer area explicitly says search is not
 connected and offers the native **Open LINA** action for the existing app.
@@ -75,11 +76,12 @@ error: String?, activationPolicy: Int, uiElement: Bool}`. Login status is `enabl
 `notFound`, `unsupported`, `unknown` or `disabledInTests`. Unknown methods return
 `FlutterMethodNotImplemented`. No network, file, URL, arbitrary command, input
 injection, login mutation or Core method is exposed over the channel. Login
-changes require the native checkbox action. The result list accepts native `LauncherResult` display models. The
-[local calculator](40-calculator.md) now fills it for arithmetic and copied-result
-history; search providers remain separate work. Calculator results copy locally
-and do not emit `queryChanged` or `submit`; ordinary drafts retain the channel
-behavior above.
+changes require the native checkbox action. The result list accepts native
+`LauncherResult` display models. The [local calculator](40-calculator.md) fills it
+for arithmetic and copied-result history; the [device dictionary](44-dictionary.md)
+supplies a definition and opens Dictionary.app. Both providers consume their own
+queries and result actions without emitting `queryChanged` or `submit`. Ordinary
+drafts retain the channel behavior above; search providers remain separate work.
 
 ## Verification and limits
 

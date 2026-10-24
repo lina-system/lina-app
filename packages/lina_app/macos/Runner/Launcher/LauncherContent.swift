@@ -223,6 +223,12 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
         status.stringValue = "Copied · History stays on this Mac"
         return true
     }
+    // isARepeat raises an AppKit exception for window/system events. Delegate actions
+    // can run while such an event is current (for example after a capture or lookup).
+    static func isRepeatedKeyDown(_ event: NSEvent?) -> Bool {
+        guard let event, event.type == .keyDown else { return false }
+        return event.isARepeat
+    }
     public func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         // AppKit/IME consumes marked-text commands before our navigation actions.
         guard !textView.hasMarkedText() else { return false }
@@ -236,7 +242,7 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
             results.scrollRowToVisible(row)
             return true
         case #selector(NSResponder.insertNewline(_:)):
-            guard NSApp.currentEvent?.isARepeat != true else { return true }
+            guard !Self.isRepeatedKeyDown(NSApp.currentEvent) else { return true }
             let id = items.indices.contains(results.selectedRow) ? items[results.selectedRow].id : nil
             submitSelection(id: id)
             return true

@@ -44,13 +44,16 @@ executable="$app/Contents/MacOS/LINA Probe"
 requirement=$(codesign -d -r- "$app" 2>&1 | sed -n 's/^designated => //p')
 cdhash=$(codesign -dvvv "$app" 2>&1 | sed -n 's/^CDHash=//p')
 revision=$(git -C "$here" rev-parse HEAD 2>/dev/null || echo unknown)
-dirty=$(git -C "$here" status --porcelain -- . 2>/dev/null | grep -q . && echo true || echo false)
-jq -n --arg app "$app" --arg bundle_id "$bundle_id" --arg sign "$sign" \
+dirty=$(git -C "$here" status --porcelain -- . "$chord" 2>/dev/null | grep -q . && echo true || echo false)
+sources=$(for source in "$here"/*.swift "$here/Info.plist" "$here/build.sh" "$here/sign.sh" "$chord"; do
+  jq -n --arg file "$(basename "$source")" --arg sha256 "$(shasum -a 256 "$source" | cut -d' ' -f1)" '{key:$file,value:$sha256}'
+done | jq -s 'from_entries')
+jq -n --argjson source_sha256 "$sources" --arg app "$app" --arg bundle_id "$bundle_id" --arg sign "$sign" \
   --arg requirement "$requirement" --arg cdhash "$cdhash" \
   --arg sha256 "$(shasum -a 256 "$executable" | cut -d' ' -f1)" \
   --arg revision "$revision" --argjson dirty "$dirty" \
   --arg swift "$(xcrun swiftc --version 2>&1 | head -1)" --arg sdk "$(xcrun --show-sdk-version)" \
   --arg built_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   '{app:$app,bundle_id:$bundle_id,signing:$sign,designated_requirement:$requirement,cdhash:$cdhash,
-    executable_sha256:$sha256,source_revision:$revision,source_dirty:$dirty,swift:$swift,sdk:$sdk,
+    executable_sha256:$sha256,source_sha256:$source_sha256,source_revision:$revision,source_dirty:$dirty,swift:$swift,sdk:$sdk,
     codesign_verify_strict:"passed",built_at:$built_at}' | tee "$support/build.json"

@@ -1,0 +1,33 @@
+{
+  "_comment": "SPDX-License-Identifier: Apache-2.0",
+  "cldr": "47.0.0",
+  "revision": "16f6b8578ba5fe98959034706f337674f816fc3f",
+  "unicode": "16.0",
+  "dataLicense": "Unicode-3.0",
+  "files": {
+    "annotations-en.json": {
+      "url": "https://raw.githubusercontent.com/unicode-org/cldr-json/16f6b8578ba5fe98959034706f337674f816fc3f/cldr-json/cldr-annotations-full/annotations/en/annotations.json",
+      "sha256": "2405d3f2e4c5812a4faf93d965630246269e0177ce907d863c7d6bb197e957c1"
+    },
+    "annotations-ko.json": {
+      "url": "https://raw.githubusercontent.com/unicode-org/cldr-json/16f6b8578ba5fe98959034706f337674f816fc3f/cldr-json/cldr-annotations-full/annotations/ko/annotations.json",
+      "sha256": "821e5eccf540f877ab984c2636d4b128d9d7c948eacc02fb1f504bcaac985638"
+    },
+    "annotationsDerived-en.json": {
+      "url": "https://raw.githubusercontent.com/unicode-org/cldr-json/16f6b8578ba5fe98959034706f337674f816fc3f/cldr-json/cldr-annotations-derived-full/annotationsDerived/en/annotations.json",
+      "sha256": "8ebc16e27adf6c555c9ce467335cee8fc9416e5d8646a91bd4eacbb450ebee22"
+    },
+    "annotationsDerived-ko.json": {
+      "url": "https://raw.githubusercontent.com/unicode-org/cldr-json/16f6b8578ba5fe98959034706f337674f816fc3f/cldr-json/cldr-annotations-derived-full/annotationsDerived/ko/annotations.json",
+      "sha256": "7d3b65d246e331106c84455fe38ece5326c88540f6695f240f2f37ff6612beb6"
+    },
+    "emoji-test.txt": {
+      "url": "https://www.unicode.org/Public/emoji/16.0/emoji-test.txt",
+      "sha256": "24f0c534e86cf142e2496953e8f0e46a3e702392911eddcd29c6cced85139697"
+    },
+    "LICENSE.txt": {
+      "url": "https://raw.githubusercontent.com/unicode-org/cldr-json/16f6b8578ba5fe98959034706f337674f816fc3f/LICENSE",
+      "sha256": "220ba0e1c43b99530d2d5bdb892a99dca0989414f51ab695ecd90163eaa1ec3b"
+    }
+  }
+}

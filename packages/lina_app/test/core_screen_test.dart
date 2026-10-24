@@ -1,17 +1,36 @@
 // SPDX-License-Identifier: Apache-2.0
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lina_app/core_screen.dart';
 import 'package:lina_app/lina_app.dart';
 import 'package:lina_app/platform_slots.dart';
+import 'package:lina_app/conversation_draft.dart';
 import 'package:lina_protocol/lina_protocol.dart';
 
 import 'support/conversation_core.dart';
 
+const notAuthorized =
+    'Core refused access for this device. Approve this device in Core, then connect again.';
+const versionRefused =
+    'This app and Core cannot connect with their current versions or platform. Update the app or Core, then connect again.';
+const conversationUnavailable = 'Conversation is not available from this Core.';
+
+class DraftFixture implements ConversationDraftHost {
+  bool Function(String)? append;
+  @override
+  void attach(bool Function(String) handler) => append = handler;
+  @override
+  void detach() => append = null;
+}
+
 void main() {
   Future<void> mount(
     WidgetTester tester,
-    ConversationCore core, {
+    CoreConnection core, {
     PlatformSlots slots = const PlatformSlots(),
     DisplayPreferences? preferences,
   }) async {
@@ -30,6 +49,44 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets(
+    'translation appends an unsent draft and preserves IME composition',
+    (tester) async {
+      final core = ConversationCore();
+      final host = DraftFixture();
+      await mount(tester, core, slots: PlatformSlots(conversationDraft: host));
+      final requestCount = core.requests.length;
+      final composer = find.byKey(const ValueKey('composer'));
+      final controller = tester.widget<TextField>(composer).controller!;
+      const translation =
+          'Translation (English → Korean)\ngood morning\n\n좋은 아침';
+      expect(host.append!(translation), isTrue);
+      await tester.pump();
+      expect(controller.text, translation);
+      await tester.enterText(composer, 'Existing draft');
+      expect(host.append!(translation), isTrue);
+      await tester.pump();
+      expect(controller.text, 'Existing draft\n\n$translation');
+      expect(core.requests.length, requestCount);
+      controller.value = const TextEditingValue(
+        text: '한',
+        selection: TextSelection.collapsed(offset: 1),
+        composing: TextRange(start: 0, end: 1),
+      );
+      expect(host.append!(translation), isFalse);
+      expect(controller.value.composing, const TextRange(start: 0, end: 1));
+      expect(controller.text, '한');
+      controller.value = const TextEditingValue(text: '한글');
+      expect(host.append!(translation), isFalse);
+      await tester.pump();
+      expect(host.append!(translation), isTrue);
+      expect(controller.text, '한글\n\n$translation');
+      expect(core.requests.length, requestCount);
+      await tester.pumpWidget(const SizedBox());
+      expect(host.append, isNull);
+    },
+  );
 
   testWidgets('Korean composition stays intact and sends once after commit', (
     tester,
@@ -111,6 +168,91 @@ void main() {
       },
     );
   }
+  testWidgets(
+    'not_authorized refusal explains access and keeps the draft after EOF',
+    (tester) async {
+      final server = await tester.runAsync(
+        () => ServerSocket.bind(InternetAddress.loopbackIPv4, 0),
+      );
+      addTearDown(server!.close);
+      await tester.runAsync(() async {
+        server.listen((socket) {
+          addTearDown(socket.destroy);
+          socket
+              .cast<List<int>>()
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())
+              .listen((line) {
+                final request = exactDecode(line) as Map;
+                final refusal = fixture('outcomes/not_authorized');
+                refusal['reply_to'] = request['params']['message_id'];
+                socket.write(
+                  '${exactEncode({'jsonrpc': '2.0', 'id': request['id'], 'result': refusal})}\n',
+                );
+                socket.close();
+              });
+        });
+      });
+      final core = CoreConnection(platform: 'linux/amd64');
+      await mount(tester, core);
+      final composer = find.byKey(const ValueKey('composer'));
+      await tester.enterText(composer, 'Keep my draft');
+      final draft = tester.widget<TextField>(composer).controller!;
+      await tester.runAsync(
+        () => core.connect('tcp://127.0.0.1:${server.port}'),
+      );
+      await tester.pumpAndSettle();
+      expect(core.phase, ConnectionPhase.rejected);
+      expect(core.refusalCode, 'not_authorized');
+      expect(find.text(notAuthorized), findsWidgets);
+      expect(find.textContaining('versions or platform'), findsNothing);
+      expect(find.text('not_authorized'), findsNothing);
+      expect(draft.text, 'Keep my draft');
+      // The peer closes the socket after the refusal. EOF must not clear the
+      // rejected state or the draft.
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(core.phase, ConnectionPhase.rejected);
+      expect(find.text(notAuthorized), findsWidgets);
+      expect(draft.text, 'Keep my draft');
+    },
+    skip: Platform.isWindows,
+  );
+  testWidgets('version refusal keeps its own wording', (tester) async {
+    final core = ConversationCore();
+    await mount(tester, core);
+    core.reject('unsupported_combination');
+    await tester.pumpAndSettle();
+    expect(find.text(versionRefused), findsWidgets);
+    expect(find.text(notAuthorized), findsNothing);
+    expect(find.textContaining('refused access'), findsNothing);
+  });
+  testWidgets(
+    'welcome without conversation says unavailable and never invites sending',
+    (tester) async {
+      final core = ConversationCore();
+      await mount(tester, core);
+      final composer = find.byKey(const ValueKey('composer'));
+      await tester.enterText(composer, 'Keep my draft');
+      final draft = tester.widget<TextField>(composer).controller!;
+      core.welcome = ProtocolWelcome.fromJson({
+        ...core.welcome!.toJson(),
+        'capabilities': <Object?>[],
+      });
+      core.updates.add(null);
+      await tester.pumpAndSettle();
+      expect(find.text(conversationUnavailable), findsWidgets);
+      expect(find.text('What is on your mind?'), findsNothing);
+      expect(find.text('What would you like to work on?'), findsNothing);
+      expect(find.text('A draft until Core confirms receipt.'), findsNothing);
+      expect(tester.widget<TextField>(composer).enabled, isFalse);
+      expect(draft.text, 'Keep my draft');
+      final send = find.widgetWithText(TextButton, 'Send');
+      expect(tester.widget<TextButton>(send).onPressed, isNull);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(core.requests.where((r) => r.kind == 'input'), isEmpty);
+    },
+  );
   testWidgets('keyboard cannot bypass missing conversation capability', (
     tester,
   ) async {
@@ -120,7 +262,9 @@ void main() {
       'capabilities': <Object?>[],
     });
     await mount(tester, core);
-    await tester.enterText(find.byKey(const ValueKey('composer')), 'Not sent');
+    final composer = find.byKey(const ValueKey('composer'));
+    expect(tester.widget<TextField>(composer).enabled, isFalse);
+    expect(find.text(conversationUnavailable), findsWidgets);
     await tester.testTextInput.receiveAction(TextInputAction.send);
     await tester.pump();
     expect(core.requests, isEmpty);

@@ -200,8 +200,14 @@ jobs:
       - name: Test production launcher, menu bar status and opt-in guards
         if: matrix.target == 'macos'
         env:
+          LINA_EMOJI_APP_RESOURCE: ${{ github.workspace }}/packages/lina_app/build/macos/Build/Products/Release/LINA.app/Contents/Resources/emoji.json
+          LINA_EMOJI_CAPTURES: ${{ github.workspace }}/docs/captures/46
           LINA_DICTIONARY_CAPTURES: ${{ github.workspace }}/docs/captures/44
+          LINA_TRANSLATION_CAPTURES: ${{ github.workspace }}/docs/captures/45
         run: swift test --package-path packages/lina_app/macos -j 2
+      - name: Verify translation routing with network denied
+        if: matrix.target == 'macos'
+        run: node scripts/translation.mjs
       - name: Verify Dictionary Services with network denied
         if: matrix.target == 'macos'
         run: node scripts/dictionary.mjs
@@ -225,6 +231,8 @@ jobs:
             docs/captures/31/
             docs/captures/49/
             docs/captures/44/
+            docs/captures/46/
+            docs/captures/45/
             docs/captures/40/
           if-no-files-found: error
       - name: Preserve native verification and artifact digests

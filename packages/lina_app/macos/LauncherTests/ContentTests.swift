@@ -29,6 +29,19 @@ final class ContentTests: XCTestCase {
         content.setResults([])
         XCTAssertEqual(content.results.selectedRow, -1)
     }
+    @MainActor func testReturnRepeatGuardHandlesNonKeyboardEvents() throws {
+        let system = try XCTUnwrap(NSEvent.otherEvent(with: .appKitDefined, location: .zero, modifierFlags: [],
+            timestamp: 1, windowNumber: 0, context: nil, subtype: 4, data1: 0, data2: 0))
+        XCTAssertFalse(LauncherContent.isRepeatedKeyDown(system))
+        XCTAssertFalse(LauncherContent.isRepeatedKeyDown(nil))
+        for repeating in [false, true] {
+            let key = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [],
+                timestamp: 1, windowNumber: 0, context: nil, characters: "\r", charactersIgnoringModifiers: "\r",
+                isARepeat: repeating, keyCode: 36))
+            XCTAssertEqual(LauncherContent.isRepeatedKeyDown(key), repeating)
+        }
+    }
+
     func testLoginItemCannotRegisterOrUnregisterDuringTests() {
         let service = SystemLoginItem(allowsChanges: false)
         XCTAssertEqual(service.state, "disabledInTests")

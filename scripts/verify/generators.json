@@ -72,6 +72,24 @@
         "scripts/verify/swift-tokens.mjs",
         "--check"
       ]
+    },
+    {
+      "id": "emoji",
+      "status": "active",
+      "owner": "lina-system/lina-app#46",
+      "outputs": [
+        "packages/lina_app/macos/Runner/Launcher/Resources/emoji.json"
+      ],
+      "generator": {
+        "name": "lina-emoji-catalog",
+        "version": "1.0.0",
+        "sha256": "059c8b0a6fb87bccb211b6479e2676c90614b6d19172ff50c9e9b9d9456b3480"
+      },
+      "command": [
+        "node",
+        "scripts/verify/emoji.mjs",
+        "--check"
+      ]
     }
   ]
 }

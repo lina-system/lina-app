@@ -13,7 +13,12 @@ const rootFiles = new Set([
 ]);
 // Each tool has a dedicated CI job; do not admit arbitrary executable files.
 const researchFiles = new Set([
+  // #46: pinned Unicode data checked by the emoji generator in foundation.
+  'data/emoji/annotations-en.json', 'data/emoji/annotations-ko.json',
+  'data/emoji/annotationsDerived-en.json', 'data/emoji/annotationsDerived-ko.json',
+  'data/emoji/emoji-test.txt', 'data/emoji/LICENSE.txt', 'data/emoji/upstream.json',
   'scripts/launcher-fixture.swift',
+  'scripts/translation.mjs', // native-macos: installed-language seam with network denied
   'scripts/dictionary.mjs', // native-macos: offline Dictionary Services and evidence validation
   'design/tokens/core/tokens.swift',
   'scripts/benchmarks/launcher_baseline.py',
@@ -40,7 +45,7 @@ const researchFiles = new Set([
 ]);
 // Conversation sources/tests are covered by lina_app and lina_protocol above.
 // Theme/width and connection-error captures accompany their widget regressions.
-const conversationCaptures = /^docs\/captures\/9\/(?:(?:light|dark|high-contrast)-(?:desktop|phone)|connection-(?:invalid|unavailable))\.png$/;
+const conversationCaptures = /^docs\/captures\/9\/(?:(?:light|dark|high-contrast)-(?:desktop|phone)|connection-(?:invalid|unavailable|not-authorized)|conversation-unavailable)\.png$/;
 const designStudyAssets = /^docs\/research\/90-accent\/(?:[^/]+\.(?:md|json)|fonts\/(?:OFL\.txt|Pretendard-(?:Bold|Regular)\.otf)|(?:icons|marks|renders)\/[^/]+\.svg)$/;
 export function classify(paths, registry = components) {
   const selected = new Set();
@@ -52,7 +57,7 @@ export function classify(paths, registry = components) {
         /^docs\/(policy|research)\/[^/]+\.md$/.test(path) ||
         /^docs\/captures\/[^/]+\/[^/]+\.png$/.test(path) ||
         /^docs\/captures\/31\/[^/]+\.(?:md|json|log|mp4)$/.test(path) ||
-        /^docs\/captures\/(?:40|44|49)\/[^/]+\.(?:md|json)$/.test(path) ||
+        /^docs\/captures\/(?:40|44|45|46|49)\/[^/]+\.(?:md|json)$/.test(path) ||
         /^docs\/research\/captures\/mac-panel\/[^/]+\.(?:md|log|json|png)$/.test(path) ||
         /^docs\/research\/captures\/korean-input\/[^/]+\.(png|gif|json|txt)$/.test(path) ||
         /^\.github\/(workflows|ISSUE_TEMPLATE)\/[^/]+\.ya?ml$/.test(path) ||

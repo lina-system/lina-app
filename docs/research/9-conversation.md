@@ -130,6 +130,21 @@ with the entered address after a failure. Its message remains in connection
 status when closed. A successful retry clears the failure and closes the form;
 neither failure nor retry alters the conversation draft or submits it.
 
+A typed refusal now keeps the cause Core reported instead of collapsing every
+refusal into a version/platform message. `not_authorized` says access was refused
+and asks the person to approve the device in Core before connecting again;
+`unsupported_combination` keeps the version/platform wording, capability
+negotiation and other codes keep their own causes, and no raw error code is shown
+as the only explanation. The rejected phase and the draft survive the peer's EOF.
+When the welcome does not negotiate `conversation`, the composer is disabled, the
+send and queue actions are unavailable, and the screen says conversation is not
+available from this Core rather than inviting a send; an existing draft stays
+visible and is not submitted. Widget tests use the real `not_authorized` fixture
+over a socket for the EOF case and a fixture welcome with no capabilities for the
+blocked composer. Captures are
+`docs/captures/9/connection-not-authorized.png` and
+`docs/captures/9/conversation-unavailable.png`; all data is synthetic.
+
 Hardware Enter and keypad Enter send committed, nonempty drafts. Shift+Enter
 replaces the selection with a newline and puts the caret after it. Cmd/Ctrl+Enter
 remain extra send keys. These bindings apply only to the composer, suppress

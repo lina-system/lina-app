@@ -94,7 +94,7 @@ jobs:
         with:
           node-version-file: .node-version
       - name: Test token generation, contrast and visual lint regressions
-        run: node --test scripts/verify/design.test.mjs scripts/verify/protocol.test.mjs scripts/verify/mac-session.test.mjs
+        run: node --test scripts/verify/design.test.mjs scripts/verify/protocol.test.mjs scripts/verify/mac-session.test.mjs scripts/verify/swift-tokens.test.mjs scripts/verify/launcher-evidence.test.mjs
       - name: Check research formatting and scripts
         run: |
           dart format --output=none --set-exit-if-changed spikes/korean-input/lib spikes/korean-input/test
@@ -183,6 +183,21 @@ jobs:
         run: flutter --version
       - name: Verify and build the native artifact
         run: node scripts/build.mjs ${{ matrix.target }}
+      - name: Test production launcher panel, native input and opt-in login guards
+        if: matrix.target == 'macos'
+        run: swift test --package-path packages/lina_app/macos -j 2 --filter LinaLauncherTests
+      - name: Verify hidden launcher first frame and external fixture focus
+        if: matrix.target == 'macos'
+        run: |
+          node scripts/launcher.mjs smoke
+          node scripts/launcher.mjs evidence
+      - name: Preserve production launcher captures
+        if: always() && matrix.target == 'macos'
+        uses: actions/upload-artifact@v4
+        with:
+          name: launcher-evidence
+          path: docs/captures/31/
+          if-no-files-found: error
       - name: Preserve native verification and artifact digests
         if: always()
         uses: actions/upload-artifact@v4

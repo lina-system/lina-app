@@ -54,6 +54,24 @@
         "scripts/verify/protocol.mjs",
         "--check"
       ]
+    },
+    {
+      "id": "swift-theme",
+      "status": "active",
+      "owner": "lina-system/lina-app#31",
+      "outputs": [
+        "packages/lina_app/macos/Runner/Launcher/Generated/"
+      ],
+      "generator": {
+        "name": "lina-swift-tokens",
+        "version": "1.0.0",
+        "sha256": "c547218e2f6231614815570aa5c7f5179104e96fc53a04d51bfac9420f7e1abb"
+      },
+      "command": [
+        "node",
+        "scripts/verify/swift-tokens.mjs",
+        "--check"
+      ]
     }
   ]
 }

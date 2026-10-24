@@ -35,3 +35,12 @@ drafts are in-memory presentation state. There is no local canonical database.
 
 [Host contract](../../docs/policy/host-protocol.md) ·
 [Native verification evidence](../../docs/research/6-native-app.md)
+
+## macOS launcher
+
+The Mac app starts an accessory launcher with Control-Option-Space. Swift owns
+the input and result list; a pre-warmed Flutter view draws the reply area.
+**Open LINA** opens the full app. **Open at login** is an explicit opt-in using
+SMAppService; tests cannot change it. See the [channel and verification record](../../docs/research/31-launcher.md).
+Search results, Korean first-key input, Liquid Glass and Command-Space takeover
+remain separate work. The owner's framework decision stays open in #2.

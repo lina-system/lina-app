@@ -93,6 +93,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     required this.iconGrid,
     required this.iconSize,
     required this.iconStroke,
+    required this.launcherAnswerHeight,
+    required this.launcherHeight,
+    required this.launcherResultsHeight,
+    required this.launcherWidth,
     required this.layoutReadingWidth,
     required this.motionActivityElapsed,
     required this.motionActivityFrame,
@@ -202,6 +206,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
   final double iconGrid;
   final double iconSize;
   final double iconStroke;
+  final double launcherAnswerHeight;
+  final double launcherHeight;
+  final double launcherResultsHeight;
+  final double launcherWidth;
   final double layoutReadingWidth;
   final Duration motionActivityElapsed;
   final Duration motionActivityFrame;
@@ -313,6 +321,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     iconGrid: 24.0,
     iconSize: 20.0,
     iconStroke: 2.0,
+    launcherAnswerHeight: 176.0,
+    launcherHeight: 600.0,
+    launcherResultsHeight: 96.0,
+    launcherWidth: 680.0,
     layoutReadingWidth: 760.0,
     motionActivityElapsed: Duration(milliseconds: 1000),
     motionActivityFrame: Duration(milliseconds: 100),
@@ -423,6 +435,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     iconGrid: 24.0,
     iconSize: 20.0,
     iconStroke: 2.0,
+    launcherAnswerHeight: 176.0,
+    launcherHeight: 600.0,
+    launcherResultsHeight: 96.0,
+    launcherWidth: 680.0,
     layoutReadingWidth: 760.0,
     motionActivityElapsed: Duration(milliseconds: 1000),
     motionActivityFrame: Duration(milliseconds: 100),
@@ -533,6 +549,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     iconGrid: 24.0,
     iconSize: 20.0,
     iconStroke: 2.0,
+    launcherAnswerHeight: 176.0,
+    launcherHeight: 600.0,
+    launcherResultsHeight: 96.0,
+    launcherWidth: 680.0,
     layoutReadingWidth: 760.0,
     motionActivityElapsed: Duration(milliseconds: 1000),
     motionActivityFrame: Duration(milliseconds: 100),
@@ -644,6 +664,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     double? iconGrid,
     double? iconSize,
     double? iconStroke,
+    double? launcherAnswerHeight,
+    double? launcherHeight,
+    double? launcherResultsHeight,
+    double? launcherWidth,
     double? layoutReadingWidth,
     Duration? motionActivityElapsed,
     Duration? motionActivityFrame,
@@ -772,6 +796,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     iconGrid: iconGrid ?? this.iconGrid,
     iconSize: iconSize ?? this.iconSize,
     iconStroke: iconStroke ?? this.iconStroke,
+    launcherAnswerHeight: launcherAnswerHeight ?? this.launcherAnswerHeight,
+    launcherHeight: launcherHeight ?? this.launcherHeight,
+    launcherResultsHeight: launcherResultsHeight ?? this.launcherResultsHeight,
+    launcherWidth: launcherWidth ?? this.launcherWidth,
     layoutReadingWidth: layoutReadingWidth ?? this.layoutReadingWidth,
     motionActivityElapsed: motionActivityElapsed ?? this.motionActivityElapsed,
     motionActivityFrame: motionActivityFrame ?? this.motionActivityFrame,
@@ -1015,6 +1043,17 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
       iconGrid: this.iconGrid + (other.iconGrid - this.iconGrid) * t,
       iconSize: this.iconSize + (other.iconSize - this.iconSize) * t,
       iconStroke: this.iconStroke + (other.iconStroke - this.iconStroke) * t,
+      launcherAnswerHeight:
+          this.launcherAnswerHeight +
+          (other.launcherAnswerHeight - this.launcherAnswerHeight) * t,
+      launcherHeight:
+          this.launcherHeight +
+          (other.launcherHeight - this.launcherHeight) * t,
+      launcherResultsHeight:
+          this.launcherResultsHeight +
+          (other.launcherResultsHeight - this.launcherResultsHeight) * t,
+      launcherWidth:
+          this.launcherWidth + (other.launcherWidth - this.launcherWidth) * t,
       layoutReadingWidth:
           this.layoutReadingWidth +
           (other.layoutReadingWidth - this.layoutReadingWidth) * t,

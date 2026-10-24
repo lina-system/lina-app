@@ -412,6 +412,27 @@ class _CoreScreenState extends State<CoreScreen> {
                   ],
                   onChanged: (v) => p.update(theme: v),
                 ),
+                if (widget.slots.launcher != null)
+                  TextButton(
+                    onPressed: () async {
+                      try {
+                        await widget.slots.launcher!.show(
+                          LinaTokens.of(context),
+                        );
+                      } on Exception {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: LinaText(
+                                'Launcher is unavailable. Try again.',
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    child: const LinaText('Open launcher'),
+                  ),
                 SwitchListTile(
                   title: const LinaText('High contrast'),
                   value: p.highContrast,

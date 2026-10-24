@@ -1,4 +1,41 @@
 {
-  "packages": {},
+  "packages": {
+    "flutter": {
+      "version": "3.47.8",
+      "license": "BSD-3-Clause",
+      "notice": "Flutter SDK"
+    },
+    "sky_engine": {
+      "version": "3.47.8",
+      "license": "BSD-3-Clause",
+      "notice": "Mac panel runtime: sky_engine",
+      "scope": "Flutter-owned Dart SDK interfaces; engine third-party notices remain separate in the bundled SDK license registry."
+    },
+    "characters": {
+      "version": "1.4.1",
+      "license": "BSD-3-Clause",
+      "notice": "Mac panel runtime: characters"
+    },
+    "collection": {
+      "version": "1.19.1",
+      "license": "BSD-3-Clause",
+      "notice": "Mac panel runtime: collection"
+    },
+    "material_color_utilities": {
+      "version": "0.13.0",
+      "license": "Apache-2.0",
+      "notice": "Mac panel runtime: material_color_utilities"
+    },
+    "meta": {
+      "version": "1.18.3",
+      "license": "BSD-3-Clause",
+      "notice": "Mac panel runtime: meta"
+    },
+    "vector_math": {
+      "version": "2.4.0",
+      "license": "BSD-3-Clause",
+      "notice": "Mac panel runtime: vector_math"
+    }
+  },
   "fonts": {}
 }

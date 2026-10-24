@@ -139,3 +139,15 @@ or protocol schemas. Thin-client, generated-source and permissive-license rules
 are retained from the Core policies.
 The Core reconciliation is tracked in
 [lina-system/lina#1632](https://github.com/lina-system/lina/issues/1632).
+
+## macOS panel research package
+
+`spikes/mac-panel/` is an explicit issue-scoped exception to the production
+`packages/` layout. It is registered as `mac_panel`, so the foundation gate
+runs enforced Pub installation, runtime-license validation, analysis and widget
+tests. Its `SpikeTokens` are isolated research values, not generated production
+tokens or the output guarded by #5. The native clipboard/shortcut tests and
+ad-hoc-signed Flutter release build run in the `mac-panel` CI job, which also
+checks the hidden first-frame/platform-channel handshake. `scripts/mac-panel.mjs`
+is the research build/measurement entry point; it does not add a release artifact
+to the production manifest. Device acceptance remains separate from CI.

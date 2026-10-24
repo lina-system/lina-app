@@ -1,0 +1,26 @@
+{
+  "flutterEngineLoaded": true,
+  "frontmostUnchanged": true,
+  "frontmostUnchangedAfterHide": true,
+  "hotkeyRegistration": "passed",
+  "kind": "flutter-panel-ordering-proxy",
+  "originalAppWasExternal": true,
+  "os": "Version 27.0.1 (Build 26A434)",
+  "panelBecameKey": true,
+  "physicalShortcut": "unverified",
+  "rssBytes": 123207680,
+  "rssStatus": "measured",
+  "samplesMs": [
+    11.648625004454516,
+    7.035458336758893,
+    10.864041665627155,
+    7.038208335870877,
+    5.790583330963273,
+    9.557208330079447,
+    2.648291665536817,
+    2.418708332697861,
+    8.316291663504671,
+    7.738333333691116
+  ],
+  "visiblePresentationLatency": "unverified"
+}

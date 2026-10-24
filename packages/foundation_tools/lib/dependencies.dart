@@ -60,7 +60,7 @@ void validateRepository(String root, List<String> packages) {
     final manifest = _yaml('$directory/pubspec.yaml');
     final name = manifest['name'];
     if (name is! String ||
-        name != package.split('/').last ||
+        name != package.split('/').last.replaceAll('-', '_') ||
         manifests.containsKey(name))
       _fail('invalid or duplicate package name: $package');
     manifests[name] = manifest;

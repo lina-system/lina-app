@@ -45,3 +45,7 @@ Run `node scripts/foundation.mjs` with the pinned SDKs. See the
 [foundation policy](docs/policy/foundation.md) for component paths, evidence,
 codegen ownership and the native-build matrix, and the
 [dependency policy](docs/policy/dependencies.md) for exact pins and updates.
+
+The [macOS panel study](docs/research/mac-panel.md) provides a runnable Flutter
+spike with an AppKit non-activating panel, configurable global shortcut and
+local clipboard filtering, plus measured evidence and explicit device-test gaps.

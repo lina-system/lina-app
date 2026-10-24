@@ -18,12 +18,18 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
     public var onOpenApp: (() -> Void)?
     public var onLoginChange: ((Bool) -> Void)?
     public private(set) var items: [LauncherResult] = []
+    private let history: CalculatorHistory
+    private let pasteboard: NSPasteboard
+    private let locale: Locale
+    private var calculatorItems: [String: CalculatorAnswer] = [:]
     private let answer: NSViewController
     private let dictionary: LauncherDictionary
     private let loginStatus = NSTextField(labelWithString: "")
 
-    public init(answer: NSViewController, dictionary: LauncherDictionary? = nil) {
-        self.answer = answer
+    public init(answer: NSViewController, history: CalculatorHistory = CalculatorHistory(),
+                pasteboard: NSPasteboard = .general, locale: Locale = .current,
+                dictionary: LauncherDictionary? = nil) {
+        self.answer = answer; self.history = history; self.pasteboard = pasteboard; self.locale = locale
         self.dictionary = dictionary ?? LauncherDictionary()
         super.init(nibName: nil, bundle: nil)
     }
@@ -131,15 +137,50 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
         return label
     }
     public func controlTextDidChange(_ obj: Notification) {
+        calculatorItems.removeAll()
         let composing = (input.currentEditor() as? NSTextView)?.hasMarkedText() ?? false
         let local = dictionary.update(query: input.stringValue, composing: composing)
         dictionary.view.isHidden = !local
         answer.view.isHidden = local
-        if !local { onQuery?(input.stringValue) }
+        if local {
+            status.stringValue = "Device dictionary · ↩ Open in Dictionary"
+            return
+        }
+        if composing {
+            setResults([])
+            return
+        }
+        let query = input.stringValue
+        let answers: [CalculatorAnswer]
+        if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { answers = history.entries }
+        else { answers = Calculator.evaluate(query).map { [$0] } ?? [] }
+        let rows = answers.enumerated().map { index, answer -> LauncherResult in
+            let id = "calculator-\(index)"
+            calculatorItems[id] = answer
+            let title = query.isEmpty ? "\(answer.expression) = \(answer.formatted(locale: locale))" : answer.formatted(locale: locale)
+            return LauncherResult(id: id, title: title)
+        }
+        setResults(rows)
+        status.stringValue = rows.isEmpty ? "Search is not connected yet" : "Calculator · ↩ Copy · ⌥⌘C Copy unformatted · History on this Mac"
+        if rows.isEmpty { onQuery?(query) }
     }
     private func submitSelection(id: String?) {
         if dictionary.active { dictionary.activate(query: input.stringValue) }
-        else { onSubmit?(input.stringValue, id) }
+        else if !copyCalculator(unformatted: false) { onSubmit?(input.stringValue, id) }
+    }
+    @objc public func copyCalculatorUnformatted(_ sender: Any?) { _ = copyCalculator(unformatted: true) }
+    @discardableResult private func copyCalculator(unformatted: Bool) -> Bool {
+        guard (input.currentEditor() as? NSTextView)?.hasMarkedText() != true,
+              items.indices.contains(results.selectedRow),
+              let answer = calculatorItems[items[results.selectedRow].id] else { return false }
+        // Re-evaluate the current draft so an old row can never copy a stale answer.
+        guard input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+              Calculator.evaluate(input.stringValue) == answer else { return false }
+        pasteboard.clearContents()
+        guard pasteboard.setString(unformatted ? answer.unformatted : answer.formatted(locale: locale), forType: .string) else { return true }
+        history.record(answer)
+        status.stringValue = "Copied · History stays on this Mac"
+        return true
     }
     public func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         // AppKit/IME consumes marked-text commands before our navigation actions.

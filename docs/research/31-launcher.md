@@ -76,9 +76,12 @@ error: String?, activationPolicy: Int, uiElement: Bool}`. Login status is `enabl
 `notFound`, `unsupported`, `unknown` or `disabledInTests`. Unknown methods return
 `FlutterMethodNotImplemented`. No network, file, URL, arbitrary command, input
 injection, login mutation or Core method is exposed over the channel. Login
-changes require the native checkbox action. The result list accepts native `LauncherResult` display models. The local dictionary
-provider supplies a row and handles Return/row activation without sending the
-query or submit over this channel; other providers remain in their owning issues.
+changes require the native checkbox action. The result list accepts native
+`LauncherResult` display models. The [local calculator](40-calculator.md) fills it
+for arithmetic and copied-result history; the [device dictionary](44-dictionary.md)
+supplies a definition and opens Dictionary.app. Both providers consume their own
+queries and result actions without emitting `queryChanged` or `submit`. Ordinary
+drafts retain the channel behavior above; search providers remain separate work.
 
 ## Verification and limits
 

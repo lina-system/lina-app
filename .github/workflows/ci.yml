@@ -210,6 +210,9 @@ jobs:
         run: |
           node scripts/launcher.mjs smoke
           node scripts/launcher.mjs evidence
+      - name: Verify local calculator copies and zero Core requests from the app log
+        if: matrix.target == 'macos'
+        run: node scripts/calculator.mjs
       - name: Verify menu bar disconnects when the fake Core stops
         if: matrix.target == 'macos'
         run: node scripts/status-item.mjs
@@ -222,6 +225,7 @@ jobs:
             docs/captures/31/
             docs/captures/49/
             docs/captures/44/
+            docs/captures/40/
           if-no-files-found: error
       - name: Preserve native verification and artifact digests
         if: always()

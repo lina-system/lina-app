@@ -101,6 +101,44 @@ final class DictionaryTests: XCTestCase {
         XCTAssertFalse(dictionary.active)
     }
 
+    @MainActor func testSwitchingBetweenCalculatorAndDictionaryKeepsActionsSeparate() {
+        _ = NSApplication.shared
+        let ready = expectation(description: "dictionary result")
+        let board = NSPasteboard.withUniqueName()
+        defer { board.releaseGlobally() }
+        let history = CalculatorHistory(defaults: nil)
+        var opened: [String] = []
+        let dictionary = LauncherDictionary(lookup: { _ in "Synthetic definition" },
+                                            open: { word, done in opened.append(word); done(true) })
+        let content = LauncherContent(answer: NSViewController(), history: history, pasteboard: board,
+                                      locale: Locale(identifier: "en_US"), dictionary: dictionary)
+        _ = content.view
+        content.onQuery = { _ in XCTFail("Local query forwarded") }
+        content.onSubmit = { _, _ in XCTFail("Local action forwarded") }
+        func type(_ query: String) {
+            content.input.stringValue = query
+            content.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+        }
+        type("2^10")
+        content.results.onActivate?()
+        XCTAssertEqual(board.string(forType: .string), "1,024")
+        dictionary.onChange = { if dictionary.entry != nil { ready.fulfill() } }
+        type("define serendipity")
+        wait(for: [ready], timeout: 5)
+        XCTAssertEqual(content.items.first?.id, LauncherDictionary.resultID)
+        content.copyCalculatorUnformatted(nil)
+        XCTAssertEqual(board.string(forType: .string), "1,024")
+        content.results.onActivate?()
+        XCTAssertEqual(opened, ["serendipity"])
+        XCTAssertEqual(history.entries.count, 1)
+        type("(3+4)*12%")
+        XCTAssertTrue(dictionary.view.isHidden)
+        XCTAssertTrue(content.control(content.input, textView: NSTextView(), doCommandBy: #selector(NSResponder.insertNewline(_:))))
+        XCTAssertEqual(board.string(forType: .string), "0.84")
+        XCTAssertEqual(opened, ["serendipity"])
+        XCTAssertEqual(history.entries.count, 2)
+    }
+
     @MainActor func testCapturesSyntheticEnglishAndKoreanDefinitionViews() throws {
         guard let directory = ProcessInfo.processInfo.environment["LINA_DICTIONARY_CAPTURES"] else { return }
         _ = NSApplication.shared
@@ -111,16 +149,31 @@ final class DictionaryTests: XCTestCase {
             let dictionary = LauncherDictionary(lookup: { _ in meaning }, open: { _, _ in XCTFail("Capture must not launch apps") })
             let content = LauncherContent(answer: NSViewController(), dictionary: dictionary)
             _ = content.view
+            // An unordered fixture window gives native controls a drawing context.
+            // Paint the token canvas so the PNG is opaque and readable by itself.
+            let background = DictionaryCaptureBackground(frame: content.view.frame)
+            background.addSubview(content.view)
+            let window = NSWindow(contentRect: background.frame, styleMask: .borderless, backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = background
+            defer { window.close() }
             content.setLoginState("disabledInTests")
             dictionary.onChange = { if dictionary.entry != nil { ready.fulfill() } }
             content.input.stringValue = "define " + word
             content.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
             wait(for: [ready], timeout: 5)
             content.view.layoutSubtreeIfNeeded()
-            let bitmap = try XCTUnwrap(content.view.bitmapImageRepForCachingDisplay(in: content.view.bounds))
-            content.view.cacheDisplay(in: content.view.bounds, to: bitmap)
+            let bitmap = try XCTUnwrap(background.bitmapImageRepForCachingDisplay(in: background.bounds))
+            background.cacheDisplay(in: background.bounds, to: bitmap)
             try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
                 .write(to: URL(fileURLWithPath: directory).appendingPathComponent(word == "사과" ? "korean.png" : "english.png"))
         }
+    }
+}
+
+private final class DictionaryCaptureBackground: NSView {
+    override func draw(_ dirtyRect: NSRect) {
+        LinaTokens.Color.canvas.setFill()
+        dirtyRect.fill()
     }
 }

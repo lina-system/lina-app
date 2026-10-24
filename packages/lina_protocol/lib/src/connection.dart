@@ -20,9 +20,14 @@ class ConnectionLost implements Exception {
 class CoreConnection {
   CoreConnection({
     required this.platform,
+    this.onRequestWritten,
     this.timeout = const Duration(seconds: 5),
   });
   final String platform;
+
+  /// Optional metadata-only request log, emitted at the actual transport write.
+  /// Never includes payloads, expressions, identities or conversation content.
+  final void Function(String kind)? onRequestWritten;
   final Duration timeout;
   static const maxFrameBytes = 1024 * 1024;
   static const productVersion = '0.1.0-dev';
@@ -170,6 +175,7 @@ class CoreConnection {
     if (frame.length > maxFrameBytes)
       throw const FormatException('frame too large');
     _socket!.add(frame);
+    onRequestWritten?.call(envelope.kind);
   }
 
   Future<Envelope> request(

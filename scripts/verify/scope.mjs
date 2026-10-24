@@ -49,8 +49,7 @@ export function classify(paths, registry = components) {
         /^docs\/(policy|research)\/[^/]+\.md$/.test(path) ||
         /^docs\/captures\/[^/]+\/[^/]+\.png$/.test(path) ||
         /^docs\/captures\/31\/[^/]+\.(?:md|json|log|mp4)$/.test(path) ||
-        /^docs\/captures\/49\/[^/]+\.(?:md|json)$/.test(path) ||
-        /^docs\/captures\/44\/[^/]+\.(?:md|json)$/.test(path) ||
+        /^docs\/captures\/(?:40|44|49)\/[^/]+\.(?:md|json)$/.test(path) ||
         /^docs\/research\/captures\/mac-panel\/[^/]+\.(?:md|log|json|png)$/.test(path) ||
         /^docs\/research\/captures\/korean-input\/[^/]+\.(png|gif|json|txt)$/.test(path) ||
         /^\.github\/(workflows|ISSUE_TEMPLATE)\/[^/]+\.ya?ml$/.test(path) ||

@@ -1,0 +1,49 @@
+{
+  "sourceRevision": "d1d063f752c649c151735736dbdbb6882be8dd36",
+  "dirty": true,
+  "appRequestLog": [
+    "hello"
+  ],
+  "wireRequests": [
+    "hello"
+  ],
+  "acceptedConnections": 1,
+  "calculationRequests": 0,
+  "historyRows": 3,
+  "route": "production NSTextField delegate, Return and copy action; isolated pasteboard and in-memory history",
+  "samples": [
+    {
+      "formattedCopy": "0.84",
+      "query": "(3+4)*12%",
+      "rawCopy": "0.84",
+      "rows": [
+        "0.84"
+      ]
+    },
+    {
+      "formattedCopy": "1,024",
+      "query": "2^10",
+      "rawCopy": "1024",
+      "rows": [
+        "1,024"
+      ]
+    },
+    {
+      "formattedCopy": "12,345.67",
+      "query": "1234567/100",
+      "rawCopy": "12345.67",
+      "rows": [
+        "12,345.67"
+      ]
+    },
+    {
+      "query": "1234",
+      "rows": []
+    },
+    {
+      "query": "2+",
+      "rows": []
+    }
+  ],
+  "physicalInput": "Not exercised; native delegate actions in the hidden release app"
+}

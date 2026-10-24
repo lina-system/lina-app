@@ -1,0 +1,40 @@
+{
+  "packages": {
+    "flutter": {
+      "version": "3.47.8",
+      "license": "BSD-3-Clause",
+      "notice": "Flutter SDK"
+    },
+    "sky_engine": {
+      "version": "3.47.8",
+      "license": "BSD-3-Clause",
+      "notice": "Flutter engine API and bundled notices"
+    },
+    "characters": {
+      "version": "1.4.1",
+      "license": "BSD-3-Clause",
+      "notice": "characters"
+    },
+    "collection": {
+      "version": "1.19.1",
+      "license": "BSD-3-Clause",
+      "notice": "collection"
+    },
+    "material_color_utilities": {
+      "version": "0.13.0",
+      "license": "Apache-2.0",
+      "notice": "material_color_utilities"
+    },
+    "meta": {
+      "version": "1.18.3",
+      "license": "BSD-3-Clause",
+      "notice": "meta"
+    },
+    "vector_math": {
+      "version": "2.4.0",
+      "license": "BSD-3-Clause",
+      "notice": "vector_math"
+    }
+  },
+  "fonts": {}
+}

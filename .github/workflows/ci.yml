@@ -13,6 +13,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  design-study:
+    name: design-study
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: scripts/design-study/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: scripts/design-study
+      - name: Verify contrast, expression rules and committed renders
+        working-directory: scripts/design-study
+        run: npm test && npm run check
   flutter:
     name: flutter
     runs-on: ubuntu-latest
@@ -32,30 +48,23 @@ jobs:
       - name: Check Flutter version matches the pin
         run: |
           flutter --version | head -1 | grep -q "Flutter ${{ steps.pin.outputs.version }} "
-      - name: Analyze and test every Dart package
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Check research formatting and scripts
         run: |
-          set -euo pipefail
-          mapfile -t pkgs < <(git ls-files '*pubspec.yaml' | xargs -r -n1 dirname | sort)
-          if [ "${#pkgs[@]}" -eq 0 ]; then
-            echo "No Dart packages yet; nothing to analyze."
-            exit 0
-          fi
-          for p in "${pkgs[@]}"; do
-            echo "::group::$p"
-            if [ -f "$p/pubspec.lock" ]; then
-              (cd "$p" && flutter pub get --enforce-lockfile)
-            else
-              (cd "$p" && flutter pub get)
-            fi
-            (cd "$p" && flutter analyze)
-            (cd "$p" && dart format --output=none --set-exit-if-changed lib test)
-            if [ -d "$p/test" ]; then (cd "$p" && flutter test); fi
-            echo "::endgroup::"
-          done
-      - name: Check research scripts
-        run: |
+          dart format --output=none --set-exit-if-changed spikes/korean-input/lib spikes/korean-input/test
           bash -n spikes/korean-input/tool/linux_ime.sh
           python3 -m py_compile spikes/korean-input/tool/*.py
+      - name: Run the app foundation gate
+        run: node scripts/foundation.mjs
+      - name: Preserve foundation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundation-evidence
+          path: build/foundation-evidence.json
+          if-no-files-found: error
 
   linux-ime:
     name: linux-ime
@@ -81,7 +90,7 @@ jobs:
         working-directory: spikes/korean-input
         run: |
           flutter pub get --enforce-lockfile
-          flutter build linux --debug --dart-define=IME_TRACE=true
+          flutter build linux --debug --no-pub --dart-define=IME_TRACE=true
           tool/linux_ime.sh "$RUNNER_TEMP/korean-input-evidence"
       - uses: actions/upload-artifact@v4
         if: always()

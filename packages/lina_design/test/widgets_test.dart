@@ -149,6 +149,9 @@ void main() {
   });
   for (final mode in LinaThemeMode.values) {
     testWidgets('${mode.name} shared widgets golden', (tester) async {
+      final selected = TextEditingController(text: '선택한 문장')
+        ..selection = const TextSelection(baseOffset: 0, extentOffset: 6);
+      addTearDown(selected.dispose);
       await tester.binding.setSurfaceSize(const Size(620, 560));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
@@ -198,6 +201,19 @@ void main() {
                           Text(
                             'final answer = evidence;',
                             style: linaCodeStyle(context),
+                          ),
+                          SizedBox(height: t.spaceInline),
+                          TextField(
+                            controller: selected,
+                            readOnly: true,
+                            autofocus: true,
+                            showCursor: false,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                            decoration: const InputDecoration(
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.zero,
+                            ),
                           ),
                         ],
                       ),

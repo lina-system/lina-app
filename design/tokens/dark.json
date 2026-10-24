@@ -130,7 +130,16 @@
     },
     "selection": {
       "$type": "color",
-      "$value": "{color.surface}"
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.38431373,
+          0.42745098,
+          0.50980392
+        ],
+        "alpha": 1,
+        "hex": "#626D82"
+      }
     },
     "onSelection": {
       "$type": "color",

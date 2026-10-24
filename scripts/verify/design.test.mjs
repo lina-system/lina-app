@@ -88,3 +88,13 @@ test('bundled asset corruption fails before generation', t => {
   writeFileSync(join(dir, 'packages/lina_design/assets/fonts/Pretendard-Regular.otf'), 'bad');
   assert.throws(() => loadThemes(dir), /asset digest/);
 });
+
+test('selection stays distinguishable from both surrounding surfaces', () => {
+  for (const theme of loadThemes(root)) {
+    const bad = structuredClone(theme);
+    bad.tokens['color.selection'] = structuredClone(bad.tokens['color.canvas']);
+    assert.throws(() => validateContrast(bad), /selection.*contrast/);
+    const pairs = validateContrast(theme);
+    for (const background of ['canvas', 'surface']) assert.ok(pairs.some(p => p.foreground === 'selection' && p.background === background && p.ratio >= 3));
+  }
+});

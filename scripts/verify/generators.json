@@ -11,7 +11,7 @@
       "generator": {
         "name": "lina-design",
         "version": "1.0.0",
-        "sha256": "fb114ee47d0a11d3c747cac58617a26072c17452b87bb82ab5f43ee20472a6e2"
+        "sha256": "e332bd3bf46b25ba1ae5dee3237e5925f4427275396d73e670551e994f4c5057"
       },
       "command": [
         "node",

@@ -54,7 +54,9 @@ emergency wrap. Body height is at least 1.5 and text scaling is never clamped.
 Normal text requires 4.5:1; only at 24 logical pixels (18pt), or 56/3 pixels
 (14pt) and weight at least 700, may it use 3:1. All shipped text pairs pass 4.5:1
 regardless of size; high-contrast primary/secondary/accent text additionally
-passes 7:1 on canvas and surface. Interactive boundaries/focus pass 3:1. The
+passes 7:1 on canvas and surface. Interactive boundaries/focus and selection
+highlights against both surrounding surfaces pass 3:1. Selected text still
+passes 4.5:1 on its highlight. The
 canonical `line` token is decorative only. States pair an icon and a label,
 including “모름”. Focus is visible. Interactive targets use the minimum token.
 
@@ -108,7 +110,7 @@ Generated from the pinned Core source plus app extensions. Do not edit.
 | color.muted | `#626978` | `#A6ADBD` | `#DDDDDD` |
 | color.onAccent | `#FFFFFF` | `#000000` | `#000000` |
 | color.onSelection | `#20232D` | `#F4F5F9` | `#FFFFFF` |
-| color.selection | `#EEF0F6` | `#20232B` | `#000000` |
+| color.selection | `#838A9B` | `#626D82` | `#626D82` |
 | color.success | `#17633D` | `#8FE0B4` | `#8FE0B4` |
 | color.surface | `#EEF0F6` | `#20232B` | `#000000` |
 | color.text | `#20232D` | `#F4F5F9` | `#FFFFFF` |
@@ -244,7 +246,9 @@ Word wrapping: `word-phrase`. Spring: `{"mass":1,"stiffness":260,"damping":28}`.
 | light | focus / surface | 5.851 | 3 |
 | light | border / surface | 4.836 | 3 |
 | light | onAccent / accent | 6.666 | 4.5 |
-| light | onSelection / selection | 13.757 | 4.5 |
+| light | onSelection / selection | 4.534 | 4.5 |
+| light | selection / canvas | 3.284 | 3 |
+| light | selection / surface | 3.034 | 3 |
 | light | diffAdded / diffAddedBackground | 6.225 | 4.5 |
 | light | diffRemoved / diffRemovedBackground | 5.612 | 4.5 |
 | dark | text / canvas | 16.126 | 4.5 |
@@ -272,7 +276,9 @@ Word wrapping: `word-phrase`. Spring: `{"mass":1,"stiffness":260,"damping":28}`.
 | dark | focus / surface | 4.634 | 3 |
 | dark | border / surface | 6.983 | 3 |
 | dark | onAccent / accent | 6.195 | 4.5 |
-| dark | onSelection / selection | 14.420 | 4.5 |
+| dark | onSelection / selection | 4.784 | 4.5 |
+| dark | selection / canvas | 3.371 | 3 |
+| dark | selection / surface | 3.014 | 3 |
 | dark | diffAdded / diffAddedBackground | 9.954 | 4.5 |
 | dark | diffRemoved / diffRemovedBackground | 9.056 | 4.5 |
 | high-contrast | text / canvas | 21.000 | 7 |
@@ -300,7 +306,9 @@ Word wrapping: `word-phrase`. Spring: `{"mass":1,"stiffness":260,"damping":28}`.
 | high-contrast | focus / surface | 7.320 | 3 |
 | high-contrast | border / surface | 15.461 | 3 |
 | high-contrast | onAccent / accent | 7.320 | 4.5 |
-| high-contrast | onSelection / selection | 21.000 | 4.5 |
+| high-contrast | onSelection / selection | 5.212 | 4.5 |
+| high-contrast | selection / canvas | 4.029 | 3 |
+| high-contrast | selection / surface | 4.029 | 3 |
 | high-contrast | diffAdded / diffAddedBackground | 13.489 | 4.5 |
 | high-contrast | diffRemoved / diffRemovedBackground | 11.845 | 4.5 |
 <!-- tokens:end -->

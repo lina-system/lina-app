@@ -40,6 +40,7 @@ export function validateContrast(theme) {
   for (const bg of ['canvas', 'surface']) for (const fg of ['focus', 'border']) check(fg, bg, 3);
   check('onAccent', 'accent', 4.5);
   check('onSelection', 'selection', 4.5);
+  for (const bg of ['canvas', 'surface']) check('selection', bg, 3);
   check('diffAdded', 'diffAddedBackground', 4.5);
   check('diffRemoved', 'diffRemovedBackground', 4.5);
   return pairs;

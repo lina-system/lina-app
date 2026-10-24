@@ -36,6 +36,7 @@ class CoreConnection {
   static const capabilities = [
     {'name': 'conversation', 'version': '1.0'},
     {'name': 'agents', 'version': '1.0'},
+    {'name': 'memory', 'version': '1.0'},
     {'name': 'progress', 'version': '1.0'},
     {
       'name': 'results',

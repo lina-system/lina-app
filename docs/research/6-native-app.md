@@ -8,7 +8,7 @@ and protocol tests is synthetic.
 
 | Check | Observed result |
 | --- | --- |
-| Foundation gate | Passed: dependency locks/licenses, snapshot/codegen drift, visual lint, four package analyzers/tests and Node regressions |
+| Foundation gate | Passed: dependency locks/licenses, snapshot/codegen drift, visual lint, five package analyzers/tests and Node regressions |
 | Protocol corpus | 201 positive envelopes round-trip without numeric loss; 44 client/server receive cases match outputs/errors/counters |
 | Native transport | Unix and TCP socket tests pass: handshake validation, rejection, timeout, oversized frames, drop, pending effect uncertainty, no resend, preview until Core's saved card |
 | Composition | Headless Korean composition/commit and send-action test passes; one complete input request, draft retained until Core receipt |
@@ -18,18 +18,50 @@ and protocol tests is synthetic.
 | iOS simulator | Debug simulator build passed; no simulator launch claim |
 | Linux, Windows, Android | Not buildable locally with the available host toolchains; dedicated native CI jobs own these builds |
 | Real Core | Go binary built at the pinned revision; runtime refused macOS with `Core requires a Linux state root`. No real-Core connection pass is claimed |
-| Installed Mac GUI, startup, RSS, physical IME | Unverified: console session was locked. No app was launched, and no login/lock/sleep setting was changed |
+| Installed Mac startup and RSS | Three signed-release launches measured without a dev server; samples below; every launched process exited |
+| Human Mac visual and physical IME acceptance | Unverified; retained in #107. No keystrokes or login/lock/sleep changes were made |
 
 macOS bundle content is **47,505,506 bytes** including the complete engine notices.
 The installed copy occupies **46,476 KiB**; actual disk
-allocation is distinct from the content-byte inventory. Startup and resident
-memory are **unverified**, not zero. No release artifact has been published.
+allocation is distinct from the content-byte inventory. No release artifact has
+been published.
 
 The artifact records include a source revision and dirty-tree flag. Each local
 artifact names the implementation commit it built; CI rebuilds every native
 target at the final PR head. The
 source-controlled release manifest retains their sizes, hashes and signing
 provenance. `build/artifacts/<target>.json` includes the full file inventory.
+
+## Installed Mac measurements
+
+Ran `dv heavy -- node scripts/verify/mac-smoke.mjs` on 2026-10-24 at
+11:12:39–11:12:50 UTC. An active console was present; `CGSSessionScreenIsLocked`
+was **absent**, meaning unlocked, in the initial observation and before each
+launch. The previous probe incorrectly defaulted an absent key to locked; its
+old “locked” reports do not establish that the session was actually locked.
+The fixed probe treats only an explicit true as locked, and refuses to launch
+when there is no active console. Six regression cases run in the foundation gate
+and CI, with the absent-key failures recorded before the fix.
+
+| Trial | Process spawn to first rasterized frame (ms) | RSS after three seconds (KiB) |
+| --- | --- | --- |
+| 1 | 873.224 | 140,144 |
+| 2 | 215.823 | 137,024 |
+| 3 | 215.469 | 137,312 |
+
+The command copied the already-built release into an isolated install directory
+and verified its ad-hoc signature with `codesign --verify --deep --strict`.
+The measured bundle was built from `2d92946ba5429b6c31f63a5ec2a51908f8b1cee2`,
+with tree digest `2b65594b79b62e3897cdbfc6bab9bd037e31854f1edfbf439a34e37c6af3ce67`. It occupies
+**46,476 KiB** and contains **47,505,506 bytes**. Each trial launched its
+executable directly, with startup instrumentation enabled, no dev server and
+no inherited Core endpoint. RSS came from `ps -o rss= -p <app-pid>` three seconds
+after the first-frame signal. These are three sequential process launches, not
+cold-boot or physical interaction benchmarks; the first launch was slower.
+Every measured process was terminated and joined, and a subsequent PID check
+confirmed all three had exited. No keystrokes, screen unlock or lock/sleep/login
+setting changes were used. Human IME and no-web-feel visual acceptance are still
+unverified in #107.
 
 ## Reproduce
 
@@ -94,8 +126,8 @@ layout, semantics and state behavior on every platform. The separate platform
 font baselines avoid treating CoreText/FreeType differences as app regressions.
 
 [App #107](https://github.com/lina-system/lina-app/issues/107) contains exactly the
-remaining owner/physical-device work: installed unlocked-Mac launch, startup/RSS
-and no-web-behavior checks, real Korean IMEs on all five platforms, and the
+remaining owner/physical-device work: human Mac no-web-behavior checks, real
+Korean IMEs on all five platforms, other-platform device runs, and the
 composer/launcher decisions in #1/#2. It shares #6's milestone. The Core contract
 and compatibility-table documentation is tracked in
 [Core #1662](https://github.com/lina-system/lina/issues/1662).

@@ -64,7 +64,7 @@ jobs:
         with:
           node-version-file: .node-version
       - name: Test token generation, contrast and visual lint regressions
-        run: node --test scripts/verify/design.test.mjs scripts/verify/protocol.test.mjs
+        run: node --test scripts/verify/design.test.mjs scripts/verify/protocol.test.mjs scripts/verify/mac-session.test.mjs
       - name: Check research formatting and scripts
         run: |
           dart format --output=none --set-exit-if-changed spikes/korean-input/lib spikes/korean-input/test

@@ -103,6 +103,7 @@ export function verify({ root, files, trackedFiles = files, run = execute }) {
       const config = json(root, 'scripts/verify/generators.json');
       const ids = config.checks.map(c => c.id);
       if (new Set(ids).size !== ids.length || !['theme', 'visual-values', 'protocol'].every(id => ids.includes(id))) throw new Error('theme, visual-values and protocol checks must be registered exactly once');
+      if (files.some(p => p.startsWith('packages/lina_app/macos/Runner/Launcher/')) && !ids.includes('swift-theme')) throw new Error('production launcher requires swift-theme registration');
       return config;
     });
     for (const check of config.checks) {

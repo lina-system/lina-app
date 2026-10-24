@@ -7,6 +7,8 @@ import 'package:lina_protocol/lina_protocol.dart';
 
 import 'lina_app.dart';
 import 'core_screen.dart';
+import 'launcher.dart';
+import 'platform_slots.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,6 +24,9 @@ void main() {
         connection: connection,
         preferences: preferences,
         endpoint: endpoint,
+        slots: PlatformSlots(
+          launcher: Platform.isMacOS ? const MacLauncherHost() : null,
+        ),
       ),
     ),
   );
@@ -33,3 +38,6 @@ void main() {
     );
   }
 }
+
+@pragma('vm:entry-point')
+void launcherMain() => runLauncher();

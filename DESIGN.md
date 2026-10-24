@@ -20,8 +20,10 @@ all outputs (including unexpected files), source digests and role parity without
 writing. The foundation gate and CI run it and the visual-value lint. Generated
 Dart is formatted by the pinned SDK as part of generation. Never hand-edit it.
 
-The Core Go/Lip Gloss generator, ANSI fallbacks, CSS and Swift outputs remain in
-Core. App verification does not claim Core CI has run. Extension integration is tracked in
+The Core Go/Lip Gloss generator, ANSI fallbacks and CSS outputs remain in
+Core. The native launcher vendors Core’s Swift output at the same pinned revision
+and generates app layout/type values with `scripts/verify/swift-tokens.mjs`; its
+registered drift check covers both files. App verification does not claim Core CI has run. Extension integration is tracked in
 [lina-system/lina#1650](https://github.com/lina-system/lina/issues/1650). The framework wording in
 Core is tracked separately by lina-system/lina#1632; this package follows the
 Flutter app issue and SDK pin. #1 and #2 still own physical input/panel acceptance.
@@ -182,6 +184,10 @@ Generated from the pinned Core source plus app extensions. Do not edit.
 | icon.grid | `{"value":24,"unit":"px"}` | `{"value":24,"unit":"px"}` | `{"value":24,"unit":"px"}` |
 | icon.size | `{"value":20,"unit":"px"}` | `{"value":20,"unit":"px"}` | `{"value":20,"unit":"px"}` |
 | icon.stroke | `{"value":2,"unit":"px"}` | `{"value":2,"unit":"px"}` | `{"value":2,"unit":"px"}` |
+| launcher.answerHeight | `{"value":176,"unit":"px"}` | `{"value":176,"unit":"px"}` | `{"value":176,"unit":"px"}` |
+| launcher.height | `{"value":600,"unit":"px"}` | `{"value":600,"unit":"px"}` | `{"value":600,"unit":"px"}` |
+| launcher.resultsHeight | `{"value":96,"unit":"px"}` | `{"value":96,"unit":"px"}` | `{"value":96,"unit":"px"}` |
+| launcher.width | `{"value":680,"unit":"px"}` | `{"value":680,"unit":"px"}` | `{"value":680,"unit":"px"}` |
 | layout.readingWidth | `{"value":760,"unit":"px"}` | `{"value":760,"unit":"px"}` | `{"value":760,"unit":"px"}` |
 | motion.activityElapsed | `{"value":1000,"unit":"ms"}` | `{"value":1000,"unit":"ms"}` | `{"value":1000,"unit":"ms"}` |
 | motion.activityFrame | `{"value":100,"unit":"ms"}` | `{"value":100,"unit":"ms"}` | `{"value":100,"unit":"ms"}` |

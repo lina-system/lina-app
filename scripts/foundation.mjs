@@ -18,7 +18,7 @@ export function foundation(root = resolve(dirname(fileURLToPath(import.meta.url)
     if (evidence.status === 'passed') {
       execute('git', ['diff', '--check'], root);
       execute('git', ['diff', '--cached', '--check'], root);
-      const output = execute('node', ['--test', 'scripts/verify/foundation.test.mjs', 'scripts/verify/design.test.mjs', 'scripts/verify/protocol.test.mjs', 'scripts/verify/mac-session.test.mjs'], root);
+      const output = execute('node', ['--test', 'scripts/verify/foundation.test.mjs', 'scripts/verify/design.test.mjs', 'scripts/verify/protocol.test.mjs', 'scripts/verify/mac-session.test.mjs', 'scripts/verify/swift-tokens.test.mjs'], root);
       evidence.steps.push({ id: 'automation', status: 'passed', output });
     }
   } catch (error) {

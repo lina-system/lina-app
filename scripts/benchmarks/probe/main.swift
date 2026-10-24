@@ -75,7 +75,7 @@ func write(_ status: Status, to path: String?) {
 }
 
 let usage = """
-  usage: LINA Probe [--exit-file PATH] status|request [--out PATH]
+  usage: LINA Probe [--exit-file PATH] status|request|panel-shortcut [--out PATH]
     status   write accessibility/screen_recording grant state; exit 0 when both are granted, 3 otherwise
     request  ask macOS for both grants (adds LINA Probe to both Privacy lists), then write status
   """
@@ -103,6 +103,9 @@ while !rest.isEmpty {
 }
 
 switch command {
+case "panel-shortcut":
+  let control = PanelShortcutControl()
+  withExtendedLifetime(control) { control.run() }
 case "status":
   break
 case "request":

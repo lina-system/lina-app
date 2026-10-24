@@ -1,0 +1,21 @@
+Building for debugging...
+[1 / 4]
+[2 / 5] MacPanelPlatform
+[3 / 6] MacPanelPlatform
+[7 / 10] MacPanelPlatform
+[10 / 11] MacPanelPlatformTests-product
+[13 / 14] mac-panel-native-product
+Build complete! (1.83초)
+Test Suite 'Selected tests' started at 2026-10-24 19:37:56.731.
+Test Suite 'MacPanelPlatformTests.xctest' started at 2026-10-24 19:37:56.732.
+Test Suite 'ShortcutTests' started at 2026-10-24 19:37:56.732.
+Test Case '-[MacPanelPlatformTests.ShortcutTests testShortcutRequiresRealModifierAndKnownPhysicalKey]' started.
+Test Case '-[MacPanelPlatformTests.ShortcutTests testShortcutRequiresRealModifierAndKnownPhysicalKey]' passed (0.001 seconds).
+Test Case '-[MacPanelPlatformTests.ShortcutTests testUnrelatedCarbonHotkeyCannotStartPanelTiming]' started.
+Test Case '-[MacPanelPlatformTests.ShortcutTests testUnrelatedCarbonHotkeyCannotStartPanelTiming]' passed (0.000 seconds).
+Test Suite 'ShortcutTests' passed at 2026-10-24 19:37:56.733.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'MacPanelPlatformTests.xctest' passed at 2026-10-24 19:37:56.733.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'Selected tests' passed at 2026-10-24 19:37:56.733.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds

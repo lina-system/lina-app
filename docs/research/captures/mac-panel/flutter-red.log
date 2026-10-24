@@ -1,0 +1,26 @@
+00:00 +0: loading <repo>/spikes/mac-panel/test/composer_test.dart
+test/composer_test.dart:5:8: Error: Error when reading 'lib/composer.dart': No such file or directory
+import 'package:mac_panel/composer.dart';
+       ^
+test/composer_test.dart:12:62: Error: Method not found: 'PanelComposer'.
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: PanelComposer(onSubmit: submitted.add))));
+                                                             ^^^^^^^^^^^^^
+test/composer_test.dart:38:62: Error: Method not found: 'PanelComposer'.
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: PanelComposer(
+                                                             ^^^^^^^^^^^^^
+00:00 +0 -1: loading <repo>/spikes/mac-panel/test/composer_test.dart [E]
+  Failed to load "<repo>/spikes/mac-panel/test/composer_test.dart":
+  Compilation failed for testPath=<repo>/spikes/mac-panel/test/composer_test.dart: test/composer_test.dart:5:8: Error: Error when reading 'lib/composer.dart': No such file or directory
+  import 'package:mac_panel/composer.dart';
+         ^
+  test/composer_test.dart:12:62: Error: Method not found: 'PanelComposer'.
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: PanelComposer(onSubmit: submitted.add))));
+                                                               ^^^^^^^^^^^^^
+  test/composer_test.dart:38:62: Error: Method not found: 'PanelComposer'.
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: PanelComposer(
+                                                               ^^^^^^^^^^^^^
+  .
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  <repo>/spikes/mac-panel/test/composer_test.dart: loading <repo>/spikes/mac-panel/test/composer_test.dart

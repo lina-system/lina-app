@@ -1,0 +1,33 @@
+{
+  "command": "node scripts/mac-panel.mjs measure-visible",
+  "stimulusCommand": "scripts/benchmarks/probe/run.sh panel-shortcut",
+  "stimulusInteraction": "CUA clicks Send panel shortcut once per LINA_VISIBLE_READY; probe posts one fixed OS key chord",
+  "hardware": "Apple M2 Pro",
+  "architecture": "arm64",
+  "flutter": "3.47.8 stable",
+  "dart": "3.13.7",
+  "xcode": "27.1 (27A9275)",
+  "appSigning": "ad-hoc; codesign --verify --deep --strict passed; App Sandbox retained",
+  "probeSigning": "existing LINA Probe Local Signing identity retained; codesign --verify --strict passed",
+  "probeAccessBeforeRebuild": {
+    "accessibility": true,
+    "screenRecording": true
+  },
+  "probeAccessAfterRebuild": {
+    "accessibility": true,
+    "screenRecording": true
+  },
+  "newPermissionsRequested": false,
+  "probeExecutableSha256": "e13103292e04daa4a41abfe87c1108db72fb67089721e18666b4080f50e074fb",
+  "sourceSha256": {
+    "spikes/mac-panel/macos/Runner/Platform/GlobalShortcut.swift": "025c0e73b19f059cc30e586e6450e169b45e60794ced02a1c45414f0291b9ba2",
+    "spikes/mac-panel/macos/Runner/Platform/ClipboardHistory.swift": "9bdf68c41732c25907862a0bad17aa0393a4e6685f3daaef64c11c612eba89c4",
+    "spikes/mac-panel/macos/Runner/Platform/VisibleLatency.swift": "0afddd78cf29f8c11205537d6f80cb78bc2e3edad815642888dfb3037eedac46",
+    "spikes/mac-panel/macos/Runner/Platform/VisibleCapture.swift": "86d4428ddbead9bc18c9a8ff7c0005fc6e4337fd093f5792aec0f455fd1289c5",
+    "spikes/mac-panel/macos/Runner/Platform/LauncherPanel.swift": "43a015f18ccfc24b645131b813bf99dd967f4ba6e77e6f76793917e26e175d3a",
+    "spikes/mac-panel/macos/Runner/AppDelegate.swift": "2685e97ee8394e71f1a83f7637a37577236c3cf226d856e56a08e2b3b0e085f9",
+    "spikes/mac-panel/lib/main.dart": "d045bc87ff185cab42f01c78387afa014657ceb80261f805b25a28061f06e30e",
+    "scripts/benchmarks/probe/main.swift": "b5b27ab61a68ee7109b926c38214ebdf181e03c7b631de5fb393f1cdbfd09cf1",
+    "scripts/benchmarks/probe/panel-shortcut.swift": "58322b8813a4694eab9d33287316f0c6e25cc798b43c1d196afabc9810723131"
+  }
+}

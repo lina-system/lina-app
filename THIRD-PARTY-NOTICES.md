@@ -1,6 +1,7 @@
 # Third-party notices
 
 The design library bundles fonts and icon paths; the app imports it by path.
+The isolated mac-panel study uses the same reviewed Flutter runtime closure.
 The complete runtime package and font inventory is in
 `scripts/verify/licenses.json`. Native app artifacts and engine-binary notice
 verification remain part of the native runners/release work in #6.

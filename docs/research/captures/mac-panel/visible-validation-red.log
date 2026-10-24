@@ -1,0 +1,83 @@
+Building for debugging...
+[Planning deferred tasks]
+[4 / 20]
+[5 / 21] MacPanelPlatform
+[7 / 23] MacPanelPlatform
+[12 / 25] MacPanelPlatform
+[16 / 25] MacPanelPlatformTests-product
+[19 / 29] MacPanelPlatformTests-product
+[21 / 28] MacPanelPlatformTests-product
+error: SwiftCompile normal arm64 <repo>/spikes/mac-panel/native-tests/VisibleLatencyTests.swift failed with a nonzero exit code. Command line:     cd <repo>/spikes
+    builtin-SwiftPerFileCompile VisibleLatencyTests.swift
+<repo>/spikes/mac-panel/native-tests/VisibleLatencyTests.swift:7:25: error: cannot find 'VisibleLatencyTrial' in scope
+ 5 | final class VisibleLatencyTests: XCTestCase {
+ 6 |     func testOrderingStaleHiddenAndUnpaintedFramesCannotCompleteATrial() throws {
+ 7 |         var trial = try VisibleLatencyTrial(shortcutTime: 100)
+   |                         `- error: cannot find 'VisibleLatencyTrial' in scope
+ 8 |         XCTAssertNil(trial.observe(frameTime: 99.999, receivedTime: 100.020,
+ 9 |                                    onScreen: true, complete: true, markerMatches: true))
+
+<repo>/spikes/mac-panel/native-tests/VisibleLatencyTests.swift:16:26: error: generic parameter 'T' could not be inferred
+14 |         XCTAssertNil(trial.observe(frameTime: 100.010, receivedTime: 100.020,
+15 |                                    onScreen: true, complete: true, markerMatches: false))
+16 |         let result = try XCTUnwrap(trial.observe(frameTime: 100.016, receivedTime: 100.019,
+   |                          `- error: generic parameter 'T' could not be inferred
+17 |                                                 onScreen: true, complete: true, markerMatches: true))
+18 |         XCTAssertEqual(result.frameLatencyMs, 16, accuracy: 0.0001)
+
+XCTest.XCTUnwrap:1:13: note: in call to function 'XCTUnwrap(_:_:file:line:)'
+1 | public func XCTUnwrap<T>(_ expression: @autoclosure () throws -> T?, _ message: @autoclosure () -> String = "", file: StaticString = #filePath, line: UInt = #line) throws -> T
+  |             `- note: in call to function 'XCTUnwrap(_:_:file:line:)'
+
+<repo>/spikes/mac-panel/native-tests/VisibleLatencyTests.swift:25:34: error: cannot find 'VisibleLatencyTrial' in scope
+23 |
+24 |     func testInvalidClocksCannotProduceMeasurements() throws {
+25 |         XCTAssertThrowsError(try VisibleLatencyTrial(shortcutTime: .nan))
+   |                                  `- error: cannot find 'VisibleLatencyTrial' in scope
+26 |         XCTAssertThrowsError(try VisibleLatencyTrial(shortcutTime: -1))
+27 |         var trial = try VisibleLatencyTrial(shortcutTime: 100)
+
+<repo>/spikes/mac-panel/native-tests/VisibleLatencyTests.swift:26:34: error: cannot find 'VisibleLatencyTrial' in scope
+24 |     func testInvalidClocksCannotProduceMeasurements() throws {
+25 |         XCTAssertThrowsError(try VisibleLatencyTrial(shortcutTime: .nan))
+26 |         XCTAssertThrowsError(try VisibleLatencyTrial(shortcutTime: -1))
+   |                                  `- error: cannot find 'VisibleLatencyTrial' in scope
+27 |         var trial = try VisibleLatencyTrial(shortcutTime: 100)
+28 |         XCTAssertNil(trial.observe(frameTime: .nan, receivedTime: 100.020,
+
+<repo>/spikes/mac-panel/native-tests/VisibleLatencyTests.swift:27:25: error: cannot find 'VisibleLatencyTrial' in scope
+25 |         XCTAssertThrowsError(try VisibleLatencyTrial(shortcutTime: .nan))
+26 |         XCTAssertThrowsError(try VisibleLatencyTrial(shortcutTime: -1))
+27 |         var trial = try VisibleLatencyTrial(shortcutTime: 100)
+   |                         `- error: cannot find 'VisibleLatencyTrial' in scope
+28 |         XCTAssertNil(trial.observe(frameTime: .nan, receivedTime: 100.020,
+29 |                                    onScreen: true, complete: true, markerMatches: true))
+
+<repo>/spikes/mac-panel/native-tests/VisibleLatencyTests.swift:36:23: error: cannot find 'VisibleFrameMarker' in scope
+34 |     func testMarkerRequiresAllFourOpaqueColorsInOrder() {
+35 |         let colors: [(UInt8, UInt8, UInt8)] = [(235, 35, 55), (25, 190, 70), (30, 70, 235), (245, 200, 20)]
+36 |         XCTAssertTrue(VisibleFrameMarker.matches(colors))
+   |                       `- error: cannot find 'VisibleFrameMarker' in scope
+37 |         XCTAssertFalse(VisibleFrameMarker.matches(Array(colors.reversed())))
+38 |         XCTAssertFalse(VisibleFrameMarker.matches([(248, 249, 252), (248, 249, 252), (248, 249, 252), (248, 249, 252)]))
+
+<repo>/spikes/mac-panel/native-tests/VisibleLatencyTests.swift:37:24: error: cannot find 'VisibleFrameMarker' in scope
+35 |         let colors: [(UInt8, UInt8, UInt8)] = [(235, 35, 55), (25, 190, 70), (30, 70, 235), (245, 200, 20)]
+36 |         XCTAssertTrue(VisibleFrameMarker.matches(colors))
+37 |         XCTAssertFalse(VisibleFrameMarker.matches(Array(colors.reversed())))
+   |                        `- error: cannot find 'VisibleFrameMarker' in scope
+38 |         XCTAssertFalse(VisibleFrameMarker.matches([(248, 249, 252), (248, 249, 252), (248, 249, 252), (248, 249, 252)]))
+39 |     }
+
+<repo>/spikes/mac-panel/native-tests/VisibleLatencyTests.swift:38:24: error: cannot find 'VisibleFrameMarker' in scope
+36 |         XCTAssertTrue(VisibleFrameMarker.matches(colors))
+37 |         XCTAssertFalse(VisibleFrameMarker.matches(Array(colors.reversed())))
+38 |         XCTAssertFalse(VisibleFrameMarker.matches([(248, 249, 252), (248, 249, 252), (248, 249, 252), (248, 249, 252)]))
+   |                        `- error: cannot find 'VisibleFrameMarker' in scope
+39 |     }
+40 | }
+Failed frontend command:
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -c <repo>/spikes/mac-panel/.build/out/Intermediates.noindex/MacPanelSpike.build/Debug/MacPanelPlatformTests-p.build/DerivedSources/test_entry_point.swift <repo>/spikes/mac-panel/native-tests/ClipboardTests.swift <repo>/spikes/mac-panel/native-tests/ShortcutTests.swift -primary-file <repo>/spikes/mac-panel/native-tests/VisibleLatencyTests.swift -emit-dependencies-path <repo>/spikes/mac-panel/.build/out/Intermediates.noindex/MacPanelSpike.build/Debug/MacPanelPlatformTests-p.build/Objects-normal/arm64/VisibleLatencyTests.d -emit-const-values-path <repo>/spikes/mac-panel/.build/out/Intermediates.noindex/MacPanelSpike.build/Debug/MacPanelPlatformTests-p.build/Objects-normal/arm64/VisibleLatencyTests.swiftconstvalues -emit-reference-dependencies-path <repo>/spikes/mac-panel/.build/out/Intermediates.noindex/MacPanelSpike.build/Debug/MacPanelPlatformTests-p.build/Objects-normal/arm64/VisibleLatencyTests.swiftdeps -serialize-diagnostics-path <repo>/spikes/mac-panel/.build/out/Intermediates.noindex/MacPanelSpike.build/Debug/MacPanelPlatformTests-p.build/Objects-normal/arm64/VisibleLatencyTests.dia -target arm64-apple-macos14.0 -module-can-import-version Testing 2084 0 -module-can-import-version XCTest 25229 0 -disable-cross-import-overlay-search -swift-module-cross-import Testing /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/Testing.framework/Modules/Testing.swiftcrossimport/AppKit.swiftoverlay -swift-module-cross-import Testing /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/Testing.framework/Modules/Testing.swiftcrossimport/CoreGraphics.swiftoverlay -swift-module-cross-import Testing /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/Testing.framework/Modules/Testing.swiftcrossimport/CoreImage.swiftoverlay -swift-module-cross-import Testing /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/Testing.framework/Modules/Testing.swiftcrossimport/CoreTransferable.swiftoverlay -swift-module-cross-import Testing /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks/Testing.framework/Modules/Testing.swiftcrossimport/Foundation.swiftoverlay -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libFoundationMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#FoundationMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libObservationMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#ObservationMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libPreviewsMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#PreviewsMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#SwiftMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#SwiftUIMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing/libTestingMacros.dylib\#\#TestingMacros -disable-implicit-swift-modules -Xcc -fno-implicit-modules -Xcc -fno-implicit-module-maps -explicit-swift-module-map-file <repo>/spikes/mac-panel/.build/out/Intermediates.noindex/MacPanelSpike.build/Debug/MacPanelPlatformTests-p.build/Objects-normal/arm64/MacPanelPlatformTests-dependencies-1.json -Xllvm -aarch64-use-tbi -enable-objc-interop -stack-check -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk -I <repo>/spikes/mac-panel/.build/out/Products/Debug -Isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -F <repo>/spikes/mac-panel/.build/out/Products/Debug/PackageFrameworks -F <repo>/spikes/mac-panel/.build/out/Products/Debug -F /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -module-cache-path <repo>/spikes/mac-panel/.build/out/Intermediates.noindex/SwiftExplicitPrecompiledModules -no-color-diagnostics -Xcc -fno-color-diagnostics -enable-testing -g -debug-info-format\=dwarf -dwarf-version\=4 -swift-version 5 -Onone -D SWIFT_PACKAGE -D DEBUG -D Xcode -serialize-debugging-options -enable-experimental-feature DebugDescriptionMacro -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file <repo>/spikes/mac-panel/.build/out/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc <repo>/spikes -enable-anonymous-context-mangled-names -file-compilation-dir <repo>/spikes -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -Xcc -ivfsstatcache -Xcc <repo>/spikes/mac-panel/.build/out/SDKStatCaches.noindex/macosx27.0-26A425-a0facfad118c1a7a18f0aad9463f65497231f6df4def33e022ae2eb8f782df1a.sdkstatcache -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -Xcc -I<repo>/spikes/mac-panel/.build/out/Products/Debug/include -Xcc -I<repo>/spikes/mac-panel/.build/out/Intermediates.noindex/MacPanelSpike.build/Debug/MacPanelPlatformTests-p.build/DerivedSources-normal/arm64 -Xcc -I<repo>/spikes/mac-panel/.build/out/Intermediates.noindex/MacPanelSpike.build/Debug/MacPanelPlatformTests-p.build/DerivedSources/arm64 -Xcc -I<repo>/spikes/mac-panel/.build/out/Intermediates.noindex/MacPanelSpike.build/Debug/MacPanelPlatformTests-p.build/DerivedSources -Xcc -DSWIFT_PACKAGE -Xcc -DDEBUG\=1 -no-auto-bridging-header-chaining -module-name MacPanelPlatformTests -package-name mac_panel -const-gather-protocols-file <repo>/spikes/mac-panel/.build/out/Intermediates.noindex/MacPanelSpike.build/Debug/MacPanelPlatformTests-p.build/Objects-normal/arm64/MacPanelPlatformTests_const_extract_protocols.json -disable-clang-spi -clang-target arm64-apple-macos27.0 -target-sdk-version 27.0 -target-sdk-name macosx27.0 -in-process-plugin-server-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/libSwiftInProcPluginServer.dylib -parse-as-library -o <repo>/spikes/mac-panel/.build/out/Intermediates.noindex/MacPanelSpike.build/Debug/MacPanelPlatformTests-p.build/Objects-normal/arm64/VisibleLatencyTests.o -debug-module-path <repo>/spikes/mac-panel/.build/out/Intermediates.noindex/MacPanelSpike.build/Debug/MacPanelPlatformTests-p.build/Objects-normal/arm64/MacPanelPlatformTests.swiftmodule -index-unit-output-path /MacPanelSpike.build/Debug/MacPanelPlatformTests-p.build/Objects-normal/arm64/VisibleLatencyTests.o -index-store-path <repo>/spikes/mac-panel/.build/out -index-system-modules
+[24 / 28] MacPanelPlatformTests-product
+error: Build failed
+error: fatalError

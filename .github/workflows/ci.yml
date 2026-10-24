@@ -13,6 +13,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  mac-panel:
+    name: mac panel native and Flutter build
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Read pinned Flutter version
+        id: pin
+        run: echo "version=$(tr -d '[:space:]' < .flutter-version)" >> "$GITHUB_OUTPUT"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ steps.pin.outputs.version }}
+          cache: true
+      - name: Test clipboard, shortcuts and visible-frame validation
+        run: swift test --package-path spikes/mac-panel -j 2
+      - name: Verify shortcut-to-visible evidence and rejection cases
+        run: node --test spikes/mac-panel/visible-evidence.test.mjs
+      - name: Compile and ad-hoc sign the probe's global-shortcut stimulus
+        run: LINA_PROBE_SIGN=adhoc LINA_PROBE_APP="$RUNNER_TEMP/LINA Probe.app" scripts/benchmarks/probe/build.sh
+      - name: Build the Flutter panel with ad-hoc signing
+        working-directory: spikes/mac-panel
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter build macos --release --no-pub
+          codesign --force --sign - --entitlements macos/Runner/Release.entitlements build/macos/Build/Products/Release/mac_panel.app
+          codesign --verify --deep --strict build/macos/Build/Products/Release/mac_panel.app
+      - name: Verify the hidden Flutter first frame reaches the platform channel
+        run: node scripts/mac-panel.mjs smoke-flutter
+
   launcher-baseline:
     name: launcher baseline analysis
     runs-on: ubuntu-latest

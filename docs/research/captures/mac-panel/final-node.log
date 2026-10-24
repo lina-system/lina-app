@@ -1,0 +1,29 @@
+✔ mac panel spike is checked as a package and evidence cannot hide code (2.312459ms)
+✔ app and design fail before registration; unknown package paths always fail (0.153375ms)
+✔ benchmark and design-study registrations admit their files but no hidden executables (0.174667ms)
+✔ research spike and evidence are registered without allowing executable docs (0.112167ms)
+✔ runs enforced install, dependency validation, analysis and tests with evidence (4.037083ms)
+✔ rejects a missing/untracked lockfile and a package without tests (2.232333ms)
+✔ nested packages and local overrides cannot bypass package registration (2.78325ms)
+✔ missing generator registrations and web release targets fail closed (5.581542ms)
+✔ SDK mismatch and non-stable channel fail before package commands (2.128833ms)
+✔ a successful install that mutates a lockfile still fails (2.190834ms)
+✔ install, validation, analysis and test errors retain failure evidence (3.008167ms)
+✔ deferred codegen is explicit and refuses output before activation (3.161625ms)
+✔ active generation rejects missing pins, failure, and new or changed output (4.726167ms)
+✔ win32 runs the Flutter batch launcher through cmd.exe (0.433292ms)
+✔ win32 keeps spaces and cmd metacharacters inside one argument (0.117667ms)
+✔ win32 spawns executables without a shell (0.085625ms)
+✔ non-Windows keeps the command, arguments, environment and options unchanged (0.083166ms)
+✔ win32 batch failures report the logical command and its output (0.098583ms)
+✔ win32 escaping leaves no metacharacter outside quotes (0.112459ms)
+✔ accepted evidence has ten real shortcut/WindowServer frame pairs (7.3845ms)
+✔ ordering-only, stale, hidden, mismatched or fabricated summaries cannot pass (6.432416ms)
+ℹ tests 21
+ℹ suites 0
+ℹ pass 21
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 95.783958

@@ -1,0 +1,10 @@
+✔ accepted evidence has ten real shortcut/WindowServer frame pairs (2.192708ms)
+✔ ordering-only, stale, hidden, mismatched or fabricated summaries cannot pass (5.272916ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 56.313708

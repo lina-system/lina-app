@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+analyzer:
+  errors:
+    unused_import: error
+  exclude:
+    - build/**
+    - macos/**

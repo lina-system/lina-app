@@ -50,3 +50,18 @@ The status JSON (`accessibility`, `screen_recording`, executable path, PID and
 time) and `build.json` (source revision, Swift/SDK versions, executable SHA-256,
 cdhash, designated requirement, `codesign --verify --strict`) belong in the
 evidence manifest.
+
+## Panel shortcut stimulus
+
+`run.sh panel-shortcut` opens a synthetic foreground window with a **Send panel
+shortcut** button for the mac-panel study. Each click posts one fixed
+Control+Option+Space chord through the existing authorized probe. It is not a
+shell/script bridge and accepts no arbitrary keys or app targets. It refuses
+without existing Accessibility/post-event access, while locked, if the panel
+app is absent, or after ten sends. It requests no permission. The control quits
+after the tenth send (or after three minutes). Use the companion
+`node scripts/mac-panel.mjs measure-visible` collector; wait for each
+`LINA_VISIBLE_READY` before clicking. The resulting sample must identify the
+Carbon global-hotkey route, an external foreground app and a matching displayed
+Flutter frame. This is a synthetic OS key stimulus, not a physical key-to-photon
+measurement. Rebuild with the same signing identity to retain existing grants.

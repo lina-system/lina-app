@@ -1,0 +1,40 @@
+{
+  "sourceRevision": "b576ee64213992ae4f18533d01f8fd0a58584180",
+  "dirty": true,
+  "os": "27.0.1",
+  "acceptedConnections": 1,
+  "disconnectMilliseconds": 0.3986250000000382,
+  "snapshots": [
+    {
+      "menu": [
+        "현재 에이전트: 선택 안 됨",
+        "Core: 연결 중",
+        "",
+        "런처 열기",
+        "대화 열기"
+      ],
+      "phase": "connecting"
+    },
+    {
+      "menu": [
+        "현재 에이전트: 선택 안 됨",
+        "Core: 연결됨",
+        "",
+        "런처 열기",
+        "대화 열기"
+      ],
+      "phase": "connected"
+    },
+    {
+      "menu": [
+        "현재 에이전트: 선택 안 됨",
+        "Core: 연결 끊김",
+        "",
+        "런처 열기",
+        "대화 열기"
+      ],
+      "phase": "disconnected"
+    }
+  ],
+  "scope": "Release Dart connection -> method channel -> AppKit menu; no physical menu interaction"
+}

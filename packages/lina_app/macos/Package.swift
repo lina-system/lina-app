@@ -8,5 +8,7 @@ let package = Package(
     targets: [
         .target(name: "LinaLauncher", path: "Runner/Launcher"),
         .testTarget(name: "LinaLauncherTests", dependencies: ["LinaLauncher"], path: "LauncherTests"),
+        .target(name: "LinaStatusItem", path: "Runner/StatusItem", exclude: ["StatusItemChannel.swift"]),
+        .testTarget(name: "LinaStatusItemTests", dependencies: ["LinaStatusItem"], path: "StatusItemTests"),
     ]
 )

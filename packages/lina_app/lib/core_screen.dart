@@ -7,6 +7,7 @@ import 'package:lina_protocol/lina_protocol.dart';
 
 import 'platform_slots.dart';
 import 'preferences.dart';
+import 'status_item.dart';
 
 class CoreScreen extends StatefulWidget {
   const CoreScreen({
@@ -29,6 +30,7 @@ class _CoreScreenState extends State<CoreScreen> {
   final _endpoint = TextEditingController();
   final _focus = FocusNode();
   StreamSubscription<void>? _changes;
+  StatusItemBinding? _statusItem;
   ProtocolWelcome? _validatedWelcome;
   String? _agent;
   String? _feedback;
@@ -42,6 +44,20 @@ class _CoreScreenState extends State<CoreScreen> {
     _draft.addListener(_compositionChanged);
     _changes = widget.connection.changes.listen((_) => _reconcileSelection());
     _reconcileSelection();
+    final statusHost = widget.slots.statusItem;
+    if (statusHost != null) {
+      _statusItem = StatusItemBinding(
+        connection: widget.connection,
+        host: statusHost,
+        agentName: () {
+          final selected = _selectedAgent;
+          if (selected == null) return null;
+          return widget.connection.welcome!.agents
+              .firstWhere((agent) => agent.agentId == selected)
+              .name;
+        },
+      );
+    }
   }
 
   /// The retained agent is usable only while the current Core welcome lists it.
@@ -78,6 +94,7 @@ class _CoreScreenState extends State<CoreScreen> {
   @override
   void dispose() {
     _changes?.cancel();
+    _statusItem?.dispose();
     _draft.dispose();
     _endpoint.dispose();
     _focus.dispose();
@@ -279,7 +296,10 @@ class _CoreScreenState extends State<CoreScreen> {
                       ],
                       onChanged: _sending
                           ? null
-                          : (value) => setState(() => _agent = value),
+                          : (value) {
+                              setState(() => _agent = value);
+                              _statusItem?.publish();
+                            },
                     ),
                   SizedBox(height: t.spaceInline),
                   widget.slots.composer?.call(

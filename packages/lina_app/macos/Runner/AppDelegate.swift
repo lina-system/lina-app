@@ -20,11 +20,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var channel: FlutterMethodChannel!
     private var mainChannel: FlutterMethodChannel?
     private var mainWindow: NSWindow?
+    private var statusItem: StatusItemController!
+    private var statusChannel: StatusItemChannel?
+    private var menuBarGuidance: MenuBarGuidance!
     private var shortcut: GlobalShortcut?
     private var loginItem: SystemLoginItem!
     private var startupError: String?
     private let arguments = ProcessInfo.processInfo.arguments
     private var testMode: Bool {
+        arguments.contains("--status-item-smoke") ||
         arguments.contains("--launcher-smoke") || arguments.contains("--launcher-evidence") ||
         arguments.contains("--launcher-acceptance") ||
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil ||
@@ -46,6 +50,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         content = LauncherContent(answer: flutter)
         _ = content.view
         host = LauncherPanelHost(content: content, focusView: content.input, defaults: testMode ? nil : .standard)
+        statusItem = StatusItemController(openLauncher: { [weak self] in self?.host.show() },
+                                          openConversation: { [weak self] in self?.openMainApp() })
+        menuBarGuidance = MenuBarGuidance(defaults: testMode ? nil : .standard)
+        prepareMainApp()
         content.onDismiss = { [weak self] in self?.host.hide() }
         content.onOpenApp = { [weak self] in self?.openMainApp() }
         content.onQuery = { [weak self] text in self?.channel.invokeMethod("queryChanged", arguments: ["query": text]) }
@@ -124,11 +132,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func json(_ value: [String: Any]) -> String {
         String(data: try! JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]), encoding: .utf8)!
     }
-    private func openMainApp() {
-        host.hide()
+    private func prepareMainApp() {
         if mainWindow == nil {
             let view = FlutterViewController()
             RegisterGeneratedPlugins(registry: view)
+            statusChannel = StatusItemChannel(messenger: view.engine.binaryMessenger, controller: statusItem)
             mainChannel = FlutterMethodChannel(name: "org.lina.app/launcher/v1", binaryMessenger: view.engine.binaryMessenger)
             mainChannel?.setMethodCallHandler { [weak self] call, result in
                 guard let self else { return }
@@ -146,10 +154,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.contentViewController = view
             window.center()
             mainWindow = window
+            // Keep the single conversation/Core engine alive while its window is hidden.
+            if !view.engine.run(withEntrypoint: nil) {
+                fputs("LINA conversation engine failed to start\n", stderr)
+                NSApp.terminate(nil)
+            }
         }
+    }
+    private func openMainApp() {
+        host.hide()
+        prepareMainApp()
         // This explicit Open LINA action opens the full app; panel show never activates.
         NSApp.activate(ignoringOtherApps: true)
         mainWindow?.makeKeyAndOrderFront(nil)
+        if let mainWindow { menuBarGuidance.present(on: mainWindow) }
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         host?.show(); return false
@@ -159,6 +177,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         host?.hide()
         shortcut = nil
+        statusChannel?.dispose()
+        statusItem?.remove()
         (mainWindow?.contentViewController as? FlutterViewController)?.engine.shutDownEngine()
         flutter?.engine.shutDownEngine()
     }

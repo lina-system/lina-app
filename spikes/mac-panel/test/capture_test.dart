@@ -26,7 +26,38 @@ class SyntheticBridge extends PanelBridge {
   void dispose() {}
 }
 
+class CaptureBridge extends SyntheticBridge {
+  final calls = <String>[];
+  @override
+  Future<Map<String, dynamic>> call(String method, [Object? arguments]) async {
+    calls.add(method);
+    return {...await super.call(method, arguments), 'captureSequence': 0};
+  }
+}
+
 void main() {
+  testWidgets('capture handshake follows the read-only marker frame', (
+    tester,
+  ) async {
+    final bridge = CaptureBridge();
+    tester.view.physicalSize = const Size(680, 460);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(PanelApp(bridge: bridge));
+    await tester.pumpAndSettle();
+    expect(bridge.calls, ['ready', 'measurementReady']);
+    expect(tester.widget<TextField>(find.byType(TextField)).readOnly, isTrue);
+    for (final color in [0xffeb2337, 0xff19be46, 0xff1e46eb, 0xfff5c814]) {
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is ColoredBox && w.color == Color(color),
+        ),
+        findsOneWidget,
+      );
+    }
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('panel layout fits and optionally captures synthetic UI', (
     tester,
   ) async {

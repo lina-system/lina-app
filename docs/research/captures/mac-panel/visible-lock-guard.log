@@ -1,0 +1,11 @@
+file://<repo>/scripts/mac-panel.mjs:41
+  if (!/"IOConsoleLocked" = No/.test(state)) throw new Error('Visible-latency collection refused: screen locked or state unknown');
+                                                   ^
+
+Error: Visible-latency collection refused: screen locked or state unknown
+    at file://<repo>/scripts/mac-panel.mjs:41:52
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.20.0

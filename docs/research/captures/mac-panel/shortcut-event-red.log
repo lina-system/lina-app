@@ -1,0 +1,24 @@
+Building for debugging...
+[1 / 4]
+[2 / 5] MacPanelPlatform
+[3 / 6] MacPanelPlatform
+[7 / 10] MacPanelPlatform
+[10 / 13] MacPanelPlatformTests-product
+[12 / 15] MacPanelPlatformTests-product
+[18 / 20] MacPanelPlatformTests-product
+[21 / 22] mac-panel-native-product
+Build complete! (2.14초)
+Test Suite 'Selected tests' started at 2026-10-24 19:37:46.637.
+Test Suite 'MacPanelPlatformTests.xctest' started at 2026-10-24 19:37:46.637.
+Test Suite 'ShortcutTests' started at 2026-10-24 19:37:46.638.
+Test Case '-[MacPanelPlatformTests.ShortcutTests testUnrelatedCarbonHotkeyCannotStartPanelTiming]' started.
+<repo>/spikes/mac-panel/native-tests/ShortcutTests.swift:20: error: -[MacPanelPlatformTests.ShortcutTests testUnrelatedCarbonHotkeyCannotStartPanelTiming] : XCTAssertEqual failed: ("1") is not equal to ("0")
+Test Case '-[MacPanelPlatformTests.ShortcutTests testUnrelatedCarbonHotkeyCannotStartPanelTiming]' failed (0.067 seconds).
+Test Suite 'ShortcutTests' failed at 2026-10-24 19:37:46.705.
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.067 (0.067) seconds
+Test Suite 'MacPanelPlatformTests.xctest' failed at 2026-10-24 19:37:46.705.
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.067 (0.067) seconds
+Test Suite 'Selected tests' failed at 2026-10-24 19:37:46.705.
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.067 (0.068) seconds
+Note: Some test targets reported failures:
+  - MacPanelPlatformTests (XCTest)

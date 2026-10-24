@@ -62,3 +62,50 @@ node scripts/mac-panel.mjs measure
 This builds an ad-hoc signed, synthetic native harness and runs its clipboard
 smoke test against a private pasteboard. Full XCTest still needs Xcode. Do not
 compare the native harness's RSS with a Flutter app as if their features match.
+
+## Shortcut-to-visible frame collection
+
+The committed run uses the foreground AppKit shortcut route, on the actual Mac:
+
+```sh
+dv heavy -- node scripts/mac-panel.mjs flutter
+node scripts/mac-panel.mjs measure-visible-local
+# On each LINA_VISIBLE_READY: send Control+Option+Space to the app's
+# synthetic foreground fixture using physical keys or the existing UI driver.
+node scripts/mac-panel-evidence.mjs
+node --test spikes/mac-panel/visible-evidence.test.mjs
+```
+
+The same configured shortcut has two native routes: AppKit keyDown while the
+app is active and Carbon RegisterEventHotKey in the background. Every sample
+records its route. The foreground result does not claim global-key delivery.
+To collect the separate background condition, start `node scripts/mac-panel.mjs
+fixture` and `node scripts/mac-panel.mjs measure-visible`, then use physical
+Control+Option+Space presses while the external fixture is frontmost. CUA's
+app-bound key driver bypasses macOS global-hotkey routing and cannot test that
+condition. Neither collector synthesizes a key or calls its handler directly.
+
+On macOS 14.4+, the recorder captures only its own panel via
+`SCShareableContent.currentProcess`, which does not need a global TCC grant.
+No other app/display is captured. Both entry points refuse a locked/unknown
+session; a lock notification cancels collection. Never unlock or change sleep,
+login-session or permission settings as part of a test.
+
+After `LINA_VISIBLE_READY`, send one chord per ready event, ten times. The
+panel hides between trials; after ten samples the app and its internal fixture
+quit. The external fixture has a three-minute deadline and should be quit when
+no longer needed. Timeouts write no passing measurement.
+
+The benchmark uses an opaque synthetic panel with a read-only field and
+clipboard disabled. A four-color Flutter marker alternates per invocation.
+Only a complete frame with the expected marker, a visible/on-screen window and
+a post-shortcut `SCStreamFrameInfo.displayTime` can finish a trial. That
+WindowServer timestamp is the displayed-frame endpoint, not `orderFront`
+completion. The native event's timestamp is the start. Callback receipt is also
+recorded as an observation upper bound. One warm-up frame is excluded.
+
+The helper saves `visible-latency.json`, ten accepted PNGs/hashes, raw frame
+decisions, executable/Dart hashes and statistics to
+`docs/research/captures/mac-panel/`. It copies the first PNG to
+`docs/captures/LA-89/shortcut-visible.png`. The evidence validator rejects an
+attempt to label local-key samples as measured background-global delivery.

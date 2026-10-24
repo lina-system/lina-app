@@ -21,6 +21,8 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		BB8900000000000000000004 /* VisibleCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA8900000000000000000004; };
+		BB8900000000000000000003 /* VisibleLatency.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA8900000000000000000003; };
 		BB8900000000000000000002 /* LauncherPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA8900000000000000000002; };
 		BB8900000000000000000001 /* GlobalShortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA8900000000000000000001; };
 		BB8900000000000000000000 /* ClipboardHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA8900000000000000000000; };
@@ -62,6 +64,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		AA8900000000000000000004 /* VisibleCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Platform/VisibleCapture.swift; sourceTree = "<group>"; };
+		AA8900000000000000000003 /* VisibleLatency.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Platform/VisibleLatency.swift; sourceTree = "<group>"; };
 		AA8900000000000000000002 /* LauncherPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Platform/LauncherPanel.swift; sourceTree = "<group>"; };
 		AA8900000000000000000001 /* GlobalShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Platform/GlobalShortcut.swift; sourceTree = "<group>"; };
 		AA8900000000000000000000 /* ClipboardHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Platform/ClipboardHistory.swift; sourceTree = "<group>"; };
@@ -169,6 +173,8 @@
 			children = (
 				33CC10F02044A3C60003C045 /* AppDelegate.swift */,
 				AA8900000000000000000002 /* LauncherPanel.swift */,
+				AA8900000000000000000004 /* VisibleCapture.swift */,
+				AA8900000000000000000003 /* VisibleLatency.swift */,
 				AA8900000000000000000001 /* GlobalShortcut.swift */,
 				AA8900000000000000000000 /* ClipboardHistory.swift */,
 				33E51913231747F40026EE4D /* DebugProfile.entitlements */,
@@ -357,6 +363,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				BB8900000000000000000002 /* LauncherPanel.swift in Sources */,
+				BB8900000000000000000004 /* VisibleCapture.swift in Sources */,
+				BB8900000000000000000003 /* VisibleLatency.swift in Sources */,
 				BB8900000000000000000001 /* GlobalShortcut.swift in Sources */,
 				BB8900000000000000000000 /* ClipboardHistory.swift in Sources */,
 				33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */,

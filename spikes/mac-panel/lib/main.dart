@@ -27,6 +27,14 @@ class _PanelAppState extends State<PanelApp> {
   }
 
   void _update(Map<String, dynamic> value) {
+    final startCapture =
+        (_state['captureSequence'] as int? ?? -1) < 0 &&
+        (value['captureSequence'] as int? ?? -1) >= 0;
+    if (startCapture) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _call('measurementReady'),
+      );
+    }
     if (mounted)
       setState(() {
         _state = value;
@@ -51,6 +59,15 @@ class _PanelAppState extends State<PanelApp> {
 
   @override
   Widget build(BuildContext context) {
+    final captureSequence = _state['captureSequence'] as int? ?? -1;
+    final capturing = captureSequence >= 0;
+    final marker = [
+      const Color(0xffeb2337),
+      const Color(0xff19be46),
+      const Color(0xff1e46eb),
+      const Color(0xfff5c814),
+    ];
+    if (captureSequence.isOdd) marker.setAll(0, marker.reversed.toList());
     final items = List<String>.from(_state['history'] as List? ?? []);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -68,95 +85,125 @@ class _PanelAppState extends State<PanelApp> {
         ),
       ),
       home: Scaffold(
-        body: Container(
-          decoration: BoxDecoration(
-            color: SpikeTokens.paper,
-            borderRadius: BorderRadius.circular(SpikeTokens.radius),
-          ),
-          padding: const EdgeInsets.all(SpikeTokens.inset),
-          child: Material(
-            type: MaterialType.transparency,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+        body: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: capturing
+                    ? SpikeTokens.paper.withAlpha(255)
+                    : SpikeTokens.paper,
+                borderRadius: BorderRadius.circular(SpikeTokens.radius),
+              ),
+              padding: const EdgeInsets.all(SpikeTokens.inset),
+              child: Material(
+                type: MaterialType.transparency,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Expanded(
-                      child: Text(
-                        'lina.  Panel study',
-                        style: TextStyle(
-                          fontSize: SpikeTokens.titleSize,
-                          fontWeight: FontWeight.w600,
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'lina.  Panel study',
+                            style: TextStyle(
+                              fontSize: SpikeTokens.titleSize,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => _call('hide'),
-                      child: const Text('Close · Esc'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: SpikeTokens.gap),
-                PanelComposer(
-                  onSubmit: (_) => setState(() => _submissions++),
-                  onDismiss: () => _call('hide'),
-                ),
-                const SizedBox(height: SpikeTokens.gap),
-                Row(
-                  children: [
-                    const Text('Open panel  '),
-                    DropdownButton<int>(
-                      value: _preset,
-                      items: const [
-                        DropdownMenuItem(value: 0, child: Text('Ctrl+Option+Space')),
-                        DropdownMenuItem(value: 1, child: Text('Cmd+Shift+Space')),
+                        TextButton(
+                          onPressed: () => _call('hide'),
+                          child: const Text('Close · Esc'),
+                        ),
                       ],
-                      onChanged: (value) => _call('configureShortcut', {
-                        'keyCode': 49,
-                        'modifiers': value == 0
-                            ? ['control', 'option']
-                            : ['command', 'shift'],
-                      }),
                     ),
+                    const SizedBox(height: SpikeTokens.gap),
+                    PanelComposer(
+                      readOnly: capturing,
+                      onSubmit: (_) => setState(() => _submissions++),
+                      onDismiss: () => _call('hide'),
+                    ),
+                    const SizedBox(height: SpikeTokens.gap),
+                    Row(
+                      children: [
+                        const Text('Open panel  '),
+                        DropdownButton<int>(
+                          value: _preset,
+                          items: const [
+                            DropdownMenuItem(
+                              value: 0,
+                              child: Text('Ctrl+Option+Space'),
+                            ),
+                            DropdownMenuItem(
+                              value: 1,
+                              child: Text('Cmd+Shift+Space'),
+                            ),
+                          ],
+                          onChanged: (value) => _call('configureShortcut', {
+                            'keyCode': 49,
+                            'modifiers': value == 0
+                                ? ['control', 'option']
+                                : ['command', 'shift'],
+                          }),
+                        ),
+                      ],
+                    ),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Clipboard history'),
+                      subtitle: const Text(
+                        'On this Mac, in memory. Turning off clears it.',
+                      ),
+                      value: _state['clipboardEnabled'] == true,
+                      onChanged: (value) =>
+                          _call('setClipboardEnabled', {'enabled': value}),
+                    ),
+                    if (_error != null) Text(_error!),
+                    Expanded(
+                      child: items.isEmpty
+                          ? const Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text('No clipboard items'),
+                            )
+                          : ListView(
+                              children: [
+                                for (final text in items)
+                                  ListTile(
+                                    dense: true,
+                                    title: Text(
+                                      text,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                    ),
+                    if (capturing)
+                      const SizedBox(height: 16)
+                    else
+                      Text(
+                        'Research only · $_submissions submissions · No messages sent',
+                      ),
                   ],
                 ),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Clipboard history'),
-                  subtitle: const Text(
-                    'On this Mac, in memory. Turning off clears it.',
-                  ),
-                  value: _state['clipboardEnabled'] == true,
-                  onChanged: (value) =>
-                      _call('setClipboardEnabled', {'enabled': value}),
-                ),
-                if (_error != null) Text(_error!),
-                Expanded(
-                  child: items.isEmpty
-                      ? const Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text('No clipboard items'),
-                        )
-                      : ListView(
-                          children: [
-                            for (final text in items)
-                              ListTile(
-                                dense: true,
-                                title: Text(
-                                  text,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                          ],
-                        ),
-                ),
-                Text(
-                  'Research only · $_submissions submissions · No messages sent',
-                ),
-              ],
+              ),
             ),
-          ),
+            if (capturing)
+              Positioned(
+                left: 24,
+                bottom: 24,
+                child: Row(
+                  children: [
+                    for (final color in marker)
+                      ColoredBox(
+                        color: color,
+                        child: const SizedBox(width: 24, height: 16),
+                      ),
+                  ],
+                ),
+              ),
+          ],
         ),
       ),
     );

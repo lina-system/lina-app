@@ -1,10 +1,13 @@
 # Evidence index
 
 All content is synthetic. Absolute local paths in logs are normalized to
-`<repo>`/`<user>`. A rendered UI capture is not a physical-device recording.
+`<repo>`/`<user>`. The original widget-rendered UI capture is not a device recording. The ten visible-frame PNGs are actual own-window compositor captures on the reference Mac.
 
 | File | What it establishes |
 | --- | --- |
+| `visible-latency.json`, `visible-frame-01.png` … `visible-frame-10.png` | Ten foreground native shortcut → WindowServer displayed Flutter frames, timestamps and hashes; no global-routing claim |
+| `visible-validation-*.log`, `local-shortcut-*.log`, `shortcut-event-*.log`, `visible-evidence-*.log` | Collector, key matching, Carbon ID and evidence-validation red/green tests |
+| `visible-lock-guard.log` | Locked-session GUI collection refused before app launch |
 | `flutter-panel.png` | Headless Flutter widget rendering; no IME/Spaces claim |
 | `flutter-measurement.json` | Signed Flutter process RSS and programmatic ordering/focus observations |
 | `permissions.json` | Signed-harness Screen Recording / Accessibility preflight; no prompt or recording |

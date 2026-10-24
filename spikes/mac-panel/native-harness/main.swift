@@ -43,6 +43,32 @@ if CommandLine.arguments.contains("--self-test") {
     print("PASS: five concealed/transient markers rejected before text read; private pasteboard recorded; disable cleared history")
     exit(0)
 }
+if CommandLine.arguments.contains("--fixture") {
+    let application = NSApplication.shared
+    application.setActivationPolicy(.regular)
+    let window = NSWindow(contentRect: NSRect(x: 180, y: 180, width: 760, height: 540),
+                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
+    window.title = "Panel timing fixture"
+    window.isReleasedWhenClosed = false
+    let label = NSTextField(labelWithString: "Synthetic foreground window\nPress Control+Option+Space for the panel trial.\nNo clipboard or text input is used.")
+    label.frame = NSRect(x: 40, y: 180, width: 680, height: 140)
+    label.font = .systemFont(ofSize: 24)
+    window.contentView?.addSubview(label)
+    _ = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
+        if event.keyCode == 49 {
+            print("LINA_FIXTURE_SPACE flags=\(event.modifierFlags.rawValue)")
+            fflush(stdout)
+        }
+        return event
+    }
+    window.makeKeyAndOrderFront(nil)
+    application.activate(ignoringOtherApps: true)
+    _ = Timer.scheduledTimer(withTimeInterval: 180, repeats: false) { _ in application.terminate(nil) }
+    print("LINA_FIXTURE_READY")
+    fflush(stdout)
+    application.run()
+    exit(0)
+}
 guard CommandLine.arguments.contains("--measure") else {
     print("Usage: mac-panel-native --self-test | --preflight | --measure"); exit(2)
 }

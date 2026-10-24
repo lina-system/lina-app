@@ -27,8 +27,10 @@ jobs:
           channel: stable
           flutter-version: ${{ steps.pin.outputs.version }}
           cache: true
-      - name: Test clipboard filtering and shortcut validation
+      - name: Test clipboard, shortcuts and visible-frame validation
         run: swift test --package-path spikes/mac-panel -j 2
+      - name: Verify shortcut-to-visible evidence and rejection cases
+        run: node --test spikes/mac-panel/visible-evidence.test.mjs
       - name: Build the Flutter panel with ad-hoc signing
         working-directory: spikes/mac-panel
         run: |

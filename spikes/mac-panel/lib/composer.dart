@@ -4,9 +4,15 @@ import 'package:flutter/services.dart';
 
 /// Uses Flutter's NSTextInputClient bridge; never rewrites marked text.
 class PanelComposer extends StatefulWidget {
-  const PanelComposer({super.key, required this.onSubmit, this.onDismiss});
+  const PanelComposer({
+    super.key,
+    required this.onSubmit,
+    this.onDismiss,
+    this.readOnly = false,
+  });
   final ValueChanged<String> onSubmit;
   final VoidCallback? onDismiss;
+  final bool readOnly;
   @override
   State<PanelComposer> createState() => _PanelComposerState();
 }
@@ -60,7 +66,8 @@ class _PanelComposerState extends State<PanelComposer> {
     onKeyEvent: _key,
     child: TextField(
       controller: _controller,
-      autofocus: true,
+      autofocus: !widget.readOnly,
+      readOnly: widget.readOnly,
       minLines: 1,
       maxLines: 3,
       textInputAction: TextInputAction.newline,

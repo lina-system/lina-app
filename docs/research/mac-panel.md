@@ -5,8 +5,8 @@ Research for [#89](https://github.com/lina-system/lina-app/issues/89), informing
 **Recommendation: keep AppKit responsible for the window, shortcut and
 clipboard; retain Flutter for the panel UI provisionally.** The embedded
 Flutter panel became key without changing the foreground app in this run.
-The physical Korean IME, full-screen/Spaces, dismissal and visible-latency
-checks remain unverified in [#102](https://github.com/lina-system/lina-app/issues/102).
+Shortcut-to-visible Flutter frames are now measured below. Physical Korean IME,
+full-screen/Spaces, dismissal and background-global-shortcut checks remain in [#102](https://github.com/lina-system/lina-app/issues/102).
 This does not close or decide #2. The evidence table and recommendation are
 [posted on #2](https://github.com/lina-system/lina-app/issues/2#issuecomment-6382797958).
 
@@ -39,6 +39,8 @@ dv heavy -- node scripts/mac-panel.mjs flutter
 node scripts/mac-panel.mjs smoke-flutter
 node scripts/mac-panel.mjs measure
 node scripts/mac-panel.mjs measure-flutter
+node scripts/mac-panel.mjs measure-visible-local
+node scripts/mac-panel-evidence.mjs
 swift test --package-path spikes/mac-panel -j 2 --filter MacPanelPlatformTests
 dv heavy -- node scripts/foundation.mjs
 ```
@@ -51,7 +53,7 @@ from `spikes/mac-panel/`. The system font is read only for local evidence and
 is not bundled. CI tests the spike layout without relying on that font. After merging #5,
 the repository gate on macOS reaches three design-package Linux-reference golden
 differences (about 2.3%); those references are unchanged. Linux CI validates the
-canonical golden images. The spike's three widget tests still pass locally.
+canonical golden images. The spike's four widget tests pass locally.
 
 ## Evidence for each Done-when item in #2
 
@@ -65,8 +67,8 @@ unverified, not a failure of Flutter and not a pass inferred from code.
 | Korean input and no submission on composition Enter | **Unverified** | Synthetic Flutter editing-value tests pass for composing Enter, the same-frame commit guard, committed Enter exactly once and Shift+Enter/Escape routing. Physical macOS 2-Set is not emulated by those tests; see the per-criterion table below. |
 | Local clipboard history skips concealed/transient items and never reaches Core | **Pass** for the spike | XCTest uses a private NSPasteboard with multiple items; a marker on any item rejects the whole copy before reading text. Five modern/legacy markers, source ignores, opt-in baseline, bounds, deduplication and clearing are covered. No Core/network/persistence API exists. Real password-manager integrations were not exercised. |
 | Flutter renders token-based UI; native code owns window/shortcut/clipboard; API documented | **Pass** | Embedded release builds and the hidden first-frame/channel handshake pass. `SpikeTokens` keeps this study workload fixed; production screens use the now-landed `lina_design` package from #5. Boundary below. |
-| Signed-app shortcut-to-visible latency and resident memory | **Unverified** overall | **Pass** for ad-hoc signing and process RSS. Ordering proxy samples are recorded below; no physical shortcut/display presentation measurement was run. #102 collects that missing measurement. |
-| Record every result with recordings/logs; define native replacement for failures | **Unverified** for device recordings | This table, raw logs, measurements and rendered PNG are committed. #102 supplies real-device recordings. No physical check has established a failing Flutter component; no larger native replacement is justified yet. |
+| Signed-app shortcut-to-visible latency and resident memory | **Measured** | Ten native foreground shortcut events to matching WindowServer-displayed Flutter frames: median **140.83 ms**, p90 **248.95 ms**. Signed release RSS: **117.59 MiB** in the separate idle/ordering run. Background Carbon delivery and physical key-to-photon timing are not established by this foreground measurement. |
+| Record every result with recordings/logs; define native replacement for failures | **Unverified** for device recordings | This table, raw logs, measurements, ten actual captured compositor frames and the widget-rendered PNG are committed. #102 supplies real-device recordings. No physical check has established a failing Flutter component; no larger native replacement is justified yet. |
 
 ### Korean criteria, separately
 
@@ -86,24 +88,76 @@ newline. Key repeats do not submit. Autocorrect and suggestions are off. The
 local counter is diagnostic only; it does not prove Core ledger exactly-once
 behavior in #1. There is no custom IME bridge and no character-limit rewrite.
 
-## Permission blocker for visible-latency collection
+## Shortcut-to-visible measurement
 
-The read-only preflight on this host returned `screenRecordingAllowed: false`
-and `accessibilityTrusted: false`; see [permissions.json](captures/mac-panel/permissions.json).
-Reproduce it with `node scripts/mac-panel.mjs permissions` after building the
-ad-hoc-signed native harness. The helper first verifies the signature, then calls
-`CGPreflightScreenCaptureAccess()` and `AXIsProcessTrusted()` inside that harness.
-It requests no permission, records no frames and does not post a key.
+On the reference M2 Pro Mac, the ad-hoc-signed, sandboxed Flutter 3.47.8 release
+produced **10 measured native-shortcut-to-visible-frame samples: median
+140.83 ms, nearest-rank p90 248.95 ms**. One warm-up was excluded. All ten
+accepted frames show the complete Flutter panel and the expected alternating
+marker; [the first captured frame](../captures/LA-89/shortcut-visible.png) is an
+actual ScreenCaptureKit image, not a widget golden.
 
-Consequently this session cannot run an authorized display-frame recorder or
-an automated system-key stimulus through the native harness. A manual physical
-shortcut can avoid the Accessibility requirement, but screen recording still
-needs an owner grant (or an external camera/operator). The existing rendered PNG
-and ordering telemetry cannot replace this missing endpoint. #102 explicitly
-tracks that owner-required setup and the actual shortcut-to-visible collection;
-this is an observed permission blocker, not a claim that the measurement passed.
+Command: `node scripts/mac-panel.mjs measure-visible-local`. After each
+`LINA_VISIBLE_READY`, the existing CUA driver sent `ctrl+alt+space` to the
+synthetic **foreground window in the same app**. That native AppKit keyDown
+passes the configured physical-key/modifier matcher and the normal shortcut
+callback. No timer, method-channel call or direct `show()` call starts a trial.
+The separate background route continues to use Carbon `RegisterEventHotKey`.
 
-## Measurements
+The measured interval starts at **`NSEvent.timestamp` for the shortcut key** and
+ends at **`SCStreamFrameInfo.displayTime` of the first accepted frame**, converted
+from mach absolute ticks with the recorded timebase. Apple's SDK defines that
+attachment as the time when the WindowServer displayed the frame. The callback
+receipt timestamp supplies an independent observation upper bound. The collector
+requires a complete frame, an on-screen/visible window and the expected Flutter
+marker; hidden, stale, blank and wrong-marker frames cannot complete a trial.
+
+| Trial | Native shortcut → displayed Flutter frame (ms) |
+| --- | --- |
+| 1 | 125.07 |
+| 2 | 258.09 |
+| 3 | 144.14 |
+| 4 | 135.44 |
+| 5 | 142.94 |
+| 6 | 243.44 |
+| 7 | 127.48 |
+| 8 | 138.72 |
+| 9 | 137.31 |
+| 10 | 248.95 |
+
+Raw native/WindowServer/receipt timestamps, frame decisions, per-frame SHA-256,
+app/Dart binary hashes and the exact input route are in
+[visible-latency.json](captures/mac-panel/visible-latency.json). The ten PNGs
+are `visible-frame-01.png` through `visible-frame-10.png` beside it. Run
+`node scripts/mac-panel-evidence.mjs` to recompute all durations/statistics and
+verify hashes, raw-frame matches and input-route claims. CI also proves that
+stale/hidden frames, modified hashes, ordering-only evidence, invented summaries
+and a false global-route claim fail this validator.
+
+**Scope of the result:** this is a warm foreground AppKit shortcut measurement
+with an opaque, read-only synthetic panel and clipboard off. It includes input
+delivery to the app, app handling, Flutter rendering and WindowServer presentation
+for that condition. It is neither a programmatic ordering proxy nor physical
+keyboard-to-photon latency. It does not establish background Carbon routing,
+external-app focus preservation, full-screen/Spaces, cold launch or Spotlight
+parity. The prior ordering numbers remain separate below. No acceptance speed
+threshold is inferred from these ten samples.
+
+The previous global Screen Recording preflight did not describe the narrower
+capture capability. macOS 14.4's `SCShareableContent.currentProcess` explicitly
+returns content capturable by the current process without TCC consent. The
+collector filters it to its own PID/window, captures no other app, and uses an
+opaque surface so no private background can enter the PNGs. No permission was
+granted. A locked session was refused before collection; the successful run
+occurred after the owner had unlocked it.
+
+CUA's app-bound keyboard driver does not enter the system global-hotkey router,
+so that route cannot be inferred from these samples. The collector also supports
+`measure-visible` with physical global shortcut input and an external synthetic
+fixture for the remaining background checks in #102. Those are separate test
+conditions; the foreground visible-frame measurement above is complete in #89.
+
+## Separate ordering and resident-memory measurements
 
 | Release app | n | Ordering proxy median (ms) | p90 (ms) | RSS after run (MiB) |
 | --- | --- | --- | --- | --- |
@@ -134,6 +188,7 @@ presentation state, not a Core protocol extension.
 | Direction / method | Payload and result | Responsibility |
 | --- | --- | --- |
 | Dart → `ready` | No arguments → state | Called after the first Dart frame. Registers the saved/default shortcut. Explicit native engine start avoids a hidden-window startup deadlock. |
+| Dart → `measurementReady` | No arguments → state | Benchmark-only: start own-window capture after the read-only Flutter marker frame; otherwise no effect. |
 | Dart → `state` | No arguments → state | Read current state. |
 | Dart → `hide` | No arguments → state | Order the panel out; never activate a previous application. |
 | Dart → `configureShortcut` | `{keyCode: int, modifiers: string[]}` → state | Carbon physical key code 0–127 and distinct `command/control/option/shift`; require command, control or option. Register the replacement before releasing the previous shortcut. Persist only after success. |
@@ -142,7 +197,7 @@ presentation state, not a Core protocol extension.
 
 State fields: `visible: bool`, `clipboardEnabled: bool`, `history: string[]`
 (newest first), `shortcut: {keyCode, modifiers}`, `orderMs: double|null`,
-`originalAppStayedActive: bool|null`. Invalid/unavailable settings return
+`originalAppStayedActive: bool|null`, `captureSequence: int` (-1 outside measurement mode). Invalid/unavailable settings return
 `FlutterError(code: "panel_configuration")`; unknown methods return
 `FlutterMethodNotImplemented`. Dart shows a recoverable error and keeps the
 previous configuration. There are no file, URL, arbitrary-command, input
@@ -156,7 +211,10 @@ Native ownership:
 - `PanelHost` positions on the pointer's screen and orders the panel without
   `NSApp.activate`. Mouse monitors exist only while open. Dismissal orders out
   without force-activating an app, so an outside click's destination is respected.
-- `GlobalShortcut` uses Carbon `RegisterEventHotKey`; it does not install a
+- `GlobalShortcut` uses Carbon `RegisterEventHotKey` for background delivery
+  and a matching AppKit keyDown monitor while its app is active. Repeats, extra
+  modifiers and unrelated Carbon IDs are rejected; duplicate timestamps toggle
+  once. It does not install a
   keyboard event tap or request Accessibility/Input Monitoring. Conflicts are
   surfaced rather than silently discarding the old registration.
 - `ClipboardWatcher` scans the union of item types before text is read. It
@@ -209,8 +267,8 @@ fixtures and quit both test apps afterward.
    across Spaces, including the first invocation.
 3. Run all five Korean rows above, including candidate-window placement and
    fast typing. Use recordings, not pasted Hangul, as IME evidence.
-4. Use the baseline frame-annotation protocol for physical shortcut-to-visible
-   samples and record raw timing rows. Rerun RSS with the same workload and
+4. Extend the completed foreground visible-frame result to physical background
+   Carbon shortcuts and matched baseline conditions, recording raw timing rows. Rerun RSS with the same workload and
    sample schedule before any production comparison.
 5. Update this table and the evidence comment on #2. The owner decides whether
    the unverified checks pass and whether a named native fallback is required.

@@ -55,7 +55,7 @@ build define. TCP belongs on the private tailnet; Core's listener authenticates
 the device/owner. No client identity field grants permission, and no model,
 worker or external service is contacted by this app.
 
-The app offers client **1.0**, conversation, read-only progress and the eight basic result card
+The app offers client **1.0**, conversation, memory, read-only progress and the eight basic result card
 types. Parsing the broader fixture corpus does not advertise client 1.1 surfaces,
 mini apps or mocks. Welcome must match the request/RPC ids, Core sender/main,
 epoch, selected version and an offered subset of capabilities. A typed refusal
@@ -82,6 +82,11 @@ it ends. The draft clears only after a correlated applied `item_done`, and only
 if it has not since changed or begun composing. Physical IME acceptance remains
 with #1 and the device follow-up; a headless composition test cannot establish
 candidate-window placement or Core's real conversation ledger.
+
+The [memory verification record](../research/11-memory.md) documents the scoped
+memory projection and explicit Core-confirmed remember/correct/forget requests.
+Unsupported memory operations and metadata remain unobserved; Core #1768 owns
+the missing schema. No memory canon is persisted by the app.
 
 ## Native surface slots
 

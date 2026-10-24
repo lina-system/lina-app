@@ -92,9 +92,13 @@ native `LauncherResult` display models; filling it belongs to the search work.
   locked during the first external-fixture attempt, which failed closed before
   launching it. Probe Accessibility and Screen Recording grants were present;
   Safari fullscreen acceptance is not inferred from them.
-- The macOS native CI job builds the signed production app, runs XCTest, checks
-  hidden readiness and collects external-fixture focus evidence. Its captures
-  and logs are separate from physical Safari/Spaces acceptance.
+- The macOS native CI job passed on PR head `502cae9`: nine native XCTests,
+  hidden readiness and external-fixture focus verification. The fixture stayed
+  active with unchanged PID through show, typing `abc` and Escape, and recorded
+  no deactivation notification. The full panel [capture](../captures/31/launcher.png),
+  [raw observations](../captures/31/focus.json) and [provenance](../captures/31/ci-provenance.json)
+  are committed. This is macOS 26.6.2 CI evidence, separate from physical
+  Safari/Spaces acceptance and the locked local macOS 27 session.
 
 Reproduce with one heavy slot at a time:
 

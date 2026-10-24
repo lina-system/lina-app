@@ -66,6 +66,14 @@ class ConversationCore extends CoreConnection {
     updates.add(null);
   }
 
+  /// Mirrors Core's typed refusal: the rejected phase survives the later EOF.
+  void reject(String code) {
+    phase = ConnectionPhase.rejected;
+    refusalCode = code;
+    welcome = null;
+    updates.add(null);
+  }
+
   void emit(Envelope envelope) {
     messages.add(envelope);
     updates.add(null);

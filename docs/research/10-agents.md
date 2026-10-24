@@ -38,6 +38,8 @@ outcome disables further mutations until an explicit list refresh. An uncertain
 selection also blocks input until history reconciles Core's choice. Old
 connection replies cannot replace a newer catalog or unlock a newer request.
 Forms opened on an earlier connection cannot write to a later connection.
+Management notices render separately from conversation delivery feedback, so a
+rename/create acknowledgment never hides an unknown send or stop outcome.
 Refresh is available on the Agents screen; there is no invented agent-change
 notification or automatic retry.
 

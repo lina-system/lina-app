@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lina_app/conversation_controller.dart';
 import 'package:lina_protocol/lina_protocol.dart';
+import 'package:lina_design/lina_design.dart';
 
 import 'conversation_test.dart' show mount, composer, choose;
 import 'support/conversation_core.dart';
@@ -500,5 +501,40 @@ void main() {
     final count = core.requests.length;
     await controller.createAgent('Mira');
     expect(core.requests.length, count);
+  });
+  testWidgets('management feedback never hides an unknown send outcome', (
+    tester,
+  ) async {
+    final core = ConversationCore();
+    await mount(tester, core);
+    await tester.tap(find.text('Agents'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('rename:lina')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('agent-name')),
+      'Lina renamed',
+    );
+    await tester.pump();
+    core.answers['agent_request'] = agentReply('rename', [
+      {...lina, 'name': 'Lina renamed'},
+      sion,
+    ], id: 'lina');
+    await tester.tap(find.text('Save name'));
+    await tester.pumpAndSettle();
+    await tester.enterText(composer, 'Check receipt');
+    await tester.pump();
+    await tester.tap(find.text('Send'));
+    await tester.pump();
+    core.pending.last.complete(event('item_done', {}, effect: 'unknown'));
+    await tester.pump();
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is LinaText &&
+            w.data == '모름 · Check this conversation before sending again.',
+      ),
+      findsOneWidget,
+    );
   });
 }

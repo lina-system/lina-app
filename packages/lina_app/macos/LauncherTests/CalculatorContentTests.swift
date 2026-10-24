@@ -4,6 +4,19 @@ import XCTest
 @testable import LinaLauncher
 
 final class CalculatorContentTests: XCTestCase {
+    @MainActor func testReturnRepeatGuardAcceptsNonKeyEvents() throws {
+        let windowEvent = try XCTUnwrap(NSEvent.otherEvent(with: .appKitDefined, location: .zero,
+            modifierFlags: [], timestamp: 1, windowNumber: 0, context: nil, subtype: 4, data1: 0, data2: 0))
+        XCTAssertFalse(LauncherContent.isRepeatedKeyDown(windowEvent))
+        XCTAssertFalse(LauncherContent.isRepeatedKeyDown(nil))
+        for repeated in [false, true] {
+            let key = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [],
+                timestamp: 1, windowNumber: 0, context: nil, characters: "\r", charactersIgnoringModifiers: "\r",
+                isARepeat: repeated, keyCode: 36))
+            XCTAssertEqual(LauncherContent.isRepeatedKeyDown(key), repeated)
+        }
+    }
+
     @MainActor func testRequiredExpressionsProduceResultsWhileTyping() throws {
         _ = NSApplication.shared
         let content = LauncherContent(answer: NSViewController(), history: CalculatorHistory(defaults: nil), locale: Locale(identifier: "en_US"))

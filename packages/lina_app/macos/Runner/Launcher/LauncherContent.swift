@@ -195,12 +195,16 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
             results.scrollRowToVisible(row)
             return true
         case #selector(NSResponder.insertNewline(_:)):
-            guard NSApp.currentEvent?.isARepeat != true else { return true }
+            guard !Self.isRepeatedKeyDown(NSApp.currentEvent) else { return true }
             let id = items.indices.contains(results.selectedRow) ? items[results.selectedRow].id : nil
             submitSelection(id: id)
             return true
         default: return false
         }
+    }
+    static func isRepeatedKeyDown(_ event: NSEvent?) -> Bool {
+        // Delegate actions can run during a window event; isARepeat is key-only.
+        event?.type == .keyDown && event?.isARepeat == true
     }
 }
 

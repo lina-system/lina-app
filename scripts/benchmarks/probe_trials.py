@@ -57,6 +57,11 @@ def derive(trial, evidence, *, phase='warmup', iteration=1):
     if (deadline is None or abs((deadline - last_key) * scale - 5000) > 0.001
             or trial.get('end_ticks', 0) < deadline):
         return row
+    # stopCapture can deliver additional frames while shutting down. They are
+    # retained in JSON, but can neither rescue a timeout nor erase an answer
+    # established inside the fixed observation window.
+    frames = [frame for frame in frames
+              if frame.get('display_ticks') is None or frame['display_ticks'] <= deadline]
     # No timing from an unrecorded interval. An idle status can repeat known
     # pixels, but cannot manufacture missing display frames.
     refresh = trial['capture']['refresh_hz']

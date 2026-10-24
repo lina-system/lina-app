@@ -44,3 +44,16 @@ for state in [(true, "com.apple.finder" as String?), (false, "com.apple.loginwin
 }
 try requireUnlockedSession(locked: false, frontBundle: "com.apple.finder")
 print("Process attribution and locked-session guard: 5 checks passed")
+
+let config = PilotConfig(launcher: "spotlight", layout: "abc", gapMs: 30,
+  sourceRect: [0, 0, 100, 100], fieldRect: [0, 0, 50, 10], resultRect: [0, 10, 50, 20],
+  panelRect: [0, 0, 100, 100], expectedResult: "Safari", inputSourceId: "com.apple.keylayout.ABC",
+  neutralBundleId: "com.apple.finder", shortcutOwnership: "synthetic fixture", refreshHz: 60,
+  pixelDelta: 20, changedFraction: 0.02)
+try config.validate()
+for invalidRect in [[], [0, 0, 1], [0, 0, 0, 1], [0, 0, Double.nan, 1], [-1, 0, 1, 1]] {
+  var invalid = config
+  invalid.fieldRect = invalidRect
+  do { try invalid.validate(); fatalError("invalid rectangle accepted") } catch {}
+}
+print("Frozen rectangle validation: 6 checks passed")

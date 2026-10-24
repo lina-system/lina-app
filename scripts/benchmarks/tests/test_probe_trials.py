@@ -91,7 +91,8 @@ class TrialTests(unittest.TestCase):
             frame.update(index=i, display_ticks=48000 + i * 400000, file=f'frames/{i}.bgra')
             value['frames'].append(frame)
         self.assertEqual(probe.derive(value, 'test/trial.json')['first_result_ms'], 0)
-        value['frames'][-1]['result_text'] = 'Other'
+        last_observed = next(f for f in reversed(value['frames']) if f['display_ticks'] <= value['deadline_ticks'])
+        last_observed['result_text'] = 'Other'
         self.assertEqual(probe.derive(value, 'test/trial.json')['status'], 'result_timeout')
 
     def test_single_or_nonconsecutive_match_is_not_ready(self):
@@ -130,6 +131,29 @@ class TrialTests(unittest.TestCase):
         self.assertEqual(probe.derive(value, 'test/trial.json')['lost_keys'], 2)
         value['annotation']['inspected'] = False
         self.assertEqual(probe.derive(value, 'test/trial.json')['lost_keys'], '')
+
+    def test_result_and_panel_changes_after_deadline_remain_timeouts(self):
+        value = trial()
+        for frame in value['frames']:
+            frame['result_text'] = ''
+        for i in range(301, 304):
+            frame = value['frames'][-1].copy()
+            frame.update(index=i, display_ticks=48000 + i * 400000, file=f'frames/{i}.bgra',
+                         result_text='Safari', result_confidence=0.99)
+            value['frames'].append(frame)
+        row = probe.derive(value, 'test/trial.json')
+        self.assertEqual(row['status'], 'result_timeout')
+        self.assertEqual(row['first_result_ms'], '')
+        for frame in value['frames'][:301]:
+            frame['panel_changed'] = False
+        self.assertEqual(probe.derive(value, 'test/trial.json')['status'], 'open_timeout')
+
+    def test_shutdown_frame_does_not_erase_an_in_deadline_result(self):
+        value = trial()
+        frame = value['frames'][-1].copy()
+        frame.update(index=301, display_ticks=120448000, result_text='unrelated cleanup')
+        value['frames'].append(frame)
+        self.assertEqual(probe.derive(value, 'test/trial.json')['status'], 'ok')
 
     def test_rejects_unsafe_evidence_path(self):
         with self.assertRaises(ValueError):

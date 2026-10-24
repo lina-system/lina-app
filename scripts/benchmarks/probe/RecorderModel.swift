@@ -120,18 +120,30 @@ struct PilotConfig: Codable {
   var changedFraction: Double
 
   func validate() throws {
-    guard ["spotlight", "raycast"].contains(launcher),
+    func validRect(_ values: [Double]) -> Bool {
+      guard values.count == 4 else { return false }
+      for value in values {
+        guard value.isFinite && value >= 0 else { return false }
+      }
+      return values[2] > 0 && values[3] > 0
+    }
+    // Keep the expressions small for the older Swift compiler on macOS CI.
+    guard validRect(sourceRect), validRect(panelRect), validRect(fieldRect), validRect(resultRect) else {
+      throw ProbeError.message("invalid frozen capture rectangle")
+    }
+    guard sourceRect[2] * sourceRect[3] <= 1_000_000,
+          ["spotlight", "raycast"].contains(launcher),
           ["abc", "korean-2-set"].contains(layout), [0, 8, 30].contains(gapMs),
-          sourceRect.count == 4, sourceRect.allSatisfy({ $0.isFinite && $0 >= 0 }),
-          sourceRect[2] > 0, sourceRect[3] > 0, sourceRect[2] * sourceRect[3] <= 1_000_000,
-          [panelRect, fieldRect, resultRect].allSatisfy({ r in
-            r.count == 4 && r.allSatisfy { $0.isFinite && $0 >= 0 } && r[2] > 0 && r[3] > 0
-          }), refreshHz.isFinite, refreshHz >= 24, refreshHz <= 240,
+          refreshHz.isFinite, refreshHz >= 24, refreshHz <= 240,
           (1...255).contains(pixelDelta), changedFraction > 0, changedFraction <= 1,
-          !expectedResult.isEmpty,
-          inputSourceId == (layout == "abc" ? "com.apple.keylayout.ABC" : "com.apple.inputmethod.Korean.2SetKorean"),
-          !neutralBundleId.isEmpty, !["com.apple.loginwindow", "com.apple.Spotlight", "com.raycast.macos"].contains(neutralBundleId),
-          !shortcutOwnership.isEmpty else { throw ProbeError.message("invalid frozen pilot configuration") }
+          !expectedResult.isEmpty, !shortcutOwnership.isEmpty else {
+      throw ProbeError.message("invalid frozen pilot configuration")
+    }
+    let expectedSource = layout == "abc" ? "com.apple.keylayout.ABC" : "com.apple.inputmethod.Korean.2SetKorean"
+    let unsafeNeutral = ["com.apple.loginwindow", "com.apple.Spotlight", "com.raycast.macos"]
+    guard inputSourceId == expectedSource, !neutralBundleId.isEmpty, !unsafeNeutral.contains(neutralBundleId) else {
+      throw ProbeError.message("invalid input source or neutral app")
+    }
   }
 }
 

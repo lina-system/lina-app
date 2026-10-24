@@ -6,3 +6,5 @@
 *.otf -text
 *.ttf -text
 *.jar -text
+# Preserve the pinned upstream Unicode file byte-for-byte, including its comment whitespace.
+data/emoji/emoji-test.txt whitespace=-blank-at-eol

@@ -556,17 +556,24 @@ class ConversationController extends ChangeNotifier {
       unawaited(_readDocument(state, result));
   }
 
+  bool _isSelectedDocumentRead(
+    AgentPresentation state,
+    ProtocolResult result,
+    Object request,
+  ) =>
+      !_disposed &&
+      request == state.documentRequest &&
+      state.document?.resultId == result.resultId &&
+      state.document?.revision == result.revision;
+
   bool _isCurrentDocumentRead(
     AgentPresentation state,
     ProtocolResult result,
     Object generation,
     Object request,
   ) =>
-      !_disposed &&
       generation == _generation &&
-      request == state.documentRequest &&
-      state.document?.resultId == result.resultId &&
-      state.document?.revision == result.revision;
+      _isSelectedDocumentRead(state, result, request);
 
   Future<void> _readDocument(
     AgentPresentation state,
@@ -615,11 +622,13 @@ class ConversationController extends ChangeNotifier {
           });
       } while (offset != null);
     } on ConnectionLost {
-      if (!_isCurrentDocumentRead(state, result, generation, request)) return;
+      // Losing the connection invalidates the generation while this request
+      // still belongs to the selected document, so report the disconnect.
+      if (!_isSelectedDocumentRead(state, result, request)) return;
       state.documentError =
           'Disconnected. Reopen this document after reconnecting.';
     } on FormatException {
-      if (!_isCurrentDocumentRead(state, result, generation, request)) return;
+      if (!_isSelectedDocumentRead(state, result, request)) return;
       state.documentError = 'Could not read this document.';
     } finally {
       if (request == state.documentRequest) state.documentLoading = false;

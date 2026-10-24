@@ -554,6 +554,53 @@ void main() {
     },
   );
 
+  testWidgets(
+    'a disconnect while reading the selected document keeps the reopen hint',
+    (tester) async {
+      final core = ConversationCore();
+      core.welcome = ProtocolWelcome.fromJson({
+        ...core.welcome!.toJson(),
+        'capabilities': [
+          {'name': 'conversation', 'version': '1.0'},
+          CoreConnection.capabilities.firstWhere((c) => c['name'] == 'results'),
+        ],
+      });
+      core.snapshots['lina'] = [
+        {
+          'kind': 'result',
+          'key': 'document-a',
+          'revision': 1,
+          'payload': {
+            ...fixture('results/document_draft')['payload']
+                as Map<String, dynamic>,
+            'result_id': 'document-a',
+            'title': 'Synthetic document A',
+            'provenance': {
+              'agent_id': 'lina',
+              'conversation_id': 'lina-main',
+              'turn_id': 'turn',
+              'task_id': null,
+            },
+          },
+        },
+      ];
+      await mount(tester, core);
+      await tester.tap(find.text('Read').first);
+      await tester.pump();
+      final read = core.pending.last;
+      // Core ends the connection, which invalidates the request generation
+      // before the pending read fails.
+      core.drop();
+      await tester.pump();
+      read.completeError(const ConnectionLost());
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Disconnected. Reopen this document after reconnecting.'),
+        findsOneWidget,
+      );
+    },
+  );
+
   testWidgets('phone document does not advertise an unsupported view toggle', (
     tester,
   ) async {

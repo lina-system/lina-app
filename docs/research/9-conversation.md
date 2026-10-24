@@ -40,8 +40,10 @@ submission until the person explicitly chooses an available agent.
   A newer result card preserves the loaded version and offers Read latest.
   Version-pinned result reads collect every returned
   text page, and stale reads cannot replace a newer selected result. A failure
-  from a superseded read cannot set the error on the document now being read.
-  Saved status comes exclusively from Core.
+  from a superseded read cannot set the error on the document now being read,
+  while a read of the selected document that loses the connection still asks
+  the person to reopen it after reconnecting. Saved status comes exclusively
+  from Core.
 - All visual values come from `lina_design`, including three new layout tokens.
   One `AgentMark` widget supplies the neutral identity placeholder. No expression
   is invented, and `PlatformSlots.launcher` is untouched.
@@ -56,7 +58,7 @@ isolation, navigation/reconnect/resize reading position, all eight labels,
 composition guards, capability/removed-agent checks, late replies, duplicate and
 gapped streams, stop/retry,
 uncertain input without resend, full document pages, superseded document read
-failures, and conversation → delegation → question → restart/reconnect with a
+failures and disconnect hints, and conversation → delegation → question → restart/reconnect with a
 fixture Core.
 
 `topic_window_test.dart` covers replacement/deduplication, gaps, foreign topics,

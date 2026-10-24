@@ -4,7 +4,9 @@ The production macOS host in `packages/lina_app/macos/Runner/Launcher` owns the
 non-activating NSPanel, native NSTextField, NSTableView, navigation and dismissal.
 A hidden Flutter engine runs `launcherMain` from `lina_app` and draws the
 answer area for ordinary queries. `define <word>` uses the native device dictionary
-view in that area; see [dictionary verification](44-dictionary.md). Search providers, launcher-capability requests, mini-app content,
+view in that area; see [dictionary verification](44-dictionary.md). `tr <text>`
+uses [Apple Translation](45-translation.md) locally and can append an unsent
+conversation draft. Search providers, launcher-capability requests, mini-app content,
 Korean first-key acceptance, Liquid Glass and Command-Space takeover remain in
 their owning issues. The current answer area explicitly says search is not
 connected and offers the native **Open LINA** action for the existing app.
@@ -70,6 +72,8 @@ adapter uses a separate messenger with the same channel name.
 | Swift → `queryChanged` | `{query: String}` | Native committed/draft presentation update; never logged or sent to Core |
 | Swift → `submit` | `{query: String, resultID: String?}` | Native Return/row activation; currently displays an unavailable message, never executes an action |
 | Swift → `stateChanged` | state | Visibility/readiness notification |
+| Main Dart → `draftReady` | none | Main composer has installed its draft handler |
+| Swift → main Dart `appendDraft` | `{text: String}` | Append to unsent composer; Boolean acknowledgement, false during composition |
 
 State: `{ready: Bool, visible: Bool, loginItem: String, shortcut: String,
 error: String?, activationPolicy: Int, uiElement: Bool}`. Login status is `enabled`, `requiresApproval`, `notRegistered`,

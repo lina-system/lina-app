@@ -15,7 +15,7 @@ dir=$(mktemp -d); trap 'rm -rf "$dir"' EXIT
 # exit file written last by the app is the completion signal.
 open -n -g -W -a "$app" -o "$dir/out" --stderr "$dir/err" --args --exit-file "$dir/code" "$@" 2>"$dir/open" ||
   { cat "$dir/open" >&2; exit 70; }
-for _ in $(seq 1 ${LINA_PROBE_WAIT:-300}); do [ -s "$dir/code" ] && break; sleep 0.1; done
+for _ in $(seq 1 "${LINA_PROBE_WAIT:-300}"); do [ -s "$dir/code" ] && break; sleep 0.1; done
 cat "$dir/out"; cat "$dir/err" >&2
 [ -s "$dir/code" ] || { printf 'run.sh: LINA Probe exited without a status; is a GUI login session active?\n' >&2; exit 70; }
 exit "$(cat "$dir/code")"

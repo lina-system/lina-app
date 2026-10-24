@@ -16,6 +16,10 @@ The app framework is decided by measurement, not by preference. The checks in th
 
 Only open-source components are used. No paid or source-restricted UI kit is part of the app.
 
+Launcher performance evidence and the reference Mac collection protocol live in
+[`docs/research/raycast-feature-map.md`](docs/research/raycast-feature-map.md).
+The baseline is explicitly unverified until the device measurements are recorded.
+
 ## Contributing
 
 - Issues and ideas for the app go to this repository's [Issues](https://github.com/thisisjun786/lina-app/issues). Problems in Core go to [`thisisjun786/lina`](https://github.com/thisisjun786/lina/issues).

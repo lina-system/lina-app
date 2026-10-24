@@ -13,6 +13,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  launcher-baseline:
+    name: launcher baseline analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Test benchmark annotation validation and statistics
+        run: python3 -m unittest discover -s scripts/benchmarks/tests -p 'test_launcher_baseline.py' -v
+
   flutter:
     name: flutter
     runs-on: ubuntu-latest

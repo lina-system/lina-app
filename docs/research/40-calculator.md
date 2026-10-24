@@ -46,7 +46,12 @@ ninety nine use space-separated words, with optional `and` after `hundred`.
 This is an explicit arithmetic grammar, not a general natural-language service.
 
 The evaluator uses IEEE-754 Double and displays/copies up to 15 significant
-digits. It is not an exact-decimal financial calculator. Input is bounded to
+digits. Localized decimal answers longer than 24 characters use scientific
+notation with a localized decimal separator and an `e` exponent. For example,
+`1/1e300` displays and copies as `1e-300`; large products keep their coefficient
+and magnitude instead of clipping a long run of digits. Return copies this
+compact localized form; Option-Command-C retains the locale-independent value.
+It is not an exact-decimal financial calculator. Input is bounded to
 1,024 UTF-8 bytes, 256 tokens and 64 recursive parser levels. There is no eval,
 script execution, variable assignment, unit conversion or network access.
 

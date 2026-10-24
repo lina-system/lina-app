@@ -60,7 +60,7 @@ void validateRepository(String root, List<String> packages) {
     final manifest = _yaml('$directory/pubspec.yaml');
     final name = manifest['name'];
     if (name is! String ||
-        name != package.split('/').last ||
+        name != package.split('/').last.replaceAll('-', '_') ||
         manifests.containsKey(name))
       _fail('invalid or duplicate package name: $package');
     manifests[name] = manifest;
@@ -193,7 +193,10 @@ void validateRepository(String root, List<String> packages) {
           final version = locked['source'] == 'sdk'
               ? File('$base/.flutter-version').readAsStringSync().trim()
               : locked['version'] as String;
-          notice(reviewedPackages[dependency], dependency, version);
+          final reviewKey = reviewedPackages.containsKey('$dependency@$version')
+              ? '$dependency@$version'
+              : dependency;
+          notice(reviewedPackages[reviewKey], dependency, version);
         }
         final children = item['dependencies'];
         if (children is! List)
@@ -226,7 +229,7 @@ void validateRepository(String root, List<String> packages) {
             ))
           _fail('missing or external font asset: $asset');
         final path =
-            '${packages.firstWhere((p) => p.split('/').last == name)}/$asset';
+            '${packages.firstWhere((p) => p.split('/').last.replaceAll('-', '_') == name)}/$asset';
         final entry = _map(reviewedFonts[path], 'font review: $path');
         notice(entry, path, '${entry['version']}', font: true);
       }

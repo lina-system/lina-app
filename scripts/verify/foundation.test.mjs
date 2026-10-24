@@ -78,6 +78,18 @@ test('benchmark and design-study registrations admit their files but no hidden e
   ]) assert.throws(() => classify([path]), /unmapped/, path);
 });
 
+test('research spike and evidence are registered without allowing executable docs', () => {
+  assert.deepEqual(classify(['spikes/korean-input/lib/main.dart']), ['korean_input']);
+  assert.doesNotThrow(() => classify([
+    'docs/research/captures/korean-input/observations.json',
+    'docs/research/captures/korean-input/linux-x11.gif',
+    'docs/research/90-accent/renders/a-cobalt-light.svg',
+    'scripts/design-study/study.test.mjs',
+  ]));
+  assert.throws(() => classify(['docs/research/captures/korean-input/hidden.dart']), /unmapped/);
+  assert.throws(() => classify(['spikes/unknown/pubspec.yaml']), /unmapped/);
+});
+
 test('runs enforced install, dependency validation, analysis and tests with evidence', t => {
   const f = fixture(t);
   const evidence = verify(f);

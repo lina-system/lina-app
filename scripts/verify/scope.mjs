@@ -3,6 +3,7 @@ export const components = [
   { name: 'foundation_tools', path: 'packages/foundation_tools' },
   { name: 'lina_design', path: 'packages/lina_design' },
   { name: 'lina_app', path: 'packages/lina_app' },
+  { name: 'korean_input', path: 'spikes/korean-input' },
 ];
 const rootFiles = new Set([
   '.flutter-version', '.node-version', '.gitignore', 'README.md', 'CONTRIBUTING.md',
@@ -34,6 +35,7 @@ export function classify(paths, registry = components) {
     if (rootFiles.has(path) || researchFiles.has(path) || designStudyAssets.test(path) ||
         /^docs\/(policy|research)\/[^/]+\.md$/.test(path) ||
         /^docs\/captures\/[^/]+\/[^/]+\.png$/.test(path) ||
+        /^docs\/research\/captures\/korean-input\/[^/]+\.(png|gif|json|txt)$/.test(path) ||
         /^\.github\/(workflows|ISSUE_TEMPLATE)\/[^/]+\.ya?ml$/.test(path) ||
         path === '.github/PULL_REQUEST_TEMPLATE.md' ||
         /^scripts\/(verify\/)?[^/]+\.(mjs|json)$/.test(path) ||

@@ -1,0 +1,1345 @@
+[
+  {
+    "scenario": "flutter-01-inline",
+    "last": {
+      "event": "edit",
+      "text": "한",
+      "selection": [
+        1,
+        1
+      ],
+      "composing": [
+        0,
+        1
+      ],
+      "focused": true,
+      "sent": 0,
+      "receipt": "",
+      "markers": 0,
+      "committedCharacters": 0
+    },
+    "events": 5
+  },
+  {
+    "scenario": "flutter-02-candidates",
+    "last": {
+      "event": "edit",
+      "text": "한",
+      "selection": [
+        1,
+        1
+      ],
+      "composing": [
+        0,
+        1
+      ],
+      "focused": true,
+      "sent": 0,
+      "receipt": "",
+      "markers": 0,
+      "committedCharacters": 0
+    },
+    "events": 5
+  },
+  {
+    "scenario": "flutter-03-candidate-enter",
+    "last": {
+      "event": "edit",
+      "text": "閑閑",
+      "selection": [
+        2,
+        2
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 0,
+      "receipt": "",
+      "markers": 0,
+      "committedCharacters": 2
+    },
+    "events": 7
+  },
+  {
+    "scenario": "flutter-04-fast-preedit",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 0,
+      "receipt": "",
+      "markers": 0,
+      "committedCharacters": 8
+    },
+    "events": 38
+  },
+  {
+    "scenario": "flutter-05-first-enter",
+    "last": {
+      "event": "edit",
+      "text": "",
+      "selection": [
+        0,
+        0
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 1,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 0
+    },
+    "events": 42
+  },
+  {
+    "scenario": "flutter-06-second-enter",
+    "last": {
+      "event": "key:Enter",
+      "text": "",
+      "selection": [
+        0,
+        0
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 1,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 0
+    },
+    "events": 43
+  },
+  {
+    "scenario": "flutter-07-backspace",
+    "last": {
+      "event": "edit",
+      "text": "하",
+      "selection": [
+        1,
+        1
+      ],
+      "composing": [
+        0,
+        1
+      ],
+      "focused": true,
+      "sent": 1,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 0
+    },
+    "events": 47
+  },
+  {
+    "scenario": "flutter-08-left",
+    "last": {
+      "event": "edit",
+      "text": "하",
+      "selection": [
+        0,
+        0
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 1,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 1
+    },
+    "events": 49
+  },
+  {
+    "scenario": "flutter-09-edit-after-left",
+    "last": {
+      "event": "edit",
+      "text": "가하",
+      "selection": [
+        1,
+        1
+      ],
+      "composing": [
+        0,
+        1
+      ],
+      "focused": true,
+      "sent": 1,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 1
+    },
+    "events": 51
+  },
+  {
+    "scenario": "flutter-10-focus-away",
+    "last": {
+      "event": "focus",
+      "text": "한",
+      "selection": [
+        1,
+        1
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": false,
+      "sent": 1,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 1
+    },
+    "events": 59
+  },
+  {
+    "scenario": "flutter-11-focus-return",
+    "last": {
+      "event": "edit",
+      "text": "한글",
+      "selection": [
+        2,
+        2
+      ],
+      "composing": [
+        1,
+        2
+      ],
+      "focused": true,
+      "sent": 1,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 1
+    },
+    "events": 63
+  },
+  {
+    "scenario": "flutter-12-newline",
+    "last": {
+      "event": "edit",
+      "text": "한\n",
+      "selection": [
+        2,
+        2
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 1,
+      "receipt": "동해물과백두산 이",
+      "markers": 0,
+      "committedCharacters": 2
+    },
+    "events": 72
+  },
+  {
+    "scenario": "flutter-13-shortcut-idle",
+    "last": {
+      "event": "marker",
+      "text": "",
+      "selection": [
+        0,
+        0
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 1,
+      "receipt": "동해물과백두산 이",
+      "markers": 1,
+      "committedCharacters": 0
+    },
+    "events": 76
+  },
+  {
+    "scenario": "flutter-14-slow-preedit",
+    "last": {
+      "event": "edit",
+      "text": "동해물과 백두산이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        8,
+        9
+      ],
+      "focused": true,
+      "sent": 1,
+      "receipt": "동해물과백두산 이",
+      "markers": 1,
+      "committedCharacters": 8
+    },
+    "events": 105
+  },
+  {
+    "scenario": "flutter-15-slow-first-enter",
+    "last": {
+      "event": "edit",
+      "text": "동해물과 백두산이\n",
+      "selection": [
+        10,
+        10
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 1,
+      "receipt": "동해물과백두산 이",
+      "markers": 1,
+      "committedCharacters": 10
+    },
+    "events": 108
+  },
+  {
+    "scenario": "flutter-16-slow-second-enter",
+    "last": {
+      "event": "edit",
+      "text": "",
+      "selection": [
+        0,
+        0
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 0
+    },
+    "events": 111
+  },
+  {
+    "scenario": "flutter-17-candidates-second-line",
+    "last": {
+      "event": "edit",
+      "text": "가\n한",
+      "selection": [
+        3,
+        3
+      ],
+      "composing": [
+        2,
+        3
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 2
+    },
+    "events": 119
+  },
+  {
+    "scenario": "flutter-speed-0-0",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 8
+    },
+    "afterCommit": {
+      "event": "edit",
+      "text": "동해물과백두산 이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 9
+    }
+  },
+  {
+    "scenario": "flutter-speed-0-1",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 8
+    },
+    "afterCommit": {
+      "event": "edit",
+      "text": "동해물과백두산 이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 9
+    }
+  },
+  {
+    "scenario": "flutter-speed-0-2",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 8
+    },
+    "afterCommit": {
+      "event": "edit",
+      "text": "동해물과백두산 이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 9
+    }
+  },
+  {
+    "scenario": "flutter-speed-0-3",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 8
+    },
+    "afterCommit": {
+      "event": "edit",
+      "text": "동해물과백두산 이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 9
+    }
+  },
+  {
+    "scenario": "flutter-speed-0-4",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 8
+    },
+    "afterCommit": {
+      "event": "edit",
+      "text": "동해물과백두산 이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 9
+    }
+  },
+  {
+    "scenario": "flutter-speed-1-0",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 8
+    },
+    "afterCommit": {
+      "event": "edit",
+      "text": "동해물과백두산 이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 9
+    }
+  },
+  {
+    "scenario": "flutter-speed-1-1",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 8
+    },
+    "afterCommit": {
+      "event": "edit",
+      "text": "동해물과백두산 이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 9
+    }
+  },
+  {
+    "scenario": "flutter-speed-1-2",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 8
+    },
+    "afterCommit": {
+      "event": "edit",
+      "text": "동해물과백두산 이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 9
+    }
+  },
+  {
+    "scenario": "flutter-speed-1-3",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 8
+    },
+    "afterCommit": {
+      "event": "edit",
+      "text": "동해물과백두산 이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 9
+    }
+  },
+  {
+    "scenario": "flutter-speed-1-4",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "selection": [
+        8,
+        8
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 8
+    },
+    "afterCommit": {
+      "event": "edit",
+      "text": "동해물과백두산 이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 9
+    }
+  },
+  {
+    "scenario": "flutter-speed-12-0",
+    "last": {
+      "event": "edit",
+      "text": "동해물과 백두산이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        8,
+        9
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 8
+    },
+    "afterCommit": {
+      "event": "edit",
+      "text": "동해물과 백두산이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 9
+    }
+  },
+  {
+    "scenario": "flutter-speed-12-1",
+    "last": {
+      "event": "edit",
+      "text": "동해물과 백두산이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        8,
+        9
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 8
+    },
+    "afterCommit": {
+      "event": "edit",
+      "text": "동해물과 백두산이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 9
+    }
+  },
+  {
+    "scenario": "flutter-speed-12-2",
+    "last": {
+      "event": "edit",
+      "text": "동해물과 백두산이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        8,
+        9
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 8
+    },
+    "afterCommit": {
+      "event": "edit",
+      "text": "동해물과 백두산이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 9
+    }
+  },
+  {
+    "scenario": "flutter-speed-12-3",
+    "last": {
+      "event": "edit",
+      "text": "동해물과 백두산이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        8,
+        9
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 8
+    },
+    "afterCommit": {
+      "event": "edit",
+      "text": "동해물과 백두산이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 9
+    }
+  },
+  {
+    "scenario": "flutter-speed-12-4",
+    "last": {
+      "event": "edit",
+      "text": "동해물과 백두산이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        8,
+        9
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 8
+    },
+    "afterCommit": {
+      "event": "edit",
+      "text": "동해물과 백두산이",
+      "selection": [
+        9,
+        9
+      ],
+      "composing": [
+        -1,
+        -1
+      ],
+      "focused": true,
+      "sent": 2,
+      "receipt": "동해물과 백두산이\n",
+      "markers": 1,
+      "committedCharacters": 9
+    }
+  },
+  {
+    "scenario": "gtk-01-inline",
+    "last": {
+      "event": "preedit",
+      "text": "",
+      "cursor": 0,
+      "preedit": "한",
+      "focused": true
+    },
+    "events": 7
+  },
+  {
+    "scenario": "gtk-02-candidates",
+    "last": {
+      "event": "preedit",
+      "text": "",
+      "cursor": 0,
+      "preedit": "한",
+      "focused": true
+    },
+    "events": 8
+  },
+  {
+    "scenario": "gtk-03-candidate-enter",
+    "last": {
+      "event": "preedit",
+      "text": "韓",
+      "cursor": 1,
+      "preedit": "",
+      "focused": true
+    },
+    "events": 10
+  },
+  {
+    "scenario": "gtk-04-fast-preedit",
+    "last": {
+      "event": "preedit",
+      "text": "동해물과 백두산",
+      "cursor": 8,
+      "preedit": "이",
+      "focused": true
+    },
+    "events": 42
+  },
+  {
+    "scenario": "gtk-05-first-enter",
+    "last": {
+      "event": "edit",
+      "text": "동해물과 백두산이\n",
+      "cursor": 10,
+      "preedit": "",
+      "focused": true
+    },
+    "events": 45
+  },
+  {
+    "scenario": "gtk-06-second-enter",
+    "last": {
+      "event": "edit",
+      "text": "동해물과 백두산이\n\n",
+      "cursor": 11,
+      "preedit": "",
+      "focused": true
+    },
+    "events": 46
+  },
+  {
+    "scenario": "gtk-07-backspace",
+    "last": {
+      "event": "preedit",
+      "text": "",
+      "cursor": 0,
+      "preedit": "하",
+      "focused": true
+    },
+    "events": 52
+  },
+  {
+    "scenario": "gtk-08-left",
+    "last": {
+      "event": "selection",
+      "text": "하",
+      "cursor": 0,
+      "preedit": "",
+      "focused": true
+    },
+    "events": 55
+  },
+  {
+    "scenario": "gtk-09-edit-after-left",
+    "last": {
+      "event": "preedit",
+      "text": "하",
+      "cursor": 0,
+      "preedit": "가",
+      "focused": true
+    },
+    "events": 57
+  },
+  {
+    "scenario": "gtk-10-focus-away",
+    "last": {
+      "event": "focus-out",
+      "text": "한",
+      "cursor": 1,
+      "preedit": "",
+      "focused": false
+    },
+    "events": 67
+  },
+  {
+    "scenario": "gtk-11-focus-return",
+    "last": {
+      "event": "preedit",
+      "text": "한",
+      "cursor": 1,
+      "preedit": "글",
+      "focused": true
+    },
+    "events": 71
+  },
+  {
+    "scenario": "gtk-12-newline",
+    "last": {
+      "event": "edit",
+      "text": "한\n",
+      "cursor": 2,
+      "preedit": "",
+      "focused": true
+    },
+    "events": 82
+  },
+  {
+    "scenario": "gtk-14-slow-preedit",
+    "last": {
+      "event": "preedit",
+      "text": "동해물과 백두산",
+      "cursor": 8,
+      "preedit": "이",
+      "focused": true
+    },
+    "events": 114
+  },
+  {
+    "scenario": "gtk-15-slow-first-enter",
+    "last": {
+      "event": "edit",
+      "text": "동해물과 백두산이\n",
+      "cursor": 10,
+      "preedit": "",
+      "focused": true
+    },
+    "events": 117
+  },
+  {
+    "scenario": "gtk-16-slow-second-enter",
+    "last": {
+      "event": "edit",
+      "text": "동해물과 백두산이\n\n",
+      "cursor": 11,
+      "preedit": "",
+      "focused": true
+    },
+    "events": 118
+  },
+  {
+    "scenario": "gtk-17-candidates-second-line",
+    "last": {
+      "event": "preedit",
+      "text": "가\n",
+      "cursor": 2,
+      "preedit": "한",
+      "focused": true
+    },
+    "events": 130
+  },
+  {
+    "scenario": "gtk-speed-0-0",
+    "last": {
+      "event": "preedit",
+      "text": "동해물과 백두산",
+      "cursor": 8,
+      "preedit": "이",
+      "focused": true
+    },
+    "afterCommit": {
+      "event": "selection",
+      "text": "동해물과 백두산이",
+      "cursor": 9,
+      "preedit": "",
+      "focused": true
+    }
+  },
+  {
+    "scenario": "gtk-speed-0-1",
+    "last": {
+      "event": "preedit",
+      "text": "동해물과 백두산",
+      "cursor": 8,
+      "preedit": "이",
+      "focused": true
+    },
+    "afterCommit": {
+      "event": "selection",
+      "text": "동해물과 백두산이",
+      "cursor": 9,
+      "preedit": "",
+      "focused": true
+    }
+  },
+  {
+    "scenario": "gtk-speed-0-2",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "cursor": 8,
+      "preedit": "이",
+      "focused": true
+    },
+    "afterCommit": {
+      "event": "selection",
+      "text": "동해물과백두산 이",
+      "cursor": 9,
+      "preedit": "",
+      "focused": true
+    }
+  },
+  {
+    "scenario": "gtk-speed-0-3",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "cursor": 8,
+      "preedit": "이",
+      "focused": true
+    },
+    "afterCommit": {
+      "event": "selection",
+      "text": "동해물과백두산 이",
+      "cursor": 9,
+      "preedit": "",
+      "focused": true
+    }
+  },
+  {
+    "scenario": "gtk-speed-0-4",
+    "last": {
+      "event": "edit",
+      "text": "동해물과백두산 ",
+      "cursor": 8,
+      "preedit": "이",
+      "focused": true
+    },
+    "afterCommit": {
+      "event": "selection",
+      "text": "동해물과백두산 이",
+      "cursor": 9,
+      "preedit": "",
+      "focused": true
+    }
+  },
+  {
+    "scenario": "gtk-speed-1-0",
+    "last": {
+      "event": "preedit",
+      "text": "동해물과 백두산",
+      "cursor": 8,
+      "preedit": "이",
+      "focused": true
+    },
+    "afterCommit": {
+      "event": "selection",
+      "text": "동해물과 백두산이",
+      "cursor": 9,
+      "preedit": "",
+      "focused": true
+    }
+  },
+  {
+    "scenario": "gtk-speed-1-1",
+    "last": {
+      "event": "preedit",
+      "text": "동해물과 백두산",
+      "cursor": 8,
+      "preedit": "이",
+      "focused": true
+    },
+    "afterCommit": {
+      "event": "selection",
+      "text": "동해물과 백두산이",
+      "cursor": 9,
+      "preedit": "",
+      "focused": true
+    }
+  },
+  {
+    "scenario": "gtk-speed-1-2",
+    "last": {
+      "event": "preedit",
+      "text": "동해물과 백두산",
+      "cursor": 8,
+      "preedit": "이",
+      "focused": true
+    },
+    "afterCommit": {
+      "event": "selection",
+      "text": "동해물과 백두산이",
+      "cursor": 9,
+      "preedit": "",
+      "focused": true
+    }
+  },
+  {
+    "scenario": "gtk-speed-1-3",
+    "last": {
+      "event": "preedit",
+      "text": "동해물과 백두산",
+      "cursor": 8,
+      "preedit": "이",
+      "focused": true
+    },
+    "afterCommit": {
+      "event": "selection",
+      "text": "동해물과 백두산이",
+      "cursor": 9,
+      "preedit": "",
+      "focused": true
+    }
+  },
+  {
+    "scenario": "gtk-speed-1-4",
+    "last": {
+      "event": "preedit",
+      "text": "동해물과 백두산",
+      "cursor": 8,
+      "preedit": "이",
+      "focused": true
+    },
+    "afterCommit": {
+      "event": "selection",
+      "text": "동해물과 백두산이",
+      "cursor": 9,
+      "preedit": "",
+      "focused": true
+    }
+  },
+  {
+    "scenario": "gtk-speed-12-0",
+    "last": {
+      "event": "preedit",
+      "text": "동해물과 백두산",
+      "cursor": 8,
+      "preedit": "이",
+      "focused": true
+    },
+    "afterCommit": {
+      "event": "selection",
+      "text": "동해물과 백두산이",
+      "cursor": 9,
+      "preedit": "",
+      "focused": true
+    }
+  },
+  {
+    "scenario": "gtk-speed-12-1",
+    "last": {
+      "event": "preedit",
+      "text": "동해물과 백두산",
+      "cursor": 8,
+      "preedit": "이",
+      "focused": true
+    },
+    "afterCommit": {
+      "event": "selection",
+      "text": "동해물과 백두산이",
+      "cursor": 9,
+      "preedit": "",
+      "focused": true
+    }
+  },
+  {
+    "scenario": "gtk-speed-12-2",
+    "last": {
+      "event": "preedit",
+      "text": "동해물과 백두산",
+      "cursor": 8,
+      "preedit": "이",
+      "focused": true
+    },
+    "afterCommit": {
+      "event": "selection",
+      "text": "동해물과 백두산이",
+      "cursor": 9,
+      "preedit": "",
+      "focused": true
+    }
+  },
+  {
+    "scenario": "gtk-speed-12-3",
+    "last": {
+      "event": "preedit",
+      "text": "동해물과 백두산",
+      "cursor": 8,
+      "preedit": "이",
+      "focused": true
+    },
+    "afterCommit": {
+      "event": "selection",
+      "text": "동해물과 백두산이",
+      "cursor": 9,
+      "preedit": "",
+      "focused": true
+    }
+  },
+  {
+    "scenario": "gtk-speed-12-4",
+    "last": {
+      "event": "preedit",
+      "text": "동해물과 백두산",
+      "cursor": 8,
+      "preedit": "이",
+      "focused": true
+    },
+    "afterCommit": {
+      "event": "selection",
+      "text": "동해물과 백두산이",
+      "cursor": 9,
+      "preedit": "",
+      "focused": true
+    }
+  }
+]

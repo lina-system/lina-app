@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdtempSync, cpSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { loadThemes, validateContrast, textMinimum, generate, checkGenerated } from './design.mjs';
 import { lintSource } from './visual-values.mjs';
-const root = new URL('../../', import.meta.url).pathname;
+const root = fileURLToPath(new URL('../../', import.meta.url));
 function fixture(t) {
   const dir = mkdtempSync(join(tmpdir(), 'lina-design-'));
   for (const path of ['design', 'DESIGN.md', 'packages/lina_design/lib/generated', 'packages/lina_design/assets']) cpSync(join(root, path), join(dir, path), { recursive: true });

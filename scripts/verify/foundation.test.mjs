@@ -8,6 +8,13 @@ import { test } from 'node:test';
 import { classify, components } from './scope.mjs';
 import { execute, verify } from './flutter.mjs';
 
+test('mac panel spike is checked as a package and evidence cannot hide code', () => {
+  assert.deepEqual(classify(['spikes/mac-panel/pubspec.yaml']), ['mac_panel']);
+  assert.doesNotThrow(() => classify(['docs/research/captures/mac-panel/native-measurement.json']));
+  assert.throws(() => classify(['spikes/unknown/lib/main.dart']), /unmapped/);
+  assert.throws(() => classify(['docs/research/captures/mac-panel/hidden.swift']), /unmapped/);
+});
+
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'lina-foundation-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));

@@ -2,7 +2,7 @@
 
 The desktop and mobile app for [LINA](https://github.com/thisisjun786/lina): conversations with your agents, work threads, questions, results and settings, plus the Mac launcher and menu bar.
 
-> In development. No runnable release yet.
+> Development skeleton. Native builds are available; physical-device acceptance is pending.
 
 ## How it fits
 
@@ -23,7 +23,10 @@ The baseline is explicitly unverified until the device measurements are recorded
 The shared Flutter [design package](packages/lina_design/README.md) generates
 its themes from pinned Core tokens. [DESIGN.md](DESIGN.md) records screen rules,
 contrast evidence and the icon mapping. The app already consumes it by path;
-native runners and Core transport are still pending.
+the native runners and generated Core client now live in `packages/lina_app`
+and `packages/lina_protocol`. See the [app instructions](packages/lina_app/README.md),
+[protocol decision](docs/policy/host-protocol.md) and
+[native verification record](docs/research/6-native-app.md).
 
 ## Contributing
 
@@ -50,3 +53,7 @@ Run `node scripts/foundation.mjs` with the pinned SDKs. See the
 [foundation policy](docs/policy/foundation.md) for component paths, evidence,
 codegen ownership and the native-build matrix, and the
 [dependency policy](docs/policy/dependencies.md) for exact pins and updates.
+
+The [macOS panel study](docs/research/mac-panel.md) provides a runnable Flutter
+spike with an AppKit non-activating panel, configurable global shortcut and
+local clipboard filtering, plus measured evidence and explicit device-test gaps.

@@ -2,11 +2,13 @@
 export const components = [
   { name: 'foundation_tools', path: 'packages/foundation_tools' },
   { name: 'lina_design', path: 'packages/lina_design' },
+  { name: 'lina_protocol', path: 'packages/lina_protocol' },
   { name: 'lina_app', path: 'packages/lina_app' },
+  { name: 'mac_panel', path: 'spikes/mac-panel' },
   { name: 'korean_input', path: 'spikes/korean-input' },
 ];
 const rootFiles = new Set([
-  '.flutter-version', '.node-version', '.gitignore', 'README.md', 'CONTRIBUTING.md',
+  '.flutter-version', '.node-version', '.gitattributes', '.gitignore', 'README.md', 'CONTRIBUTING.md',
   'SECURITY.md', 'LICENSE', 'NOTICE', 'THIRD-PARTY-NOTICES.md', 'DESIGN.md',
 ]);
 // Each tool has a dedicated CI job; do not admit arbitrary executable files.
@@ -20,6 +22,7 @@ const researchFiles = new Set([
   'scripts/benchmarks/probe/tests/run.sh',
   'scripts/benchmarks/probe_trials.py',
   'scripts/benchmarks/tests/test_probe_trials.py',
+  'scripts/benchmarks/probe/panel-shortcut.swift',
   'scripts/benchmarks/probe/Info.plist',
   'scripts/benchmarks/probe/build.sh',
   'scripts/benchmarks/probe/sign.sh',
@@ -42,10 +45,12 @@ export function classify(paths, registry = components) {
     if (rootFiles.has(path) || researchFiles.has(path) || designStudyAssets.test(path) ||
         /^docs\/(policy|research)\/[^/]+\.md$/.test(path) ||
         /^docs\/captures\/[^/]+\/[^/]+\.png$/.test(path) ||
+        /^docs\/research\/captures\/mac-panel\/[^/]+\.(?:md|log|json|png)$/.test(path) ||
         /^docs\/research\/captures\/korean-input\/[^/]+\.(png|gif|json|txt)$/.test(path) ||
         /^\.github\/(workflows|ISSUE_TEMPLATE)\/[^/]+\.ya?ml$/.test(path) ||
         path === '.github/PULL_REQUEST_TEMPLATE.md' ||
         /^scripts\/(verify\/)?[^/]+\.(mjs|json)$/.test(path) ||
+        /^protocol\/(?:upstream\.json|core\/(?:schema|fixtures)\/[^\0]+\.(?:json|md))$/.test(path) ||
         /^design\/tokens\/.+\.json$/.test(path) || path === 'release/manifest.json') continue;
     throw new Error(`unmapped path: ${path}; register its component and checks in scripts/verify/scope.mjs`);
   }

@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
+# Byte-pinned snapshots and generator outputs must be identical on every host.
+* text=auto eol=lf
+*.png -text
+*.ico -text
+*.otf -text
+*.ttf -text
+*.jar -text

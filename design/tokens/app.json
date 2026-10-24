@@ -80,5 +80,24 @@
         "unit": "px"
       }
     }
+  },
+  "layout": {
+    "readingWidth": {
+      "$type": "dimension",
+      "$value": {
+        "value": 760,
+        "unit": "px"
+      }
+    }
+  },
+  "accessibility": {
+    "scaleDefault": {
+      "$type": "number",
+      "$value": 1
+    },
+    "scaleLarge": {
+      "$type": "number",
+      "$value": 1.3
+    }
   }
 }

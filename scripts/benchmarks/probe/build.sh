@@ -26,7 +26,11 @@ work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 staged="$work/LINA Probe.app"
 mkdir -p "$staged/Contents/MacOS"
 cp "$here/Info.plist" "$staged/Contents/Info.plist"
-xcrun swiftc -O -o "$staged/Contents/MacOS/LINA Probe" "$here"/*.swift
+# PanelMeasurementChord.swift is shared with the panel app so the posted chord
+# and the chord registered in measurement mode cannot drift apart.
+chord="$here/../../../spikes/mac-panel/macos/Runner/Platform/PanelMeasurementChord.swift"
+[ -f "$chord" ] || fail "missing shared chord source: $chord"
+xcrun swiftc -O -o "$staged/Contents/MacOS/LINA Probe" "$here"/*.swift "$chord"
 "$here/sign.sh" "$staged" "$sign" >/dev/null
 
 mkdir -p "$(dirname "$app")"
@@ -40,8 +44,8 @@ executable="$app/Contents/MacOS/LINA Probe"
 requirement=$(codesign -d -r- "$app" 2>&1 | sed -n 's/^designated => //p')
 cdhash=$(codesign -dvvv "$app" 2>&1 | sed -n 's/^CDHash=//p')
 revision=$(git -C "$here" rev-parse HEAD 2>/dev/null || echo unknown)
-dirty=$(git -C "$here" status --porcelain -- . 2>/dev/null | grep -q . && echo true || echo false)
-sources=$(for source in "$here"/*.swift "$here/Info.plist" "$here/build.sh" "$here/sign.sh"; do
+dirty=$(git -C "$here" status --porcelain -- . "$chord" 2>/dev/null | grep -q . && echo true || echo false)
+sources=$(for source in "$here"/*.swift "$here/Info.plist" "$here/build.sh" "$here/sign.sh" "$chord"; do
   jq -n --arg file "$(basename "$source")" --arg sha256 "$(shasum -a 256 "$source" | cut -d' ' -f1)" '{key:$file,value:$sha256}'
 done | jq -s 'from_entries')
 jq -n --argjson source_sha256 "$sources" --arg app "$app" --arg bundle_id "$bundle_id" --arg sign "$sign" \

@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 @immutable
 class LinaTokens extends ThemeExtension<LinaTokens> {
   const LinaTokens({
+    required this.accessibilityScaleDefault,
+    required this.accessibilityScaleLarge,
     required this.borderFocusWidth,
     required this.borderWidth,
     required this.colorAccent,
@@ -91,6 +93,7 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     required this.iconGrid,
     required this.iconSize,
     required this.iconStroke,
+    required this.layoutReadingWidth,
     required this.motionActivityElapsed,
     required this.motionActivityFrame,
     required this.motionReduced,
@@ -111,6 +114,8 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     required this.typeTitleWeight,
     required this.typeWeight,
   });
+  final double accessibilityScaleDefault;
+  final double accessibilityScaleLarge;
   final double borderFocusWidth;
   final double borderWidth;
   final Color colorAccent;
@@ -197,6 +202,7 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
   final double iconGrid;
   final double iconSize;
   final double iconStroke;
+  final double layoutReadingWidth;
   final Duration motionActivityElapsed;
   final Duration motionActivityFrame;
   final Duration motionReduced;
@@ -219,6 +225,8 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
   static LinaTokens of(BuildContext context) =>
       Theme.of(context).extension<LinaTokens>()!;
   static const light = LinaTokens(
+    accessibilityScaleDefault: 1.0,
+    accessibilityScaleLarge: 1.3,
     borderFocusWidth: 2.0,
     borderWidth: 1.0,
     colorAccent: Color(0xff2F4BDB),
@@ -305,6 +313,7 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     iconGrid: 24.0,
     iconSize: 20.0,
     iconStroke: 2.0,
+    layoutReadingWidth: 760.0,
     motionActivityElapsed: Duration(milliseconds: 1000),
     motionActivityFrame: Duration(milliseconds: 100),
     motionReduced: Duration(milliseconds: 0),
@@ -326,6 +335,8 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     typeWeight: FontWeight.w400,
   );
   static const dark = LinaTokens(
+    accessibilityScaleDefault: 1.0,
+    accessibilityScaleLarge: 1.3,
     borderFocusWidth: 2.0,
     borderWidth: 1.0,
     colorAccent: Color(0xff5685FF),
@@ -412,6 +423,7 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     iconGrid: 24.0,
     iconSize: 20.0,
     iconStroke: 2.0,
+    layoutReadingWidth: 760.0,
     motionActivityElapsed: Duration(milliseconds: 1000),
     motionActivityFrame: Duration(milliseconds: 100),
     motionReduced: Duration(milliseconds: 0),
@@ -433,6 +445,8 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     typeWeight: FontWeight.w400,
   );
   static const highContrast = LinaTokens(
+    accessibilityScaleDefault: 1.0,
+    accessibilityScaleLarge: 1.3,
     borderFocusWidth: 2.0,
     borderWidth: 1.0,
     colorAccent: Color(0xff6795FF),
@@ -519,6 +533,7 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     iconGrid: 24.0,
     iconSize: 20.0,
     iconStroke: 2.0,
+    layoutReadingWidth: 760.0,
     motionActivityElapsed: Duration(milliseconds: 1000),
     motionActivityFrame: Duration(milliseconds: 100),
     motionReduced: Duration(milliseconds: 0),
@@ -541,6 +556,8 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
   );
   @override
   LinaTokens copyWith({
+    double? accessibilityScaleDefault,
+    double? accessibilityScaleLarge,
     double? borderFocusWidth,
     double? borderWidth,
     Color? colorAccent,
@@ -627,6 +644,7 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     double? iconGrid,
     double? iconSize,
     double? iconStroke,
+    double? layoutReadingWidth,
     Duration? motionActivityElapsed,
     Duration? motionActivityFrame,
     Duration? motionReduced,
@@ -647,6 +665,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     FontWeight? typeTitleWeight,
     FontWeight? typeWeight,
   }) => LinaTokens(
+    accessibilityScaleDefault:
+        accessibilityScaleDefault ?? this.accessibilityScaleDefault,
+    accessibilityScaleLarge:
+        accessibilityScaleLarge ?? this.accessibilityScaleLarge,
     borderFocusWidth: borderFocusWidth ?? this.borderFocusWidth,
     borderWidth: borderWidth ?? this.borderWidth,
     colorAccent: colorAccent ?? this.colorAccent,
@@ -750,6 +772,7 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     iconGrid: iconGrid ?? this.iconGrid,
     iconSize: iconSize ?? this.iconSize,
     iconStroke: iconStroke ?? this.iconStroke,
+    layoutReadingWidth: layoutReadingWidth ?? this.layoutReadingWidth,
     motionActivityElapsed: motionActivityElapsed ?? this.motionActivityElapsed,
     motionActivityFrame: motionActivityFrame ?? this.motionActivityFrame,
     motionReduced: motionReduced ?? this.motionReduced,
@@ -774,6 +797,13 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
   LinaTokens lerp(covariant LinaTokens? other, double t) {
     if (other == null) return this;
     return LinaTokens(
+      accessibilityScaleDefault:
+          this.accessibilityScaleDefault +
+          (other.accessibilityScaleDefault - this.accessibilityScaleDefault) *
+              t,
+      accessibilityScaleLarge:
+          this.accessibilityScaleLarge +
+          (other.accessibilityScaleLarge - this.accessibilityScaleLarge) * t,
       borderFocusWidth:
           this.borderFocusWidth +
           (other.borderFocusWidth - this.borderFocusWidth) * t,
@@ -985,6 +1015,9 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
       iconGrid: this.iconGrid + (other.iconGrid - this.iconGrid) * t,
       iconSize: this.iconSize + (other.iconSize - this.iconSize) * t,
       iconStroke: this.iconStroke + (other.iconStroke - this.iconStroke) * t,
+      layoutReadingWidth:
+          this.layoutReadingWidth +
+          (other.layoutReadingWidth - this.layoutReadingWidth) * t,
       motionActivityElapsed: t < 0.5
           ? this.motionActivityElapsed
           : other.motionActivityElapsed,

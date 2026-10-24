@@ -67,6 +67,33 @@ packages:
     );
   });
   tearDown(() => root.deleteSync(recursive: true));
+  test('accepts a registered hyphenated spike directory with a Dart name', () {
+    Directory('${root.path}/spikes').createSync();
+    Directory('${root.path}/packages/lina_app')
+        .renameSync('${root.path}/spikes/mac-panel');
+    put(
+      'spikes/mac-panel/pubspec.yaml',
+      manifest.replaceFirst('lina_app', 'mac_panel'),
+    );
+    final graph = File(
+      '${root.path}/spikes/mac-panel/.dart_tool/package_graph.json',
+    );
+    graph.writeAsStringSync(
+      graph.readAsStringSync().replaceAll('lina_app', 'mac_panel'),
+    );
+    expect(
+      () => validateRepository(root.path, ['spikes/mac-panel']),
+      returnsNormally,
+    );
+    put(
+      'spikes/mac-panel/pubspec.yaml',
+      manifest.replaceFirst('lina_app', 'unrelated'),
+    );
+    expect(
+      () => validateRepository(root.path, ['spikes/mac-panel']),
+      throwsFormatException,
+    );
+  });
   test(
     'accepts an exact hosted dependency with hash, license and notice',
     check,

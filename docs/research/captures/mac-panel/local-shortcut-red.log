@@ -1,0 +1,59 @@
+Building for debugging...
+[1 / 4]
+[2 / 5] MacPanelPlatform
+[3 / 6] MacPanelPlatform
+[8 / 11] MacPanelPlatform
+[11 / 14] MacPanelPlatformTests-product
+[13 / 16] MacPanelPlatformTests-product
+error: SwiftCompile normal arm64 <repo>/spikes/mac-panel/native-tests/ShortcutTests.swift failed with a nonzero exit code. Command line:     cd <repo>/spikes
+    builtin-SwiftPerFileCompile ShortcutTests.swift
+<repo>/spikes/mac-panel/native-tests/ShortcutTests.swift:15:32: error: value of type 'Shortcut' has no member 'matchesLocalKey'
+13 |                             isARepeat: repeated, keyCode: code)!
+14 |         }
+15 |         XCTAssertTrue(shortcut.matchesLocalKey(event()))
+   |                                `- error: value of type 'Shortcut' has no member 'matchesLocalKey'
+16 |         XCTAssertTrue(shortcut.matchesLocalKey(event(49, [.control, .option, .capsLock])))
+17 |         XCTAssertFalse(shortcut.matchesLocalKey(event(49, [.control])))
+
+<repo>/spikes/mac-panel/native-tests/ShortcutTests.swift:16:32: error: value of type 'Shortcut' has no member 'matchesLocalKey'
+14 |         }
+15 |         XCTAssertTrue(shortcut.matchesLocalKey(event()))
+16 |         XCTAssertTrue(shortcut.matchesLocalKey(event(49, [.control, .option, .capsLock])))
+   |                                `- error: value of type 'Shortcut' has no member 'matchesLocalKey'
+17 |         XCTAssertFalse(shortcut.matchesLocalKey(event(49, [.control])))
+18 |         XCTAssertFalse(shortcut.matchesLocalKey(event(49, [.control, .option, .command])))
+
+<repo>/spikes/mac-panel/native-tests/ShortcutTests.swift:17:33: error: value of type 'Shortcut' has no member 'matchesLocalKey'
+15 |         XCTAssertTrue(shortcut.matchesLocalKey(event()))
+16 |         XCTAssertTrue(shortcut.matchesLocalKey(event(49, [.control, .option, .capsLock])))
+17 |         XCTAssertFalse(shortcut.matchesLocalKey(event(49, [.control])))
+   |                                 `- error: value of type 'Shortcut' has no member 'matchesLocalKey'
+18 |         XCTAssertFalse(shortcut.matchesLocalKey(event(49, [.control, .option, .command])))
+19 |         XCTAssertFalse(shortcut.matchesLocalKey(event(48)))
+
+<repo>/spikes/mac-panel/native-tests/ShortcutTests.swift:18:33: error: value of type 'Shortcut' has no member 'matchesLocalKey'
+16 |         XCTAssertTrue(shortcut.matchesLocalKey(event(49, [.control, .option, .capsLock])))
+17 |         XCTAssertFalse(shortcut.matchesLocalKey(event(49, [.control])))
+18 |         XCTAssertFalse(shortcut.matchesLocalKey(event(49, [.control, .option, .command])))
+   |                                 `- error: value of type 'Shortcut' has no member 'matchesLocalKey'
+19 |         XCTAssertFalse(shortcut.matchesLocalKey(event(48)))
+20 |         XCTAssertFalse(shortcut.matchesLocalKey(event(repeat: true)))
+
+<repo>/spikes/mac-panel/native-tests/ShortcutTests.swift:19:33: error: value of type 'Shortcut' has no member 'matchesLocalKey'
+17 |         XCTAssertFalse(shortcut.matchesLocalKey(event(49, [.control])))
+18 |         XCTAssertFalse(shortcut.matchesLocalKey(event(49, [.control, .option, .command])))
+19 |         XCTAssertFalse(shortcut.matchesLocalKey(event(48)))
+   |                                 `- error: value of type 'Shortcut' has no member 'matchesLocalKey'
+20 |         XCTAssertFalse(shortcut.matchesLocalKey(event(repeat: true)))
+21 |     }
+
+<repo>/spikes/mac-panel/native-tests/ShortcutTests.swift:20:33: error: value of type 'Shortcut' has no member 'matchesLocalKey'
+18 |         XCTAssertFalse(shortcut.matchesLocalKey(event(49, [.control, .option, .command])))
+19 |         XCTAssertFalse(shortcut.matchesLocalKey(event(48)))
+20 |         XCTAssertFalse(shortcut.matchesLocalKey(event(repeat: true)))
+   |                                 `- error: value of type 'Shortcut' has no member 'matchesLocalKey'
+21 |     }
+22 |
+Failed frontend command:
+error: Build failed
+error: fatalError

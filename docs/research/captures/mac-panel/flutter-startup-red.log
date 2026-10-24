@@ -1,0 +1,13 @@
+Hidden Flutter first-frame handshake: FAIL (before explicit engine start)
+file://<repo>/scripts/mac-panel.mjs:11
+  if (result.status !== 0 || result.error) throw new Error(`${command}: ${result.stderr || result.error || result.stdout}`);
+                                                 ^
+
+Error: <repo>/spikes/mac-panel/build/macos/Build/Products/Release/mac_panel.app/Contents/MacOS/mac_panel: Error: spawnSync <repo>/spikes/mac-panel/build/macos/Build/Products/Release/mac_panel.app/Contents/MacOS/mac_panel ETIMEDOUT
+    at run (file://<repo>/scripts/mac-panel.mjs:11:50)
+    at file://<repo>/scripts/mac-panel.mjs:45:5
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.20.0

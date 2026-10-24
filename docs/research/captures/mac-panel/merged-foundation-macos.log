@@ -1,0 +1,138 @@
+passed: scope
+passed: sdk
+passed: packages
+passed: install:foundation_tools
+passed: lockfile:foundation_tools
+passed: install:lina_app
+passed: lockfile:lina_app
+passed: install:lina_design
+passed: lockfile:lina_design
+passed: install:mac_panel
+passed: lockfile:mac_panel
+passed: dependencies
+passed: generator-policy
+passed: pin:theme
+passed: theme
+passed: drift:theme
+passed: pin:visual-values
+passed: visual-values
+passed: drift:visual-values
+deferred: protocol
+passed: analyze:foundation_tools
+passed: test:foundation_tools
+passed: analyze:lina_app
+passed: test:lina_app
+passed: analyze:lina_design
+failed: test:lina_design
+foundation: failed
+flutter test --no-pub failed (1):
+00:00 +0: loading <repo>/packages/lina_design/test/widgets_test.dart
+00:00 +0: (setUpAll)
+00:00 +0: Korean words retain original text when display joiners are removed
+00:00 +1: citation shows its passage and forwards the identical complete anchor
+00:00 +2: revoked evidence stays labeled and cannot navigate
+00:00 +3: large text wraps without overflow and preserves target size
+00:00 +4: keyboard activation opens a citation exactly once
+00:00 +5: light shared widgets golden
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown while running async test code:
+Golden "../../../docs/captures/5/light.png": Pixel test failed, 2.36%, 8186px diff detected.
+Failure feedback can be found at <repo>/packages/lina_design/test/failures
+
+When the exception was thrown, this was the stack:
+#0      LocalFileComparator.compare (package:flutter_test/src/_goldens_io.dart:108:5)
+<asynchronous suspension>
+#1      MatchesGoldenFile.matchAsync.<anonymous closure> (package:flutter_test/src/_matchers_io.dart:124:32)
+<asynchronous suspension>
+<asynchronous suspension>
+#3      _expect.<anonymous closure> (package:matcher/src/expect/expect.dart:153:17)
+<asynchronous suspension>
+<asynchronous suspension>
+#5      expectLater.<anonymous closure> (package:flutter_test/src/widget_tester.dart:508:19)
+<asynchronous suspension>
+#6      main.<anonymous closure> (file://<repo>/packages/lina_design/test/widgets_test.dart:233:7)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 3 frames from dart:async and package:stack_trace)
+
+The exception was caught asynchronously.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:00 +5 -1: light shared widgets golden [E]
+  Test failed. See exception logs above.
+  The test description was: light shared widgets golden
+
+00:00 +5 -1: dark shared widgets golden
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown while running async test code:
+Golden "../../../docs/captures/5/dark.png": Pixel test failed, 2.34%, 8123px diff detected.
+Failure feedback can be found at <repo>/packages/lina_design/test/failures
+
+When the exception was thrown, this was the stack:
+#0      LocalFileComparator.compare (package:flutter_test/src/_goldens_io.dart:108:5)
+<asynchronous suspension>
+#1      MatchesGoldenFile.matchAsync.<anonymous closure> (package:flutter_test/src/_matchers_io.dart:124:32)
+<asynchronous suspension>
+<asynchronous suspension>
+#3      _expect.<anonymous closure> (package:matcher/src/expect/expect.dart:153:17)
+<asynchronous suspension>
+<asynchronous suspension>
+#5      expectLater.<anonymous closure> (package:flutter_test/src/widget_tester.dart:508:19)
+<asynchronous suspension>
+#6      main.<anonymous closure> (file://<repo>/packages/lina_design/test/widgets_test.dart:233:7)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 3 frames from dart:async and package:stack_trace)
+
+The exception was caught asynchronously.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:00 +5 -2: dark shared widgets golden [E]
+  Test failed. See exception logs above.
+  The test description was: dark shared widgets golden
+
+00:00 +5 -2: highContrast shared widgets golden
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown while running async test code:
+Golden "../../../docs/captures/5/high-contrast.png": Pixel test failed, 2.36%, 8197px diff detected.
+Failure feedback can be found at <repo>/packages/lina_design/test/failures
+
+When the exception was thrown, this was the stack:
+#0      LocalFileComparator.compare (package:flutter_test/src/_goldens_io.dart:108:5)
+<asynchronous suspension>
+#1      MatchesGoldenFile.matchAsync.<anonymous closure> (package:flutter_test/src/_matchers_io.dart:124:32)
+<asynchronous suspension>
+<asynchronous suspension>
+#3      _expect.<anonymous closure> (package:matcher/src/expect/expect.dart:153:17)
+<asynchronous suspension>
+<asynchronous suspension>
+#5      expectLater.<anonymous closure> (package:flutter_test/src/widget_tester.dart:508:19)
+<asynchronous suspension>
+#6      main.<anonymous closure> (file://<repo>/packages/lina_design/test/widgets_test.dart:233:7)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 3 frames from dart:async and package:stack_trace)
+
+The exception was caught asynchronously.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:00 +5 -3: highContrast shared widgets golden [E]
+  Test failed. See exception logs above.
+  The test description was: highContrast shared widgets golden
+
+00:00 +5 -3: (tearDownAll)
+00:00 +5 -3: Some tests failed.
+
+Failing tests:
+  <repo>/packages/lina_design/test/widgets_test.dart: dark shared widgets golden
+  <repo>/packages/lina_design/test/widgets_test.dart: highContrast shared widgets golden
+  <repo>/packages/lina_design/test/widgets_test.dart: light shared widgets golden

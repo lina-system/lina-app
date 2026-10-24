@@ -1,0 +1,3 @@
+Initial Command Line Tools XCTest attempt: UNVERIFIED (tooling failure)
+error: no such module XCTest
+Later full Xcode run: see native-green.log.

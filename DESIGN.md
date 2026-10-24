@@ -94,6 +94,8 @@ Generated from the pinned Core source plus app extensions. Do not edit.
 
 | Role | Light | Dark | High contrast |
 | --- | --- | --- | --- |
+| accessibility.scaleDefault | `1` | `1` | `1` |
+| accessibility.scaleLarge | `1.3` | `1.3` | `1.3` |
 | border.focusWidth | `{"value":2,"unit":"px"}` | `{"value":2,"unit":"px"}` | `{"value":2,"unit":"px"}` |
 | border.width | `{"value":1,"unit":"px"}` | `{"value":1,"unit":"px"}` | `{"value":1,"unit":"px"}` |
 | color.accent | `#2F4BDB` | `#5685FF` | `#6795FF` |
@@ -180,6 +182,7 @@ Generated from the pinned Core source plus app extensions. Do not edit.
 | icon.grid | `{"value":24,"unit":"px"}` | `{"value":24,"unit":"px"}` | `{"value":24,"unit":"px"}` |
 | icon.size | `{"value":20,"unit":"px"}` | `{"value":20,"unit":"px"}` | `{"value":20,"unit":"px"}` |
 | icon.stroke | `{"value":2,"unit":"px"}` | `{"value":2,"unit":"px"}` | `{"value":2,"unit":"px"}` |
+| layout.readingWidth | `{"value":760,"unit":"px"}` | `{"value":760,"unit":"px"}` | `{"value":760,"unit":"px"}` |
 | motion.activityElapsed | `{"value":1000,"unit":"ms"}` | `{"value":1000,"unit":"ms"}` | `{"value":1000,"unit":"ms"}` |
 | motion.activityFrame | `{"value":100,"unit":"ms"}` | `{"value":100,"unit":"ms"}` | `{"value":100,"unit":"ms"}` |
 | motion.reduced | `{"value":0,"unit":"ms"}` | `{"value":0,"unit":"ms"}` | `{"value":0,"unit":"ms"}` |

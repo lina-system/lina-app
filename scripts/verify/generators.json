@@ -39,10 +39,20 @@
     },
     {
       "id": "protocol",
-      "status": "deferred",
+      "status": "active",
       "owner": "lina-system/lina-app#6",
       "outputs": [
-        "packages/lina_app/lib/protocol/generated/"
+        "packages/lina_protocol/lib/generated/"
+      ],
+      "generator": {
+        "name": "lina-schema-dart",
+        "version": "1.0.0",
+        "sha256": "33201dfe585446e5d6a95d2b57b4af0b3a2db3004706baffa5a99ed138fca802"
+      },
+      "command": [
+        "node",
+        "scripts/verify/protocol.mjs",
+        "--check"
       ]
     }
   ]

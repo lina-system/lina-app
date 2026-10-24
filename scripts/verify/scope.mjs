@@ -31,8 +31,6 @@ export function classify(paths, registry = components) {
         /^docs\/(policy|research)\/[^/]+\.md$/.test(path) ||
         /^docs\/captures\/[^/]+\/[^/]+\.png$/.test(path) ||
         /^docs\/research\/captures\/korean-input\/[^/]+\.(png|gif|json|txt)$/.test(path) ||
-        /^docs\/research\/90-accent\/(?:[^/]+\.(md|json)|fonts\/(?:[^/]+\.otf|OFL\.txt)|(?:icons|marks|renders)\/[^/]+\.svg)$/.test(path) ||
-        /^scripts\/design-study\/[^/]+\.(mjs|json)$/.test(path) ||
         /^\.github\/(workflows|ISSUE_TEMPLATE)\/[^/]+\.ya?ml$/.test(path) ||
         path === '.github/PULL_REQUEST_TEMPLATE.md' ||
         /^scripts\/(verify\/)?[^/]+\.(mjs|json)$/.test(path) ||

@@ -9,13 +9,26 @@ const rootFiles = new Set([
   '.flutter-version', '.node-version', '.gitignore', 'README.md', 'CONTRIBUTING.md',
   'SECURITY.md', 'LICENSE', 'NOTICE', 'THIRD-PARTY-NOTICES.md', 'DESIGN.md',
 ]);
+// Each tool has a dedicated CI job; do not admit arbitrary executable files.
+const researchFiles = new Set([
+  'scripts/benchmarks/launcher_baseline.py',
+  'scripts/benchmarks/tests/test_launcher_baseline.py',
+  'docs/research/launcher-baseline-template.csv',
+  'scripts/design-study/package.json',
+  'scripts/design-study/package-lock.json',
+  'scripts/design-study/render.mjs',
+  'scripts/design-study/study.mjs',
+  'scripts/design-study/study.test.mjs',
+]);
+const designStudyAssets = /^docs\/research\/90-accent\/(?:[^/]+\.(?:md|json)|fonts\/(?:OFL\.txt|Pretendard-(?:Bold|Regular)\.otf)|(?:icons|marks|renders)\/[^/]+\.svg)$/;
 export function classify(paths, registry = components) {
   const selected = new Set();
   for (const path of paths) {
     if (path.startsWith('/') || path.split('/').includes('..')) throw new Error(`unsafe path: ${path}`);
     const component = registry.find(c => path.startsWith(`${c.path}/`));
     if (component) { selected.add(component.name); continue; }
-    if (rootFiles.has(path) || /^docs\/(policy|research)\/[^/]+\.md$/.test(path) ||
+    if (rootFiles.has(path) || researchFiles.has(path) || designStudyAssets.test(path) ||
+        /^docs\/(policy|research)\/[^/]+\.md$/.test(path) ||
         /^docs\/captures\/[^/]+\/[^/]+\.png$/.test(path) ||
         /^docs\/research\/captures\/korean-input\/[^/]+\.(png|gif|json|txt)$/.test(path) ||
         /^docs\/research\/90-accent\/(?:[^/]+\.(md|json)|fonts\/(?:[^/]+\.otf|OFL\.txt)|(?:icons|marks|renders)\/[^/]+\.svg)$/.test(path) ||

@@ -24,6 +24,13 @@ removed or renamed since HEAD. An unregistered app or design path fails in the
 regression test before its registry entry is supplied. A nested pubspec also
 needs its own registration: a directory prefix is not package registration.
 
+The launcher benchmark analyzer and the accent design study have dedicated
+`launcher-baseline` and `design-study` CI jobs. Their executable entry points
+and tests are registered explicitly in the scope map; study assets are limited
+to the `90-accent` data, font and SVG paths. These registrations do not admit
+arbitrary scripts under research documentation. Benchmark CI validates synthetic
+annotations only, not reference-Mac measurements.
+
 To activate a component, add its `pubspec.yaml`, committed `pubspec.lock`,
 `lib/` and behavioral `test/*_test.dart` files at its registered root. The app
 uses `lina_design: {path: ../lina_design}`. The same change activates any checks

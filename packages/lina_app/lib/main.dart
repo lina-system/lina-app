@@ -13,7 +13,12 @@ import 'status_item.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  final connection = CoreConnection(platform: nativePlatform);
+  final connection = CoreConnection(
+    platform: nativePlatform,
+    onRequestWritten: Platform.environment['LINA_LOG_CORE_REQUESTS'] == '1'
+        ? (kind) => stdout.writeln('LINA_CORE_REQUEST $kind')
+        : null,
+  );
   final preferences = DisplayPreferences();
   final endpoint =
       Platform.environment['LINA_CORE_ENDPOINT'] ??

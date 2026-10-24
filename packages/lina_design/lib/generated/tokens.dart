@@ -93,7 +93,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     required this.iconGrid,
     required this.iconSize,
     required this.iconStroke,
+    required this.layoutComposerHeight,
+    required this.layoutDesktopWidth,
     required this.layoutReadingWidth,
+    required this.layoutSidebarWidth,
     required this.motionActivityElapsed,
     required this.motionActivityFrame,
     required this.motionReduced,
@@ -202,7 +205,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
   final double iconGrid;
   final double iconSize;
   final double iconStroke;
+  final double layoutComposerHeight;
+  final double layoutDesktopWidth;
   final double layoutReadingWidth;
+  final double layoutSidebarWidth;
   final Duration motionActivityElapsed;
   final Duration motionActivityFrame;
   final Duration motionReduced;
@@ -313,7 +319,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     iconGrid: 24.0,
     iconSize: 20.0,
     iconStroke: 2.0,
+    layoutComposerHeight: 160.0,
+    layoutDesktopWidth: 1000.0,
     layoutReadingWidth: 760.0,
+    layoutSidebarWidth: 216.0,
     motionActivityElapsed: Duration(milliseconds: 1000),
     motionActivityFrame: Duration(milliseconds: 100),
     motionReduced: Duration(milliseconds: 0),
@@ -423,7 +432,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     iconGrid: 24.0,
     iconSize: 20.0,
     iconStroke: 2.0,
+    layoutComposerHeight: 160.0,
+    layoutDesktopWidth: 1000.0,
     layoutReadingWidth: 760.0,
+    layoutSidebarWidth: 216.0,
     motionActivityElapsed: Duration(milliseconds: 1000),
     motionActivityFrame: Duration(milliseconds: 100),
     motionReduced: Duration(milliseconds: 0),
@@ -533,7 +545,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     iconGrid: 24.0,
     iconSize: 20.0,
     iconStroke: 2.0,
+    layoutComposerHeight: 160.0,
+    layoutDesktopWidth: 1000.0,
     layoutReadingWidth: 760.0,
+    layoutSidebarWidth: 216.0,
     motionActivityElapsed: Duration(milliseconds: 1000),
     motionActivityFrame: Duration(milliseconds: 100),
     motionReduced: Duration(milliseconds: 0),
@@ -644,7 +659,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     double? iconGrid,
     double? iconSize,
     double? iconStroke,
+    double? layoutComposerHeight,
+    double? layoutDesktopWidth,
     double? layoutReadingWidth,
+    double? layoutSidebarWidth,
     Duration? motionActivityElapsed,
     Duration? motionActivityFrame,
     Duration? motionReduced,
@@ -772,7 +790,10 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
     iconGrid: iconGrid ?? this.iconGrid,
     iconSize: iconSize ?? this.iconSize,
     iconStroke: iconStroke ?? this.iconStroke,
+    layoutComposerHeight: layoutComposerHeight ?? this.layoutComposerHeight,
+    layoutDesktopWidth: layoutDesktopWidth ?? this.layoutDesktopWidth,
     layoutReadingWidth: layoutReadingWidth ?? this.layoutReadingWidth,
+    layoutSidebarWidth: layoutSidebarWidth ?? this.layoutSidebarWidth,
     motionActivityElapsed: motionActivityElapsed ?? this.motionActivityElapsed,
     motionActivityFrame: motionActivityFrame ?? this.motionActivityFrame,
     motionReduced: motionReduced ?? this.motionReduced,
@@ -1015,9 +1036,18 @@ class LinaTokens extends ThemeExtension<LinaTokens> {
       iconGrid: this.iconGrid + (other.iconGrid - this.iconGrid) * t,
       iconSize: this.iconSize + (other.iconSize - this.iconSize) * t,
       iconStroke: this.iconStroke + (other.iconStroke - this.iconStroke) * t,
+      layoutComposerHeight:
+          this.layoutComposerHeight +
+          (other.layoutComposerHeight - this.layoutComposerHeight) * t,
+      layoutDesktopWidth:
+          this.layoutDesktopWidth +
+          (other.layoutDesktopWidth - this.layoutDesktopWidth) * t,
       layoutReadingWidth:
           this.layoutReadingWidth +
           (other.layoutReadingWidth - this.layoutReadingWidth) * t,
+      layoutSidebarWidth:
+          this.layoutSidebarWidth +
+          (other.layoutSidebarWidth - this.layoutSidebarWidth) * t,
       motionActivityElapsed: t < 0.5
           ? this.motionActivityElapsed
           : other.motionActivityElapsed,

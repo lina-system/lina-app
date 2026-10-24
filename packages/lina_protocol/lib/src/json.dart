@@ -29,6 +29,11 @@ class ExactNumber implements Comparable<ExactNumber> {
   late BigInt _coefficient;
   late int _exponent;
   bool get isInteger => _exponent >= 0;
+  BigInt toBigInt() {
+    if (!isInteger) throw const FormatException('expected integer');
+    return _coefficient * BigInt.from(10).pow(_exponent);
+  }
+
   @override
   int compareTo(ExactNumber other) {
     final low = _exponent < other._exponent ? _exponent : other._exponent;

@@ -28,6 +28,7 @@ class CoreConnection {
   static const productVersion = '0.1.0-dev';
   static const capabilities = [
     {'name': 'conversation', 'version': '1.0'},
+    {'name': 'progress', 'version': '1.0'},
     {
       'name': 'results',
       'version': '1.0',
@@ -44,7 +45,11 @@ class CoreConnection {
       'catalogs': <String>[],
     },
   ];
-  final _changes = StreamController<void>.broadcast(sync: true);
+  final _changes = StreamController<void>.broadcast();
+  final _events = StreamController<Envelope>.broadcast();
+
+  /// Validated, current-connection notifications; replies stay request-scoped.
+  Stream<Envelope> get events => _events.stream;
   Stream<void> get changes => _changes.stream;
   ConnectionPhase phase = ConnectionPhase.disconnected;
   String? refusalCode;
@@ -72,6 +77,7 @@ class CoreConnection {
     16,
     (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0'),
   ).join();
+  String newInputId() => _id();
   void _notify() {
     if (!_disposed) _changes.add(null);
   }
@@ -328,6 +334,7 @@ class CoreConnection {
         _results[result.resultId] = result;
     }
     pending?.complete(envelope);
+    if (!response && !_disposed) _events.add(envelope);
     _notify();
   }
 
@@ -365,5 +372,6 @@ class CoreConnection {
     disconnect();
     _disposed = true;
     await _changes.close();
+    await _events.close();
   }
 }

@@ -3,3 +3,4 @@ export 'generated/protocol.dart';
 export 'src/receiver.dart';
 export 'src/connection.dart';
 export 'src/platform.dart';
+export 'src/topic_window.dart';

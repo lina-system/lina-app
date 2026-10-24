@@ -35,3 +35,12 @@ drafts are in-memory presentation state. There is no local canonical database.
 
 [Host contract](../../docs/policy/host-protocol.md) ·
 [Native verification evidence](../../docs/research/6-native-app.md)
+
+## Conversation
+
+Home now discovers the selected agent through Core and retains per-agent drafts,
+search, input mode, reading position and open documents while navigating or
+reconnecting. Send/queue, streaming, stop and explicit retry use the generated
+protocol. Command/control-Enter submits; ordinary Enter keeps multiline input.
+See the [conversation verification record](../../docs/research/9-conversation.md)
+for captures, tests and the explicitly tracked remaining rich-input/thread work.

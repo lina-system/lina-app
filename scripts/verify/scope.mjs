@@ -29,6 +29,9 @@ const researchFiles = new Set([
   'scripts/design-study/study.mjs',
   'scripts/design-study/study.test.mjs',
 ]);
+// Conversation sources/tests are covered by lina_app and lina_protocol above.
+// These six raster artifacts accompany their layout/state regression tests.
+const conversationCaptures = /^docs\/captures\/9\/(?:light|dark|high-contrast)-(?:desktop|phone)\.png$/;
 const designStudyAssets = /^docs\/research\/90-accent\/(?:[^/]+\.(?:md|json)|fonts\/(?:OFL\.txt|Pretendard-(?:Bold|Regular)\.otf)|(?:icons|marks|renders)\/[^/]+\.svg)$/;
 export function classify(paths, registry = components) {
   const selected = new Set();
@@ -36,7 +39,7 @@ export function classify(paths, registry = components) {
     if (path.startsWith('/') || path.split('/').includes('..')) throw new Error(`unsafe path: ${path}`);
     const component = registry.find(c => path.startsWith(`${c.path}/`));
     if (component) { selected.add(component.name); continue; }
-    if (rootFiles.has(path) || researchFiles.has(path) || designStudyAssets.test(path) ||
+    if (rootFiles.has(path) || researchFiles.has(path) || conversationCaptures.test(path) || designStudyAssets.test(path) ||
         /^docs\/(policy|research)\/[^/]+\.md$/.test(path) ||
         /^docs\/captures\/[^/]+\/[^/]+\.png$/.test(path) ||
         /^docs\/research\/captures\/mac-panel\/[^/]+\.(?:md|log|json|png)$/.test(path) ||

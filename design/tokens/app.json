@@ -88,6 +88,27 @@
         "value": 760,
         "unit": "px"
       }
+    },
+    "sidebarWidth": {
+      "$type": "dimension",
+      "$value": {
+        "value": 216,
+        "unit": "px"
+      }
+    },
+    "desktopWidth": {
+      "$type": "dimension",
+      "$value": {
+        "value": 1000,
+        "unit": "px"
+      }
+    },
+    "composerHeight": {
+      "$type": "dimension",
+      "$value": {
+        "value": 160,
+        "unit": "px"
+      }
     }
   },
   "accessibility": {

@@ -1,0 +1,54 @@
+{
+  "firstFrameReady": true,
+  "inputRoute": "AppKit sendEvent to own panel",
+  "loginItem": "disabledInTests",
+  "samples": [
+    {
+      "appActive": false,
+      "fixtureActive": true,
+      "fixturePID": 11378,
+      "frontmostPID": 11378,
+      "panelKey": false,
+      "phase": "hidden-ready",
+      "query": "",
+      "visible": false
+    },
+    {
+      "appActive": true,
+      "fixtureActive": true,
+      "fixturePID": 11378,
+      "frontmostPID": 11378,
+      "panelKey": true,
+      "phase": "show",
+      "query": "",
+      "visible": true
+    },
+    {
+      "appActive": true,
+      "fixtureActive": true,
+      "fixturePID": 11378,
+      "frontmostPID": 11378,
+      "panelKey": true,
+      "phase": "type",
+      "query": "abc",
+      "visible": true
+    },
+    {
+      "appActive": false,
+      "fixtureActive": true,
+      "fixturePID": 11378,
+      "frontmostPID": 11378,
+      "panelKey": false,
+      "phase": "escape",
+      "query": "abc",
+      "visible": false
+    }
+  ],
+  "fixtureLog": "LINA_FIXTURE_READY 11378\n",
+  "collectedAt": "2026-10-24T12:05:07.886Z",
+  "os": "26.6.2",
+  "sourceRevision": "58add45e698cd9e5007181a9207af5e300bc67f1",
+  "dirty": true,
+  "signing": "ad-hoc, codesign --verify --deep --strict passed",
+  "physicalShortcut": "not exercised by this fixture; see Safari acceptance"
+}

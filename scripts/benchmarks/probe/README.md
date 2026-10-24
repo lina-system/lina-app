@@ -56,7 +56,12 @@ evidence manifest.
 `run.sh panel-shortcut` opens a synthetic foreground window with a **Send panel
 shortcut** button for the mac-panel study. Each click posts one fixed
 Control+Option+Space chord through the existing authorized probe. It is not a
-shell/script bridge and accepts no arbitrary keys or app targets. It refuses
+shell/script bridge and accepts no arbitrary keys or app targets. The chord is
+`spikes/mac-panel/macos/Runner/Platform/PanelMeasurementChord.swift`: `build.sh`
+compiles that file into both this probe and the panel app, so the posted chord
+and the chord the panel registers in measurement mode are one definition. The
+panel registers it instead of the saved preference, so a shortcut chosen in the
+study UI cannot make the measurement time out. It refuses
 without existing Accessibility/post-event access, while locked, if the panel
 app is absent, or after ten sends. It requests no permission. The control quits
 after the tenth send (or after three minutes). Use the companion

@@ -1,0 +1,27 @@
+{
+  "workflowRun": "https://github.com/lina-system/lina-app/actions/runs/40091876622",
+  "head": "502cae952b8286670d949c111d81af8e0087aced",
+  "checkoutMergeRevision": "58add45e698cd9e5007181a9207af5e300bc67f1",
+  "foundationStatus": "passed",
+  "sourceDirtyBeforeCapture": false,
+  "flutter": "3.47.8",
+  "bundleBytes": 48497824,
+  "bundleTreeSha256": "09247962c9430a4a953c3d706277a28dcd856f077dbc739217df06480c105b54",
+  "signing": "ad-hoc; codesign --verify --deep --strict passed; not notarized",
+  "artifactID": 12559731352,
+  "artifactDigest": "sha256:bc586cd6ffcffffa0329bfedf43661294e60032bdb96383eafce2d776156ebaf",
+  "sha256": {
+    "launcher.png": "51ce995afb75ea1bff5604b062ab3ee1fe129cf63c2b23d47f3dbbe7b521f8c8",
+    "focus.json": "ee4d36fd506bfded52d576a98786c7c49584920b0c65e03f8fb47280a6831051"
+  },
+  "checks": {
+    "nativeXCTest": {
+      "passed": 9,
+      "failed": 0
+    },
+    "hiddenFirstFrame": "passed",
+    "externalFixtureFocus": "passed",
+    "SafariFullscreen": "unverified; #116"
+  },
+  "notes": "focus.json dirty=true includes the newly written capture file. The build/foundation source snapshot above was clean. AppKit sendEvent to the own panel is automated input, not physical keyboard or Safari fullscreen evidence."
+}

@@ -28,6 +28,13 @@
 		33CC10F62044A3C60003C045 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 33CC10F42044A3C60003C045 /* MainMenu.xib */; };
 		33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC11122044BFA00003C045 /* MainFlutterWindow.swift */; };
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
+		A1B474ED6EDC63193E015FEB /* LinaAppTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1AA888C03EB05AE48E8C5B; };
+		3455972699484BCBB390D464 /* LinaTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 031006336B3745EA9FB32454; };
+		A3BA257D363994C164798532 /* GlobalShortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B162EB1515193D4F9DB9D91; };
+		3930343698391577EF23316F /* LauncherContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 598969F46B9152450F582E7D; };
+		D00330133549CABAFAEF4B55 /* LauncherPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D78D0D933F1303952ED0F5; };
+		5D486B2C5A318ADA7DF10474 /* LoginItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F53A9BB3771F1784253980; };
+		A313A975B444A234693DB44B /* LauncherMenus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1600B5FD1FA05BDCCE0574AD; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -80,6 +87,13 @@
 		78E0A7A72DC9AD7400C4905E /* FlutterGeneratedPluginSwiftPackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlutterGeneratedPluginSwiftPackage; path = ephemeral/Packages/FlutterGeneratedPluginSwiftPackage; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		3A1AA888C03EB05AE48E8C5B /* LinaAppTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/Launcher/Generated/LinaAppTokens.swift"; sourceTree = SOURCE_ROOT; };
+		031006336B3745EA9FB32454 /* LinaTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/Launcher/Generated/LinaTokens.swift"; sourceTree = SOURCE_ROOT; };
+		0B162EB1515193D4F9DB9D91 /* GlobalShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/Launcher/GlobalShortcut.swift"; sourceTree = SOURCE_ROOT; };
+		598969F46B9152450F582E7D /* LauncherContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/Launcher/LauncherContent.swift"; sourceTree = SOURCE_ROOT; };
+		E4D78D0D933F1303952ED0F5 /* LauncherPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/Launcher/LauncherPanel.swift"; sourceTree = SOURCE_ROOT; };
+		22F53A9BB3771F1784253980 /* LoginItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/Launcher/LoginItem.swift"; sourceTree = SOURCE_ROOT; };
+		1600B5FD1FA05BDCCE0574AD /* LauncherMenus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/Launcher/LauncherMenus.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -167,6 +181,13 @@
 			isa = PBXGroup;
 			children = (
 				33CC10F02044A3C60003C045 /* AppDelegate.swift */,
+				1600B5FD1FA05BDCCE0574AD /* LauncherMenus.swift */,
+				22F53A9BB3771F1784253980 /* LoginItem.swift */,
+				E4D78D0D933F1303952ED0F5 /* LauncherPanel.swift */,
+				598969F46B9152450F582E7D /* LauncherContent.swift */,
+				0B162EB1515193D4F9DB9D91 /* GlobalShortcut.swift */,
+				031006336B3745EA9FB32454 /* LinaTokens.swift */,
+				3A1AA888C03EB05AE48E8C5B /* LinaAppTokens.swift */,
 				33CC11122044BFA00003C045 /* MainFlutterWindow.swift */,
 				33E51913231747F40026EE4D /* DebugProfile.entitlements */,
 				33E51914231749380026EE4D /* Release.entitlements */,
@@ -356,6 +377,13 @@
 			files = (
 				33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */,
 				33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */,
+				A313A975B444A234693DB44B /* LauncherMenus.swift in Sources */,
+				5D486B2C5A318ADA7DF10474 /* LoginItem.swift in Sources */,
+				D00330133549CABAFAEF4B55 /* LauncherPanel.swift in Sources */,
+				3930343698391577EF23316F /* LauncherContent.swift in Sources */,
+				A3BA257D363994C164798532 /* GlobalShortcut.swift in Sources */,
+				3455972699484BCBB390D464 /* LinaTokens.swift in Sources */,
+				A1B474ED6EDC63193E015FEB /* LinaAppTokens.swift in Sources */,
 				335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -44,3 +44,12 @@ reconnecting. Send/queue, streaming, stop and explicit retry use the generated
 protocol. Command/control-Enter submits; ordinary Enter keeps multiline input.
 See the [conversation verification record](../../docs/research/9-conversation.md)
 for captures, tests and the explicitly tracked remaining rich-input/thread work.
+
+## macOS launcher
+
+The Mac app starts an accessory launcher with Control-Option-Space. Swift owns
+the input and result list; a pre-warmed Flutter view draws the reply area.
+**Open LINA** opens the full app. **Open at login** is an explicit opt-in using
+SMAppService; tests cannot change it. See the [channel and verification record](../../docs/research/31-launcher.md).
+Search results, Korean first-key input, Liquid Glass and Command-Space takeover
+remain separate work. The owner's framework decision stays open in #2.

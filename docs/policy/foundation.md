@@ -165,3 +165,13 @@ ad-hoc-signed Flutter release build run in the `mac-panel` CI job, which also
 checks the hidden first-frame/platform-channel handshake. `scripts/mac-panel.mjs`
 is the research build/measurement entry point; it does not add a release artifact
 to the production manifest. Device acceptance remains separate from CI.
+
+## Production launcher verification
+
+The `swift-theme` generator registration (#31) verifies the pinned Core Swift
+output and app-token extensions in `packages/lina_app/macos/Runner/Launcher/Generated`.
+The production launcher requires this registration; the Node drift tests run in
+foundation. `scripts/launcher.mjs` verifies hidden first-frame readiness and
+external synthetic-fixture focus. The macOS native CI job runs the Swift package
+XCTests and both app checks, uploading captures as `launcher-evidence`. These
+checks do not claim Safari fullscreen or physical input acceptance.

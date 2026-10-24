@@ -26,7 +26,11 @@ work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 staged="$work/LINA Probe.app"
 mkdir -p "$staged/Contents/MacOS"
 cp "$here/Info.plist" "$staged/Contents/Info.plist"
-xcrun swiftc -O -o "$staged/Contents/MacOS/LINA Probe" "$here"/*.swift
+# PanelMeasurementChord.swift is shared with the panel app so the posted chord
+# and the chord registered in measurement mode cannot drift apart.
+chord="$here/../../../spikes/mac-panel/macos/Runner/Platform/PanelMeasurementChord.swift"
+[ -f "$chord" ] || fail "missing shared chord source: $chord"
+xcrun swiftc -O -o "$staged/Contents/MacOS/LINA Probe" "$here"/*.swift "$chord"
 "$here/sign.sh" "$staged" "$sign" >/dev/null
 
 mkdir -p "$(dirname "$app")"

@@ -26,6 +26,8 @@
 		BB8900000000000000000002 /* LauncherPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA8900000000000000000002; };
 		BB8900000000000000000001 /* GlobalShortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA8900000000000000000001; };
 		BB8900000000000000000000 /* ClipboardHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA8900000000000000000000; };
+		BB8900000000000000000006 /* PanelShortcutPreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA8900000000000000000006; };
+		BB8900000000000000000005 /* PanelMeasurementChord.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA8900000000000000000005; };
 		331C80D8294CF71000263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C80D7294CF71000263BE5 /* RunnerTests.swift */; };
 		335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 335BBD1A22A9A15E00E9071D /* GeneratedPluginRegistrant.swift */; };
 		33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC10F02044A3C60003C045 /* AppDelegate.swift */; };
@@ -69,6 +71,8 @@
 		AA8900000000000000000002 /* LauncherPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Platform/LauncherPanel.swift; sourceTree = "<group>"; };
 		AA8900000000000000000001 /* GlobalShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Platform/GlobalShortcut.swift; sourceTree = "<group>"; };
 		AA8900000000000000000000 /* ClipboardHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Platform/ClipboardHistory.swift; sourceTree = "<group>"; };
+		AA8900000000000000000006 /* PanelShortcutPreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Platform/PanelShortcutPreference.swift; sourceTree = "<group>"; };
+		AA8900000000000000000005 /* PanelMeasurementChord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Platform/PanelMeasurementChord.swift; sourceTree = "<group>"; };
 		331C80D5294CF71000263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		331C80D7294CF71000263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		333000ED22D3DE5D00554162 /* Warnings.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Warnings.xcconfig; sourceTree = "<group>"; };
@@ -177,6 +181,8 @@
 				AA8900000000000000000003 /* VisibleLatency.swift */,
 				AA8900000000000000000001 /* GlobalShortcut.swift */,
 				AA8900000000000000000000 /* ClipboardHistory.swift */,
+				AA8900000000000000000005 /* PanelMeasurementChord.swift */,
+				AA8900000000000000000006 /* PanelShortcutPreference.swift */,
 				33E51913231747F40026EE4D /* DebugProfile.entitlements */,
 				33E51914231749380026EE4D /* Release.entitlements */,
 				33CC11242044D66E0003C045 /* Resources */,
@@ -367,6 +373,8 @@
 				BB8900000000000000000003 /* VisibleLatency.swift in Sources */,
 				BB8900000000000000000001 /* GlobalShortcut.swift in Sources */,
 				BB8900000000000000000000 /* ClipboardHistory.swift in Sources */,
+				BB8900000000000000000005 /* PanelMeasurementChord.swift in Sources */,
+				BB8900000000000000000006 /* PanelShortcutPreference.swift in Sources */,
 				33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */,
 				335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */,
 			);

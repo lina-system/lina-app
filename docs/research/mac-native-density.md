@@ -23,6 +23,7 @@ Status: **research input, not tokens.** Nothing here changes `DESIGN.md` or
 | Bundle structure, linked frameworks, window/panel classes | Observed statically |
 | Layout and motion constants returned by app code | Observed statically (decompiled return values) |
 | Asset-catalog colors | Observed statically |
+| Theme data files shipped inside an app bundle | Observed statically |
 | Rendered pixels, real spacing on screen, motion timing | **Not observed** (no live capture in this session) |
 | Hotkey → panel latency, lost keys, memory | **Not observed**; owned by #91 |
 
@@ -34,10 +35,12 @@ point to verify in #92's side-by-side capture.
 
 | Element | LINA range | Note |
 | --- | --- | --- |
-| Single-line list row | 28–36 pt | Dense lists sit near 28; launcher results near 36 |
+| Single-line list row | 23–36 pt | Dense to-do rows sit near 23–28; system lists near 35; launcher results near 36 |
 | Two-line or row with secondary text | 38–58 pt | Use the lower end for title + one meta line |
 | Section header row | 36–40 pt | Taller than a row, never a full card |
 | Small gap row between groups | 14–16 pt | Spacing, not a divider line |
+| Checkbox → title gap | about 5 pt | Tight; the checkbox reads as part of the row |
+| List top / bottom padding | about 26 / 84 pt | Generous bottom space so the last item never hugs the edge |
 | Sidebar width | 190 pt minimum, 240 pt default | Content area keeps at least 400 pt |
 | Launcher panel width | 680–760 pt | Results area about 6–8 rows tall before scrolling |
 | Launcher header / footer | 52–66 pt / 40–44 pt | Header holds the query field only |
@@ -50,8 +53,11 @@ question 1.
 
 ## Type
 
-- System-native feel comes from the platform UI font at 13 pt body, 11 pt
-  secondary, 16–18 pt for the launcher query, 24 pt+ only for page titles.
+- System-native feel comes from the platform UI font at 13–14 pt body, 11–12
+  pt secondary, 16–18 pt for the launcher query, about 23 pt for a list page
+  title. The native to-do app expresses spacing in a text-relative unit (likely
+  tied to its text-size setting; unverified); LINA should keep spacing
+  proportional to text scale too.
 - Weights used: regular for body, medium/semibold for titles and selected
   rows, bold rarely. No light weight for UI text.
 - LINA keeps Pretendard for Korean content (DESIGN.md). Whether the Mac shell
@@ -109,10 +115,14 @@ Observed architecture choices worth testing in the spike, not copying:
   for shortcut recording. The Carbon path needs no Accessibility permission
   for a plain hotkey. The spike should start there and keep event taps opt-in.
 - **Panel class**: the launcher's main window is an `NSPanel` subclass hosting
-  a web view; the to-do app's quick-entry window is a floating panel
-  (floating level, joins all Spaces, does not hide on deactivate). Whether each
-  uses the non-activating style flag was not confirmed statically. #89 must
-  measure focus behavior directly rather than assume it.
+  a web view, created with the non-activating panel style, floating, at the
+  modal-panel window level, joining all apps' Spaces as a transient window,
+  shown with "order front regardless" and no app activation in its show path.
+  (The call site is attributed to the main window by code location, not by a
+  symbol.) The to-do app's quick-entry window is a floating panel *without* the
+  non-activating flag, so it takes focus. LINA's target is the first model:
+  #89 should create the panel non-activating and verify that focus stays in
+  the original app, rather than assume it.
 - **Shell + rendered UI**: the launcher draws its whole UI in a web view inside a
   native panel, with extensions running in Node worker threads (a small heap
   cap per worker) whose React tree is sent to the view as messages. It still feels native
@@ -139,7 +149,9 @@ For the owner in #4; none are applied by this note.
 
 ## Method and limits
 
-Static inspection used REA 6.7.0 (MIT) with Ghidra 12.1.4 on the reference Mac:
+Static inspection used REA 6.7.0 (MIT) with Ghidra 12.1.4 on the reference Mac,
+driven partly by Codex and partly by Claude Code over REA's MCP server, plus
+`otool` disassembly where Ghidra's first-query analysis timed out:
 bundle/plist/signature inspection, asset-catalog metadata, compiled Interface
 Builder decoding, inert JavaScript/CSS parsing, Objective-C metadata and
 decompiled return values of layout-default methods. No app was launched,

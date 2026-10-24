@@ -292,3 +292,10 @@ test('win32 escaping leaves no metacharacter outside quotes', () => {
   assert.equal(quoted, false);
   assert.equal(bare.replace(/ /g, '').replace(/[%"]/g, ''), '');
 });
+
+test('production launcher cannot lose its Swift generation gate', t => {
+  const f = fixture(t);
+  const path = 'packages/lina_app/macos/Runner/Launcher/LauncherPanel.swift';
+  f.put(path, '// fixture'); f.files.push(path);
+  assert.match(verify(f).error, /requires swift-theme/);
+});

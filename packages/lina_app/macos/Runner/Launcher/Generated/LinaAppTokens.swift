@@ -15,7 +15,10 @@ public enum LinaAppTokens {
     public static let launcherHeight: CGFloat = 600
     public static let launcherResultsHeight: CGFloat = 96
     public static let launcherWidth: CGFloat = 680
+    public static let layoutComposerHeight: CGFloat = 160
+    public static let layoutDesktopWidth: CGFloat = 1000
     public static let layoutReadingWidth: CGFloat = 760
+    public static let layoutSidebarWidth: CGFloat = 216
     public static let radiusCard: CGFloat = 12
     public static let spaceCompact: CGFloat = 4
     public static let spaceGutter: CGFloat = 24

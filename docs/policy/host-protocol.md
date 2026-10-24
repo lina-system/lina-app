@@ -55,7 +55,7 @@ build define. TCP belongs on the private tailnet; Core's listener authenticates
 the device/owner. No client identity field grants permission, and no model,
 worker or external service is contacted by this app.
 
-The skeleton offers client **1.0**, conversation and the eight basic result card
+The app offers client **1.0**, conversation, read-only progress and the eight basic result card
 types. Parsing the broader fixture corpus does not advertise client 1.1 surfaces,
 mini apps or mocks. Welcome must match the request/RPC ids, Core sender/main,
 epoch, selected version and an offered subset of capabilities. A typed refusal
@@ -63,8 +63,12 @@ stays rejected even after EOF. Core's compiled table currently lists the TUI;
 it must reject this app until a supported development or accepted release row
 exists. The client never substitutes the TUI identity to bypass that table.
 
-The screen holds only presentation preferences, the current display snapshot,
-request correlation and an unsent draft in memory. It has no database or file
+The screen holds only presentation preferences, current topic snapshots, request
+correlation and per-agent drafts, search, focus and reading position in memory.
+Core discovers the selected main conversation; snapshots and cursor checks route
+updates independently of the currently visible agent. The conversation
+[verification record](../research/9-conversation.md) distinguishes shipped
+behavior from the attachment/thread/voice follow-up. It has no database or file
 writer for conversations, results, memory, permissions or completion. Requests
 are sent once. A timeout/drop does not retry an effect, claim success or clear a
 draft. Results display the status Core supplied; requesting a save cannot mark

@@ -1,7 +1,49 @@
 {
   "schemaVersion": 1,
   "status": "development-only",
-  "flutter": { "version": "3.47.8", "channel": "stable" },
-  "targets": ["ios", "android", "macos", "windows", "linux"],
-  "artifacts": []
+  "flutter": {
+    "version": "3.47.8",
+    "channel": "stable"
+  },
+  "targets": [
+    "ios",
+    "android",
+    "macos",
+    "windows",
+    "linux"
+  ],
+  "artifacts": [
+    {
+      "target": "macos",
+      "bytes": 47505506,
+      "sha256": "ab01357dce76cc2b791880c392f9ddeeac3fcffbcff60eef4aa47cf6119198b8",
+      "digestFormat": "SHA-256 of JSON file-path to SHA-256/symlink-target inventory",
+      "signing": "ad-hoc; codesign --verify --deep --strict passed; not notarized",
+      "engineLicenseSha256": "3c0040023a5789bf56d6bf41fd44f08b21758523d41f128fb7dd6beb398d1191",
+      "sourceRevision": "b2dac808333aba1bad566e51690179eba03512b5",
+      "dirty": true
+    },
+    {
+      "target": "ios",
+      "bytes": 21081254,
+      "sha256": "faaa3e54af8b08c1696051e4b7d252835d40c19ca6358f5b7e7fc012fce91a06",
+      "digestFormat": "SHA-256 of JSON file-path to SHA-256/symlink-target inventory",
+      "signing": "unsigned",
+      "engineLicenseSha256": "3c0040023a5789bf56d6bf41fd44f08b21758523d41f128fb7dd6beb398d1191",
+      "sourceRevision": "b2dac808333aba1bad566e51690179eba03512b5",
+      "dirty": true
+    },
+    {
+      "target": "ios-simulator",
+      "bytes": 151199519,
+      "sha256": "9a6fdc82a2f203d13935b79f5cb51d36aecf570e559b2927bd9e4abb46953f18",
+      "digestFormat": "SHA-256 of JSON file-path to SHA-256/symlink-target inventory",
+      "signing": "unsigned",
+      "engineLicenseSha256": "3c0040023a5789bf56d6bf41fd44f08b21758523d41f128fb7dd6beb398d1191",
+      "sourceRevision": "b2dac808333aba1bad566e51690179eba03512b5",
+      "dirty": true
+    }
+  ],
+  "evidence": "docs/research/6-native-app.md",
+  "publication": "none; local development verification only"
 }

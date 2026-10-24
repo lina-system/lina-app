@@ -230,10 +230,17 @@ void main() {
       final filename = mode == LinaThemeMode.highContrast
           ? 'high-contrast'
           : mode.name;
-      await expectLater(
-        find.byKey(const ValueKey('capture')),
-        matchesGoldenFile('../../../docs/captures/5/$filename.png'),
-      );
+      // CoreText and FreeType rasterize the bundled fonts differently. Keep
+      // separate reviewed baselines; other hosts still run layout/semantics.
+      if (Platform.isLinux || Platform.isMacOS) {
+        final capture = Platform.isMacOS
+            ? '../../../docs/captures/6/design-macos-$filename.png'
+            : '../../../docs/captures/5/$filename.png';
+        await expectLater(
+          find.byKey(const ValueKey('capture')),
+          matchesGoldenFile(capture),
+        );
+      }
     });
   }
 }

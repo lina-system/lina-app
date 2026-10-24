@@ -1,0 +1,82 @@
+// SPDX-License-Identifier: Apache-2.0
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:lina_protocol/lina_protocol.dart';
+
+void main() {
+  final root = Directory('../../protocol/core/fixtures/client');
+  test('every positive envelope round-trips without numeric loss', () {
+    final files = root
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where(
+          (f) =>
+              f.path.endsWith('.json') &&
+              !RegExp(r'/(cases|invalid|application)/').hasMatch(f.path),
+        );
+    expect(files.length, greaterThan(200));
+    for (final file in files) {
+      final source = file.readAsStringSync();
+      final envelope = Envelope.decode(source);
+      expect(
+        exactDecode(envelope.encode()),
+        exactDecode(source),
+        reason: file.path,
+      );
+      expect(envelope.typedPayload, isNotNull, reason: file.path);
+    }
+  });
+  test('client and server conformance cases enforce their own outcomes', () {
+    final cases = root
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.contains('/cases/') && f.path.endsWith('.json'));
+    expect(cases.length, greaterThan(40));
+    for (final file in cases) {
+      final spec = exactDecode(file.readAsStringSync()) as Map;
+      final receiver = ProtocolReceiver(tolerant: spec['side'] == 'client');
+      final base = file.parent.parent;
+      final admitted = <Object?>[];
+      final errors = <String>[];
+      for (final path in spec['input'] as List) {
+        try {
+          final result = receiver.receive(
+            File('${base.path}/$path').readAsStringSync(),
+          );
+          if (result != null) admitted.add(result.toJson());
+          errors.add('');
+        } on FormatException {
+          errors.add('malformed');
+        }
+      }
+      expect(errors, spec['errors'], reason: file.path);
+      expect(admitted, [
+        for (final path in spec['output'] as List)
+          exactDecode(File('${base.path}/$path').readAsStringSync()),
+      ], reason: file.path);
+      expect(
+        exactDecode(exactEncode(receiver.counters)),
+        spec['outcome'],
+        reason: file.path,
+      );
+    }
+  });
+  test(
+    'exact numeric comparison distinguishes uint64 overflow and fractions',
+    () {
+      expect(
+        ExactNumber('18446744073709551615')
+            .compareTo(ExactNumber('18446744073709551616')),
+        lessThan(0),
+      );
+      expect(
+        ExactNumber('9007199254740993.125').toString(),
+        '9007199254740993.125',
+      );
+      expect(exactDecode('{"n":1e3}'), exactDecode('{"n":1000.0}'));
+      expect(() => exactDecode('{"n":01}'), throwsFormatException);
+      expect(() => exactDecode('{"n":1,"n":2}'), throwsFormatException);
+    },
+  );
+}

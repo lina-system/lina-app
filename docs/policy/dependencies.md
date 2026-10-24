@@ -87,8 +87,9 @@ The active app/design runtime closure contains Flutter, sky_engine and five
 hosted SDK dependencies; every version and notice is inventoried. Pretendard
 1.3.9 and JetBrains Mono v2.304 are bundled under OFL-1.1. Lucide v0.468.0
 paths carry ISC and Feather MIT notices. Theme verification checks the reviewed
-asset digests. Native engine-artifact notice verification remains with #6.
+asset digests. Native builders retain the license registry and package the resolved engine
+notice file, recording its SHA-256 in artifact evidence.
 
 Generator versions and entry-script hashes are pinned as described in the
-[foundation policy](foundation.md#generated-sources-and-lint). Theme/lint work is
-#5; Dart schema generation is #6. Core owns its canonical schema and TUI palette.
+[foundation policy](foundation.md#generated-sources-and-lint). Theme/lint and Dart schema generation are active; see
+[the generator decision](host-protocol.md). Core owns its canonical schema and TUI palette.

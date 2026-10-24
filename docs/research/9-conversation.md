@@ -31,7 +31,9 @@ submission until the person explicitly chooses an available agent.
   answer is unknown, not completed. Restored inactive turns also remain unknown:
   an older answer in the snapshot cannot prove the latest turn succeeded.
   A stopped reply requires Core's stop receipt
-  and inactive state. The missing canonical per-turn terminal outcome is recorded
+  and inactive state. A later turn that becomes active clears the previous
+  turn's stop receipt, so a queued turn that Core starts cannot be labeled
+  user-stopped. The missing canonical per-turn terminal outcome is recorded
   in Core #1707; these labels do not certify delegated-work completion.
 - Prose is selectable and long fenced code scrolls horizontally. Document cards
   open a read-only panel covering half the desktop window or a phone sheet; full
@@ -39,8 +41,9 @@ submission until the person explicitly chooses an available agent.
   close control; keeping the composer alongside the phone panel remains #120.
   A newer result card preserves the loaded version and offers Read latest.
   Version-pinned result reads collect every returned
-  text page, and stale reads cannot replace a newer selected result. Saved status
-  comes exclusively from Core.
+  text page, and stale reads cannot replace a newer selected result. A failure
+  from a superseded read cannot set the error on the document now being read.
+  Saved status comes exclusively from Core.
 - All visual values come from `lina_design`, including three new layout tokens.
   One `AgentMark` widget supplies the neutral identity placeholder. No expression
   is invented, and `PlatformSlots.launcher` is untouched.
@@ -53,8 +56,10 @@ The red widget run failed because startup did not discover a conversation and
 switching agents retained the wrong draft. The final widget tests cover draft
 isolation, navigation/reconnect/resize reading position, all eight labels,
 composition guards, capability/removed-agent checks, late replies, duplicate and
-gapped streams, stop/retry, uncertain input without resend, full document pages,
-and conversation → delegation → question → restart/reconnect with a fixture Core.
+gapped streams, a new turn clearing a previous stop receipt, stop/retry,
+uncertain input without resend, full document pages, superseded document read
+failures, and conversation → delegation → question → restart/reconnect with a
+fixture Core.
 
 `topic_window_test.dart` covers replacement/deduplication, gaps, foreign topics,
 old revisions, epoch changes, exponent-form integer cursors and uint64 precision.

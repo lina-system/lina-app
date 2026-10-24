@@ -146,6 +146,42 @@ void main() {
     },
   );
   testWidgets(
+    'a new Core turn clears the stop confirmation from the previous turn',
+    (tester) async {
+      final core = ConversationCore();
+      await mount(tester, core);
+      await tester.enterText(composer, 'stop this turn');
+      await tester.pump();
+      await tester.tap(find.text('Send'));
+      await tester.pump();
+      core.pending.last.complete(event('item_done', {}, effect: 'applied'));
+      await tester.pump();
+      core.stream('lina', 1, 'turn', 'turn_state', {'active': true});
+      await tester.pump();
+      expect(find.text('Responding'), findsOneWidget);
+      await tester.tap(find.text('Stop'));
+      await tester.pump();
+      core.pending.last.complete(event('item_done', {}, effect: 'applied'));
+      await tester.pump();
+      core.stream('lina', 2, 'turn', 'turn_state', {'active': false});
+      await tester.pump();
+      expect(find.text('User-stopped'), findsOneWidget);
+      // Core starts a queued input without a new local send().
+      core.stream('lina', 3, 'turn', 'turn_state', {'active': true});
+      await tester.pump();
+      expect(find.text('Responding'), findsOneWidget);
+      core.stream('lina', 4, 'reply', 'item_done', {
+        'text': 'A completed queued reply',
+        'speaker': 'agent',
+        'agent_id': 'lina',
+      });
+      core.stream('lina', 5, 'turn', 'turn_state', {'active': false});
+      await tester.pump();
+      expect(find.text('Completed'), findsOneWidget);
+      expect(find.text('User-stopped'), findsNothing);
+    },
+  );
+  testWidgets(
     'late receipts and stream replies cannot change a corrected target or draft',
     (tester) async {
       final core = ConversationCore();
@@ -486,6 +522,71 @@ void main() {
       await tester.pump();
       expect(find.text('Zeta · Draft workshop'), findsNothing);
       expect(find.text('Nothing to decide now.'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'superseded document read errors do not replace the current document',
+    (tester) async {
+      final core = ConversationCore();
+      core.welcome = ProtocolWelcome.fromJson({
+        ...core.welcome!.toJson(),
+        'capabilities': [
+          {'name': 'conversation', 'version': '1.0'},
+          CoreConnection.capabilities.firstWhere((c) => c['name'] == 'results'),
+        ],
+      });
+      Map<String, dynamic> document(String id, String title) => {
+        ...fixture('results/document_draft')['payload'] as Map<String, dynamic>,
+        'result_id': id,
+        'title': title,
+        'provenance': {
+          'agent_id': 'lina',
+          'conversation_id': 'lina-main',
+          'turn_id': 'turn',
+          'task_id': null,
+        },
+      };
+      final first = document('document-a', 'Synthetic document A');
+      final second = document('document-b', 'Synthetic document B');
+      core.snapshots['lina'] = [
+        {
+          'kind': 'result',
+          'key': 'document-a',
+          'revision': 1,
+          'payload': first,
+        },
+        {
+          'kind': 'result',
+          'key': 'document-b',
+          'revision': 1,
+          'payload': second,
+        },
+      ];
+      await mount(tester, core);
+      final list = tester
+          .widget<ListView>(
+            find.byKey(const PageStorageKey('conversation:lina')),
+          )
+          .controller!;
+      list.jumpTo(0);
+      await tester.pump();
+      await tester.tap(find.text('Read').first);
+      await tester.pump();
+      final superseded = core.pending.last;
+      list.jumpTo(list.position.maxScrollExtent);
+      await tester.pump();
+      await tester.tap(find.text('Read').last);
+      await tester.pump();
+      core.pending.last.complete(
+        event('result', {...second, 'text': 'Second document body'}),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Second document body'), findsOneWidget);
+      superseded.completeError(const ConnectionLost());
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Disconnected. Reopen'), findsNothing);
+      expect(find.text('Second document body'), findsOneWidget);
     },
   );
 

@@ -358,7 +358,12 @@ class ConversationController extends ChangeNotifier {
           item.payload as Map<String, dynamic>,
         );
         if (turn.active != null) {
-          if (turn.active! && !state.active) state.replyCompleted = false;
+          if (turn.active! && !state.active) {
+            // A new turn owns its own outcome. A stop receipt from the
+            // previous turn cannot label this turn as user-stopped.
+            state.replyCompleted = false;
+            state.stopConfirmed = false;
+          }
           state.active = turn.active!;
           if (state.active) {
             state.turn = TurnPresentation.responding;
@@ -556,6 +561,18 @@ class ConversationController extends ChangeNotifier {
       unawaited(_readDocument(state, result));
   }
 
+  bool _isCurrentDocumentRead(
+    AgentPresentation state,
+    ProtocolResult result,
+    Object generation,
+    Object request,
+  ) =>
+      !_disposed &&
+      generation == _generation &&
+      request == state.documentRequest &&
+      state.document?.resultId == result.resultId &&
+      state.document?.revision == result.revision;
+
   Future<void> _readDocument(
     AgentPresentation state,
     ProtocolResult result,
@@ -579,12 +596,7 @@ class ConversationController extends ChangeNotifier {
             if (offset != null) 'offset': offset,
           }),
         );
-        if (_disposed ||
-            generation != _generation ||
-            request != state.documentRequest ||
-            state.document?.resultId != result.resultId ||
-            state.document?.revision != result.revision)
-          return;
+        if (!_isCurrentDocumentRead(state, result, generation, request)) return;
         if (reply.kind != 'result' || reply.error != null) {
           state.documentError =
               'Could not load this saved version. Reopen it to try again.';
@@ -608,9 +620,11 @@ class ConversationController extends ChangeNotifier {
           });
       } while (offset != null);
     } on ConnectionLost {
+      if (!_isCurrentDocumentRead(state, result, generation, request)) return;
       state.documentError =
           'Disconnected. Reopen this document after reconnecting.';
     } on FormatException {
+      if (!_isCurrentDocumentRead(state, result, generation, request)) return;
       state.documentError = 'Could not read this document.';
     } finally {
       if (request == state.documentRequest) state.documentLoading = false;

@@ -14,7 +14,8 @@ app=${LINA_PROBE_APP:-/Applications/LINA Probe.app}
 sign=${LINA_PROBE_SIGN:-local}
 bundle_id=dev.lina.probe
 identity='LINA Probe Local Signing'
-signing="$HOME/Library/Application Support/LINA Probe/signing"
+support="$HOME/Library/Application Support/LINA Probe"
+signing="$support/signing"
 keychain="$signing/signing.keychain-db"
 keychain_pass="$signing/keychain-password"
 
@@ -87,6 +88,7 @@ rm -rf "$app.previous"
 mv "$staged" "$app"
 rm -rf "$app.previous"
 
+mkdir -p "$support"
 executable="$app/Contents/MacOS/LINA Probe"
 requirement=$(codesign -d -r- "$app" 2>&1 | sed -n 's/^designated => //p')
 cdhash=$(codesign -dvvv "$app" 2>&1 | sed -n 's/^CDHash=//p')
@@ -100,4 +102,4 @@ jq -n --arg app "$app" --arg bundle_id "$bundle_id" --arg sign "$sign" \
   --arg built_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   '{app:$app,bundle_id:$bundle_id,signing:$sign,designated_requirement:$requirement,cdhash:$cdhash,
     executable_sha256:$sha256,source_revision:$revision,source_dirty:$dirty,swift:$swift,sdk:$sdk,
-    codesign_verify_strict:"passed",built_at:$built_at}' | tee "$signing/../build.json"
+    codesign_verify_strict:"passed",built_at:$built_at}' | tee "$support/build.json"

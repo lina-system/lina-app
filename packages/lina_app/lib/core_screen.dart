@@ -28,6 +28,8 @@ class _CoreScreenState extends State<CoreScreen> {
   final _draft = TextEditingController();
   final _endpoint = TextEditingController();
   final _focus = FocusNode();
+  StreamSubscription<void>? _changes;
+  ProtocolWelcome? _validatedWelcome;
   String? _agent;
   String? _feedback;
   bool _sending = false;
@@ -38,6 +40,26 @@ class _CoreScreenState extends State<CoreScreen> {
     super.initState();
     _endpoint.text = widget.endpoint;
     _draft.addListener(_compositionChanged);
+    _changes = widget.connection.changes.listen((_) => _reconcileSelection());
+    _reconcileSelection();
+  }
+
+  /// The retained agent is usable only while the current Core welcome lists it.
+  String? get _selectedAgent {
+    final agent = _agent;
+    if (agent == null) return null;
+    final agents = widget.connection.welcome?.agents ?? const <ProtocolAgent>[];
+    return agents.any((a) => a.agentId == agent) ? agent : null;
+  }
+
+  /// A new welcome can drop the retained agent; a transient disconnect keeps it.
+  void _reconcileSelection() {
+    final welcome = widget.connection.welcome;
+    if (welcome == null || identical(welcome, _validatedWelcome)) return;
+    _validatedWelcome = welcome;
+    if (_agent != null && _selectedAgent == null) {
+      setState(() => _agent = null);
+    }
   }
 
   void _compositionChanged() {
@@ -55,6 +77,7 @@ class _CoreScreenState extends State<CoreScreen> {
 
   @override
   void dispose() {
+    _changes?.cancel();
     _draft.dispose();
     _endpoint.dispose();
     _focus.dispose();
@@ -62,11 +85,12 @@ class _CoreScreenState extends State<CoreScreen> {
   }
 
   Future<void> _send() async {
+    final agent = _selectedAgent;
     if (_sending ||
         _wasComposing ||
         _compositionEnding ||
         _draft.text.isEmpty ||
-        _agent == null ||
+        agent == null ||
         !widget.connection.hasCapability('conversation') ||
         widget.connection.phase != ConnectionPhase.connected)
       return;
@@ -78,7 +102,7 @@ class _CoreScreenState extends State<CoreScreen> {
     try {
       final history = await widget.connection.request(
         'conversation_start',
-        ProtocolConversationStart.fromJson({'agent_id': _agent}),
+        ProtocolConversationStart.fromJson({'agent_id': agent}),
       );
       if (history.kind != 'history' || history.error != null) {
         if (mounted) setState(() => _feedback = history.error?.code ?? '모름');
@@ -147,7 +171,7 @@ class _CoreScreenState extends State<CoreScreen> {
         ConnectionPhase.disconnected => (LinaStatus.unknown, 'Disconnected'),
       };
       final agents = c.welcome?.agents ?? <ProtocolAgent>[];
-      final selected = agents.any((a) => a.agentId == _agent) ? _agent : null;
+      final selected = _selectedAgent;
       return Scaffold(
         body: SafeArea(
           child: Center(

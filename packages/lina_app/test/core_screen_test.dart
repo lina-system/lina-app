@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lina_app/lina_app.dart';
 import 'package:lina_app/core_screen.dart';
+import 'package:lina_app/platform_slots.dart';
 import 'package:lina_protocol/lina_protocol.dart';
 import 'package:lina_design/lina_design.dart';
 
@@ -42,6 +43,28 @@ class DisplayCore extends CoreConnection {
   }
 }
 
+class ReconnectCore extends DisplayCore {
+  final _updates = StreamController<void>.broadcast(sync: true);
+  @override
+  Stream<void> get changes => _updates.stream;
+  void deliverWelcome(List<Object?> agents) {
+    phase = ConnectionPhase.connected;
+    final data = fixture('welcome')['payload'] as Map<String, dynamic>;
+    data['capabilities'] = [
+      {'name': 'conversation', 'version': '1.0'},
+    ];
+    data['agents'] = agents;
+    welcome = ProtocolWelcome.fromJson(data);
+    _updates.add(null);
+  }
+
+  @override
+  Future<void> dispose() async {
+    await _updates.close();
+    await super.dispose();
+  }
+}
+
 void main() {
   setUpAll(() async {
     final font = FontLoader('packages/lina_design/Pretendard');
@@ -62,6 +85,7 @@ void main() {
     DisplayCore core, {
     Size size = const Size(1000, 1100),
     DisplayPreferences? preferences,
+    PlatformSlots slots = const PlatformSlots(),
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -73,7 +97,7 @@ void main() {
     await tester.pumpWidget(
       LinaApp(
         preferences: p,
-        home: CoreScreen(connection: core, preferences: p),
+        home: CoreScreen(connection: core, preferences: p, slots: slots),
       ),
     );
     await tester.pumpAndSettle();
@@ -148,6 +172,64 @@ void main() {
     await tester.tap(find.text('Example preset agent').last);
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('composer')), '보내지 않음');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+    expect(core.requests, isEmpty);
+  });
+  testWidgets('reconnect clears an agent the new welcome no longer lists', (
+    tester,
+  ) async {
+    final core = ReconnectCore()..live();
+    await mount(tester, core);
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Example preset agent').last);
+    await tester.pumpAndSettle();
+    final composer = find.byKey(const ValueKey('composer'));
+    await tester.enterText(composer, '이어지는 초안');
+    await tester.pump();
+
+    core.deliverWelcome([
+      {'agent_id': 'agent-other', 'name': 'Another agent', 'preset': null},
+    ]);
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<TextField>(composer).controller!.text, '이어지는 초안');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+    expect(core.requests, isEmpty);
+    final send = tester.widget<TextButton>(
+      find.ancestor(of: find.text('Send'), matching: find.byType(TextButton)),
+    );
+    expect(send.onPressed, isNull);
+  });
+  testWidgets('native composer submit checks the reconnected welcome too', (
+    tester,
+  ) async {
+    final core = ReconnectCore()..live();
+    final slots = PlatformSlots(
+      composer: (context, controller, focus, submit, tokens) => TextField(
+        key: const ValueKey('native-composer'),
+        controller: controller,
+        focusNode: focus,
+        onSubmitted: (_) => submit(),
+      ),
+    );
+    await mount(tester, core, slots: slots);
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Example preset agent').last);
+    await tester.pumpAndSettle();
+    final composer = find.byKey(const ValueKey('native-composer'));
+    await tester.enterText(composer, '이어지는 초안');
+    await tester.pump();
+
+    core.deliverWelcome([
+      {'agent_id': 'agent-other', 'name': 'Another agent', 'preset': null},
+    ]);
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<TextField>(composer).controller!.text, '이어지는 초안');
     await tester.testTextInput.receiveAction(TextInputAction.send);
     await tester.pump();
     expect(core.requests, isEmpty);

@@ -100,3 +100,23 @@ notice file, recording its SHA-256 in artifact evidence.
 Generator versions and entry-script hashes are pinned as described in the
 [foundation policy](foundation.md#generated-sources-and-lint). Theme/lint and Dart schema generation are active; see
 [the generator decision](host-protocol.md). Core owns its canonical schema and TUI palette.
+
+## Native emoji name data
+
+The launcher's offline emoji/symbol catalog bundles Korean and English CLDR
+47.0.0 annotations and derived annotations (unicode-org/cldr-json commit
+`16f6b8578ba5fe98959034706f337674f816fc3f`) and Unicode Emoji 16.0 fully qualified
+sequences. These are permissively licensed **Unicode-3.0 data**, approved here
+as a data-only exception to the code-license list. They add no runtime library,
+network service, font or artwork. `THIRD-PARTY-NOTICES.md` contains the full
+license and copyright and is packaged by the existing native builder.
+
+`data/emoji/upstream.json` pins each source URL and SHA-256. Original third-party
+files remain byte-identical, with their upstream license rather than an Apache
+source header. `scripts/verify/emoji.mjs` is the Apache-2.0 transformation; the
+registered foundation check validates every source digest and regenerates the
+entire bundled JSON for byte comparison, offline. Updates replace the pinned
+source snapshots, review their license, regenerate with `--write`, and rerun
+the catalog tests, foundation and macOS XCTest/build checks. Only entries with
+both Korean and English names are included (CLDR's untranslated Sark flag is
+omitted); supported tone forms come exclusively from Emoji 16.0 sequences.

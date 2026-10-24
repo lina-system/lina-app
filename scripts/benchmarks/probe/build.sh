@@ -1,86 +1,33 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Build and sign LINA Probe, the single executable that holds the Accessibility
-# and Screen Recording grants for the launcher baseline (#91).
+# Build LINA Probe, the single executable that holds the Accessibility and
+# Screen Recording grants for the launcher baseline (#91), sign it with sign.sh
+# and install it.
 #
-# The grant survives rebuilds because the path, bundle ID and designated
-# requirement stay fixed: every build is signed by the same locally generated
-# certificate. Ad-hoc signing (LINA_PROBE_SIGN=adhoc, used by CI) ties TCC to
-# the cdhash, so a rebuilt ad-hoc app loses its grants.
+# The signing identity comes from LINA_PROBE_SIGN, else the first line of
+# ~/Library/Application Support/LINA Probe/sign-identity, else "local".
+# See sign.sh for the accepted values. The grants survive rebuilds while the
+# identity stays the same; ad-hoc signing (CI) ties TCC to the cdhash instead.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 app=${LINA_PROBE_APP:-/Applications/LINA Probe.app}
-sign=${LINA_PROBE_SIGN:-local}
-bundle_id=dev.lina.probe
-identity='LINA Probe Local Signing'
 support="$HOME/Library/Application Support/LINA Probe"
-signing="$support/signing"
-keychain="$signing/signing.keychain-db"
-keychain_pass="$signing/keychain-password"
+sign=${LINA_PROBE_SIGN:-}
+[ -n "$sign" ] || [ ! -s "$support/sign-identity" ] || sign=$(head -n 1 "$support/sign-identity")
+sign=${sign:-local}
+bundle_id=dev.lina.probe
 
 fail() { printf 'build.sh: %s\n' "$*" >&2; exit 1; }
 [ "$(uname -s)" = Darwin ] || fail 'macOS only'
-case "$sign" in local|adhoc) ;; *) fail "LINA_PROBE_SIGN must be local or adhoc, not $sign" ;; esac
 
-has_identity() {
-  [ -f "$keychain" ] && security find-identity -p codesigning "$keychain" 2>/dev/null | grep -q "\"$identity\""
-}
-
-# Provenance for the evidence manifest is written to
-# ~/Library/Application Support/LINA Probe/build.json.
-
-# Create the self-signed code-signing identity once, in its own keychain, so the
-# login keychain and its search list are never touched. The private key is
-# generated here and never leaves this Mac.
-init_identity() {
-  has_identity && return
-  [ ! -e "$keychain" ] || fail "$keychain exists without \"$identity\"; move it aside before re-creating (existing grants will need to be switched on again)"
-  mkdir -p "$signing"; chmod 700 "$signing"
-  local work pass p12pass
-  work=$(mktemp -d); trap 'rm -rf "$work"' RETURN
-  cat > "$work/cert.cnf" <<CNF
-[req]
-distinguished_name=dn
-x509_extensions=ext
-prompt=no
-[dn]
-CN=$identity
-[ext]
-basicConstraints=critical,CA:false
-keyUsage=critical,digitalSignature
-extendedKeyUsage=critical,codeSigning
-CNF
-  /usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -config "$work/cert.cnf" \
-    -keyout "$work/key.pem" -out "$work/cert.pem" 2>/dev/null
-  p12pass=$(/usr/bin/openssl rand -hex 16)
-  /usr/bin/openssl pkcs12 -export -inkey "$work/key.pem" -in "$work/cert.pem" \
-    -out "$work/id.p12" -passout "pass:$p12pass"
-  pass=$(/usr/bin/openssl rand -hex 24)
-  (umask 077; printf '%s' "$pass" > "$keychain_pass")
-  security create-keychain -p "$pass" "$keychain"
-  security set-keychain-settings "$keychain"
-  security unlock-keychain -p "$pass" "$keychain"
-  security import "$work/id.p12" -k "$keychain" -P "$p12pass" -T /usr/bin/codesign >/dev/null
-  security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$pass" "$keychain" >/dev/null
-  has_identity || fail 'identity was not imported'
-  printf 'build.sh: created signing identity "%s" in %s\n' "$identity" "$keychain" >&2
-}
-
+# Provenance for the evidence manifest is written to "$support/build.json".
 work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 staged="$work/LINA Probe.app"
 mkdir -p "$staged/Contents/MacOS"
 cp "$here/Info.plist" "$staged/Contents/Info.plist"
 xcrun swiftc -O -o "$staged/Contents/MacOS/LINA Probe" "$here"/*.swift
-
-if [ "$sign" = local ]; then
-  init_identity
-  security unlock-keychain -p "$(cat "$keychain_pass")" "$keychain"
-  codesign --force --sign "$identity" --keychain "$keychain" --identifier "$bundle_id" "$staged"
-else
-  codesign --force --sign - --identifier "$bundle_id" "$staged"
-fi
-codesign --verify --strict "$staged"
+"$here/sign.sh" "$staged" "$sign" >/dev/null
 
 mkdir -p "$(dirname "$app")"
 rm -rf "$app.previous"

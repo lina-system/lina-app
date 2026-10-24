@@ -51,6 +51,7 @@ test('benchmark and design-study registrations admit their files but no hidden e
     'scripts/benchmarks/tests/test_launcher_baseline.py',
     'scripts/benchmarks/probe/main.swift',
     'scripts/benchmarks/probe/build.sh',
+    'scripts/benchmarks/probe/sign.sh',
     'scripts/benchmarks/probe/run.sh',
     'docs/research/launcher-baseline-template.csv',
     'scripts/design-study/package.json',

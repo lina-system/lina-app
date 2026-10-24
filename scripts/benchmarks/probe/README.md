@@ -10,13 +10,31 @@ in a new tool.
 | --- | --- |
 | App | `/Applications/LINA Probe.app` |
 | Bundle ID | `dev.lina.probe` |
-| Signature | `LINA Probe Local Signing`, a self-signed code-signing certificate kept in `~/Library/Application Support/LINA Probe/signing/` |
+| Signature | `local` by default: `LINA Probe Local Signing`, a self-signed code-signing certificate kept in `~/Library/Application Support/LINA Probe/signing/` |
 
 TCC records the app's designated requirement (bundle ID plus certificate), so a
-rebuilt app keeps its grants as long as the same certificate signs it. Do not
+rebuilt app keeps its grants as long as the same identity signs it. Do not
 delete that signing folder or switch to ad-hoc signing (`LINA_PROBE_SIGN=adhoc`
 is for CI build checks only): either change makes macOS treat the rebuild as a
 new app that must be switched on again.
+
+## Signing
+
+`sign.sh APP IDENTITY` is the only place the app is signed; `build.sh` calls it.
+`IDENTITY` is `local`, `adhoc`, or any keychain code-signing identity name or
+SHA-1. A named identity is signed with the hardened runtime and a secure
+timestamp. `build.sh` takes the identity from `LINA_PROBE_SIGN`, else the first
+line of `~/Library/Application Support/LINA Probe/sign-identity`, else `local`.
+
+To move to a Developer ID certificate once it is in the login keychain:
+
+```sh
+echo 'Developer ID Application: <Name> (<TEAMID>)' > ~/Library/Application\ Support/LINA\ Probe/sign-identity
+scripts/benchmarks/probe/build.sh
+```
+
+The designated requirement changes with the certificate, so switch LINA Probe
+on once more in both Privacy lists afterwards. Later rebuilds keep the grants.
 
 ```sh
 scripts/benchmarks/probe/build.sh            # build, sign, install, write build.json provenance

@@ -16,6 +16,7 @@ const researchFiles = new Set([
   'scripts/benchmarks/probe/main.swift',
   'scripts/benchmarks/probe/Info.plist',
   'scripts/benchmarks/probe/build.sh',
+  'scripts/benchmarks/probe/sign.sh',
   'scripts/benchmarks/probe/run.sh',
   'scripts/benchmarks/probe/README.md',
   'docs/research/launcher-baseline-template.csv',

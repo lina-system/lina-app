@@ -517,4 +517,69 @@ void main() {
     await tester.pumpAndSettle();
     expect(composer, findsOneWidget);
   });
+
+  testWidgets(
+    'first explicit agent choice carries the draft while discovery is pending',
+    (tester) async {
+      final core = ConversationCore()..holdHistory = true;
+      await mount(tester, core);
+      await tester.enterText(composer, 'Draft before discovery');
+      await choose(tester, 'Sion');
+      expect(
+        tester.widget<TextField>(composer).controller!.text,
+        'Draft before discovery',
+      );
+      core.histories.last.complete(core.history('sion'));
+      await tester.pumpAndSettle();
+      core.histories.first.complete(core.history('lina'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(composer).controller!.text,
+        'Draft before discovery',
+      );
+      await tester.tap(find.text('Send'));
+      await tester.pump();
+      expect(
+        (core.requests.last.payload as ProtocolInput).conversationId,
+        'sion-main',
+      );
+      core.pending.last.complete(event('item_done', {}, effect: 'applied'));
+      await tester.pump();
+    },
+  );
+  testWidgets('historical answers cannot confirm a restored inactive turn', (
+    tester,
+  ) async {
+    final core = ConversationCore();
+    core.snapshots['lina'] = [
+      {
+        'kind': 'item_done',
+        'key': 'old-answer',
+        'revision': 1,
+        'payload': {
+          'speaker': 'agent',
+          'agent_id': 'lina',
+          'text': 'An older successful answer',
+        },
+      },
+      {
+        'kind': 'turn_state',
+        'key': 'turn',
+        'revision': 2,
+        'payload': {'active': false, 'agent_id': 'lina'},
+      },
+    ];
+    await mount(tester, core);
+    expect(find.text('Completed'), findsNothing);
+    expect(find.textContaining('without a confirmed answer'), findsOneWidget);
+    core.drop();
+    await tester.pump();
+    core.live();
+    await tester.pumpAndSettle();
+    expect(find.text('Completed'), findsNothing);
+    core.emit(event('snapshot', core.snapshot('lina')));
+    await tester.pumpAndSettle();
+    expect(find.text('Completed'), findsNothing);
+    expect(find.textContaining('without a confirmed answer'), findsOneWidget);
+  });
 }

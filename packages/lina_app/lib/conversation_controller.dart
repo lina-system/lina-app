@@ -144,6 +144,8 @@ class ConversationController extends ChangeNotifier {
     for (final state in _agents.values) {
       state.ready = false;
       state.window?.needsSnapshot = true;
+      state.replyCompleted = false;
+      state.stopConfirmed = false;
       if (previous != null &&
           (previous.mainId != welcome.mainId ||
               previous.personId != welcome.personId)) {
@@ -182,9 +184,7 @@ class ConversationController extends ChangeNotifier {
       if (id == null || !agents.any((a) => a.agentId == id)) return;
       selectedId = id;
       final state = _agent(id);
-      if (_unselected.draft.text.isNotEmpty && state.draft.text.isEmpty) {
-        state.draft.value = _unselected.draft.value;
-      }
+      _carryInitialDraft(state);
       await _acceptHistory(state, history, generation);
     } on ConnectionLost {
       _notify();
@@ -195,17 +195,25 @@ class ConversationController extends ChangeNotifier {
 
   Future<void> choose(String id) async {
     if (!agents.any((a) => a.agentId == id)) return;
+    final state = _agent(id);
+    if (selectedId == null) _carryInitialDraft(state);
     selected.restoreFocus = selected.focus.hasFocus;
     selected.focus.unfocus();
     _selection = Object();
     selectedId = id;
-    final state = _agent(id);
     _notify();
     if (state.restoreFocus) state.focus.requestFocus();
     if (!state.ready &&
         core.phase == ConnectionPhase.connected &&
         core.hasCapability('conversation'))
       await _load(state);
+  }
+
+  void _carryInitialDraft(AgentPresentation state) {
+    if (_unselected.draft.text.isNotEmpty && state.draft.text.isEmpty) {
+      state.draft.value = _unselected.draft.value;
+      _unselected.draft.clear();
+    }
   }
 
   Future<void> _load(AgentPresentation state) async {
@@ -250,17 +258,22 @@ class ConversationController extends ChangeNotifier {
     state.conversationId = history.conversationId;
     if (state.window?.topic != topic) state.window = TopicWindow(topic);
     if (history.snapshot != null) {
-      state.window!.replace(history.snapshot!);
-      state.replyCompleted = state.items.any(
-        (item) =>
-            item.kind == 'item_done' &&
-            (item.payload as Map?)?['speaker'] == 'agent',
-      );
-      _project(state);
+      _restoreSnapshot(state, history.snapshot!);
     }
     state.ready = true;
     _notify();
     await _subscribe(topic, generation);
+  }
+
+  void _restoreSnapshot(AgentPresentation state, ProtocolSnapshot snapshot) {
+    if (state.window?.replace(snapshot) != true) return;
+    // This schema has no terminal turn identity. An older answer or stop
+    // receipt cannot establish the outcome of the turn in a restored window.
+    state.active = false;
+    state.replyCompleted = false;
+    state.stopConfirmed = false;
+    state.turn = TurnPresentation.composing;
+    _project(state);
   }
 
   Future<void> _subscribe(String topic, Object generation) async {
@@ -305,15 +318,7 @@ class ConversationController extends ChangeNotifier {
         }
       }
       for (final state in _agents.values) {
-        if (state.window?.replace(snapshot) == true) {
-          state.active = false;
-          state.replyCompleted = state.items.any(
-            (item) =>
-                item.kind == 'item_done' &&
-                (item.payload as Map?)?['speaker'] == 'agent',
-          );
-          _project(state);
-        }
+        _restoreSnapshot(state, snapshot);
       }
     } else if (event.kind == 'resync' || event.kind == 'resync_required') {
       final topic = event.payload['topic'];

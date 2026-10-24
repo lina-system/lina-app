@@ -2,7 +2,8 @@
 
 The app now opens the main conversation selected by Core, with a Home starting
 state, per-agent drafts and a fixed composer. Core's authenticated history
-response selects the first agent; reconnect validates that the retained agent
+response selects the first agent. A draft typed while discovery is pending follows
+the first explicit selection as well as the default selection; reconnect validates that the retained agent
 still appears in Welcome. A removed agent keeps its draft and cannot receive a
 submission until the person explicitly chooses an available agent.
 
@@ -26,7 +27,9 @@ submission until the person explicitly chooses an available agent.
   Core's topic identity, never the agent currently selected by the person.
 - Composing, accepted, queued, responding, completed, user-stopped, failed and
   disconnected have explicit labels. An inactive turn without a confirmed agent
-  answer is unknown, not completed. A stopped reply requires Core's stop receipt
+  answer is unknown, not completed. Restored inactive turns also remain unknown:
+  an older answer in the snapshot cannot prove the latest turn succeeded.
+  A stopped reply requires Core's stop receipt
   and inactive state. The missing canonical per-turn terminal outcome is recorded
   in Core #1707; these labels do not certify delegated-work completion.
 - Prose is selectable and long fenced code scrolls horizontally. Document cards

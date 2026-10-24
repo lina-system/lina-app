@@ -62,6 +62,18 @@ void main() {
       );
     }
   });
+  test('unknown kinds still enforce common effect and error constraints', () {
+    final value = exactDecode(
+      File('../../protocol/core/fixtures/client/1.0/invalid/unknown_kind.json')
+          .readAsStringSync(),
+    ) as Map<String, dynamic>;
+    value['effect_state'] = 'failed';
+    value['error'] = null;
+    final receiver = ProtocolReceiver();
+    expect(() => receiver.receive(exactEncode(value)), throwsFormatException);
+    expect(receiver.malformed, 1);
+    expect(receiver.unknownKinds, 0);
+  });
   test(
     'exact numeric comparison distinguishes uint64 overflow and fractions',
     () {

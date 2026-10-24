@@ -27,7 +27,9 @@ class ProtocolReceiver {
           ...root['properties'] as Map<String, dynamic>,
           'kind': {'type': 'string', 'minLength': 1},
         },
-        'allOf': <Object?>[],
+        'allOf': (root['allOf'] as List)
+            .where((rule) => !_mentionsPayload(rule))
+            .toList(),
       });
       final kinds = root['properties']['kind']['enum'] as List;
       if (!kinds.contains(value['kind'])) {
@@ -50,3 +52,12 @@ class ProtocolReceiver {
     }
   }
 }
+
+// Keep common envelope constraints even when the payload kind is unknown.
+// Payload-dependent constraints run only after projecting a known payload.
+bool _mentionsPayload(Object? node) => switch (node) {
+  Map value =>
+    value.containsKey('payload') || value.values.any(_mentionsPayload),
+  List value => value.any(_mentionsPayload),
+  _ => false,
+};

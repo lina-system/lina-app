@@ -209,4 +209,50 @@ void main() {
       expect(connection.results, isEmpty);
     },
   );
+
+  test('invalid Core addresses report a format problem without opening a connection', () async {
+    final connection = CoreConnection(platform: 'linux/amd64');
+    addTearDown(connection.dispose);
+    for (final address in [
+      'not-an-endpoint',
+      'https://127.0.0.1',
+      'unix:relative.sock',
+      'unix:///synthetic.sock?ignored',
+      'tcp://127.0.0.1:0',
+      'tcp://127.0.0.1:65536',
+      'tcp://127.0.0.1:1234#ignored',
+    ]) {
+      await connection.connect(address);
+      expect(connection.phase, ConnectionPhase.disconnected, reason: address);
+      expect(
+        connection.problem,
+        ConnectionProblem.invalidAddress,
+        reason: address,
+      );
+    }
+  });
+  test('an unreachable TCP address reports a cause and a successful retry clears it', () async {
+    final unavailable = await serverFor('tcp');
+    await unavailable.server.close();
+    final connection = CoreConnection(platform: 'linux/amd64');
+    addTearDown(connection.dispose);
+    await connection.connect(unavailable.endpoint);
+    expect(connection.phase, ConnectionPhase.disconnected);
+    expect(connection.problem, ConnectionProblem.unavailable);
+    final available = await serverFor('tcp');
+    addTearDown(available.server.close);
+    available.server.listen((socket) {
+      addTearDown(socket.destroy);
+      socket
+          .cast<List<int>>()
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .listen((line) {
+            emit(socket, fixture('welcome'), request: exactDecode(line) as Map);
+          });
+    });
+    await connection.connect(available.endpoint);
+    expect(connection.phase, ConnectionPhase.connected);
+    expect(connection.problem, isNull);
+  });
 }

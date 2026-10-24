@@ -15,7 +15,8 @@ submission until the person explicitly chooses an available agent.
   conversation composer. This does not implement the separately owned agents,
   memory or work-card products.
 - Text input supports native paste/selection, multiline input, Korean composition
-  guards, command/control-Enter, steering, queueing, interruption and explicit
+  guards, Enter/keypad Enter to send, Shift+Enter for a newline and extra
+  command/control-Enter shortcuts, steering, queueing, interruption and explicit
   retry after a definite failed/refused admission. Pending or uncertain input is
   never resent. Only a correlated applied receipt clears the unchanged draft.
 - Each agent retains its draft, search, queue mode, focus node, reading position,
@@ -115,3 +116,28 @@ canonical schema pieces; generated protocol types were not hand-edited.
 The current cobalt and provisional Lucide source remain in use. [#4](https://github.com/lina-system/lina-app/issues/4)
 will fill the neutral mark slot with the approved agent face/form, expression
 rules, final icon choice and accent decision. No model selector was added.
+
+## Connection and composer acceptance gaps
+
+The connection form now distinguishes invalid syntax from an unreachable Core,
+shows accepted address formats or a start/check/reconnect action, and stays open
+with the entered address after a failure. Its message remains in connection
+status when closed. A successful retry clears the failure and closes the form;
+neither failure nor retry alters the conversation draft or submits it.
+
+Hardware Enter and keypad Enter send committed, nonempty drafts. Shift+Enter
+replaces the selection with a newline and puts the caret after it. Cmd/Ctrl+Enter
+remain extra send keys. These bindings apply only to the composer, suppress
+repeat sends, and leave composition and its commit frame to the IME. Mobile soft
+return retains the existing newline action. This follows the contract in
+[korean-input.md](korean-input.md#composer-contract-used-by-this-experiment).
+
+`flutter test --no-pub test/scope_gap_test.dart --concurrency=1` reproduced seven
+failures before the fix: silent invalid/unreachable addresses, missing Enter and
+keypad Enter sends, missing Shift+Enter insertion, and no send after composition
+committed. It then passed all ten tests, including correction to a real synthetic
+TCP peer, unchanged drafts, exact receipt handling, repeat suppression, modifier
+keys and isolation from the search field. The two additional captures are
+`docs/captures/9/connection-invalid.png` (phone) and
+`docs/captures/9/connection-unavailable.png` (desktop); all data is synthetic.
+The functional and review follow-ups #120 and #123 are unchanged by this work.

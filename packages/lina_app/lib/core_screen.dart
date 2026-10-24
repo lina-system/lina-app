@@ -56,10 +56,6 @@ class _CoreScreenState extends State<CoreScreen> {
       final document = state.document;
       return CallbackShortcuts(
         bindings: {
-          const SingleActivator(LogicalKeyboardKey.enter, meta: true): () =>
-              unawaited(_conversation.send()),
-          const SingleActivator(LogicalKeyboardKey.enter, control: true): () =>
-              unawaited(_conversation.send()),
           const SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true):
               _conversation.back,
           const SingleActivator(LogicalKeyboardKey.arrowRight, alt: true):
@@ -237,18 +233,31 @@ class _CoreScreenState extends State<CoreScreen> {
         horizontal: t.spaceGutter,
         vertical: t.spaceInline,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Semantics(
-              liveRegion: true,
-              child: StatusLabel(status: status, label: label),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Semantics(
+                  liveRegion: true,
+                  child: StatusLabel(status: status, label: label),
+                ),
+              ),
+              if (core.phase != ConnectionPhase.connected)
+                TextButton(
+                  onPressed: _connectionSettings,
+                  child: const LinaText('Connect'),
+                ),
+            ],
           ),
-          if (core.phase != ConnectionPhase.connected)
-            TextButton(
-              onPressed: _connectionSettings,
-              child: const LinaText('Connect'),
+          if (_connectionProblem != null)
+            Semantics(
+              liveRegion: true,
+              child: StatusLabel(
+                status: LinaStatus.error,
+                label: _connectionProblem!,
+              ),
             ),
         ],
       ),
@@ -521,28 +530,31 @@ class _CoreScreenState extends State<CoreScreen> {
           SizedBox(height: t.spaceInline),
           ConstrainedBox(
             constraints: BoxConstraints(maxHeight: t.layoutComposerHeight),
-            child:
-                widget.slots.composer?.call(
-                  context,
-                  state.draft,
-                  state.focus,
-                  () => unawaited(_conversation.send()),
-                  t,
-                ) ??
-                TextField(
-                  key: const ValueKey('composer'),
-                  controller: state.draft,
-                  focusNode: state.focus,
-                  keyboardType: TextInputType.multiline,
-                  maxLines: null,
-                  textInputAction: TextInputAction.newline,
-                  onEditingComplete: () {},
-                  onSubmitted: (_) => unawaited(_conversation.send()),
-                  decoration: const InputDecoration(
-                    labelText: 'What is on your mind?',
-                    hintText: '한국어로 편하게 적어 보세요.',
+            child: Focus(
+              onKeyEvent: (_, event) => _composerKey(state, event),
+              child:
+                  widget.slots.composer?.call(
+                    context,
+                    state.draft,
+                    state.focus,
+                    () => unawaited(_conversation.send()),
+                    t,
+                  ) ??
+                  TextField(
+                    key: const ValueKey('composer'),
+                    controller: state.draft,
+                    focusNode: state.focus,
+                    keyboardType: TextInputType.multiline,
+                    maxLines: null,
+                    textInputAction: TextInputAction.newline,
+                    onEditingComplete: () {},
+                    onSubmitted: (_) => unawaited(_conversation.send()),
+                    decoration: const InputDecoration(
+                      labelText: 'What is on your mind?',
+                      hintText: '한국어로 편하게 적어 보세요.',
+                    ),
                   ),
-                ),
+            ),
           ),
           SizedBox(height: t.spaceInline),
           Wrap(
@@ -590,6 +602,40 @@ class _CoreScreenState extends State<CoreScreen> {
         ],
       ),
     );
+  }
+
+  KeyEventResult _composerKey(AgentPresentation state, KeyEvent event) {
+    if (!identical(state, _conversation.selected) ||
+        (event is! KeyDownEvent && event is! KeyRepeatEvent) ||
+        (event.logicalKey != LogicalKeyboardKey.enter &&
+            event.logicalKey != LogicalKeyboardKey.numpadEnter)) {
+      return KeyEventResult.ignored;
+    }
+    final value = state.draft.value;
+    // Candidate confirmation and the commit frame belong to the IME. Never
+    // queue a send or modify preedit in response to an application shortcut.
+    if ((value.composing.isValid && !value.composing.isCollapsed) ||
+        state.compositionEnding)
+      return KeyEventResult.ignored;
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isAltPressed) return KeyEventResult.ignored;
+    if (keyboard.isShiftPressed) {
+      if (keyboard.isControlPressed || keyboard.isMetaPressed)
+        return KeyEventResult.ignored;
+      if (event is KeyDownEvent && value.selection.isValid) {
+        state.draft.value = value
+            .replaced(value.selection, '\n')
+            .copyWith(
+              selection: TextSelection.collapsed(
+                offset: value.selection.start + '\n'.length,
+              ),
+            );
+      }
+    } else if (event is KeyDownEvent) {
+      // Plain, Cmd and Ctrl Enter share the acknowledgement/composition gate.
+      unawaited(_conversation.send());
+    }
+    return KeyEventResult.handled;
   }
 
   Widget _section() {
@@ -723,35 +769,81 @@ class _CoreScreenState extends State<CoreScreen> {
     );
   }
 
+  String? get _connectionProblem => switch (widget.connection.problem) {
+    ConnectionProblem.invalidAddress => 'The Core address is not valid. Use unix:///path or tcp://host:port, then connect again.',
+    ConnectionProblem.unavailable => 'Core could not be reached. Start Core and check its address, then connect again.',
+    null => null,
+  };
+
+  Future<void> _connectFromDialog(BuildContext context) async {
+    if (widget.connection.phase == ConnectionPhase.connecting) return;
+    await widget.connection.connect(_endpoint.text);
+    if (context.mounted && widget.connection.phase == ConnectionPhase.connected)
+      Navigator.pop(context);
+  }
+
   Future<void> _connectionSettings() => showDialog<void>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: const LinaText('Connection'),
-      content: TextField(
-        controller: _endpoint,
-        autocorrect: false,
-        enableSuggestions: false,
-        decoration: const InputDecoration(
-          labelText: 'Core address',
-          hintText: 'unix:///path/to/core.sock or tcp://tailnet-host:port',
+    builder: (context) => StreamBuilder<void>(
+      stream: widget.connection.changes,
+      builder: (context, _) => AlertDialog(
+        title: LinaText(
+          'Connection',
+          style: Theme.of(context).textTheme.titleLarge,
         ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _endpoint,
+                enabled: widget.connection.phase != ConnectionPhase.connecting,
+                autocorrect: false,
+                enableSuggestions: false,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => unawaited(_connectFromDialog(context)),
+                decoration: const InputDecoration(
+                  labelText: 'Core address',
+                  hintText:
+                      'unix:///path/to/core.sock or tcp://tailnet-host:port',
+                ),
+              ),
+              if (_connectionProblem != null)
+                Semantics(
+                  liveRegion: true,
+                  child: StatusLabel(
+                    status: LinaStatus.error,
+                    label: _connectionProblem!,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const LinaText('Close'),
+          ),
+          TextButton(
+            onPressed: () {
+              widget.connection.disconnect();
+              Navigator.pop(context);
+            },
+            child: const LinaText('Disconnect'),
+          ),
+          TextButton(
+            onPressed: widget.connection.phase == ConnectionPhase.connecting
+                ? null
+                : () => unawaited(_connectFromDialog(context)),
+            child: LinaText(
+              widget.connection.phase == ConnectionPhase.connecting
+                  ? 'Connecting'
+                  : 'Connect',
+            ),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () {
-            widget.connection.disconnect();
-            Navigator.pop(context);
-          },
-          child: const LinaText('Disconnect'),
-        ),
-        TextButton(
-          onPressed: () {
-            unawaited(widget.connection.connect(_endpoint.text));
-            Navigator.pop(context);
-          },
-          child: const LinaText('Connect'),
-        ),
-      ],
     ),
   );
   Future<void> _settings() => showDialog<void>(

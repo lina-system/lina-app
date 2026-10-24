@@ -41,7 +41,11 @@ drafts are in-memory presentation state. There is no local canonical database.
 Home now discovers the selected agent through Core and retains per-agent drafts,
 search, input mode, reading position and open documents while navigating or
 reconnecting. Send/queue, streaming, stop and explicit retry use the generated
-protocol. Command/control-Enter submits; ordinary Enter keeps multiline input.
+protocol. Hardware Enter (including keypad Enter) sends committed text;
+Shift+Enter inserts a newline. Command/control-Enter also sends. Composition and
+its commit frame never trigger a send; mobile soft return remains a newline.
+Invalid Core addresses and unreachable sockets show a cause and recovery action
+in the connection form, preserving both the address and the conversation draft.
 See the [conversation verification record](../../docs/research/9-conversation.md)
 for captures, tests and the explicitly tracked remaining rich-input/thread work.
 

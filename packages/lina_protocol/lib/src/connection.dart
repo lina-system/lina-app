@@ -9,6 +9,8 @@ import 'receiver.dart';
 
 enum ConnectionPhase { disconnected, connecting, connected, rejected }
 
+enum ConnectionProblem { invalidAddress, unavailable }
+
 class ConnectionLost implements Exception {
   const ConnectionLost();
   @override
@@ -52,6 +54,7 @@ class CoreConnection {
   Stream<Envelope> get events => _events.stream;
   Stream<void> get changes => _changes.stream;
   ConnectionPhase phase = ConnectionPhase.disconnected;
+  ConnectionProblem? problem;
   String? refusalCode;
   ProtocolWelcome? welcome;
   String? lastEffect;
@@ -87,6 +90,7 @@ class CoreConnection {
     disconnect();
     final generation = ++_generation;
     phase = ConnectionPhase.connecting;
+    problem = null;
     refusalCode = null;
     welcome = null;
     lastEffect = null;
@@ -96,13 +100,19 @@ class CoreConnection {
     final opening = Completer<void>();
     _opening = opening;
     _deadline = Timer(timeout, () {
-      if (generation == _generation) _end();
+      if (generation == _generation)
+        _end(problem: ConnectionProblem.unavailable);
     });
     _notify();
     try {
       final uri = Uri.parse(endpoint);
       final Socket socket;
-      if (uri.scheme == 'unix' && uri.path.isNotEmpty && uri.host.isEmpty) {
+      if (uri.scheme == 'unix' &&
+          uri.hasAbsolutePath &&
+          uri.host.isEmpty &&
+          uri.userInfo.isEmpty &&
+          !uri.hasQuery &&
+          !uri.hasFragment) {
         socket = await Socket.connect(
           InternetAddress(uri.path, type: InternetAddressType.unix),
           0,
@@ -111,7 +121,11 @@ class CoreConnection {
       } else if (uri.scheme == 'tcp' &&
           uri.host.isNotEmpty &&
           uri.hasPort &&
+          uri.port > 0 &&
+          uri.port <= 65535 &&
           uri.userInfo.isEmpty &&
+          !uri.hasQuery &&
+          !uri.hasFragment &&
           (uri.path.isEmpty || uri.path == '/')) {
         socket = await Socket.connect(uri.host, uri.port, timeout: timeout);
       } else {
@@ -143,8 +157,12 @@ class CoreConnection {
       );
       _helloId = hello.messageId;
       _write(hello);
+    } on FormatException {
+      if (generation == _generation)
+        _end(problem: ConnectionProblem.invalidAddress);
     } catch (_) {
-      if (generation == _generation) _end();
+      if (generation == _generation)
+        _end(problem: ConnectionProblem.unavailable);
     }
     await opening.future;
   }
@@ -342,7 +360,8 @@ class CoreConnection {
     if (generation == _generation) _end();
   }
 
-  void _end({bool rejected = false}) {
+  void _end({bool rejected = false, ConnectionProblem? problem}) {
+    if (problem != null) this.problem = problem;
     ++_generation;
     _deadline?.cancel();
     _deadline = null;
@@ -367,7 +386,11 @@ class CoreConnection {
     _notify();
   }
 
-  void disconnect() => _end();
+  void disconnect() {
+    problem = null;
+    _end();
+  }
+
   Future<void> dispose() async {
     disconnect();
     _disposed = true;

@@ -94,7 +94,7 @@ jobs:
         with:
           node-version-file: .node-version
       - name: Test token generation, contrast and visual lint regressions
-        run: node --test scripts/verify/design.test.mjs
+        run: node --test scripts/verify/design.test.mjs scripts/verify/protocol.test.mjs scripts/verify/mac-session.test.mjs
       - name: Check research formatting and scripts
         run: |
           dart format --output=none --set-exit-if-changed spikes/korean-input/lib spikes/korean-input/test
@@ -129,7 +129,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev \
             fcitx5 fcitx5-hangul fcitx5-frontend-gtk3 xvfb xdotool imagemagick \
-            dbus-x11 python3-gi gir1.2-gtk-3.0 fonts-wqy-zenhei
+            dbus-x11 at-spi2-core python3-gi gir1.2-gtk-3.0 fonts-wqy-zenhei
       - name: Build and record the real fcitx5 path
         working-directory: spikes/korean-input
         run: |
@@ -141,4 +141,54 @@ jobs:
         with:
           name: linux-ime-observations
           path: ${{ runner.temp }}/korean-input-evidence
+          if-no-files-found: error
+
+  native:
+    name: native-${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {target: linux, os: ubuntu-latest}
+          - {target: android, os: ubuntu-latest}
+          - {target: windows, os: windows-latest}
+          - {target: macos, os: macos-latest}
+          - {target: ios, os: macos-latest}
+          - {target: ios-simulator, os: macos-latest}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Read the Flutter pin
+        id: pin
+        shell: bash
+        run: echo "version=$(tr -d '[:space:]' < .flutter-version)" >> "$GITHUB_OUTPUT"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ steps.pin.outputs.version }}
+          cache: true
+      - name: Linux desktop prerequisites
+        if: matrix.target == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+      - uses: actions/setup-java@v4
+        if: matrix.target == 'android'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Initialize the pinned Flutter tool
+        run: flutter --version
+      - name: Verify and build the native artifact
+        run: node scripts/build.mjs ${{ matrix.target }}
+      - name: Preserve native verification and artifact digests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.target }}-evidence
+          path: |
+            build/foundation-evidence.json
+            build/artifacts/*.json
           if-no-files-found: error

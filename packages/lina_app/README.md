@@ -1,13 +1,37 @@
-# LINA app component
+# LINA native app
 
-`LinaApp` consumes `lina_design` through its path dependency and applies its
-light, dark and high-contrast themes. It follows platform appearance and contrast
-and accepts an explicit `ThemeMode`; the caller supplies the home widget.
-The integration test verifies the actual path dependency and platform switching.
+One Flutter 3.47.8 codebase with macOS, iOS, Android, Windows and Linux runners.
+The screen consumes `lina_design` tokens and `lina_protocol` generated types.
+There is no web runner.
 
-This package has no native runners, Core transport or navigation yet. Those
-belong to #6 after the physical acceptance work in #1/#2. Protocol generation is
-still deferred and guarded by the foundation gate. This is not a runnable release.
+From the repository root:
 
-See [DESIGN.md](../../DESIGN.md) and the
-[foundation policy](../../docs/policy/foundation.md).
+```sh
+node scripts/foundation.mjs
+node scripts/build.mjs macos
+node scripts/build.mjs ios
+node scripts/build.mjs ios-simulator
+node scripts/build.mjs android
+node scripts/build.mjs windows
+node scripts/build.mjs linux
+```
+
+Run only targets supported by the current host. On shared hosts, prefix full
+gates/builds with `dv heavy --`. macOS is ad-hoc signed; iOS release compilation
+uses `--no-codesign`, and the simulator builds in debug mode because Flutter does
+not support release simulator builds. Android uses the development debug key;
+none is a store-ready or notarized distribution.
+
+Supply a Core address in the screen, `LINA_CORE_ENDPOINT`, or the same Dart build
+define. macOS/Linux use `unix:///absolute/path/to/core.sock`; other devices use
+`tcp://your-tailnet-core:port`. Core decides whether this platform/protocol row
+is supported. The default Core release table currently rejects `lina-app`.
+A development-only test manifest does not establish release acceptance.
+
+The composer sends once, preserves Korean composition and waits for Core before
+clearing the matching draft. The screen shows connection loss, rejection,
+preview/saved results and unknown outcomes explicitly. Appearance settings and
+drafts are in-memory presentation state. There is no local canonical database.
+
+[Host contract](../../docs/policy/host-protocol.md) ·
+[Native verification evidence](../../docs/research/6-native-app.md)

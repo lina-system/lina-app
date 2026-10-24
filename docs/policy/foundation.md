@@ -16,7 +16,8 @@ Windows, so only the command construction is covered by tests.
 
 | Component | Path | Current state |
 | --- | --- | --- |
-| LINA app | `packages/lina_app/` | Active theme consumer; native runners/transport belong to #6 |
+| LINA app | `packages/lina_app/` | Active native Flutter thin client |
+| Protocol package | `packages/lina_protocol/` | Active generated codec, conformance and socket tests |
 | Design package | `packages/lina_design/` | Active generated tokens, themes, widgets, fonts and goldens |
 | Korean input research | `spikes/korean-input/` | Standalone native-only experiment for #88; outside production visual-token/codegen paths |
 | Foundation tooling | `packages/foundation_tools/` | Active Dart policy validator and tests; never shipped |
@@ -44,8 +45,8 @@ uses `lina_design: {path: ../lina_design}`. The same change activates any checks
 that guard its sources. Until then reserved components have no invented
 analysis/test pass: evidence lists only packages with actual manifests.
 
-The design package and app theme boundary do not decide whether Flutter passes
-the physical-device gates in #1 and #2. Native runners remain #6.
+Native runners compile the same app for five platforms. They do not decide
+whether Flutter passes the physical-device gates in #1 and #2.
 
 ## Stages and failure behavior
 
@@ -85,8 +86,8 @@ use the deliberate update procedure instead.
 The theme and visual-value checks are active. Theme verification also checks
 reviewed font/license asset digests; the generated table includes contrast and
 Unicode/ASCII icon mappings. Node regression tests cover drift, bad contrast,
-source corruption and hardcoded visuals. The protocol check remains **deferred**
-until #6 implements it. Their guarded paths must be empty while deferred; adding generated output
+source corruption and hardcoded visuals. The protocol check is active: it verifies the pinned Core snapshot and generated
+Dart types. Its package runs exact-number conformance and socket fault tests. Their guarded paths must be empty while deferred; adding generated output
 or widgets without activating the corresponding check fails. Removing a required
 registration fails. A deferred result is not codegen or accessibility evidence.
 TUI Lip Gloss generation and the canonical schema belong to Core, not this repo.
@@ -121,24 +122,26 @@ CI keeps the existing required `flutter` job name.
 
 ## Native build and device matrix
 
-All artifacts must use `node scripts/build.mjs <platform>`. It runs this same
-gate before `flutter build <target> --release --no-pub`; Android uses `appbundle`.
-The exact Flutter version is recorded in `release/manifest.json`, which currently
-has an empty artifacts list and explicitly says development-only. Release
-packaging must add per-artifact digests/signing provenance when #6 introduces
-artifacts. Gate success alone authorizes neither signing nor publication.
+All artifacts use `node scripts/build.mjs <platform>`, including the full gate.
+Supported targets are macos, ios, ios-simulator, android, windows and linux; there
+is no web build. iOS device code is a release build without signing; the simulator
+uses debug mode. Android uses Flutter's development debug key. macOS receives
+an ad-hoc signature, which is verified after notice packaging. No target is
+published, notarized or given a store distribution signature by this command.
 
-| Native target | Available on this Linux host | What was built in #3 | Acceptance/signing environment still needed |
-| --- | --- | --- | --- |
-| Linux | Flutter Linux SDK, clang, CMake, Ninja, GTK toolchain | None: app skeleton is #6 | Omarchy with fcitx5-hangul; physical Korean IME checks in #1 |
-| Android | Android SDK not configured | Unverified | Android build SDK and signing account; Gboard and Samsung Keyboard on physical devices |
-| iOS | Xcode unavailable | Unverified | macOS/Xcode, provisioning and physical iPhone/iPad |
-| macOS | macOS/Xcode unavailable | Unverified | Signed installed app on a real Mac; Korean input #1 and launcher #2 |
-| Windows | Windows/MSVC unavailable | Unverified | Windows/MSVC host, signing environment and physical Microsoft IME checks |
+`build/artifacts/<target>.json` records source revision/dirty status, SDK,
+file inventory, exact byte size, tree digest, engine-notice digest and signing
+provenance. CI uploads these records alongside its foundation evidence. Native
+outputs retain the generated license registry and full engine notices. Local
+observations and the physical acceptance limits are in
+[the native app record](../research/6-native-app.md).
 
-There is no Flutter web target. None of the five native app builds is claimed
-as passed by this infrastructure change. Analyzer and headless Dart tests run on
-Linux and do not establish native builds, input behavior, startup or memory.
+CI compiles Linux, Android, Windows, macOS, iOS device and iOS simulator targets.
+Compilation does not establish device input, startup, memory, signing acceptance
+or the platform's Core compatibility row. The existing Linux design goldens
+remain unchanged; macOS has reviewed CoreText baselines in `docs/captures/6/`.
+Other hosts, including macOS 26 CI, run layout/semantics tests without a
+pixel-baseline claim; the local macOS baseline is pinned to macOS 27.
 
 ## Design-source discrepancy
 

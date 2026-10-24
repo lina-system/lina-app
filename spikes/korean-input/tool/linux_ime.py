@@ -86,7 +86,8 @@ def trace(path, prefix):
 
 
 def window(title, process):
-    for _ in range(150):
+    deadline = time.monotonic() + 90
+    while time.monotonic() < deadline:
         if process.poll() is not None:
             raise RuntimeError(f'{title} exited before presenting its window')
         found = run('xdotool', 'search', '--onlyvisible', '--name', title, check=False)
@@ -98,7 +99,9 @@ def window(title, process):
             time.sleep(1)
             return wid
         time.sleep(0.1)
-    raise RuntimeError(f'no visible {title} window')
+    observed = run('xdotool', 'search', '--onlyvisible', '--pid',
+                   str(process.pid), 'getwindowname', check=False).stdout.strip()
+    raise RuntimeError(f'no visible {title} window; process titles: {observed}')
 
 
 def snap(name, path, prefix):
@@ -268,7 +271,8 @@ Layout=
         recorder = threading.Thread(target=record_screen, args=(frames,), daemon=True)
         recorder.start()
         try:
-            scenarios('flutter', [str(BINARY)], '^korean_input$', 'IME_TRACE ', env)
+            scenarios('flutter', [str(BINARY)],
+                      '^(korean_input|Korean input research)$', 'IME_TRACE ', env)
             scenarios('gtk', [sys.executable, 'tool/gtk_reference.py'],
                       '^GTK Korean reference$', 'GTK_TRACE ', env)
         finally:

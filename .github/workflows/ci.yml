@@ -23,7 +23,21 @@ jobs:
         with:
           python-version: '3.13'
       - name: Test benchmark annotation validation and statistics
-        run: python3 -m unittest discover -s scripts/benchmarks/tests -p 'test_launcher_baseline.py' -v
+        run: python3 -m unittest discover -s scripts/benchmarks/tests -p 'test_*.py' -v
+
+  probe-recorder:
+    name: probe recorder
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Test recorder clock and trial JSON without screen access
+        run: scripts/benchmarks/probe/tests/run.sh
+      - name: Compile the signed app target without installing or requesting grants
+        env:
+          LINA_PROBE_APP: ${{ runner.temp }}/LINA Probe.app
+          LINA_PROBE_SIGN: adhoc
+        run: scripts/benchmarks/probe/build.sh
 
   design-study:
     name: design-study

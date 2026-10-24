@@ -193,7 +193,10 @@ void validateRepository(String root, List<String> packages) {
           final version = locked['source'] == 'sdk'
               ? File('$base/.flutter-version').readAsStringSync().trim()
               : locked['version'] as String;
-          notice(reviewedPackages[dependency], dependency, version);
+          final reviewKey = reviewedPackages.containsKey('$dependency@$version')
+              ? '$dependency@$version'
+              : dependency;
+          notice(reviewedPackages[reviewKey], dependency, version);
         }
         final children = item['dependencies'];
         if (children is! List)

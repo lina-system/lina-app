@@ -1,8 +1,13 @@
 # LINA app component
 
-Registered in `scripts/verify/scope.mjs`. Issue #6 adds the Flutter manifest,
-lockfile, native runners, generated protocol types, tests and thin-client
-skeleton here after #1, #2 and #5. There is no runnable app or web target yet.
-Consume the design package through `lina_design: {path: ../lina_design}`.
-Activate the codegen/lint registrations before adding guarded Dart sources.
-See [foundation policy](../../docs/policy/foundation.md).
+`LinaApp` consumes `lina_design` through its path dependency and applies its
+light, dark and high-contrast themes. It follows platform appearance and contrast
+and accepts an explicit `ThemeMode`; the caller supplies the home widget.
+The integration test verifies the actual path dependency and platform switching.
+
+This package has no native runners, Core transport or navigation yet. Those
+belong to #6 after the physical acceptance work in #1/#2. Protocol generation is
+still deferred and guarded by the foundation gate. This is not a runnable release.
+
+See [DESIGN.md](../../DESIGN.md) and the
+[foundation policy](../../docs/policy/foundation.md).

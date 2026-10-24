@@ -78,15 +78,23 @@ code licenses are MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, BSD-4-Clause and 
 OFL-1.1 is additionally allowed **for fonts only**. Copyleft runtime code must
 not enter the app process. The tooling package is never bundled with the app.
 
+When separately locked packages use different versions, the inventory can add
+an exact `name@version` entry alongside the default `name` entry. The exact
+entry takes precedence and must still match the locked version, an approved
+license and a complete notice. Missing/mismatched reviews remain failures.
+This preserves the Korean-input experiment's meta 1.18.3 and vector_math 2.4.0
+without upgrading the dependencies under already recorded measurements.
+
 The validator checks declared review metadata and notice presence. Human review
 must establish actual upstream license terms, completeness of notice text,
 font provenance and release-bundle coverage. This is not a vulnerability scanner
 or proof that a newly added native plugin has been legally audited. A plugin's
 native dependencies must join the same review before its first release.
-The Korean-input research spike registers its SDK runtime closure in the
-inventory; no additional runtime plugin or custom font is bundled there.
-`THIRD-PARTY-NOTICES.md` records the reviewed SDK/tooling inputs and full runtime
-notices. Production app/design packages remain deferred.
+The active app/design runtime closure contains Flutter, sky_engine and five
+hosted SDK dependencies; every version and notice is inventoried. Pretendard
+1.3.9 and JetBrains Mono v2.304 are bundled under OFL-1.1. Lucide v0.468.0
+paths carry ISC and Feather MIT notices. Theme verification checks the reviewed
+asset digests. Native engine-artifact notice verification remains with #6.
 
 Generator versions and entry-script hashes are pinned as described in the
 [foundation policy](foundation.md#generated-sources-and-lint). Theme/lint work is

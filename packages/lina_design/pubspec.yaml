@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+name: lina_design
+description: Generated LINA tokens, themes and shared presentation widgets.
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: '>=3.13.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+flutter:
+  assets:
+    - assets/LUCIDE-LICENSE.txt
+    - assets/FEATHER-LICENSE.txt
+    - assets/fonts/OFL.txt
+    - assets/fonts/JetBrainsMono-OFL.txt
+    - assets/licenses/
+  fonts:
+    - family: Pretendard
+      fonts:
+        - asset: assets/fonts/Pretendard-Regular.otf
+          weight: 400
+        - asset: assets/fonts/Pretendard-Bold.otf
+          weight: 700
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Regular.ttf
+          weight: 400

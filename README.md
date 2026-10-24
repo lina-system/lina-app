@@ -20,6 +20,11 @@ Launcher performance evidence and the reference Mac collection protocol live in
 [`docs/research/raycast-feature-map.md`](docs/research/raycast-feature-map.md).
 The baseline is explicitly unverified until the device measurements are recorded.
 
+The shared Flutter [design package](packages/lina_design/README.md) generates
+its themes from pinned Core tokens. [DESIGN.md](DESIGN.md) records screen rules,
+contrast evidence and the icon mapping. The app already consumes it by path;
+native runners and Core transport are still pending.
+
 ## Contributing
 
 The [accent and agent identity study](docs/research/90-accent/README.md) contains

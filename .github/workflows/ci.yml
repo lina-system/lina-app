@@ -63,6 +63,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
+      - name: Test token generation, contrast and visual lint regressions
+        run: node --test scripts/verify/design.test.mjs
       - name: Check research formatting and scripts
         run: |
           dart format --output=none --set-exit-if-changed spikes/korean-input/lib spikes/korean-input/test

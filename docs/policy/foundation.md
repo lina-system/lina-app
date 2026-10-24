@@ -16,8 +16,8 @@ Windows, so only the command construction is covered by tests.
 
 | Component | Path | Current state |
 | --- | --- | --- |
-| LINA app | `packages/lina_app/` | Registered; native skeleton and manifest belong to #6 |
-| Design package | `packages/lina_design/` | Registered; theme, widgets and manifest belong to #5 |
+| LINA app | `packages/lina_app/` | Active theme consumer; native runners/transport belong to #6 |
+| Design package | `packages/lina_design/` | Active generated tokens, themes, widgets, fonts and goldens |
 | Korean input research | `spikes/korean-input/` | Standalone native-only experiment for #88; outside production visual-token/codegen paths |
 | Foundation tooling | `packages/foundation_tools/` | Active Dart policy validator and tests; never shipped |
 | Policy | `docs/policy/` | Foundation and dependency contracts |
@@ -44,8 +44,8 @@ uses `lina_design: {path: ../lina_design}`. The same change activates any checks
 that guard its sources. Until then reserved components have no invented
 analysis/test pass: evidence lists only packages with actual manifests.
 
-This issue provides infrastructure without implementing screens or deciding
-whether Flutter passes the physical-device gates in #1 and #2.
+The design package and app theme boundary do not decide whether Flutter passes
+the physical-device gates in #1 and #2. Native runners remain #6.
 
 ## Stages and failure behavior
 
@@ -82,8 +82,11 @@ use the deliberate update procedure instead.
 | `visual-values` | #5 | Reject hardcoded widget visual values across app and design sources |
 | `protocol` | #6 | Regenerate Dart types from the canonical JSON Schema; fail on any difference and round-trip conformance fixtures |
 
-These checks are explicitly **deferred** until their owning issues implement
-them. Their guarded paths must be empty while deferred; adding generated output
+The theme and visual-value checks are active. Theme verification also checks
+reviewed font/license asset digests; the generated table includes contrast and
+Unicode/ASCII icon mappings. Node regression tests cover drift, bad contrast,
+source corruption and hardcoded visuals. The protocol check remains **deferred**
+until #6 implements it. Their guarded paths must be empty while deferred; adding generated output
 or widgets without activating the corresponding check fails. Removing a required
 registration fails. A deferred result is not codegen or accessibility evidence.
 TUI Lip Gloss generation and the canonical schema belong to Core, not this repo.

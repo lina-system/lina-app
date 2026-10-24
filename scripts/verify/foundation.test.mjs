@@ -45,6 +45,35 @@ test('app and design fail before registration; unknown package paths always fail
   assert.throws(() => classify(['docs/policy/hidden.dart']), /unmapped/);
 });
 
+test('benchmark and design-study registrations admit their files but no hidden executables', () => {
+  for (const path of [
+    'scripts/benchmarks/launcher_baseline.py',
+    'scripts/benchmarks/tests/test_launcher_baseline.py',
+    'docs/research/launcher-baseline-template.csv',
+    'scripts/design-study/package.json',
+    'scripts/design-study/package-lock.json',
+    'scripts/design-study/render.mjs',
+    'scripts/design-study/study.mjs',
+    'scripts/design-study/study.test.mjs',
+    'docs/research/90-accent/study.json',
+    'docs/research/90-accent/README.md',
+    'docs/research/90-accent/fonts/OFL.txt',
+    'docs/research/90-accent/fonts/Pretendard-Regular.otf',
+    'docs/research/90-accent/fonts/Pretendard-Bold.otf',
+    'docs/research/90-accent/icons/identity.svg',
+    'docs/research/90-accent/marks/lina-warm-40.svg',
+    'docs/research/90-accent/renders/a-cobalt-light.svg',
+  ]) assert.doesNotThrow(() => classify([path]), path);
+  for (const path of [
+    'scripts/benchmarks/unreviewed.py',
+    'scripts/design-study/unreviewed.mjs',
+    'docs/research/90-accent/hidden.py',
+    'docs/research/90-accent/fonts/hidden.mjs',
+    'docs/research/90-accent/renders/hidden.dart',
+    'docs/research/91-unknown/study.json',
+  ]) assert.throws(() => classify([path]), /unmapped/, path);
+});
+
 test('runs enforced install, dependency validation, analysis and tests with evidence', t => {
   const f = fixture(t);
   const evidence = verify(f);

@@ -8,6 +8,7 @@ import 'package:lina_protocol/lina_protocol.dart';
 import 'lina_app.dart';
 import 'core_screen.dart';
 import 'launcher.dart';
+import 'conversation_draft.dart';
 import 'platform_slots.dart';
 import 'status_item.dart';
 
@@ -33,6 +34,9 @@ void main() {
         slots: PlatformSlots(
           launcher: Platform.isMacOS ? const MacLauncherHost() : null,
           statusItem: Platform.isMacOS ? const MacStatusItemHost() : null,
+          conversationDraft: Platform.isMacOS
+              ? const MacConversationDraftHost()
+              : null,
         ),
       ),
     ),

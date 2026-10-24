@@ -23,6 +23,7 @@
 /* Begin PBXBuildFile section */
 		46E000000000000000000003 /* emoji.json in Resources */ = {isa = PBXBuildFile; fileRef = 46E000000000000000000004; };
 		46E000000000000000000001 /* LauncherEmoji.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46E000000000000000000002; };
+		45A000000000000000000001 /* LauncherTranslation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45A000000000000000000002; };
 		44D1C7100000000000000001 /* LauncherDictionary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44D1C7100000000000000002; };
 		331C80D8294CF71000263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C80D7294CF71000263BE5 /* RunnerTests.swift */; };
 		335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 335BBD1A22A9A15E00E9071D /* GeneratedPluginRegistrant.swift */; };
@@ -77,6 +78,7 @@
 /* Begin PBXFileReference section */
 		46E000000000000000000004 /* emoji.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "Runner/Launcher/Resources/emoji.json"; sourceTree = SOURCE_ROOT; };
 		46E000000000000000000002 /* LauncherEmoji.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/Launcher/LauncherEmoji.swift"; sourceTree = SOURCE_ROOT; };
+		45A000000000000000000002 /* LauncherTranslation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/Launcher/LauncherTranslation.swift"; sourceTree = SOURCE_ROOT; };
 		44D1C7100000000000000002 /* LauncherDictionary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/Launcher/LauncherDictionary.swift"; sourceTree = SOURCE_ROOT; };
 		331C80D5294CF71000263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		331C80D7294CF71000263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
@@ -206,6 +208,7 @@
 				44D1C7100000000000000002 /* LauncherDictionary.swift */,
 				46E000000000000000000004 /* emoji.json */,
 				46E000000000000000000002 /* LauncherEmoji.swift */,
+				45A000000000000000000002 /* LauncherTranslation.swift */,
 				0B162EB1515193D4F9DB9D91 /* GlobalShortcut.swift */,
 				031006336B3745EA9FB32454 /* LinaTokens.swift */,
 				3A1AA888C03EB05AE48E8C5B /* LinaAppTokens.swift */,
@@ -409,6 +412,7 @@
 				3930343698391577EF23316F /* LauncherContent.swift in Sources */,
 				44D1C7100000000000000001 /* LauncherDictionary.swift in Sources */,
 				46E000000000000000000001 /* LauncherEmoji.swift in Sources */,
+				45A000000000000000000001 /* LauncherTranslation.swift in Sources */,
 				A3BA257D363994C164798532 /* GlobalShortcut.swift in Sources */,
 				3455972699484BCBB390D464 /* LinaTokens.swift in Sources */,
 				A1B474ED6EDC63193E015FEB /* LinaAppTokens.swift in Sources */,

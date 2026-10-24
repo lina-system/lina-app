@@ -18,6 +18,7 @@ const researchFiles = new Set([
   'data/emoji/annotationsDerived-en.json', 'data/emoji/annotationsDerived-ko.json',
   'data/emoji/emoji-test.txt', 'data/emoji/LICENSE.txt', 'data/emoji/upstream.json',
   'scripts/launcher-fixture.swift',
+  'scripts/translation.mjs', // native-macos: installed-language seam with network denied
   'scripts/dictionary.mjs', // native-macos: offline Dictionary Services and evidence validation
   'design/tokens/core/tokens.swift',
   'scripts/benchmarks/launcher_baseline.py',
@@ -56,7 +57,7 @@ export function classify(paths, registry = components) {
         /^docs\/(policy|research)\/[^/]+\.md$/.test(path) ||
         /^docs\/captures\/[^/]+\/[^/]+\.png$/.test(path) ||
         /^docs\/captures\/31\/[^/]+\.(?:md|json|log|mp4)$/.test(path) ||
-        /^docs\/captures\/(?:40|44|46|49)\/[^/]+\.(?:md|json)$/.test(path) ||
+        /^docs\/captures\/(?:40|44|45|46|49)\/[^/]+\.(?:md|json)$/.test(path) ||
         /^docs\/research\/captures\/mac-panel\/[^/]+\.(?:md|log|json|png)$/.test(path) ||
         /^docs\/research\/captures\/korean-input\/[^/]+\.(png|gif|json|txt)$/.test(path) ||
         /^\.github\/(workflows|ISSUE_TEMPLATE)\/[^/]+\.ya?ml$/.test(path) ||

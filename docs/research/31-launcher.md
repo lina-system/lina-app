@@ -75,8 +75,11 @@ error: String?, activationPolicy: Int, uiElement: Bool}`. Login status is `enabl
 `notFound`, `unsupported`, `unknown` or `disabledInTests`. Unknown methods return
 `FlutterMethodNotImplemented`. No network, file, URL, arbitrary command, input
 injection, login mutation or Core method is exposed over the channel. Login
-changes require the native checkbox action. The reserved result list accepts
-native `LauncherResult` display models; filling it belongs to the search work.
+changes require the native checkbox action. The result list accepts native `LauncherResult` display models. The
+[local calculator](40-calculator.md) now fills it for arithmetic and copied-result
+history; search providers remain separate work. Calculator results copy locally
+and do not emit `queryChanged` or `submit`; ordinary drafts retain the channel
+behavior above.
 
 ## Verification and limits
 

@@ -38,6 +38,7 @@
 		8ABFE74060374F20A6D26CE1 /* StatusItemController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D290551696A57F0BCF81CB3; };
 		DCB007BE450F60D1CC92BE56 /* StatusItemChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49D3D82CF9706A5CFFB328FE; };
 		FBD787274F948C62E31D66AB /* MenuBarGuidance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E6FD0B17419C04E794F0BC0; };
+		CA1C00000000000000000001 /* Calculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1C00000000000000000002; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -100,6 +101,7 @@
 		2D290551696A57F0BCF81CB3 /* StatusItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/StatusItem/StatusItemController.swift"; sourceTree = SOURCE_ROOT; };
 		49D3D82CF9706A5CFFB328FE /* StatusItemChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/StatusItem/StatusItemChannel.swift"; sourceTree = SOURCE_ROOT; };
 		0E6FD0B17419C04E794F0BC0 /* MenuBarGuidance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/StatusItem/MenuBarGuidance.swift"; sourceTree = SOURCE_ROOT; };
+		CA1C00000000000000000002 /* Calculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/Launcher/Calculator.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -193,6 +195,7 @@
 				1600B5FD1FA05BDCCE0574AD /* LauncherMenus.swift */,
 				22F53A9BB3771F1784253980 /* LoginItem.swift */,
 				E4D78D0D933F1303952ED0F5 /* LauncherPanel.swift */,
+				CA1C00000000000000000002 /* Calculator.swift */,
 				598969F46B9152450F582E7D /* LauncherContent.swift */,
 				0B162EB1515193D4F9DB9D91 /* GlobalShortcut.swift */,
 				031006336B3745EA9FB32454 /* LinaTokens.swift */,
@@ -392,6 +395,7 @@
 				A313A975B444A234693DB44B /* LauncherMenus.swift in Sources */,
 				5D486B2C5A318ADA7DF10474 /* LoginItem.swift in Sources */,
 				D00330133549CABAFAEF4B55 /* LauncherPanel.swift in Sources */,
+				CA1C00000000000000000001 /* Calculator.swift in Sources */,
 				3930343698391577EF23316F /* LauncherContent.swift in Sources */,
 				A3BA257D363994C164798532 /* GlobalShortcut.swift in Sources */,
 				3455972699484BCBB390D464 /* LinaTokens.swift in Sources */,

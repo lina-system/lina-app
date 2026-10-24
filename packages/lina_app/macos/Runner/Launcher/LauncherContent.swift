@@ -18,10 +18,18 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
     public var onOpenApp: (() -> Void)?
     public var onLoginChange: ((Bool) -> Void)?
     public private(set) var items: [LauncherResult] = []
+    private let history: CalculatorHistory
+    private let pasteboard: NSPasteboard
+    private let locale: Locale
+    private var calculatorItems: [String: CalculatorAnswer] = [:]
     private let answer: NSViewController
     private let loginStatus = NSTextField(labelWithString: "")
 
-    public init(answer: NSViewController) { self.answer = answer; super.init(nibName: nil, bundle: nil) }
+    public init(answer: NSViewController, history: CalculatorHistory = CalculatorHistory(),
+                pasteboard: NSPasteboard = .general, locale: Locale = .current) {
+        self.answer = answer; self.history = history; self.pasteboard = pasteboard; self.locale = locale
+        super.init(nibName: nil, bundle: nil)
+    }
     required init?(coder: NSCoder) { fatalError("Use init(answer:)") }
     public override func loadView() {
         view = NSView(frame: NSRect(x: 0, y: 0, width: LinaAppTokens.launcherWidth, height: LinaAppTokens.launcherHeight))
@@ -105,7 +113,9 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
     @objc private func openApp() { onOpenApp?() }
     @objc private func activateSelection() {
         guard results.selectedRow >= 0, results.selectedRow < items.count else { return }
-        onSubmit?(input.stringValue, items[results.selectedRow].id)
+        if !copyCalculator(unformatted: false) {
+            onSubmit?(input.stringValue, items[results.selectedRow].id)
+        }
     }
     public func numberOfRows(in tableView: NSTableView) -> Int { items.count }
     public func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
@@ -114,7 +124,40 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
         label.textColor = LinaTokens.Color.text
         return label
     }
-    public func controlTextDidChange(_ obj: Notification) { onQuery?(input.stringValue) }
+    public func controlTextDidChange(_ obj: Notification) {
+        calculatorItems.removeAll()
+        if (input.currentEditor() as? NSTextView)?.hasMarkedText() == true {
+            setResults([])
+            return
+        }
+        let query = input.stringValue
+        let answers: [CalculatorAnswer]
+        if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { answers = history.entries }
+        else { answers = Calculator.evaluate(query).map { [$0] } ?? [] }
+        let rows = answers.enumerated().map { index, answer -> LauncherResult in
+            let id = "calculator-\(index)"
+            calculatorItems[id] = answer
+            let title = query.isEmpty ? "\(answer.expression) = \(answer.formatted(locale: locale))" : answer.formatted(locale: locale)
+            return LauncherResult(id: id, title: title)
+        }
+        setResults(rows)
+        status.stringValue = rows.isEmpty ? "Search is not connected yet" : "Calculator · ↩ Copy · ⌥⌘C Copy unformatted · History on this Mac"
+        if rows.isEmpty { onQuery?(query) }
+    }
+    @objc public func copyCalculatorUnformatted(_ sender: Any?) { _ = copyCalculator(unformatted: true) }
+    @discardableResult private func copyCalculator(unformatted: Bool) -> Bool {
+        guard (input.currentEditor() as? NSTextView)?.hasMarkedText() != true,
+              items.indices.contains(results.selectedRow),
+              let answer = calculatorItems[items[results.selectedRow].id] else { return false }
+        // Re-evaluate the current draft so an old row can never copy a stale answer.
+        guard input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+              Calculator.evaluate(input.stringValue) == answer else { return false }
+        pasteboard.clearContents()
+        guard pasteboard.setString(unformatted ? answer.unformatted : answer.formatted(locale: locale), forType: .string) else { return true }
+        history.record(answer)
+        status.stringValue = "Copied · History stays on this Mac"
+        return true
+    }
     public func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         // AppKit/IME consumes marked-text commands before our navigation actions.
         guard !textView.hasMarkedText() else { return false }
@@ -130,7 +173,7 @@ public final class LauncherContent: NSViewController, NSTextFieldDelegate, NSTab
         case #selector(NSResponder.insertNewline(_:)):
             guard NSApp.currentEvent?.isARepeat != true else { return true }
             let id = items.indices.contains(results.selectedRow) ? items[results.selectedRow].id : nil
-            onSubmit?(input.stringValue, id)
+            if !copyCalculator(unformatted: false) { onSubmit?(input.stringValue, id) }
             return true
         default: return false
         }

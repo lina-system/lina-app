@@ -43,7 +43,11 @@ void main() {
         if (transport == 'unix' && Platform.isWindows) return;
         final peer = await serverFor(transport);
         addTearDown(peer.server.close);
-        final connection = CoreConnection(platform: 'darwin/arm64');
+        final requestLog = <String>[];
+        final connection = CoreConnection(
+          platform: 'darwin/arm64',
+          onRequestWritten: requestLog.add,
+        );
         addTearDown(connection.dispose);
         final accepted = Completer<Socket>();
         peer.server.listen((socket) {
@@ -65,6 +69,7 @@ void main() {
         });
         await connection.connect(peer.endpoint);
         expect(connection.phase, ConnectionPhase.connected);
+        expect(requestLog, ['hello']);
         final socket = await accepted.future;
         final preview = connection.changes.first;
         emit(socket, fixture('results/summary'));
@@ -81,6 +86,7 @@ void main() {
         );
         expect(connection.results.single.status, 'preview');
         await pending;
+        expect(requestLog, ['hello', 'result_save']);
         expect(connection.lastEffect, 'unknown');
         expect(connection.results.single.status, 'preview');
         final saved = connection.changes.first;

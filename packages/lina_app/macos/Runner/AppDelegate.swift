@@ -25,10 +25,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBarGuidance: MenuBarGuidance!
     private var shortcut: GlobalShortcut?
     private var loginItem: SystemLoginItem!
+    private var calculatorPasteboard: NSPasteboard?
     private var startupError: String?
     private let arguments = ProcessInfo.processInfo.arguments
     private var testMode: Bool {
-        arguments.contains("--status-item-smoke") ||
+        arguments.contains("--calculator-smoke") || arguments.contains("--status-item-smoke") ||
         arguments.contains("--launcher-smoke") || arguments.contains("--launcher-evidence") ||
         arguments.contains("--launcher-acceptance") ||
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil ||
@@ -47,7 +48,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         flutter = FlutterViewController()
         RegisterGeneratedPlugins(registry: flutter)
         flutter.backgroundColor = LinaTokens.Color.canvas
-        content = LauncherContent(answer: flutter)
+        if arguments.contains("--calculator-smoke") { calculatorPasteboard = NSPasteboard.withUniqueName() }
+        content = LauncherContent(answer: flutter, history: CalculatorHistory(defaults: testMode ? nil : .standard),
+                                  pasteboard: calculatorPasteboard ?? .general,
+                                  locale: arguments.contains("--calculator-smoke") ? Locale(identifier: "en_US") : .current)
         _ = content.view
         host = LauncherPanelHost(content: content, focusView: content.input, defaults: testMode ? nil : .standard)
         statusItem = StatusItemController(openLauncher: { [weak self] in self?.host.show() },
@@ -121,6 +125,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { NSApp.terminate(nil) }
                 }
                 if arguments.contains("--launcher-evidence") { runEvidence() }
+                if arguments.contains("--calculator-smoke") { runCalculatorSmoke() }
             }
         case "state": break
         case "show": host.show()
@@ -176,11 +181,45 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { false }
     func applicationWillTerminate(_ notification: Notification) {
         host?.hide()
+        calculatorPasteboard?.releaseGlobally()
         shortcut = nil
         statusChannel?.dispose()
         statusItem?.remove()
         (mainWindow?.contentViewController as? FlutterViewController)?.engine.shutDownEngine()
         flutter?.engine.shutDownEngine()
+    }
+    private func runCalculatorSmoke(attempt: Int = 0) {
+        // Wait for the real main-engine handshake; arithmetic must add no requests.
+        guard statusItem.menu.items.contains(where: { $0.title == "Core: 연결됨" }) else {
+            guard attempt < 100 else { print("LINA_CALCULATOR failed: Core not ready"); fflush(stdout); NSApp.terminate(nil); return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in self?.runCalculatorSmoke(attempt: attempt + 1) }
+            return
+        }
+        print("LINA_CALCULATOR_BEGIN")
+        var samples: [[String: Any]] = []
+        let editor = NSTextView()
+        for query in ["(3+4)*12%", "2^10", "1234567/100", "1234", "2+"] {
+            for length in 1...query.count {
+                content.input.stringValue = String(query.prefix(length))
+                content.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification, object: content.input))
+            }
+            var sample: [String: Any] = ["query": query, "rows": content.items.map(\.title)]
+            if !content.items.isEmpty {
+                _ = content.control(content.input, textView: editor, doCommandBy: #selector(NSResponder.insertNewline(_:)))
+                sample["formattedCopy"] = calculatorPasteboard?.string(forType: .string)
+                content.copyCalculatorUnformatted(nil)
+                sample["rawCopy"] = calculatorPasteboard?.string(forType: .string)
+            }
+            samples.append(sample)
+        }
+        content.input.stringValue = ""
+        content.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification, object: content.input))
+        let evidence: [String: Any] = ["samples": samples, "historyRows": content.items.count,
+                                      "route": "production NSTextField delegate, Return and copy action; isolated pasteboard and in-memory history"]
+        // Include asynchronous channel work in the observed request-log interval.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [self] in
+            print("LINA_CALCULATOR " + json(evidence)); fflush(stdout); NSApp.terminate(nil)
+        }
     }
     private func capturePanel(completion: @escaping (String?) -> Void) {
         guard #available(macOS 14.4, *) else { completion(nil); return }

@@ -23,6 +23,9 @@ public enum LauncherMenus {
         edit.addItem(.separator())
         edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        let rawCopy = edit.addItem(withTitle: "Copy Calculator Answer Unformatted",
+                                   action: #selector(LauncherContent.copyCalculatorUnformatted(_:)), keyEquivalent: "c")
+        rawCopy.keyEquivalentModifierMask = [.command, .option]
         edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         let window = submenu("Window")

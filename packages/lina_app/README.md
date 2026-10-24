@@ -57,6 +57,15 @@ without inviting a send.
 See the [conversation verification record](../../docs/research/9-conversation.md)
 for captures, tests and the explicitly tracked remaining rich-input/thread work.
 
+## Agents
+
+Agents lists Core's companions and supports creating from the Lina preset,
+renaming, confirmed deletion and choosing the conversation partner. A single
+selected agent has no switcher. Changes wait for Core; uncertain outcomes require
+Refresh agents. Drafts stay with their agent, and reconnect reads Core's selection
+without resending a mutation. See the [agent verification record](../../docs/research/10-agents.md)
+for captures, protocol limits and remaining device acceptance.
+
 ## macOS launcher
 
 The Mac app starts an accessory launcher with Control-Option-Space. Swift owns

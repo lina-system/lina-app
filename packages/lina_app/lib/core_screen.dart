@@ -7,6 +7,7 @@ import 'package:lina_design/lina_design.dart';
 import 'package:lina_protocol/lina_protocol.dart';
 
 import 'agent_mark.dart';
+import 'agents_panel.dart';
 import 'conversation_controller.dart';
 import 'memory_screen.dart';
 import 'platform_slots.dart';
@@ -234,28 +235,42 @@ class _CoreScreenState extends State<CoreScreen> {
           const AgentMark(),
           SizedBox(width: t.spaceInline),
           Expanded(
-            child: DropdownButtonFormField<String>(
-              key: ValueKey((
-                _conversation.selectedId,
-                widget.connection.welcome,
-              )),
-              initialValue: _conversation.selectionAvailable
-                  ? _conversation.selectedId
-                  : null,
-              isExpanded: true,
-              icon: LinaText(t.glyphUnicodeOverflow),
-              decoration: const InputDecoration(labelText: 'Talk with'),
-              items: [
-                for (final agent in _conversation.agents)
-                  DropdownMenuItem(
-                    value: agent.agentId,
-                    child: LinaText(agent.name),
+            child:
+                _conversation.agents.isNotEmpty &&
+                    _conversation.agents.first == _conversation.agents.last &&
+                    _conversation.selectionAvailable
+                ? LinaText(
+                    _conversation.selectedName,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  )
+                : DropdownButtonFormField<String>(
+                    key: ValueKey((
+                      _conversation.selectedId,
+                      _conversation.selectionVersion,
+                      widget.connection.welcome,
+                      _conversation.agentOperation,
+                      _conversation.agents,
+                      _conversation.agentsUncertain,
+                    )),
+                    initialValue: _conversation.selectionAvailable
+                        ? _conversation.selectedId
+                        : null,
+                    isExpanded: true,
+                    icon: LinaText(t.glyphUnicodeOverflow),
+                    decoration: const InputDecoration(labelText: 'Talk with'),
+                    items: [
+                      for (final agent in _conversation.agents)
+                        DropdownMenuItem(
+                          value: agent.agentId,
+                          child: LinaText(agent.name),
+                        ),
+                    ],
+                    onChanged: _conversation.canChooseAgent
+                        ? (id) {
+                            if (id != null) unawaited(_conversation.choose(id));
+                          }
+                        : null,
                   ),
-              ],
-              onChanged: (id) {
-                if (id != null) unawaited(_conversation.choose(id));
-              },
-            ),
           ),
           SizedBox(width: t.spaceInline),
           TextButton(
@@ -595,7 +610,7 @@ class _CoreScreenState extends State<CoreScreen> {
                     context,
                     state.draft,
                     state.focus,
-                    () => unawaited(_conversation.send()),
+                    () => unawaited(_conversation.send(target: state)),
                     t,
                   ) ??
                   TextField(
@@ -607,7 +622,8 @@ class _CoreScreenState extends State<CoreScreen> {
                     maxLines: null,
                     textInputAction: TextInputAction.newline,
                     onEditingComplete: () {},
-                    onSubmitted: (_) => unawaited(_conversation.send()),
+                    onSubmitted: (_) =>
+                        unawaited(_conversation.send(target: state)),
                     decoration: InputDecoration(
                       labelText: composeAllowed
                           ? 'What is on your mind?'
@@ -625,7 +641,7 @@ class _CoreScreenState extends State<CoreScreen> {
             children: [
               TextButton(
                 onPressed: _conversation.canSend && state.draft.text.isNotEmpty
-                    ? () => unawaited(_conversation.send())
+                    ? () => unawaited(_conversation.send(target: state))
                     : null,
                 child: LinaText(
                   state.sending
@@ -644,19 +660,29 @@ class _CoreScreenState extends State<CoreScreen> {
               if (state.active)
                 TextButton(
                   onPressed: connected && !state.stopping
-                      ? () => unawaited(_conversation.stop())
+                      ? () => unawaited(_conversation.stop(target: state))
                       : null,
                   child: LinaText(state.stopping ? 'Requesting stop' : 'Stop'),
                 ),
             ],
           ),
           SizedBox(height: t.spaceInline),
+          if (_conversation.agentFeedback != null)
+            Semantics(
+              liveRegion: true,
+              child: LinaText(_conversation.agentFeedback!),
+            ),
           Semantics(
             liveRegion: true,
             child: LinaText(
               connected && !_conversationOffered
                   ? 'Conversation is not available from this Core.'
-                  : state.feedback ?? 'A draft until Core confirms receipt.',
+                  : (!_conversation.selectionAvailable &&
+                                _conversation.selectedId != null
+                            ? 'This agent is unavailable. Your draft is kept here; choose an agent to continue.'
+                            : null) ??
+                        state.feedback ??
+                        'A draft until Core confirms receipt.',
             ),
           ),
         ],
@@ -693,12 +719,14 @@ class _CoreScreenState extends State<CoreScreen> {
       }
     } else if (event is KeyDownEvent) {
       // Plain, Cmd and Ctrl Enter share the acknowledgement/composition gate.
-      unawaited(_conversation.send());
+      unawaited(_conversation.send(target: state));
     }
     return KeyEventResult.handled;
   }
 
   Widget _section() {
+    if (_conversation.page == 'Agents')
+      return AgentsPanel(conversation: _conversation);
     if (_conversation.page == 'Memory') {
       return MemoryScreen(
         key: ValueKey(_conversation.selectedId),
@@ -717,16 +745,7 @@ class _CoreScreenState extends State<CoreScreen> {
           style: Theme.of(context).textTheme.titleLarge,
         ),
         SizedBox(height: t.spaceSection),
-        if (_conversation.page == 'Agents')
-          for (final agent in _conversation.agents)
-            TextButton(
-              onPressed: () {
-                unawaited(_conversation.choose(agent.agentId));
-                _conversation.navigate('Home');
-              },
-              child: LinaText(agent.name),
-            )
-        else if (_conversation.page == 'Library') ...[
+        if (_conversation.page == 'Library') ...[
           for (final item in _conversation.selected.items.where(
             (i) => i.kind == 'result',
           ))

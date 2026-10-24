@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:lina_design/lina_design.dart';
 
+import 'status_item.dart';
+
 /// #1 can supply a native composition view without changing draft ownership.
 typedef ComposerBuilder = Widget Function(
   BuildContext context,
@@ -18,7 +20,8 @@ abstract interface class LauncherHost {
 }
 
 class PlatformSlots {
-  const PlatformSlots({this.composer, this.launcher});
+  const PlatformSlots({this.composer, this.launcher, this.statusItem});
   final ComposerBuilder? composer;
   final LauncherHost? launcher;
+  final StatusItemHost? statusItem;
 }

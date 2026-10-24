@@ -10,6 +10,7 @@ import 'agent_mark.dart';
 import 'conversation_controller.dart';
 import 'platform_slots.dart';
 import 'preferences.dart';
+import 'status_item.dart';
 
 class CoreScreen extends StatefulWidget {
   const CoreScreen({
@@ -32,15 +33,39 @@ class _CoreScreenState extends State<CoreScreen> {
   final _endpoint = TextEditingController();
   final _scaffold = GlobalKey<ScaffoldState>();
   bool _fullDocument = false;
+  StatusItemBinding? _statusItem;
+  String? _statusAgentName;
   @override
   void initState() {
     super.initState();
     _endpoint.text = widget.endpoint;
     _conversation = ConversationController(widget.connection);
+    final statusHost = widget.slots.statusItem;
+    if (statusHost != null) {
+      _statusItem = StatusItemBinding(
+        connection: widget.connection,
+        host: statusHost,
+        agentName: () => _selectedAgentName,
+      );
+      _statusAgentName = _selectedAgentName;
+      _conversation.addListener(_publishSelectedAgent);
+    }
+  }
+
+  String? get _selectedAgentName =>
+      _conversation.selectionAvailable ? _conversation.selectedName : null;
+
+  void _publishSelectedAgent() {
+    final name = _selectedAgentName;
+    if (name == _statusAgentName) return;
+    _statusAgentName = name;
+    _statusItem?.publish();
   }
 
   @override
   void dispose() {
+    _conversation.removeListener(_publishSelectedAgent);
+    _statusItem?.dispose();
     _conversation.dispose();
     _endpoint.dispose();
     super.dispose();

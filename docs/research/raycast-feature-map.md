@@ -37,9 +37,10 @@ are not cells in the measured baseline, thresholds, or evidence for choosing a
 framework. A relative claim such as “search 50% faster” supplies no absolute
 first-result baseline.
 
-## Local preflight evidence
+## Initial preflight evidence from #52
 
-These are read-only observations, not benchmark trials. No key was posted, no
+These historical observations predate the signed Probe installation below.
+They are read-only observations, not benchmark trials. No key was posted, no
 screen was recorded, no permission was requested and no system setting changed.
 
 | Check | Observation | Consequence |
@@ -73,17 +74,68 @@ for the launcher checks in #2, #27 and #53. The Core design currently specifies 
 native panel; this research makes no framework change and leaves the app's
 Flutter pin untouched. #7 remains the owner's decision and stays open.
 
+## Recorder and personal-login pilot attempt
+
+The recorder now lives inside the existing
+[LINA Probe app](../../scripts/benchmarks/probe/README.md), using the same bundle
+ID, installed path and local signing certificate. Rebuilding with `build.sh`
+preserved the designated requirement; `run.sh status` returned 0 with both
+Accessibility and Screen Recording enabled at 2026-10-24T11:53:22.903Z and again
+after rebuilding. The private build manifest records the binary/source hashes,
+source revision, Swift 6.4, SDK 27.0 and successful strict signature verification.
+No permission settings were changed.
+
+| Current session observation | Recorded value |
+| --- | --- |
+| Hardware | Mac14,12, Apple M2 Pro, 32 GiB RAM |
+| OS | macOS 27.0.1, build 26A434 |
+| Main display | 3840 × 2160 pixels, 1920 × 1080 points, scale 2, reported 60 Hz |
+| Spotlight | 1.0, build 236.0.21.401 |
+| Raycast | Installed, bundle reports 2.9.0.0 (0); onboarding remains unverified |
+| Active input source | ABC; Korean 2-Set is available |
+| System Spotlight shortcut | Enabled, key code 49 with Command (⌘Space); unchanged |
+| Foreground/session | `loginwindow`; desktop locked, no main display available to ScreenCaptureKit |
+| Completed pilot trials | **0**; no latency, key-loss or RSS measurements |
+
+This account is a personal login, not the synthetic account required for the
+baseline. The initial setup attempt was retained privately with its manifest
+and failure reason. Spotlight was not running, and the locked desktop exposed
+no capturable main display. No shortcut or query keys were posted, no frame was
+captured, and no complete trial JSON with frames/keys/RSS exists. A subsequent
+explicit lock guard rejects this state before injection or capture. No attempt
+was made to unlock the account. There are no crops to publish.
+
+The recorder stores posting-call brackets and raw mach display ticks with their
+timebase; full-cadence ScreenCaptureKit metadata and bounded BGRA frame writes;
+post-trial Vision recognition; physical sequences; a five-second deadline; and
+process-set RSS at final key + one second, with helper rediscovery and separate
+shared indexing services. Its focus checks and PID-targeted query delivery are
+**pilot-method deviations**, not independently validated physical-key timing.
+Queue errors, cadence gaps, timeouts, unknown key loss and missing process
+samples remain failures/unknowns. These implementation details and synthetic
+unit tests do not establish screen-path correctness on the reference device.
+
+No complete CSV was available. Running the existing analyzer on the header-only
+CSV returns exit 2 for the missing warmup/alternating schedule. All six
+conditions for each launcher remain **unverified**, with 0/30 warm observations;
+there are no medians, p90 values or memory totals to report.
+
 ## Delivered and outstanding
 
-- Delivered: pinned source context, explicit missing-evidence table, collection
-  protocol, CSV contract, tested summary/validation script and CI coverage.
-- Outstanding in #91: prepare and authorize the signed Swift recorder, collect
-  and inspect the warm/cold/camera evidence, publish privacy-checked artifacts,
-  fill the numerical baseline and update #7 with the measured recommendation.
-
-There is no capture-tool implementation or actual capture in this change. The
-summary script validates annotations and computes statistics; it cannot certify
-their source, signature, timestamps, OCR, process coverage or physical accuracy.
+- Delivered: signed-app recorder implementation, frozen configuration and
+  private-evidence format, timing/JSON/CSV tests, macOS compile CI, environment
+  manifest and an honestly retained failed setup attempt.
+- Still needed before even a complete pilot: an unlocked desktop left idle for
+  at least five minutes, running launchers, inspected panel/field/result regions,
+  frozen expected rows and safe neutral foreground. Raycast onboarding and
+  shortcut ownership must be checked through supported UI.
+- Owner collection: the synthetic account and settled indexing, complete
+  384-row alternating schedule across both input methods and all key gaps,
+  separate fresh-login cold runs, ten physical-key trials with 240 fps phone
+  video, and observer-cost/synchronization checks. Inspect crops for private
+  content before publication and adjudicate physical-key loss from evidence.
+- After that evidence: fill the numerical baseline and let the owner update #7.
+  No comment was posted to #7 and neither #7 nor #91 is closed by this change.
 
 ## Reproducing the read-only preflight
 

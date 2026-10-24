@@ -4,6 +4,7 @@
 // Launch it through run.sh so the app itself, not a shell or sshd, is the
 // responsible process that TCC checks. Recorder commands belong in this
 // target; do not wrap them in another app or sign them with another identity.
+import AppKit
 import ApplicationServices
 import CoreGraphics
 import Foundation
@@ -75,7 +76,7 @@ func write(_ status: Status, to path: String?) {
 }
 
 let usage = """
-  usage: LINA Probe [--exit-file PATH] status|request|panel-shortcut [--out PATH]
+  usage: LINA Probe [--exit-file PATH] status|request|panel-shortcut|manifest|snapshot|prepare|pilot [--out PATH] [--config PATH] [--launcher spotlight|raycast]
     status   write accessibility/screen_recording grant state; exit 0 when both are granted, 3 otherwise
     request  ask macOS for both grants (adds LINA Probe to both Privacy lists), then write status
   """
@@ -90,16 +91,47 @@ if args.first == "--exit-file" {
 args.removeAll { $0.hasPrefix("-psn_") }
 let command = args.first ?? "status"
 var out: String?
+var configPath: String?
+var launcher = "spotlight"
 var rest = Array(args.dropFirst())
 while !rest.isEmpty {
   let flag = rest.removeFirst()
   switch flag {
+  case "--config":
+    guard !rest.isEmpty else { fail(usage) }
+    configPath = rest.removeFirst()
+  case "--launcher":
+    guard !rest.isEmpty else { fail(usage) }
+    launcher = rest.removeFirst()
   case "--out":
     guard !rest.isEmpty else { fail(usage) }
     out = rest.removeFirst()
   default:
     fail("unknown option \(flag)\n\(usage)")
   }
+}
+
+if ["manifest", "snapshot", "prepare", "pilot"].contains(command) {
+  let status = currentStatus(command)
+  guard status.accessibility && status.screenRecording else { fail("both grants required", 3) }
+  NSApplication.shared.setActivationPolicy(.prohibited)
+  Task {
+    do {
+      switch command {
+      case "pilot":
+        guard let configPath else { throw ProbeError.message("pilot requires --config PATH") }
+        try await runPilot(URL(fileURLWithPath: configPath))
+      case "prepare": try await preparePilot(launcher)
+      default:
+        let dir = try privateAttempt(command)
+        try sessionManifest(dir)
+        if command == "snapshot" { try await screenshot(dir) }
+        print("Private evidence: \(dir.path)")
+      }
+      finish(0)
+    } catch { fail(String(describing: error), 1) }
+  }
+  dispatchMain()
 }
 
 switch command {

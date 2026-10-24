@@ -35,6 +35,9 @@
 		D00330133549CABAFAEF4B55 /* LauncherPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D78D0D933F1303952ED0F5; };
 		5D486B2C5A318ADA7DF10474 /* LoginItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F53A9BB3771F1784253980; };
 		A313A975B444A234693DB44B /* LauncherMenus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1600B5FD1FA05BDCCE0574AD; };
+		8ABFE74060374F20A6D26CE1 /* StatusItemController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D290551696A57F0BCF81CB3; };
+		DCB007BE450F60D1CC92BE56 /* StatusItemChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49D3D82CF9706A5CFFB328FE; };
+		FBD787274F948C62E31D66AB /* MenuBarGuidance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E6FD0B17419C04E794F0BC0; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -94,6 +97,9 @@
 		E4D78D0D933F1303952ED0F5 /* LauncherPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/Launcher/LauncherPanel.swift"; sourceTree = SOURCE_ROOT; };
 		22F53A9BB3771F1784253980 /* LoginItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/Launcher/LoginItem.swift"; sourceTree = SOURCE_ROOT; };
 		1600B5FD1FA05BDCCE0574AD /* LauncherMenus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/Launcher/LauncherMenus.swift"; sourceTree = SOURCE_ROOT; };
+		2D290551696A57F0BCF81CB3 /* StatusItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/StatusItem/StatusItemController.swift"; sourceTree = SOURCE_ROOT; };
+		49D3D82CF9706A5CFFB328FE /* StatusItemChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/StatusItem/StatusItemChannel.swift"; sourceTree = SOURCE_ROOT; };
+		0E6FD0B17419C04E794F0BC0 /* MenuBarGuidance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Runner/StatusItem/MenuBarGuidance.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -180,6 +186,9 @@
 		33FAB671232836740065AC1E /* Runner */ = {
 			isa = PBXGroup;
 			children = (
+				2D290551696A57F0BCF81CB3 /* StatusItemController.swift */,
+				49D3D82CF9706A5CFFB328FE /* StatusItemChannel.swift */,
+				0E6FD0B17419C04E794F0BC0 /* MenuBarGuidance.swift */,
 				33CC10F02044A3C60003C045 /* AppDelegate.swift */,
 				1600B5FD1FA05BDCCE0574AD /* LauncherMenus.swift */,
 				22F53A9BB3771F1784253980 /* LoginItem.swift */,
@@ -376,6 +385,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */,
+				8ABFE74060374F20A6D26CE1 /* StatusItemController.swift in Sources */,
+				DCB007BE450F60D1CC92BE56 /* StatusItemChannel.swift in Sources */,
+				FBD787274F948C62E31D66AB /* MenuBarGuidance.swift in Sources */,
 				33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */,
 				A313A975B444A234693DB44B /* LauncherMenus.swift in Sources */,
 				5D486B2C5A318ADA7DF10474 /* LoginItem.swift in Sources */,

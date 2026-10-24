@@ -3,8 +3,10 @@
 For [#52](https://github.com/lina-system/lina-app/issues/52); remaining execution
 is tracked by [#91](https://github.com/lina-system/lina-app/issues/91). This
 operationalizes the [pinned Core method](https://github.com/lina-system/lina/blob/2ff382b35c624f1ff7fb0bca32ed67bb8d0c5f66/docs/research/raycast-feature-map.md#the-bar).
-It is a collection specification and annotation workflow, not a functioning
-recorder. The Python analyzer does not post keys, capture screens or run OCR.
+The [LINA Probe recorder](../../scripts/benchmarks/probe/README.md) implements a
+conservative personal-login pilot path. Its targeted key delivery and focus
+checks require separate physical validation; they do not establish this exact
+baseline method. The Python analyzer does not post keys, capture screens or run OCR.
 
 ## Prepare the reference session
 

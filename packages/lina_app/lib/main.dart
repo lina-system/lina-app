@@ -9,6 +9,7 @@ import 'lina_app.dart';
 import 'core_screen.dart';
 import 'launcher.dart';
 import 'platform_slots.dart';
+import 'status_item.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +27,7 @@ void main() {
         endpoint: endpoint,
         slots: PlatformSlots(
           launcher: Platform.isMacOS ? const MacLauncherHost() : null,
+          statusItem: Platform.isMacOS ? const MacStatusItemHost() : null,
         ),
       ),
     ),

@@ -1,13 +1,105 @@
 // SPDX-License-Identifier: Apache-2.0
 import AppKit
 
+/// Sample accessibility on every open as well as on notifications. Never read
+/// private preferences: NSGlassEffectView owns the system's Liquid Glass setting.
+struct LauncherDisplaySettings {
+    var reduceTransparency: Bool
+    var increaseContrast: Bool
+
+    static var current: Self {
+        Self(reduceTransparency: NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency,
+             increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast)
+    }
+}
+
+/// Keep the content (including the prewarmed answer view) attached throughout
+/// appearance changes. Replacing its controller would lose first-frame readiness.
+final class LauncherSurfaceView: NSView {
+    let material: NSView
+    let opaqueBacking = NSView()
+    private let body = NSView()
+    private let settings: () -> LauncherDisplaySettings
+
+    init(content: NSView, settings: @escaping () -> LauncherDisplaySettings, useGlass: Bool) {
+        self.settings = settings
+        if #available(macOS 26.0, *), useGlass {
+            let glass = NSGlassEffectView()
+            glass.style = .regular
+            // Fill the native titled panel: its system corner mask clips the
+            // material and all children. Do not add a second, mismatched curve.
+            glass.cornerRadius = 0
+            // No tint or interactive glass: the system chooses the material,
+            // and opening/closing remains static even under Reduce Motion.
+            glass.contentView = body
+            material = glass
+        } else {
+            // Public AppKit fallback on macOS 12–25 (also injectable in tests).
+            let effect = NSVisualEffectView()
+            effect.material = .hudWindow
+            effect.blendingMode = .behindWindow
+            effect.state = .active // a non-activating panel must not look inactive
+            effect.addSubview(body)
+            material = effect
+        }
+        super.init(frame: content.frame)
+        for child in [material, body, opaqueBacking, content] {
+            child.frame = bounds
+            child.autoresizingMask = [.width, .height]
+        }
+        addSubview(material)
+        body.addSubview(opaqueBacking)
+        body.addSubview(content)
+        opaqueBacking.wantsLayer = true
+    }
+    required init?(coder: NSCoder) { fatalError("Use init(content:settings:useGlass:)") }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateBacking()
+    }
+
+    func refresh() {
+        let display = settings()
+        // Keep appearance inherited. AppKit supplies accessibility appearances
+        // when Increase Contrast changes; constructing a named accessibility
+        // appearance is not a substitute for that system signal. Core's dynamic
+        // Swift tokens select the corresponding 7:1 palette automatically.
+        opaqueBacking.isHidden = !display.reduceTransparency && !display.increaseContrast
+        updateBacking()
+        // Dynamic NSColors remain dynamic. Invalidate existing native content,
+        // rather than caching CGColors or a snapshot of the previous opening.
+        func invalidate(_ view: NSView) {
+            view.needsDisplay = true
+            view.subviews.forEach(invalidate)
+        }
+        invalidate(self)
+    }
+
+    private func updateBacking() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            opaqueBacking.layer?.backgroundColor = LinaTokens.Color.canvas.cgColor
+            opaqueBacking.layer?.borderColor = LinaTokens.Color.line.cgColor
+        }
+        opaqueBacking.layer?.borderWidth = settings().increaseContrast ? LinaAppTokens.borderWidth : 0
+    }
+}
+
 public final class LauncherPanel: NSPanel {
     public override var canBecomeKey: Bool { true }
     public override var canBecomeMain: Bool { false }
     public var onDismiss: (() -> Void)?
     public var onSettings: (() -> Void)?
+    let surface: LauncherSurfaceView
+    private var displayObserver: NSObjectProtocol?
+    private var colorObserver: NSObjectProtocol?
 
-    public init(content: NSViewController) {
+    public convenience init(content: NSViewController) {
+        self.init(content: content, settings: { .current }, useGlass: true)
+    }
+
+    init(content: NSViewController, settings: @escaping () -> LauncherDisplaySettings, useGlass: Bool) {
+        surface = LauncherSurfaceView(content: content.view, settings: settings, useGlass: useGlass)
         super.init(contentRect: NSRect(x: 0, y: 0, width: LinaAppTokens.launcherWidth,
                                       height: LinaAppTokens.launcherHeight),
                    styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
@@ -27,10 +119,46 @@ public final class LauncherPanel: NSPanel {
         tabbingMode = .disallowed
         isMovableByWindowBackground = true
         isExcludedFromWindowsMenu = true
-        // Opaque token surface until the system-material work in #32.
-        isOpaque = true
-        backgroundColor = LinaTokens.Color.canvas
-        contentViewController = content
+        isOpaque = false
+        backgroundColor = .clear
+        hasShadow = true
+        animationBehavior = .none
+        let wrapper = NSViewController()
+        wrapper.addChild(content)
+        wrapper.view = surface
+        contentViewController = wrapper
+        surface.refresh()
+        displayObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.refreshSurface() }
+        colorObserver = NotificationCenter.default.addObserver(
+            forName: NSColor.systemColorsDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.refreshSurface() }
+    }
+
+    deinit {
+        if let displayObserver { NSWorkspace.shared.notificationCenter.removeObserver(displayObserver) }
+        if let colorObserver { NotificationCenter.default.removeObserver(colorObserver) }
+    }
+
+    private func refreshSurface() {
+        surface.refresh()
+        invalidateShadow()
+    }
+
+    public override func makeKeyAndOrderFront(_ sender: Any?) {
+        // Finish native layout and invalidate display while still hidden, after
+        // the Flutter readiness gate. AppKit draws in the ordering transaction;
+        // do not reuse a snapshot or recreate the prewarmed answer surface.
+        refreshSurface()
+        surface.layoutSubtreeIfNeeded()
+        surface.displayIfNeeded()
+        super.makeKeyAndOrderFront(sender)
+    }
+
+    public override func setFrame(_ frameRect: NSRect, display flag: Bool) {
+        super.setFrame(frameRect, display: flag)
+        invalidateShadow()
     }
 
     public override func cancelOperation(_ sender: Any?) { onDismiss?() }

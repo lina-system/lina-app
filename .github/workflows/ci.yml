@@ -53,7 +53,21 @@ jobs:
         with:
           python-version: '3.13'
       - name: Test benchmark annotation validation and statistics
-        run: python3 -m unittest discover -s scripts/benchmarks/tests -p 'test_launcher_baseline.py' -v
+        run: python3 -m unittest discover -s scripts/benchmarks/tests -p 'test_*.py' -v
+
+  probe-recorder:
+    name: probe recorder
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Test recorder clock and trial JSON without screen access
+        run: scripts/benchmarks/probe/tests/run.sh
+      - name: Compile the signed app target without installing or requesting grants
+        env:
+          LINA_PROBE_APP: ${{ runner.temp }}/LINA Probe.app
+          LINA_PROBE_SIGN: adhoc
+        run: scripts/benchmarks/probe/build.sh
 
   design-study:
     name: design-study
@@ -183,20 +197,25 @@ jobs:
         run: flutter --version
       - name: Verify and build the native artifact
         run: node scripts/build.mjs ${{ matrix.target }}
-      - name: Test production launcher panel, native input and opt-in login guards
+      - name: Test production launcher, menu bar status and opt-in guards
         if: matrix.target == 'macos'
-        run: swift test --package-path packages/lina_app/macos -j 2 --filter LinaLauncherTests
+        run: swift test --package-path packages/lina_app/macos -j 2
       - name: Verify hidden launcher first frame and external fixture focus
         if: matrix.target == 'macos'
         run: |
           node scripts/launcher.mjs smoke
           node scripts/launcher.mjs evidence
+      - name: Verify menu bar disconnects when the fake Core stops
+        if: matrix.target == 'macos'
+        run: node scripts/status-item.mjs
       - name: Preserve production launcher captures
         if: always() && matrix.target == 'macos'
         uses: actions/upload-artifact@v4
         with:
           name: launcher-evidence
-          path: docs/captures/31/
+          path: |
+            docs/captures/31/
+            docs/captures/49/
           if-no-files-found: error
       - name: Preserve native verification and artifact digests
         if: always()

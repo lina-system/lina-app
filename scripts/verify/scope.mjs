@@ -18,6 +18,12 @@ const researchFiles = new Set([
   'scripts/benchmarks/launcher_baseline.py',
   'scripts/benchmarks/tests/test_launcher_baseline.py',
   'scripts/benchmarks/probe/main.swift',
+  'scripts/benchmarks/probe/Recorder.swift',
+  'scripts/benchmarks/probe/RecorderModel.swift',
+  'scripts/benchmarks/probe/tests/main.swift',
+  'scripts/benchmarks/probe/tests/run.sh',
+  'scripts/benchmarks/probe_trials.py',
+  'scripts/benchmarks/tests/test_probe_trials.py',
   'scripts/benchmarks/probe/panel-shortcut.swift',
   'scripts/benchmarks/probe/Info.plist',
   'scripts/benchmarks/probe/build.sh',
@@ -45,6 +51,7 @@ export function classify(paths, registry = components) {
         /^docs\/(policy|research)\/[^/]+\.md$/.test(path) ||
         /^docs\/captures\/[^/]+\/[^/]+\.png$/.test(path) ||
         /^docs\/captures\/31\/[^/]+\.(?:md|json|log|mp4)$/.test(path) ||
+        /^docs\/captures\/49\/[^/]+\.(?:md|json)$/.test(path) ||
         /^docs\/research\/captures\/mac-panel\/[^/]+\.(?:md|log|json|png)$/.test(path) ||
         /^docs\/research\/captures\/korean-input\/[^/]+\.(png|gif|json|txt)$/.test(path) ||
         /^\.github\/(workflows|ISSUE_TEMPLATE)\/[^/]+\.ya?ml$/.test(path) ||

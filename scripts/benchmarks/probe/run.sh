@@ -13,9 +13,10 @@ dir=$(mktemp -d); trap 'rm -rf "$dir"' EXIT
 : > "$dir/out"; : > "$dir/err"
 # open -W cannot always block on an app that exits within milliseconds, so the
 # exit file written last by the app is the completion signal.
-open -n -g -W -a "$app" -o "$dir/out" --stderr "$dir/err" --args --exit-file "$dir/code" "$@" 2>"$dir/open" ||
-  { cat "$dir/open" >&2; exit 70; }
+# Its "Unable to block" error is ignored when the exit file arrives.
+open -n -g -W -a "$app" -o "$dir/out" --stderr "$dir/err" --args --exit-file "$dir/code" "$@" 2>"$dir/open" || true
 for _ in $(seq 1 "${LINA_PROBE_WAIT:-300}"); do [ -s "$dir/code" ] && break; sleep 0.1; done
 cat "$dir/out"; cat "$dir/err" >&2
+[ -s "$dir/code" ] || cat "$dir/open" >&2
 [ -s "$dir/code" ] || { printf 'run.sh: LINA Probe exited without a status; is a GUI login session active?\n' >&2; exit 70; }
 exit "$(cat "$dir/code")"

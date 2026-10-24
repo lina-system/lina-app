@@ -15,6 +15,10 @@ export function classify(paths, registry = components) {
     const component = registry.find(c => path.startsWith(`${c.path}/`));
     if (component) { selected.add(component.name); continue; }
     if (rootFiles.has(path) || /^docs\/(policy|research)\/[^/]+\.md$/.test(path) ||
+        // Research studies keep their notes and static artefacts in one folder (#90).
+        /^docs\/research\/[^/]+\/(?:[^/]+\/)*[^/]+\.(md|json|svg|png|otf|txt)$/.test(path) ||
+        // The design-study renderer is checked by its own CI job (design-study).
+        /^scripts\/design-study\/[^/]+\.(mjs|json)$/.test(path) ||
         /^docs\/captures\/[^/]+\/[^/]+\.png$/.test(path) ||
         /^\.github\/(workflows|ISSUE_TEMPLATE)\/[^/]+\.ya?ml$/.test(path) ||
         path === '.github/PULL_REQUEST_TEMPLATE.md' ||

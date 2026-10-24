@@ -45,6 +45,18 @@ test('app and design fail before registration; unknown package paths always fail
   assert.throws(() => classify(['docs/policy/hidden.dart']), /unmapped/);
 });
 
+test('research study artefacts and the design-study tool are mapped; other files there are not', () => {
+  for (const path of ['docs/research/90-accent/README.md', 'docs/research/90-accent/marks/a.svg',
+    'docs/research/90-accent/fonts/Pretendard-Regular.otf', 'scripts/design-study/render.mjs',
+    'scripts/design-study/package-lock.json']) {
+    assert.doesNotThrow(() => classify([path], components), path);
+  }
+  for (const path of ['docs/research/90-accent/run.sh', 'scripts/design-study/node_modules/x/index.js',
+    'docs/research/../secret.md']) {
+    assert.throws(() => classify([path], components), /unmapped|unsafe/, path);
+  }
+});
+
 test('runs enforced install, dependency validation, analysis and tests with evidence', t => {
   const f = fixture(t);
   const evidence = verify(f);

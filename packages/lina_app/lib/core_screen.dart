@@ -8,6 +8,7 @@ import 'package:lina_protocol/lina_protocol.dart';
 
 import 'agent_mark.dart';
 import 'conversation_controller.dart';
+import 'memory_screen.dart';
 import 'platform_slots.dart';
 import 'preferences.dart';
 import 'status_item.dart';
@@ -174,6 +175,7 @@ class _CoreScreenState extends State<CoreScreen> {
             'Goals',
             'Map',
             'Library',
+            'Memory',
             'Memos',
           ])
             Padding(
@@ -697,6 +699,15 @@ class _CoreScreenState extends State<CoreScreen> {
   }
 
   Widget _section() {
+    if (_conversation.page == 'Memory') {
+      return MemoryScreen(
+        key: ValueKey(_conversation.selectedId),
+        core: widget.connection,
+        agentId: _conversation.selectedId ?? '',
+        agentName: _conversation.selectedName,
+        onAskAgent: () => _conversation.navigate('Home'),
+      );
+    }
     final t = LinaTokens.of(context);
     return ListView(
       padding: EdgeInsets.all(t.spaceGutter),

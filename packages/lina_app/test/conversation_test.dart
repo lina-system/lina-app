@@ -489,6 +489,118 @@ void main() {
     },
   );
 
+  testWidgets(
+    'superseded document read errors do not replace the current document',
+    (tester) async {
+      final core = ConversationCore();
+      core.welcome = ProtocolWelcome.fromJson({
+        ...core.welcome!.toJson(),
+        'capabilities': [
+          {'name': 'conversation', 'version': '1.0'},
+          CoreConnection.capabilities.firstWhere((c) => c['name'] == 'results'),
+        ],
+      });
+      Map<String, dynamic> document(String id, String title) => {
+        ...fixture('results/document_draft')['payload'] as Map<String, dynamic>,
+        'result_id': id,
+        'title': title,
+        'provenance': {
+          'agent_id': 'lina',
+          'conversation_id': 'lina-main',
+          'turn_id': 'turn',
+          'task_id': null,
+        },
+      };
+      final first = document('document-a', 'Synthetic document A');
+      final second = document('document-b', 'Synthetic document B');
+      core.snapshots['lina'] = [
+        {
+          'kind': 'result',
+          'key': 'document-a',
+          'revision': 1,
+          'payload': first,
+        },
+        {
+          'kind': 'result',
+          'key': 'document-b',
+          'revision': 1,
+          'payload': second,
+        },
+      ];
+      await mount(tester, core);
+      final list = tester
+          .widget<ListView>(
+            find.byKey(const PageStorageKey('conversation:lina')),
+          )
+          .controller!;
+      list.jumpTo(0);
+      await tester.pump();
+      await tester.tap(find.text('Read').first);
+      await tester.pump();
+      final superseded = core.pending.last;
+      list.jumpTo(list.position.maxScrollExtent);
+      await tester.pump();
+      await tester.tap(find.text('Read').last);
+      await tester.pump();
+      core.pending.last.complete(
+        event('result', {...second, 'text': 'Second document body'}),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Second document body'), findsOneWidget);
+      superseded.completeError(const ConnectionLost());
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Disconnected. Reopen'), findsNothing);
+      expect(find.text('Second document body'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'a disconnect while reading the selected document keeps the reopen hint',
+    (tester) async {
+      final core = ConversationCore();
+      core.welcome = ProtocolWelcome.fromJson({
+        ...core.welcome!.toJson(),
+        'capabilities': [
+          {'name': 'conversation', 'version': '1.0'},
+          CoreConnection.capabilities.firstWhere((c) => c['name'] == 'results'),
+        ],
+      });
+      core.snapshots['lina'] = [
+        {
+          'kind': 'result',
+          'key': 'document-a',
+          'revision': 1,
+          'payload': {
+            ...fixture('results/document_draft')['payload']
+                as Map<String, dynamic>,
+            'result_id': 'document-a',
+            'title': 'Synthetic document A',
+            'provenance': {
+              'agent_id': 'lina',
+              'conversation_id': 'lina-main',
+              'turn_id': 'turn',
+              'task_id': null,
+            },
+          },
+        },
+      ];
+      await mount(tester, core);
+      await tester.tap(find.text('Read').first);
+      await tester.pump();
+      final read = core.pending.last;
+      // Core ends the connection, which invalidates the request generation
+      // before the pending read fails.
+      core.drop();
+      await tester.pump();
+      read.completeError(const ConnectionLost());
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Disconnected. Reopen this document after reconnecting.'),
+        findsOneWidget,
+      );
+    },
+  );
+
   testWidgets('phone document does not advertise an unsupported view toggle', (
     tester,
   ) async {

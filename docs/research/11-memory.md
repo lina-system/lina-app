@@ -67,6 +67,9 @@ Controller/widget tests cover scoped reads, paging, applied/refused/missing
 receipts, no optimistic changes or resend, correction/forget payloads, uncertain
 writes, stale replies, revocation, capability loss, removed agents, restart,
 explicit confirmation/cancellation, source tombstones and agent switching.
+An additional regression commits Korean composition without changing the text:
+submission remains disabled during composition and enables on its commit. The
+editor listens to the full editing value, including composing-range changes.
 
 ```sh
 # packages/lina_app

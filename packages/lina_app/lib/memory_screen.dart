@@ -40,8 +40,11 @@ class _MemoryScreenState extends State<MemoryScreen>
     memory = MemoryController(widget.core, widget.agentId);
     session = memory.session;
     memory.addListener(_changed);
+    text.addListener(_textChanged);
     WidgetsBinding.instance.addObserver(this);
   }
+
+  void _textChanged() => setState(() {});
 
   void _changed() {
     if (memory.session != session || (!memory.observed && editing != null)) {
@@ -67,6 +70,7 @@ class _MemoryScreenState extends State<MemoryScreen>
     WidgetsBinding.instance.removeObserver(this);
     memory.removeListener(_changed);
     memory.dispose();
+    text.removeListener(_textChanged);
     text.dispose();
     scroll.dispose();
     super.dispose();
@@ -352,7 +356,6 @@ class _MemoryScreenState extends State<MemoryScreen>
                 decoration: const InputDecoration(
                   labelText: 'Memory statement',
                 ),
-                onChanged: (_) => setState(() {}),
               ),
             SizedBox(height: t.spaceInline),
             Wrap(

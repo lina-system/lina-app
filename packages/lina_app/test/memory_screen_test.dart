@@ -25,6 +25,40 @@ Future<void> mountMemory(WidgetTester tester, MemoryCore core) async {
 }
 
 void main() {
+  testWidgets('composition-only commit enables the memory submit action', (
+    tester,
+  ) async {
+    final core = MemoryCore();
+    await mountMemory(tester, core);
+    await tester.tap(find.text('Memory'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remember'));
+    await tester.pumpAndSettle();
+    await tester.showKeyboard(find.byKey(const ValueKey('memory-text')));
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: '기억',
+        selection: TextSelection.collapsed(offset: 2),
+        composing: TextRange(start: 0, end: 2),
+      ),
+    );
+    await tester.pump();
+    final send = find.widgetWithText(FilledButton, 'Send memory request');
+    expect(tester.widget<FilledButton>(send).onPressed, isNull);
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: '기억',
+        selection: TextSelection.collapsed(offset: 2),
+        composing: TextRange.empty,
+      ),
+    );
+    await tester.pump();
+    expect(tester.widget<FilledButton>(send).onPressed, isNotNull);
+    await tester.tap(send);
+    await tester.pump();
+    expect(core.writes.single.request.text, '기억');
+  });
+
   testWidgets(
     'remember previews destination and keeps draft until Core confirms',
     (tester) async {

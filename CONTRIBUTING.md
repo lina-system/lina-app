@@ -1,6 +1,6 @@
 # Contributing
 
-The LINA app is not is not accepting outside pull requests during alpha. Bug reports and ideas are welcome in Issues.
+The LINA app is not accepting outside pull requests during alpha. Bug reports and ideas are welcome in Issues.
 
 ## License
 

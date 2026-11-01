@@ -1,8 +1,6 @@
-# Contributing to LINA App
+# Contributing
 
-## Rules
-
-The shared repository policy is [lina-system/.github POLICY.md](https://github.com/lina-system/.github/blob/main/POLICY.md): pull requests target `dev`, use Conventional Commit titles, and merge as merge commits.
+The LINA app is not is not accepting outside pull requests during alpha. Bug reports and ideas are welcome in Issues.
 
 ## License
 

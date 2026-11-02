@@ -11,6 +11,13 @@ Node 24. `npm ci` installs the pinned toolchain.
 - `npm run build` builds the app. The version stamped into the build is `0.0.1-alpha.YYYYMMDD.N`.
 - `npm run capture` builds, then takes captures at 1280 and 390 wide on synthetic data. CI uploads those captures. Do not commit them.
 
+## Verify what people see
+
+Dev skills live in `.agents/skills/`; `.claude/skills`, `.cursor/skills` and `.opencode/skills` link to it. `.agents/skills/verify-lina-app/` launches a disposable app on fixture data, drives it in a browser and keeps the evidence, using the feature map in its `features/` directory.
+
+- A pull request that adds or changes a screen adds or updates that screen's feature file in the same pull request.
+- A pull request that changes what people see carries the `ui` label and gets one browser QA run on the features it touches. The run reports defects, confirmed Done when items, suggestions and map drift. A defect blocks the merge; suggestions go into one issue per sprint.
+
 ## License
 
 Contributions are licensed under the project's [AGPL-3.0 License](./LICENSE).

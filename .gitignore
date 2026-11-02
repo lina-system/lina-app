@@ -1,6 +1,7 @@
 node_modules/
 dist/
 captures/
+verify-runs/
 test-results/
 playwright-report/
 blob-report/

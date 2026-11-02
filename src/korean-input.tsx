@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "preact/hooks";
+import { useLayoutEffect, useRef } from "preact/hooks";
 
 type Props = {
   label: string;
@@ -14,7 +14,9 @@ export function KoreanInput({ label, value, onValue }: Props) {
   const ref = useRef<HTMLInputElement>(null);
   const composing = useRef(false);
 
-  useEffect(() => {
+  // Sync before paint: a passive effect can run a frame late and overwrite keys
+  // typed in between.
+  useLayoutEffect(() => {
     const element = ref.current;
     if (!element || composing.current) return;
     if (element.value !== value) element.value = value;

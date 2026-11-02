@@ -1,0 +1,104 @@
+:root {
+  color: #1c1915;
+  background: #f4f1ea;
+  font-family: "Apple SD Gothic Neo", "Noto Sans KR", "Noto Sans CJK KR", "Malgun Gothic", sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-text-size-adjust: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.shell {
+  width: min(40rem, 100%);
+  margin: 0 auto;
+  padding: 1.25rem 1rem calc(1.5rem + var(--keyboard-inset, 0px));
+}
+
+.mark {
+  margin: 0;
+  font-size: 1.5rem;
+  letter-spacing: 0.04em;
+}
+
+.version {
+  margin: 0.2rem 0 1.25rem;
+  color: #5c564c;
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  list-style: none;
+}
+
+.summary strong {
+  font-weight: 650;
+}
+
+.agents {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agent {
+  padding: 0.85rem 0;
+  border-top: 1px solid #d9d3c7;
+}
+
+.agent h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+}
+
+.goal {
+  margin: 0.45rem 0 0;
+}
+
+.todos {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.keep {
+  word-break: keep-all;
+  line-break: strict;
+  overflow-wrap: break-word;
+}
+
+.note {
+  display: block;
+  margin-top: 1.25rem;
+}
+
+.note input {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid #1c1915;
+  border-radius: 0.4rem;
+  background: #fffdf8;
+  font-size: 16px;
+}
+
+.note input:focus {
+  outline: 2px solid #1c1915;
+  outline-offset: 2px;
+}

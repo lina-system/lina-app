@@ -1,7 +1,6 @@
-<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 # Contributing to LINA App
 
-External contributions need the CLA (CLA.md) signed before review.
+Contributions are accepted under the project's license (AGPL-3.0). Please add a `Signed-off-by` line to your commits (`git commit -s`) to certify you have the right to submit them (Developer Certificate of Origin).
 
 ## Rules
 

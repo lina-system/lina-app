@@ -10,8 +10,10 @@ import { fileURLToPath } from "node:url";
  *
  * The patterns are about shape: a home directory, a host name, an email address,
  * a profile URL. Names have no reliable shape, so CI passes PERSONAL_DATA_NAMES
- * (comma separated) from a repository variable. Fixture names come from
- * src/fixtures/synthetic.ts, never from a real home.
+ * (comma separated) from a repository secret; a variable would print the list in
+ * the logs. A pull request from a fork gets no secrets, so the variable is empty
+ * there and only the name rule is skipped, which the run reports. Fixture names
+ * come from src/fixtures/synthetic.ts, never from a real home.
  */
 
 export interface Rule {
@@ -74,15 +76,21 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** The base rules plus one whole-word rule for every configured name. */
-export function rules(extraNames: string | undefined = process.env.PERSONAL_DATA_NAMES): Rule[] {
-  const names = (extraNames ?? "")
+/** The names to look for. Empty when the secret is absent, as in a fork pull request. */
+export function configuredNames(
+  extraNames: string | undefined = process.env.PERSONAL_DATA_NAMES,
+): string[] {
+  return (extraNames ?? "")
     .split(",")
     .map((name) => name.trim())
     .filter((name) => name.length >= 2);
+}
+
+/** The base rules plus one whole-word rule for every configured name. */
+export function rules(extraNames: string | undefined = process.env.PERSONAL_DATA_NAMES): Rule[] {
   return [
     ...BASE_RULES,
-    ...names.map((name) => ({
+    ...configuredNames(extraNames).map((name) => ({
       name: "personal-name",
       pattern: new RegExp(`(?<![A-Za-z0-9_])${escapeRegExp(name)}(?![A-Za-z0-9_])`, "i"),
     })),
@@ -140,7 +148,9 @@ export function renderFindings(report: ScanReport): string[] {
 const USAGE = `Usage: node scripts/check-personal-data.ts
 
 Scans tracked text files for home paths, machine host names, email addresses,
-personal accounts and the names in PERSONAL_DATA_NAMES (comma separated).
+personal accounts and the names in PERSONAL_DATA_NAMES (comma separated, from a
+secret in CI). Without that value, as in a pull request from a fork, the pattern
+rules still run and the name rule is reported as skipped.
 `;
 
 export function main(argv: string[] = process.argv.slice(2), cwd = process.cwd()): number {
@@ -153,7 +163,15 @@ export function main(argv: string[] = process.argv.slice(2), cwd = process.cwd()
     return 2;
   }
   try {
-    const report = scanRepository(cwd);
+    const names = configuredNames();
+    if (names.length === 0) {
+      // A fork pull request gets no secrets. Say so, without ever printing a name.
+      console.log(
+        "check-personal-data: PERSONAL_DATA_NAMES is empty, so the name rule is skipped; " +
+          "the pattern rules still run",
+      );
+    }
+    const report = scanRepository(cwd, names.join(","));
     for (const line of renderFindings(report)) console.error(line);
     if (report.findings.length > 0) {
       console.error(

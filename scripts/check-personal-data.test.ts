@@ -45,6 +45,15 @@ test("allows public project accounts and service addresses", () => {
   expect(scanText(text, "README.md", "")).toEqual([]);
 });
 
+test("still flags personal data that follows an allowed value on the same line", () => {
+  const text = [
+    joined("git@github.com ", "zzyzx", "@", "example.test"),
+    joined("https://github.com/lina-system https://github.com/", "zzyzx"),
+  ].join("\n");
+
+  expect(scanText(text, "notes.md", "").map((finding) => finding.rule)).toEqual(["email", "github-profile"]);
+});
+
 test("flags a name configured in PERSONAL_DATA_NAMES", () => {
   const personalName = ["Qzx", "vq Z", "xy"].join("");
   const findings = scanText(`A goal added by ${personalName}`, "notes.md", personalName);

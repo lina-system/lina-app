@@ -98,10 +98,12 @@ export function scanText(text: string, file = "", extraNames?: string): Finding[
     const line = lines[index];
     for (const rule of active) {
       if (rule.files && !rule.files(file)) continue;
-      const match = line.match(rule.pattern);
-      if (!match) continue;
-      if (rule.allow && !rule.allow(match)) continue;
-      findings.push({ file, line: index + 1, rule: rule.name, match: match[0] });
+      const global = new RegExp(rule.pattern.source, rule.pattern.flags.includes("g") ? rule.pattern.flags : `${rule.pattern.flags}g`);
+      for (const match of line.matchAll(global)) {
+        if (rule.allow && !rule.allow(match)) continue;
+        findings.push({ file, line: index + 1, rule: rule.name, match: match[0] });
+        break;
+      }
     }
   }
   return findings;

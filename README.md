@@ -4,4 +4,4 @@ The desktop and mobile app for [LINA](https://github.com/lina-system/lina), a fo
 
 ## Development
 
-The app version is `package.json`'s `version`, `0.0.1-alpha.YYYYMMDD.N`. `npm test` generates the API client from `openapi/lina-client.yaml`, typechecks, runs the tests, and checks that renaming a field the screen reads fails the build. `npm run build` produces the client. `npm run capture` takes captures at 1280 and 390 wide on the synthetic fixture. The checked-in schema stands in until the core serves its own file (lina-system/lina#39).
+The app version is `package.json`'s `version`, `0.0.1-alpha.YYYYMMDD.N`. `npm test` generates the API client from `openapi/lina-client.yaml`, checks that tracked files contain no personal data, typechecks, runs the tests, and checks that renaming a field the screen reads fails the build. `npm run build` produces the client. `npm run capture` takes captures at 1280 and 390 wide on the synthetic fixture. The checked-in schema stands in until the core serves its own file (lina-system/lina#39).

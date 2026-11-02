@@ -1,7 +1,8 @@
 name: CI
 
 # Build, test and capture the web client. Captures are 1280 and 390 wide, on the
-# synthetic fixture, and are uploaded rather than committed.
+# synthetic fixture, and are uploaded rather than committed. Tracked files are
+# checked for personal data before anything is built.
 
 on:
   pull_request:
@@ -35,7 +36,15 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Check personal data
+        env:
+          # Names have no reliable shape; keep them in a repository variable.
+          PERSONAL_DATA_NAMES: ${{ vars.PERSONAL_DATA_NAMES }}
+        run: npm run check:personal
+
       - name: Test
+        env:
+          PERSONAL_DATA_NAMES: ${{ vars.PERSONAL_DATA_NAMES }}
         run: npm test
 
       - name: Build

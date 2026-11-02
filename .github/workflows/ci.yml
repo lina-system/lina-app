@@ -38,13 +38,17 @@ jobs:
 
       - name: Check personal data
         env:
-          # Names have no reliable shape; keep them in a repository variable.
-          PERSONAL_DATA_NAMES: ${{ vars.PERSONAL_DATA_NAMES }}
+          # Names have no reliable shape, so the check takes them from a secret:
+          # variables are not masked in logs and this repository's logs are public.
+          # A pull request from a fork receives no secrets, so the value is empty
+          # there and the check reports that the name rule was skipped.
+          PERSONAL_DATA_NAMES: ${{ secrets.PERSONAL_DATA_NAMES }}
         run: npm run check:personal
 
       - name: Test
         env:
-          PERSONAL_DATA_NAMES: ${{ vars.PERSONAL_DATA_NAMES }}
+          # Same secret, same fork behaviour, for the fixture scan in the tests.
+          PERSONAL_DATA_NAMES: ${{ secrets.PERSONAL_DATA_NAMES }}
         run: npm test
 
       - name: Build

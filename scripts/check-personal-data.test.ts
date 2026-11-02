@@ -1,10 +1,10 @@
 // @vitest-environment node
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, test, vi } from "vitest";
-import { configuredNames, main, scanText } from "./check-personal-data.ts";
+import { configuredNames, main, scanRepository, scanText } from "./check-personal-data.ts";
 
 const joined = (...parts: string[]) => parts.join("");
 
@@ -152,6 +152,25 @@ test("flags a configured name without printing it", () => {
     log.mockRestore();
     error.mockRestore();
     restoreConfiguredNames(previous);
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("scans a tracked symlink by its target path and never reads through it", () => {
+  const cwd = mkdtempSync(path.join(tmpdir(), "check-personal-data-"));
+  try {
+    execFileSync("git", ["init", "--quiet"], { cwd });
+    mkdirSync(path.join(cwd, ".agents", "skills"), { recursive: true });
+    writeFileSync(path.join(cwd, ".agents", "skills", "notes.md"), "clean\n");
+    mkdirSync(path.join(cwd, ".claude"));
+    symlinkSync("../.agents/skills", path.join(cwd, ".claude", "skills"));
+    symlinkSync(joined("/home/", "zzyzx", "/notes.md"), path.join(cwd, "leak"));
+    execFileSync("git", ["add", "-A"], { cwd });
+
+    const report = scanRepository(cwd, "");
+    expect(report.findings.map((finding) => [finding.file, finding.rule])).toEqual([["leak", "home-path"]]);
+    expect(report.files).toBe(3);
+  } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
 });

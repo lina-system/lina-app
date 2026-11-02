@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { lstatSync, readFileSync, readlinkSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -132,7 +132,17 @@ export function scanRepository(cwd = process.cwd(), extraNames?: string): ScanRe
   const findings: Finding[] = [];
   let scanned = 0;
   for (const file of files) {
-    const bytes = readFileSync(path.join(cwd, file));
+    const full = path.join(cwd, file);
+    // Git tracks a symlink as its target path, not the target's content: scan that path, never follow it.
+    // The skill folders for each agent runner are such links to a directory.
+    const stat = lstatSync(full);
+    if (stat.isSymbolicLink()) {
+      scanned += 1;
+      findings.push(...scanText(readlinkSync(full), file, extraNames));
+      continue;
+    }
+    if (!stat.isFile()) continue;
+    const bytes = readFileSync(full);
     if (isBinary(bytes)) continue;
     scanned += 1;
     findings.push(...scanText(bytes.toString("utf8"), file, extraNames));

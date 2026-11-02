@@ -1,0 +1,65 @@
+name: UI QA
+
+# The scripted part of the browser QA run a pull request labelled ui gets. It drives
+# every feature in .agents/skills/verify-lina-app/features/ on a disposable instance of
+# the synthetic fixture, fails on a defect, writes defects and map drift to the job
+# summary, and uploads the evidence. See .agents/skills/verify-lina-app/SKILL.md.
+
+on:
+  pull_request:
+    branches: [dev, main]
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-qa-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ui-qa:
+    name: Browser QA on the feature map
+    if: contains(github.event.pull_request.labels.*.name, 'ui')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      VERIFY_RUN_ID: pr-${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Launch
+        run: node .agents/skills/verify-lina-app/scripts/verify.mjs launch
+
+      - name: Doctor
+        run: node .agents/skills/verify-lina-app/scripts/verify.mjs doctor
+
+      - name: Drive every feature
+        run: node .agents/skills/verify-lina-app/scripts/verify.mjs drive --all
+
+      - name: Cleanup
+        if: always()
+        run: |
+          if [ -f "verify-runs/$VERIFY_RUN_ID/state.json" ]; then
+            node .agents/skills/verify-lina-app/scripts/verify.mjs cleanup
+          fi
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: ui-qa-evidence
+          path: verify-runs/
+          if-no-files-found: warn

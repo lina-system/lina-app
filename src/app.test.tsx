@@ -16,5 +16,5 @@ test("shows the alpha version and the synthetic summary", () => {
     runCount: counts.runs,
   });
   expect(view.getByTestId("goal-count").textContent).toBe(String(counts.goals));
-  expect(view.getByText("샘플 목표")).toBeTruthy();
+  expect(view.getByText(syntheticHome.agents[0].goals[0].title)).toBeTruthy();
 });

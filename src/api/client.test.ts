@@ -29,5 +29,5 @@ test("reads home, notifications and status through the generated paths", async (
   expect(home.summary.goalCount).toBe(2);
   expect(notifications.unreadCount).toBe(1);
   expect(status.machines[0]?.state).toBe("up");
-  expect(status.quota[0]?.remaining).toBe(40);
+  expect(status.quota[0]?.remaining).toBe(syntheticStatus.quota[0]?.remaining);
 });

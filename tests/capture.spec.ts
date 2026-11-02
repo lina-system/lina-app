@@ -1,5 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+import { syntheticHome } from "../src/fixtures/synthetic";
 
 test.beforeAll(() => {
   mkdirSync("captures", { recursive: true });
@@ -14,7 +15,7 @@ test("home on synthetic data", async ({ page }, testInfo) => {
   await expect(page.getByTestId("goal-count")).toHaveText("2");
   await expect(page.getByTestId("todo-count")).toHaveText("3");
   await expect(page.getByTestId("run-count")).toHaveText("1");
-  await expect(page.getByText("샘플 목표")).toBeVisible();
+  await expect(page.getByText(syntheticHome.agents[0].goals[0].title)).toBeVisible();
 
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,

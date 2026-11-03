@@ -564,7 +564,9 @@ const drivers = {
       const replies = await page.getByTestId("reply").count();
       check(comments === 2 && replies === 2, "thread has " + comments + " comments and " + replies + " replies");
       const byline = await page.getByTestId("reply").first().locator(".sub").innerText();
-      check(/^.+ · \d+(분|시간|일) 전/.test(byline), "reply byline reads " + byline);
+      check(/^.+ · 1시간 전$/.test(byline), "an 80-minute-old reply reads " + byline + ", expected <author> · 1시간 전");
+      const resolvedReply = (await page.getByTestId("resolved").getByTestId("reply").locator(".sub").textContent()).trim();
+      check(/^\S+ · 55분 전 · 반영함$/.test(resolvedReply), "a 55-minute-old reply reads " + resolvedReply + ", expected <author> · 55분 전 · 반영함");
       return heads.join(", ") + "; " + comments + " comments, " + replies + " replies";
     });
     await step("send a comment: it shows at once with its pending line and lands in the record", async () => {
@@ -587,8 +589,20 @@ const drivers = {
     await step("the agent's reply arrives on a later refresh and the pending line goes", async () => {
       await page.getByTestId("comment-pending").waitFor({ state: "detached", timeout: 25_000 }).catch(() => check(false, "the pending line stayed after the reply was due"));
       const reply = (await page.getByTestId("reply").last().locator(".sub").innerText()).trim();
-      check(/^\S+ · \d+분 전 · 반영함$/.test(reply), "the reply reads " + reply);
+      check(/^\S+ · 방금 · 반영함$/.test(reply), "a reply seconds old reads " + reply + ", expected <author> · 방금 · 반영함");
       return reply;
+    });
+    await step("from 수신함, a decision's line opens 배포 순서 정하기 with its decision box", async () => {
+      await openApp(page, "#/inbox");
+      const row = page.getByRole("list", { name: "결정 필요" }).locator(":scope > li").filter({ has: page.getByRole("button", { name: /배포를 금요일 오후에 해도 될까요/ }) });
+      await row.locator(".row-button").click();
+      await row.locator(".decision-panel a").click();
+      await page.waitForFunction(() => location.hash === "#/items/T2", null, { timeout: 3_000 }).catch(() => check(false, "the decision opened " + page.url()));
+      const title = (await page.locator(".detail-title").first().innerText()).trim();
+      check(title === "배포 순서 정하기", "the to-do opened is " + title);
+      const box = (await page.getByTestId("decision").innerText()).replace(/\s+/g, " ");
+      check(box.includes("배포를 금요일 오후에 해도 될까요?") && box.includes("질문") && /\d+일 전/.test(box), "the decision box reads " + box);
+      return "#/items/T2 " + title + ": " + box;
     });
   },
 

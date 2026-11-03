@@ -11,10 +11,6 @@ export function firstWords(text: string, count = 4): string {
   return words.length > count ? `${words.slice(0, count).join(" ")}…` : words.join(" ");
 }
 
-function whenText(now: number, at: number): string {
-  return now - at < 60 ? W.justNow : ago(now - at);
-}
-
 function waitsOnAgent(comment: ItemComment, owner: string): boolean {
   return comment.by === owner && comment.replies.every((reply) => reply.by === owner);
 }
@@ -26,7 +22,7 @@ function CommentBody({ comment, agent, owner }: { comment: ItemComment; agent: s
     <>
       <p class="comment-text">{comment.text}</p>
       <span class="sub" data-testid={pending ? "comment-pending" : undefined}>
-        {pending ? [W.sentTo(agent), whenText(now, comment.at)].join(SEP) : [agentName(model, comment.by), ago(now - comment.at)].filter(Boolean).join(SEP)}
+        {pending ? [W.sentTo(agent), ago(now - comment.at)].join(SEP) : [agentName(model, comment.by), ago(now - comment.at)].filter(Boolean).join(SEP)}
       </span>
       {comment.replies.length ? (
         <ul class="replies">

@@ -36,6 +36,9 @@ export class Actions {
   private readonly errors = new Map<string, WriteError>();
   private readonly requestedAt = new Map<string, number>();
   private readonly inflight = new Map<string, Promise<unknown>>();
+  private readonly readKeys = new Set<string>();
+  private allRead = false;
+  private noticeError: string | null = null;
   private current: Toast | null = null;
   private nextToast = 1;
 
@@ -72,6 +75,29 @@ export class Actions {
   requested(key: string): boolean {
     const at = this.requestedAt.get(key);
     return at !== undefined && (at < 0 || at === this.store.refreshes);
+  }
+
+  /** A notice is read when the core says so, or while this device's read mark is on its way. */
+  isRead(key: string, fromCore: boolean): boolean {
+    return fromCore || this.allRead || this.readKeys.has(key);
+  }
+
+  get noticesError(): string | null {
+    return this.noticeError;
+  }
+
+  async readNotices(keys: readonly string[] | "all"): Promise<void> {
+    if (keys === "all") this.allRead = true;
+    else for (const key of keys) this.readKeys.add(key);
+    this.noticeError = null;
+    this.busyKeys.add("notices");
+    this.notify();
+    const result = await this.store.write((source) => source.readNotices(keys === "all" ? { all: true } : { keys }));
+    this.busyKeys.delete("notices");
+    if (keys === "all") this.allRead = false;
+    else for (const key of keys) this.readKeys.delete(key);
+    if (!result.ok) this.noticeError = writeError("read", result);
+    this.notify();
   }
 
   private showToast(text: string, owner: string | null, onUndo: () => void, onEnd: (() => void) | null = null): void {

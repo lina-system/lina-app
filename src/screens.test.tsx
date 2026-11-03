@@ -6,6 +6,7 @@ import { SYNTHETIC_REPLY_AFTER, SyntheticSource } from "./data/synthetic-source"
 import type { ReadResult, Source } from "./data/source";
 import { Store } from "./data/store";
 import { SCENE_COUNTS } from "./fixtures/synthetic";
+import { buildModel } from "./model";
 import { TOAST_MS } from "./ui/actions";
 import { BANNED_WORDS } from "./words";
 
@@ -192,7 +193,7 @@ describe("every count equals the length of the list it labels", () => {
     }
   });
 
-  test("the device line counts machine rows and the bell counts notices", async () => {
+  test("the device line counts machine rows and the bell counts unread notices", async () => {
     const view = await open("#/status", { wide: true });
     const line = view.getByTestId("device-line").textContent ?? "";
     expect(line).toBe("기기 3 · 정상 1 · 경고 1 · 꺼짐 1");
@@ -205,8 +206,10 @@ describe("every count equals the length of the list it labels", () => {
     expect(machines.querySelectorAll(".machine-row.is-down").length).toBe(down);
     const bell = count(view.getByTestId("bell-count"));
     fireEvent.click(view.getByTestId("bell"));
-    expect(rowsIn(view.getByTestId("notices"))).toBe(bell);
-    expect(bell).toBe(SCENE_COUNTS.notices);
+    const notices = view.getByTestId("notices");
+    expect(rowsIn(notices)).toBe(SCENE_COUNTS.notices);
+    expect(notices.querySelectorAll("[data-testid=row]:not(.is-read)").length).toBe(bell);
+    expect(bell).toBe(SCENE_COUNTS.unread);
   });
 });
 
@@ -613,3 +616,79 @@ describe("retry", () => {
     }
   });
 });
+
+describe("bell", () => {
+  test("choosing a notice opens its item and marks it read on the core; 모두 읽음 marks all", async () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const source = new SpySource();
+    const reads: unknown[] = [];
+    const readNotices = source.readNotices.bind(source);
+    source.readNotices = async (body) => {
+      reads.push(body);
+      return readNotices(body);
+    };
+    const view = await open("#/inbox", { wide: true, source });
+    expect(view.getByRole("button", { name: "알림 5" })).toBeTruthy();
+    fireEvent.click(view.getByTestId("bell"));
+    const dialog = view.getByRole("dialog", { name: "알림" });
+    expect(dialog.querySelectorAll(".is-read")).toHaveLength(2);
+    const first = within(dialog).getAllByRole("link")[0];
+    const target = first.getAttribute("href");
+    fireEvent.click(first);
+    expect(window.location.hash).toBe(target);
+    expect(view.getByRole("button", { name: "알림 4" })).toBeTruthy();
+    await waitFor(() => expect(source.scene.board.notices.filter((notice) => !notice.read)).toHaveLength(4));
+    expect(reads).toEqual([{ keys: [source.scene.board.notices[0].key] }]);
+    fireEvent.click(view.getByTestId("bell"));
+    fireEvent.click(view.getByRole("button", { name: "모두 읽음" }));
+    expect(view.getByRole("button", { name: "알림" })).toBeTruthy();
+    expect(view.queryByTestId("bell-count")).toBeNull();
+    await waitFor(() => expect(source.scene.board.counts.unread).toBe(0));
+    expect(reads.at(-1)).toEqual({ all: true });
+    expect(view.getByRole("dialog", { name: "알림" }).querySelectorAll("[data-testid=row]:not(.is-read)")).toHaveLength(0);
+    fireEvent.click(view.getByRole("button", { name: "닫기" }));
+    expect(view.queryByTestId("notices")).toBeNull();
+    expect(setItem).not.toHaveBeenCalled();
+    setItem.mockRestore();
+  });
+
+  test("a read on one device is the count on the other after its next refresh, both ways", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const core = new SyntheticSource();
+      const desktopStore = new Store(new SyntheticSource({ scene: core.scene }));
+      await desktopStore.refresh();
+      expect(buildModelCount(desktopStore)).toBe(5);
+      const phone = await open("#/inbox", { wide: false, source: core });
+      expect(phone.getByRole("button", { name: "알림 5" })).toBeTruthy();
+      const key = core.scene.board.notices.find((notice) => !notice.read)?.key ?? "";
+      expect(await desktopStore.write((source) => source.readNotices({ keys: [key] }))).toMatchObject({ ok: true });
+      expect(buildModelCount(desktopStore)).toBe(4);
+      await act(async () => {
+        vi.advanceTimersByTime(10_000);
+      });
+      await waitFor(() => expect(phone.getByRole("button", { name: "알림 4" })).toBeTruthy());
+      fireEvent.click(phone.getByTestId("bell"));
+      fireEvent.click(phone.getByRole("button", { name: "모두 읽음" }));
+      await waitFor(() => expect(core.scene.board.counts.unread).toBe(0));
+      await desktopStore.refresh();
+      expect(buildModelCount(desktopStore)).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a refused read mark puts the notice back as unread with the core's line", async () => {
+    const source = new SpySource();
+    source.readNotices = async () => ({ ok: false, status: 429, detail: "too many writes" });
+    const view = await open("#/inbox", { wide: true, source });
+    fireEvent.click(view.getByTestId("bell"));
+    fireEvent.click(view.getByRole("button", { name: "모두 읽음" }));
+    await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("too many writes"));
+    expect(view.getByRole("button", { name: "알림 5" })).toBeTruthy();
+  });
+});
+
+function buildModelCount(store: Store): number {
+  return buildModel(store.input(), Date.now() / 1000).counts.unread;
+}

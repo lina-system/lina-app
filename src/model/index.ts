@@ -123,6 +123,8 @@ export interface Counts {
   readonly done: number;
   readonly goals: number;
   readonly notices: number;
+  /** The core's unread count (counts.unread); counted from the notices' read marks when the core gives none. */
+  readonly unread: number;
   readonly agents: Readonly<Record<string, { readonly running: number; readonly stopped: number }>>;
   readonly devices: { readonly all: number; readonly ok: number; readonly warn: number; readonly down: number };
 }
@@ -386,6 +388,7 @@ export function buildModel(input: ModelInput, now: number): Model {
       done: done.length,
       goals: goals.length,
       notices: notices.length,
+      unread: board?.counts.unread ?? notices.filter((notice) => !notice.read).length,
       agents: agentCounts,
       devices: { all: machines.length, ok: okMachines.length, warn: warnMachines.length, down: downMachines.length },
     },

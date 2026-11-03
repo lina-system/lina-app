@@ -31,7 +31,7 @@ const viteBin = path.join(repo, "node_modules", "vite", "bin", "vite.js");
 // The synthetic scene (src/fixtures/synthetic.ts, SCENE_COUNTS). Doctor compares the sidebar and the bell
 // against it, so a page showing anything else is not this run's instance.
 const APP_PATH = "/app/?source=synthetic";
-const FIXTURE = { inbox: "7", running: "2", stopped: "1", due: "5", done: "1", goals: "5", bell: "알림 7", devices: "기기 3 · 정상 1 · 경고 1 · 꺼짐 1" };
+const FIXTURE = { inbox: "7", running: "2", stopped: "1", due: "5", done: "1", goals: "5", bell: "알림 5", devices: "기기 3 · 정상 1 · 경고 1 · 꺼짐 1" };
 const WIDTHS = [1280, 390];
 const H2S = [
   "Platforms",
@@ -734,6 +734,53 @@ const drivers = {
     });
   },
 
+  async bell(page, step) {
+    const bell = () => page.getByRole("button", { name: /^알림/ });
+    const dialog = () => page.getByRole("dialog", { name: "알림" });
+    await step("the badge is the unread count; the dialog dims read notices", async () => {
+      await openApp(page, "#/inbox");
+      const name = await bell().getAttribute("aria-label");
+      check(name === "알림 5", "bell is named " + name);
+      await bell().click();
+      const rows = await dialog().getByRole("list", { name: "알림" }).locator(":scope > li").evaluateAll((items) => items.map((item) => ({ read: item.classList.contains("is-read"), colour: getComputedStyle(item.querySelector(".title")).color })));
+      check(rows.length === 7, "the bell lists " + rows.length + " notices");
+      check(rows.filter((row) => row.read).length === 2, "read notices " + rows.filter((row) => row.read).length);
+      const unread = rows.find((row) => !row.read).colour;
+      check(rows.filter((row) => row.read).every((row) => row.colour !== unread), "read notices are not dimmed");
+      check(await dialog().getByRole("button", { name: "모두 읽음" }).isEnabled(), "모두 읽음 is disabled");
+      await dialog().getByRole("button", { name: "닫기" }).click();
+      check((await page.getByTestId("notices").count()) === 0, "닫기 did not close the dialog");
+      await bell().click();
+      await page.keyboard.press("Escape");
+      await page.getByTestId("notices").waitFor({ state: "hidden", timeout: 2_000 }).catch(() => check(false, "Escape did not close the notices"));
+      return name + ", 7 lines, 2 dimmed";
+    });
+    await step("choosing a notice opens its item and marks it read on the core", async () => {
+      await bell().click();
+      const first = dialog().locator("li:not(.is-read) a").first();
+      const target = await first.getAttribute("href");
+      await first.click();
+      await page.waitForFunction((hash) => location.hash === hash, target, { timeout: 3_000 }).catch(() => check(false, "the notice did not open " + target));
+      const name = await bell().getAttribute("aria-label");
+      check(name === "알림 4", "after reading one the bell is named " + name);
+      await page.waitForFunction(() => window.__linaScene.board.counts.unread === 4, null, { timeout: 3_000 }).catch(() => check(false, "the record's unread count is not 4"));
+      return target + "; " + name;
+    });
+    await step("모두 읽음 marks every notice read", async () => {
+      await bell().click();
+      await dialog().getByRole("button", { name: "모두 읽음" }).click();
+      const name = await bell().getAttribute("aria-label");
+      check(name === "알림", "after 모두 읽음 the bell is named " + name);
+      check((await page.getByTestId("bell-count").count()) === 0, "the badge is still drawn");
+      await page.waitForFunction(() => window.__linaScene.board.notices.every((notice) => notice.read) && window.__linaScene.board.counts.unread === 0, null, { timeout: 3_000 }).catch(() => check(false, "the record still has unread notices"));
+      const dim = await dialog().locator("li.is-read").count();
+      check(dim === 7, "dimmed lines " + dim);
+      const stored = await page.evaluate(() => Object.keys(localStorage).length + Object.keys(sessionStorage).length);
+      check(stored === 0, "the page keeps " + stored + " keys in web storage");
+      return name + ", 7 dimmed, nothing in web storage";
+    });
+  },
+
   async freshness(page, step) {
     await step("read the freshness line", async () => {
       await openApp(page, "#/inbox");
@@ -741,17 +788,6 @@ const drivers = {
       check(/^갱신 \d+초 전$/.test(first), "freshness reads " + first);
       await page.waitForFunction((before) => document.querySelector("[data-testid=freshness-line]")?.textContent !== before, first, { timeout: 5_000 });
       return first + " → " + (await page.getByTestId("freshness-line").innerText());
-    });
-    await step("the bell counts the notices and opens them", async () => {
-      const bell = page.getByRole("button", { name: /^알림/ });
-      const name = await bell.getAttribute("aria-label");
-      check(name === "알림 7", "bell is named " + name);
-      await bell.click();
-      const lines = await page.getByRole("list", { name: "알림" }).getByRole("link").count();
-      check(lines === 7, "the bell lists " + lines + " notices");
-      await page.keyboard.press("Escape");
-      await page.getByTestId("notices").waitFor({ state: "hidden", timeout: 2_000 }).catch(() => check(false, "Escape did not close the notices"));
-      return name + ", " + lines + " lines";
     });
     await step("a failed source reads 읽기 실패 and the rest still draws", async () => {
       await openApp(page, "#/inbox", "&error=quota");

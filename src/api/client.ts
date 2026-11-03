@@ -35,6 +35,9 @@ export interface AnswerRequest {
   readonly text: string;
 }
 export type AnswerResult = Work["schemas"]["AnswerResult"];
+export type NoticesReadResult = Board["schemas"]["ReadResult"];
+/** Exactly one of the two (lina#149): the notices chosen, or all of them. */
+export type NoticesReadRequest = { readonly keys: readonly string[] } | { readonly all: true };
 
 export type GoalList = Work["schemas"]["GoalList"];
 export type WorkGoal = Work["schemas"]["WorkGoal"];
@@ -69,6 +72,8 @@ export type WriteRoute = "comments" | "done" | "undo" | "retry";
 export function writePath(route: WriteRoute, id: string): string {
   return `${BOARD_BASE}/work/items/${encodeURIComponent(id)}/${route}`;
 }
+
+export const NOTICES_READ_PATH = `${BOARD_BASE}/notices/read`;
 
 /** A question a work card asks is answered on the work API (work-client.yaml). */
 export function cardAnswerPath(cardId: string): string {

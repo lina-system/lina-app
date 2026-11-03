@@ -231,3 +231,19 @@ test("a card answer leaves a comment on the card and takes its question out of t
   expect(source.scene.itemDetails.T5.comments.at(-1)).toMatchObject({ by: "owner", text: "다시 시도해 주세요." });
   expect(source.scene.itemDetails.T5.state).toBe("stopped");
 });
+
+test("read marks post the chosen keys or all, and the synthetic copy answers the unread count", async () => {
+  const { calls, fetchImpl } = recordingFetch(() => new Response(JSON.stringify({ ok: true, unread: 3 }), { status: 200 }));
+  const http = new HttpSource({ fetch: fetchImpl, token: "token-a" });
+  expect(await http.readNotices({ keys: ["ask:T2:1"] })).toEqual({ ok: true, data: { ok: true, unread: 3 } });
+  await http.readNotices({ all: true });
+  expect(calls.map((call) => [call.url, call.body])).toEqual([
+    ["/api/lina/notices/read", { keys: ["ask:T2:1"] }],
+    ["/api/lina/notices/read", { all: true }],
+  ]);
+  const source = new SyntheticSource();
+  const key = source.scene.board.notices.find((notice) => !notice.read)?.key ?? "";
+  expect(await source.readNotices({ keys: [key] })).toEqual({ ok: true, data: { ok: true, unread: 4 } });
+  expect(source.scene.board.counts.unread).toBe(4);
+  expect(await source.readNotices({ all: true })).toEqual({ ok: true, data: { ok: true, unread: 0 } });
+});

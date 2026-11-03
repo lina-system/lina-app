@@ -1012,6 +1012,32 @@ button.check:hover:not([aria-disabled="true"]):not(.is-done) {
   min-height: var(--row-dense);
 }
 
+.popover-bar {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px calc(var(--inset) - 8px) 4px;
+  border-bottom: var(--line) solid var(--separator);
+}
+
+.notice-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.notice-dot.is-unread {
+  background: var(--accent);
+}
+
+.notice-row.is-read .title {
+  color: var(--label-2);
+}
+
+.notice-error {
+  padding: 0 var(--inset) 6px;
+}
+
 
 @keyframes pop {
   from {

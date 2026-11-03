@@ -414,8 +414,8 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
   const notices: BoardSnapshot["notices"] = [
     ...decide.map((row) => ({ key: `ask:${row.target}:${row.at}`, target: row.target, at: row.at, kind: "ask" as const, line: `${row.title}: ${row.kind === "ask" ? "질문" : "요청"}`, read: false })),
     { key: `ask:${question.cardId}:${question.askedAt}`, target: question.cardId, at: question.askedAt, kind: "ask", line: `${question.title}: 질문`, read: false },
-    { key: `review:r6:${now - 5 * HOUR}`, target: "r6", at: now - 5 * HOUR, kind: "review", line: "색인 구조 다시 비교: 검토 필요", read: false },
-    ...mineRows.map((row) => ({ key: `todo:${row.id}:${now - DAY}`, target: row.id, at: now - DAY, kind: "todo" as const, line: `${row.title}: 내 할 일`, read: false })),
+    { key: `review:r6:${now - 5 * HOUR}`, target: "r6", at: now - 5 * HOUR, kind: "review", line: "색인 구조 다시 비교: 검토 필요", read: true },
+    ...mineRows.map((row) => ({ key: `todo:${row.id}:${now - DAY}`, target: row.id, at: now - DAY, kind: "todo" as const, line: `${row.title}: 내 할 일`, read: row.id === "T9" })),
   ];
 
   const board: BoardSnapshot = {
@@ -469,4 +469,5 @@ export const SCENE_COUNTS = {
   machinesWarn: 1,
   machinesDown: 1,
   notices: 7,
+  unread: 5,
 } as const;

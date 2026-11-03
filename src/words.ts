@@ -134,6 +134,8 @@ export const W = {
   errNoDecision: "열린 결정 없음",
 
   bell: "알림",
+  readAll: "모두 읽음",
+  close: "닫기",
   quickAdd: "할 일 추가",
   markDone: (title: string) => `${title} 완료로 표시`,
   progress: (done: number, total: number) => `${done}/${total}`,

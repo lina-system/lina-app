@@ -1,4 +1,4 @@
-import { cardAnswerPath, routePath, writePath, type ActionResult, type AnswerRequest, type AnswerResult, type CommentRequest, type DoneRequest, type RouteName, type Routes } from "../api/client";
+import { cardAnswerPath, NOTICES_READ_PATH, routePath, writePath, type ActionResult, type AnswerRequest, type AnswerResult, type CommentRequest, type DoneRequest, type NoticesReadRequest, type NoticesReadResult, type RouteName, type Routes } from "../api/client";
 import { nowSeconds, type ReadResult, type Source, type WriteResult } from "./source";
 
 declare global {
@@ -79,6 +79,10 @@ export class HttpSource implements Source {
 
   answerCard(cardId: string, body: AnswerRequest): Promise<WriteResult<AnswerResult>> {
     return this.post(cardAnswerPath(cardId), body);
+  }
+
+  readNotices(body: NoticesReadRequest): Promise<WriteResult<NoticesReadResult>> {
+    return this.post(NOTICES_READ_PATH, body);
   }
 
   /** One write: JSON body, the session token like the reads, and `keepalive` so a write sent as the page goes still lands. */

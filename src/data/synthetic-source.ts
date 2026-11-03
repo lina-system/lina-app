@@ -1,4 +1,4 @@
-import type { ActionResult, AnswerRequest, AnswerResult, BoardSnapshot, CommentRequest, DoneRequest, ItemDetail, ItemSummary, RouteName, Routes, WorkState } from "../api/client";
+import type { ActionResult, AnswerRequest, AnswerResult, BoardSnapshot, CommentRequest, DoneRequest, ItemDetail, ItemSummary, NoticesReadRequest, NoticesReadResult, RouteName, Routes, WorkState } from "../api/client";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type Scene } from "../fixtures/synthetic";
 import { nowSeconds, type ReadResult, type Source, type WriteResult } from "./source";
 
@@ -50,6 +50,9 @@ export const RETRY_TEXT = "다시 시도해 주세요.";
 
 const REPLY_TEXT = { comment: "확인했어요. 반영할게요.", answer: "답을 받았어요. 이어서 할게요." } as const;
 
+/** Each scene's write count: a source answers "unchanged" while the scene has not changed since it served a route. */
+const versions = new WeakMap<Scene, number>();
+
 function fail(status: number, detail: string): WriteResult<never> {
   return { ok: false, status, detail };
 }
@@ -61,18 +64,21 @@ function fail(status: number, detail: string): WriteResult<never> {
  */
 export class SyntheticSource implements Source {
   readonly scene: Scene;
-  private readonly served = new Set<string>();
+  private readonly served = new Map<string, number>();
   private readonly replies: { id: string; cid: string; at: number; kind: "comment" | "answer" }[] = [];
   private nextCid = 1;
   private nextCardComment = 100;
   /** The last record per item: the owner's own done mark, or null once anything else was written after it. */
   private readonly marks = new Map<string, DoneMark | null>();
 
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean } = {}) {
-    this.scene = generateScene(options.seed ?? SYNTHETIC_SEED, {
-      now: Math.floor(options.now ?? nowSeconds()),
-      sourceError: options.sourceError,
-    });
+  /** `scene` shares another source's copy, like a second device reading the same core. */
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; scene?: Scene } = {}) {
+    this.scene =
+      options.scene ??
+      generateScene(options.seed ?? SYNTHETIC_SEED, {
+        now: Math.floor(options.now ?? nowSeconds()),
+        sourceError: options.sourceError,
+      });
   }
 
   async read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {
@@ -81,8 +87,9 @@ export class SyntheticSource implements Source {
     const body = bodyOf(this.scene, name, id);
     if (body === undefined) return { kind: "missing", at };
     const key = `${name}:${id ?? ""}`;
-    if (this.served.has(key)) return { kind: "unchanged", at };
-    this.served.add(key);
+    const version = versions.get(this.scene) ?? 0;
+    if (this.served.get(key) === version) return { kind: "unchanged", at };
+    this.served.set(key, version);
     return { kind: "data", data: structuredClone(body) as Routes[N], at };
   }
 
@@ -177,6 +184,16 @@ export class SyntheticSource implements Source {
     return { ok: true, data: { ok: true, cardId, commentId, unblocked: false, state: card.state, reason: card.reason } };
   }
 
+  async readNotices(body: NoticesReadRequest): Promise<WriteResult<NoticesReadResult>> {
+    const keys = "keys" in body ? body.keys : null;
+    if (keys && !keys.length) return fail(422, "name the notices to mark, or all");
+    for (const notice of this.scene.board.notices) if (!keys || keys.includes(notice.key)) notice.read = true;
+    const unread = this.scene.board.notices.filter((notice) => !notice.read).length;
+    this.scene.board.counts.unread = unread;
+    this.changed();
+    return { ok: true, data: { ok: true, unread } };
+  }
+
   /** Goals' to-do counts follow their to-dos' states. */
   private recount(ids: readonly string[]): void {
     const goals = new Set(ids.map((id) => this.scene.itemDetails[id]).map((item) => (item?.kind === "goal" ? item.id : item?.parent)).filter((id): id is string => Boolean(id)));
@@ -213,8 +230,8 @@ export class SyntheticSource implements Source {
     for (const target of targets) if (target) Object.assign(target, patch);
   }
 
-  /** The scene changed: every route answers with data again on its next read. */
+  /** The scene changed: every route answers with data again on its next read, from every source sharing it. */
   protected changed(): void {
-    this.served.clear();
+    versions.set(this.scene, (versions.get(this.scene) ?? 0) + 1);
   }
 }

@@ -1,4 +1,4 @@
-import type { ActionResult, AnswerRequest, AnswerResult, CommentRequest, DoneRequest, RouteName, Routes } from "../api/client";
+import type { ActionResult, AnswerRequest, AnswerResult, CommentRequest, DoneRequest, NoticesReadRequest, NoticesReadResult, RouteName, Routes } from "../api/client";
 
 export type ReadResult<T> =
   | { readonly kind: "data"; readonly data: T; readonly at: number }
@@ -17,6 +17,8 @@ export interface Source {
   undo(id: string): Promise<WriteResult<ActionResult>>;
   retry(id: string): Promise<WriteResult<ActionResult>>;
   answerCard(cardId: string, body: AnswerRequest): Promise<WriteResult<AnswerResult>>;
+  /** Read marks are the core's, per owner: every device sees the same ones after its next read. */
+  readNotices(body: NoticesReadRequest): Promise<WriteResult<NoticesReadResult>>;
 }
 
 export function nowSeconds(): number {

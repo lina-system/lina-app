@@ -1,7 +1,7 @@
 import type { WriteResult } from "../data/source";
 import { W } from "../words";
 
-export type WriteKind = "comment" | "answer" | "done" | "undo" | "retry";
+export type WriteKind = "comment" | "answer" | "done" | "undo" | "retry" | "read";
 
 /** The 409s the client knows by the action that got them (lina#149); any other refusal reads the core's own line. */
 const CONFLICT: Partial<Record<WriteKind, string>> = {

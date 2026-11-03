@@ -7,7 +7,7 @@ This directory is the maintained source for verifying what people see and do in 
 - Dependencies are installed with `npm ci` and Chromium is available to Playwright (`npx playwright install chromium`).
 - Each run has its own id: `export VERIFY_RUN_ID=<short-id>`. The run directory is `verify-runs/$VERIFY_RUN_ID/` in the repository root.
 - Launch a disposable instance with `node .agents/skills/verify-lina-app/scripts/verify.mjs launch`. It builds the client into the run directory and serves it on a free port on `127.0.0.1`.
-- The instance serves the app under `/app/`, like the core does. Drives load `/app/?source=synthetic`, which draws the synthetic scene (`src/fixtures/synthetic.ts`) instead of reading a core: 3 agents with invented names, 수신함 `7`, 진행 중인 작업 `2` with a red `1`, 마감일 `5`, 완료 `1`, 목표 `5`, 알림 `7`, `기기 3 · 정상 1 · 경고 1 · 꺼짐 1`. `&error=quota` adds a failed quota source.
+- The instance serves the app under `/app/`, like the core does. Drives load `/app/?source=synthetic`, which draws the synthetic scene (`src/fixtures/synthetic.ts`) instead of reading a core: 3 agents with invented names, 수신함 `7`, 진행 중인 작업 `2` with a red `1`, 마감일 `5`, 완료 `1`, 목표 `5`, 알림 `5` (7 notices, 2 of them read), `기기 3 · 정상 1 · 경고 1 · 꺼짐 1`. `&error=quota` adds a failed quota source.
 - Run `verify.mjs doctor` and require `"healthy": true` before the first drive.
 - Never drive an instance this run did not start, and never point the app at the owner's live core.
 
@@ -63,6 +63,7 @@ Keep implementation details out of the map. Name only user paths, stable handles
 - [작업 detail](./card-detail.md) covers a work card or a worker run outside any card.
 - [기기·쿼터](./status.md) covers machines and quota.
 - [Owner actions](./actions.md) covers done, undo, done with open to-dos, answers and retry.
-- [Freshness and the bell](./freshness.md) covers the toolbar's freshness line, read failures and notices.
+- [Freshness](./freshness.md) covers the toolbar's freshness line and read failures.
+- [알림](./bell.md) covers the bell, its notices and their read marks.
 - [Navigation](./phone-nav.md) covers the phone navigation stack, the wide split view and back.
 - [Install on the Home Screen](./install.md) covers the web app manifest, the icons and the service worker.

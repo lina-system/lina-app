@@ -804,7 +804,19 @@ button:disabled {
 }
 
 .text-button:disabled {
-  color: var(--label-3);
+  color: var(--label-2);
+}
+
+/* On a phone every text button and answer is at least 44 pt tall, like a system control. */
+.stack .text-button,
+.stack .choice,
+.stack ~ .toast-slot .toast-undo {
+  min-height: 44px;
+}
+
+.stack .text-button,
+.stack ~ .toast-slot .toast-undo {
+  padding: 0 10px;
 }
 
 .write-error {
@@ -946,8 +958,8 @@ button.check:hover:not([aria-disabled="true"]):not(.is-done) {
   gap: 8px;
 }
 
-.text-button.is-plain {
-  color: var(--label-2);
+.text-button.is-plain:not(:disabled) {
+  color: var(--accent);
   font-weight: 400;
 }
 

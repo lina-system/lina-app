@@ -72,12 +72,13 @@ export class SyntheticSource implements Source {
   private readonly marks = new Map<string, DoneMark | null>();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; scene?: Scene } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; noRunning?: boolean; scene?: Scene } = {}) {
     this.scene =
       options.scene ??
       generateScene(options.seed ?? SYNTHETIC_SEED, {
         now: Math.floor(options.now ?? nowSeconds()),
         sourceError: options.sourceError,
+        noRunning: options.noRunning,
       });
   }
 

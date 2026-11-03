@@ -1,7 +1,7 @@
 import { createContext } from "preact";
 import { useContext, useEffect, useMemo, useState } from "preact/hooks";
 import type { Store } from "../data/store";
-import type { CardRow, DecisionTarget } from "../model";
+import type { CardRow, DecisionTarget, MineSource, Pending } from "../model";
 import { writeError } from "../screens/write-error";
 import { W } from "../words";
 
@@ -39,21 +39,40 @@ export class Actions {
   private readonly readKeys = new Set<string>();
   private allRead = false;
   private noticeError: string | null = null;
+  private readonly held = new Map<string, { row: MineSource; index: number }>();
   private current: Toast | null = null;
   private nextToast = 1;
+  /** Bumped on every change, so the model is rebuilt with what the writes in flight change. */
+  version = 0;
 
   constructor(
     private readonly store: Store,
-    private readonly notify: () => void,
+    private readonly onChange: () => void,
     private readonly timers: { setTimeout: typeof setTimeout; clearTimeout: typeof clearTimeout } = globalThis,
   ) {}
 
-  get toast(): { readonly id: number; readonly text: string; readonly owner: string | null } | null {
-    return this.current;
+  private notify(): void {
+    this.version += 1;
+    this.onChange();
   }
 
-  hidden(key: string): boolean {
-    return this.hiddenKeys.has(key);
+  /** The model's view of the writes in flight: rows hidden for an answer's toast, done rows held for theirs. */
+  pending(): Pending {
+    return { hidden: this.hiddenKeys, held: [...this.held.values()] };
+  }
+
+  private hold(id: string): void {
+    const mine = this.store.get("board")?.inbox.mine ?? [];
+    const index = mine.findIndex((row) => row.id === id);
+    if (index >= 0) this.held.set(id, { row: mine[index], index });
+  }
+
+  private release(id: string): void {
+    if (this.held.delete(id)) this.notify();
+  }
+
+  get toast(): { readonly id: number; readonly text: string; readonly owner: string | null } | null {
+    return this.current;
   }
 
   isDone(id: string, recordDone: boolean): boolean {
@@ -164,12 +183,22 @@ export class Actions {
 
   async markDone(id: string, withOpen: readonly string[] = []): Promise<void> {
     const ids = [id, ...withOpen];
-    for (const each of ids) this.doneOverride.set(each, true);
+    for (const each of ids) {
+      this.doneOverride.set(each, true);
+      this.hold(each);
+    }
     this.errors.delete(`done:${id}`);
     this.busyKeys.add(`done:${id}`);
     const sent = this.store.write((source) => source.done(id, withOpen.length ? { withOpen: true } : {}));
     this.inflight.set(id, sent);
-    this.showToast(W.markedDone, id, () => void this.undoDone(id, withOpen));
+    this.showToast(
+      W.markedDone,
+      id,
+      () => void this.undoDone(id, withOpen),
+      () => {
+        for (const each of ids) this.release(each);
+      },
+    );
     const result = await sent;
     this.inflight.delete(id);
     this.busyKeys.delete(`done:${id}`);
@@ -177,7 +206,10 @@ export class Actions {
       if (result.data.undoUntil !== null) this.undoUntilById.set(id, result.data.undoUntil);
       for (const each of ids) if (this.doneOverride.get(each) === true) this.doneOverride.delete(each);
     } else {
-      for (const each of ids) this.doneOverride.delete(each);
+      for (const each of ids) {
+        this.doneOverride.delete(each);
+        this.held.delete(each);
+      }
       this.dropToast(id);
       this.errors.set(`done:${id}`, { line: writeError("done", result) });
     }
@@ -196,7 +228,10 @@ export class Actions {
     this.busyKeys.delete(`done:${id}`);
     if (result.ok) this.undoUntilById.delete(id);
     else this.errors.set(`done:${id}`, { line: writeError("undo", result) });
-    for (const each of ids) if (this.doneOverride.get(each) === false) this.doneOverride.delete(each);
+    for (const each of ids) {
+      if (this.doneOverride.get(each) === false) this.doneOverride.delete(each);
+      this.held.delete(each);
+    }
     this.notify();
   }
 

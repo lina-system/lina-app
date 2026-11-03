@@ -691,3 +691,82 @@ describe("bell", () => {
 function buildModelCount(store: Store): number {
   return buildModel(store.input(), Date.now() / 1000).counts.unread;
 }
+
+function inboxCounts(view: ReturnType<typeof render>) {
+  const sidebar = Number(view.getByTestId("nav-inbox").querySelector("[data-testid=nav-count]")?.textContent ?? "0");
+  const heads: Record<string, number> = {};
+  for (const id of ["decide", "mine"]) heads[id] = Number(view.queryByTestId(`head-${id}`)?.querySelector("[data-testid=count]")?.textContent ?? "0");
+  const rows = view.container.querySelectorAll(".list-pane [data-testid=screen-inbox] [data-testid=row]").length;
+  return { sidebar, decide: heads.decide, mine: heads.mine, rows };
+}
+
+describe("lists while a write is in flight", () => {
+  test("a ticked 내 할 일 row stays, struck and checked, for the toast; then it leaves and every count follows", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SpySource();
+      const view = await open("#/inbox", { wide: true, source });
+      fireEvent.click(view.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" }));
+      await waitFor(() => expect(source.scene.itemDetails.T3.state).toBe("done"));
+      await waitFor(() => expect(source.scene.board.inbox.mine.map((row) => row.id)).toEqual(["T9"]));
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+      const box = view.getByRole("checkbox", { name: "공지 문구 확인 완료됨" });
+      expect(box.getAttribute("aria-checked")).toBe("true");
+      expect(box.closest("li")?.classList.contains("is-checked")).toBe(true);
+      expect(inboxCounts(view)).toEqual({ sidebar: 7, decide: 4, mine: 2, rows: 7 });
+      await act(async () => {
+        vi.advanceTimersByTime(TOAST_MS);
+      });
+      expect(view.queryByRole("checkbox", { name: /^공지 문구 확인/ })).toBeNull();
+      expect(inboxCounts(view)).toEqual({ sidebar: 6, decide: 4, mine: 1, rows: 6 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("되돌리기 on a held row puts it back unchecked", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SpySource();
+      const view = await open("#/inbox", { wide: true, source });
+      fireEvent.click(view.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" }));
+      await waitFor(() => expect(source.scene.itemDetails.T3.state).toBe("done"));
+      fireEvent.click(within(view.getByTestId("toast")).getByRole("button", { name: "되돌리기" }));
+      await waitFor(() => expect(source.scene.itemDetails.T3.state).toBe("planned"));
+      await act(async () => {
+        vi.advanceTimersByTime(TOAST_MS * 2);
+      });
+      expect(view.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" }).getAttribute("aria-checked")).toBe("false");
+      expect(inboxCounts(view)).toEqual({ sidebar: 7, decide: 4, mine: 2, rows: 7 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a row hidden for its answer's toast is out of every count, and undo puts it back", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const view = await open("#/inbox", { wide: true, source: new SpySource() });
+      fireEvent.click(decisionButton(view, "배포를 금요일 오후에 해도 될까요"));
+      await waitFor(() => expect(view.getByRole("button", { name: "금요일 오후 · 추천" })).toBeTruthy());
+      fireEvent.click(view.getByRole("button", { name: "금요일 오후 · 추천" }));
+      expect(inboxCounts(view)).toEqual({ sidebar: 6, decide: 3, mine: 2, rows: 6 });
+      fireEvent.click(within(view.getByTestId("toast")).getByRole("button", { name: "되돌리기" }));
+      expect(inboxCounts(view)).toEqual({ sidebar: 7, decide: 4, mine: 2, rows: 7 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("with no running card, 진행 중인 작업 still lists the stopped one with 다시 시도", async () => {
+    const view = await open("#/running", { wide: true, source: new SyntheticSource({ noRunning: true }) });
+    expect(view.queryByText("없음")).toBeNull();
+    const rows = view.getByRole("list", { name: "진행 중인 작업" }).querySelectorAll("[data-testid=row]");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].classList.contains("is-stopped")).toBe(true);
+    expect(view.getByRole("button", { name: /다시 시도$/ })).toBeTruthy();
+    expect(view.getByTestId("nav-running").querySelector("[data-testid=nav-stopped]")?.textContent).toBe("1");
+  });
+});

@@ -26,7 +26,6 @@ function DecisionRow({ row }: { row: DecideRow }) {
   useEffect(() => {
     if (open && row.target.kind === "item") store.ensure([["item", row.target.id]]);
   }, [open]);
-  if (actions.hidden(row.key)) return null;
   const name = agentName(model, row.agent);
   const kind = row.ask ? W.ask : W.act;
   const detail = row.target.kind === "item" ? store.get("item", row.target.id) : undefined;
@@ -91,10 +90,10 @@ function MineRow({ row }: { row: Extract<InboxRow, { type: "mine" }> }) {
   const { model, selected } = useApp();
   const actions = useActions();
   const name = agentName(model, row.agent);
-  const shown = actions.isDone(row.id, false);
+  const shown = actions.isDone(row.id, row.done);
   return (
     <li class={`row inbox-row check-row${shown ? " is-checked" : ""}`} data-testid="row">
-      <DoneCheck id={row.id} title={row.title} done={false} />
+      <DoneCheck id={row.id} title={row.title} done={row.done} />
       <Link href={row.href} label={[name, row.title, W.mine].filter(Boolean).join(SEP)} current={selected === row.href}>
         <AgentMark id={row.agent} />
         <span class="lines">
@@ -152,7 +151,7 @@ function RetryControl({ card }: { card: CardRow }) {
 export function RunningScreen() {
   const { model } = useApp();
   const actions = useActions();
-  if (!model.counts.running) return <Empty />;
+  if (!model.running.rows.length) return <Empty />;
   return (
     <div class="list" data-testid="screen-running">
       <ul class="rows" aria-label={W.running}>

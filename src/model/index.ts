@@ -32,6 +32,17 @@ export interface ModelInput {
   readonly quota?: QuotaView;
   readonly cardDetails: Readonly<Record<string, WorkCardDetail>>;
   readonly failed: readonly string[];
+  /** What the owner's writes in flight change in the lists (see Actions); counts follow the rows it leaves. */
+  readonly pending?: Pending;
+}
+
+export type MineSource = BoardSnapshot["inbox"]["mine"][number];
+
+export interface Pending {
+  /** Inbox rows hidden while their answer waits for its toast. */
+  readonly hidden: ReadonlySet<string>;
+  /** 내 할 일 rows just marked done: they stay where they were, struck through, until their toast ends. */
+  readonly held: readonly { readonly row: MineSource; readonly index: number }[];
 }
 
 export interface Agent {
@@ -71,7 +82,7 @@ export type DecisionTarget = { readonly kind: "item"; readonly id: string } | { 
 export type InboxRow =
   | { readonly type: "decide"; readonly key: string; readonly href: string; readonly agent: string | null; readonly context: string; readonly text: string; readonly ask: boolean; readonly at: number; readonly target: DecisionTarget }
   | { readonly type: "review"; readonly key: string; readonly href: string; readonly agent: string | null; readonly card: CardRow }
-  | { readonly type: "mine"; readonly key: string; readonly id: string; readonly href: string; readonly agent: string | null; readonly title: string; readonly due: string | null };
+  | { readonly type: "mine"; readonly key: string; readonly id: string; readonly href: string; readonly agent: string | null; readonly title: string; readonly due: string | null; readonly done: boolean };
 
 export interface Section<T> {
   readonly id: string;
@@ -257,6 +268,7 @@ export function buildModel(input: ModelInput, now: number): Model {
     const parent = item.parent ? itemMap.get(item.parent) : undefined;
     return parent && parent.kind === "goal" ? `${parent.title}${CRUMB}${item.title}` : item.title;
   };
+  const hidden = input.pending?.hidden ?? new Set<string>();
   const decideRows: InboxRow[] = [
     ...(board?.inbox.decide ?? [])
       .filter((row) => !row.answered)
@@ -285,12 +297,17 @@ export function buildModel(input: ModelInput, now: number): Model {
         target: { kind: "card", id: question.cardId },
       };
     }),
-  ].sort((a, b) => (a.type === "decide" && b.type === "decide" ? a.at - b.at : 0));
+  ]
+    .filter((row) => !hidden.has(row.key))
+    .sort((a, b) => (a.type === "decide" && b.type === "decide" ? a.at - b.at : 0));
   const reviewRows: InboxRow[] = (board?.inbox.review ?? [])
     .map((id) => runs.get(id))
     .filter((run): run is RunCard => run !== undefined)
     .map((run) => ({ type: "review", key: `review:${run.id}`, href: href({ name: "run", id: run.id }), agent: run.agent, card: runRow(run) }));
-  const mineRows: InboxRow[] = (board?.inbox.mine ?? []).map((row) => ({
+  const listed = new Set((board?.inbox.mine ?? []).map((row) => row.id));
+  const mineSource = [...(board?.inbox.mine ?? [])];
+  for (const { row, index } of [...(input.pending?.held ?? [])].sort((a, b) => a.index - b.index)) if (!mineSource.some((each) => each.id === row.id)) mineSource.splice(Math.min(index, mineSource.length), 0, row);
+  const mineRows: InboxRow[] = mineSource.map((row) => ({
     type: "mine",
     key: `mine:${row.id}`,
     id: row.id,
@@ -298,6 +315,7 @@ export function buildModel(input: ModelInput, now: number): Model {
     agent: row.agent,
     title: row.title,
     due: row.due,
+    done: !listed.has(row.id),
   }));
   const inboxSections = [section("decide", W.decide, decideRows), section("review", W.review, reviewRows), section("mine", W.mine, mineRows)];
 

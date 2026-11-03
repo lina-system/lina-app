@@ -89,6 +89,16 @@ const SCREENS: readonly { id: string; hash: string; query?: string; wideOnly?: b
       await expect(page.getByTestId("with-open")).toBeVisible();
     },
   },
+  { id: "running-stopped-only", hash: "#/running", query: "&running=none" },
+  {
+    id: "done-held",
+    hash: "#/inbox",
+    open: async (page) => {
+      await page.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" }).click();
+      await page.waitForFunction(() => (window as unknown as { __linaScene: { itemDetails: Record<string, { state: string }> } }).__linaScene.itemDetails.T3.state === "done");
+      await expect(page.getByRole("checkbox", { name: "공지 문구 확인 완료됨" })).toBeVisible();
+    },
+  },
   {
     id: "retry-requested",
     hash: "#/running",

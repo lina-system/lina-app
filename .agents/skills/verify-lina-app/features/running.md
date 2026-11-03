@@ -10,6 +10,7 @@
 
 ## Intended behavior
 
+- Stopped cards first, whenever there are any: with no running card the stopped ones are still listed; the empty state shows only when there are neither.
 - Stopped cards first. Red marks the problem, not the row: the title keeps the normal label colour, `중단됨 · <reason>` is red, and the time after it (`52분 전`) is grey; then running cards with `진행 중 · n분째` (or `n시간째`).
 - A card is a thin kind icon, the agent mark, a one-line title and one grey state line. On a wide window, a running card adds a second grey line with what it is doing now when the core gives one.
 - Waiting and done cards are not here.
@@ -43,6 +44,7 @@ Preconditions:
 - **Stopped colours.** Read the stopped card's colours. The title matches a running card's title colour, `중단됨 · 응답 없음` is `rgb(255, 59, 48)` (light), and `52분 전` matches a running card's time colour.
 - **State lines.** Read each grey line. `중단됨 · 응답 없음 · n분 전`, then `진행 중 · n분째` or `n시간째`.
 - **Retry.** The stopped card has one `다시 시도` button; choosing it is driven in actions.md.
+- **No running card.** Load `/app/?source=synthetic&running=none#/running`. One row, the stopped card, with an accent `다시 시도`; no `없음`.
 - **Now line.** Look for `변경 목록을 기능별로 묶는 중`. Visible at 1280, absent at 390.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/running/running-1280.{png,aria.yml,json}` and `running-390.{png,aria.yml,json}`.
 

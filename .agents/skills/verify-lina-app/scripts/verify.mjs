@@ -242,7 +242,9 @@ async function text(locator) {
 }
 
 // The app lives under /app/ on the core's origin; the drive always draws the synthetic scene.
+// Always a fresh load: going to the address the page already shows only moves the hash and keeps the scene.
 async function openApp(page, hash, query = "") {
+  if (page.url() !== "about:blank") await page.goto("about:blank");
   await page.goto(APP_PATH + query + hash);
   await page.getByTestId("freshness-line").filter({ hasText: /^갱신 \d+초 전$/ }).waitFor({ timeout: 10_000 });
 }
@@ -279,6 +281,17 @@ async function stoppedCardColours(list) {
 async function decisionNames(list) {
   await list.first().waitFor({ timeout: 10_000 });
   return list.locator(":scope > li > .row-button").evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label")));
+}
+
+const ACCENT = "rgb(0, 122, 255)";
+
+// A text button reads as a button: accent text when enabled, secondary grey only when disabled, 44 px tall on a phone.
+async function buttonLook(page, locator) {
+  const look = await locator.evaluate((button) => ({ text: button.textContent.trim(), colour: getComputedStyle(button).color, disabled: button.disabled, height: button.getBoundingClientRect().height }));
+  if (look.disabled) check(look.colour !== ACCENT, look.text + " is disabled but drawn in the accent colour");
+  else check(look.colour === ACCENT, look.text + " is enabled but drawn " + look.colour);
+  if (page.viewportSize().width < 900) check(look.height >= 44, look.text + " is " + look.height + " px tall on a phone");
+  return look.text + "=" + look.colour + (look.disabled ? " (disabled)" : "") + ", " + Math.round(look.height) + " px";
 }
 
 async function sidebarCount(page, testid) {
@@ -381,6 +394,17 @@ const drivers = {
       return lines.join(", ");
     });
     await step("a stopped card: label title, red state words, grey time", async () => stoppedCardColours(page.getByRole("list", { name: "진행 중인 작업" })));
+    await step("with no running card the stopped one is still listed, with 다시 시도", async () => {
+      await openApp(page, "#/running", "&running=none");
+      const list = page.getByRole("list", { name: "진행 중인 작업", exact: true });
+      await list.waitFor({ timeout: 5_000 }).catch(() => check(false, "the screen shows its empty state with a stopped card"));
+      const names = await rowNames(list);
+      check(names.length === 1 && names[0].endsWith("중단됨 · 응답 없음"), "the list reads " + names.join(" | "));
+      const retry = await buttonLook(page, page.getByRole("button", { name: /다시 시도$/ }));
+      check((await page.getByText("없음", { exact: true }).count()) === 0, "the empty state shows beside the stopped card");
+      await openApp(page, "#/running");
+      return names[0] + "; " + retry;
+    });
     await step("the now line shows at 1280 only", async () => {
       const wide = page.viewportSize().width >= 900;
       const shown = await page.getByText("변경 목록을 기능별로 묶는 중").first().isVisible();
@@ -502,7 +526,9 @@ const drivers = {
       const fold = await page.locator("details.fold").evaluate((element) => element.open);
       check(fold === false, "the owner's words are not folded");
       const boxes = page.locator(".detail").getByRole("list", { name: "할 일" }).getByRole("checkbox", { name: /완료로 표시$/ });
-      check((await boxes.count()) === 3, "expected 3 check boxes");
+      check((await boxes.count()) === 3, "expected 3 to-do check boxes");
+      const all = await page.locator(".detail").getByRole("checkbox").count();
+      check(all === 4 && (await page.locator(".detail-head").getByRole("checkbox", { name: "결제 화면 개편 완료로 표시" }).count()) === 1, "expected the goal's head box plus 3, got " + all);
       check((await boxes.first().getAttribute("aria-disabled")) === null, "an open to-do's check box is inert");
       const cards = await rowNames(page.getByRole("list", { name: "작업" }));
       check(cards.length === 3, "expected 3 work cards, got " + cards.length);
@@ -545,12 +571,15 @@ const drivers = {
       const field = page.getByRole("textbox", { name: "댓글 달기" });
       const send = page.getByRole("button", { name: "보내기", exact: true });
       check(await send.isDisabled(), "보내기 is enabled on an empty field");
+      const empty = await buttonLook(page, send);
       await field.fill("휴대폰 가로 화면도 봐 주세요");
+      const ready = await buttonLook(page, send);
+      check(ready.includes(ACCENT), "보내기 does not turn accent once the field has text: " + ready);
       await send.click();
       const pending = page.getByTestId("comment-pending");
       await pending.waitFor({ timeout: 2_000 });
       const line = (await pending.innerText()).trim();
-      check(/^\S+에게 보냄 · 방금$/.test(line), "the pending line reads " + line);
+      check(/^\S+에게 보냄 · 방금$/.test(line), "the pending line reads " + line + " (button " + empty + " → " + ready + ")");
       check((await field.inputValue()) === "", "the field still holds the sent text");
       await page.waitForFunction(() => window.__linaScene.itemDetails.T4.comments.some((comment) => comment.text === "휴대폰 가로 화면도 봐 주세요" && comment.by === "owner"), null, { timeout: 5_000 }).catch(() => check(false, "the synthetic record has no such comment"));
       return line;
@@ -656,6 +685,54 @@ const drivers = {
   async actions(page, step) {
     const scene = (pick) => page.evaluate(pick);
     const toastGone = () => page.getByTestId("toast").waitFor({ state: "detached", timeout: 8_000 }).catch(() => check(false, "the toast stayed past five seconds"));
+    const wide = page.viewportSize().width >= 900;
+    const headCount = async (id) => Number((await page.getByTestId("head-" + id).locator("[data-testid=count]").innerText()).trim());
+    await step("a ticked 내 할 일 row stays struck and checked for the toast, then leaves", async () => {
+      await openApp(page, "#/inbox");
+      const mine = page.getByRole("list", { name: "내 할 일" });
+      await mine.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" }).click();
+      await page.waitForFunction(() => window.__linaScene.itemDetails.T3.state === "done" && !window.__linaScene.board.inbox.mine.some((row) => row.id === "T3"), null, { timeout: 3_000 }).catch(() => check(false, "the record is not done"));
+      const box = mine.getByRole("checkbox", { name: "공지 문구 확인 완료됨" });
+      check((await box.count()) === 1, "the ticked row left the list before its toast ended");
+      check((await box.getAttribute("aria-checked")) === "true", "the held row is not checked");
+      const strike = await box.locator("xpath=..").locator(".title").evaluate((title) => getComputedStyle(title).textDecorationLine);
+      check(strike === "line-through", "the held row is not struck through");
+      check((await headCount("mine")) === 2, "내 할 일 counts " + (await headCount("mine")) + " while the row is shown");
+      if (wide) check((await sidebarCount(page, "nav-inbox")) === "7", "the sidebar counts " + (await sidebarCount(page, "nav-inbox")));
+      await toastGone();
+      await mine.getByRole("checkbox", { name: /^공지 문구 확인/ }).waitFor({ state: "detached", timeout: 2_000 }).catch(() => check(false, "the row stayed after the toast"));
+      check((await headCount("mine")) === 1, "내 할 일 counts " + (await headCount("mine")) + " after the row left");
+      if (wide) check((await sidebarCount(page, "nav-inbox")) === "6", "the sidebar counts " + (await sidebarCount(page, "nav-inbox")) + " after the row left");
+      return "held struck for the toast, then gone; 내 할 일 2 → 1";
+    });
+    await step("되돌리기 on a held row puts it back unchecked", async () => {
+      await openApp(page, "#/inbox");
+      const mine = page.getByRole("list", { name: "내 할 일" });
+      await mine.getByRole("checkbox", { name: "저장소 접근 권한 주기 완료로 표시" }).click();
+      await page.waitForFunction(() => window.__linaScene.itemDetails.T9.state === "done", null, { timeout: 3_000 }).catch(() => check(false, "the record is not done"));
+      const undo = page.getByTestId("toast").getByRole("button", { name: "되돌리기" });
+      const look = await undo.evaluate((button) => getComputedStyle(button).color + ", " + Math.round(button.getBoundingClientRect().height) + " px");
+      if (!wide) check(Number(look.split(", ")[1].split(" ")[0]) >= 44, "the toast's 되돌리기 is " + look + " on a phone");
+      await undo.click();
+      await page.waitForFunction(() => window.__linaScene.itemDetails.T9.state === "planned", null, { timeout: 3_000 }).catch(() => check(false, "undo did not reopen the record"));
+      await mine.getByRole("checkbox", { name: "저장소 접근 권한 주기 완료로 표시" }).waitFor({ timeout: 3_000 });
+      check((await headCount("mine")) === 2, "내 할 일 counts " + (await headCount("mine")) + " after undo");
+      return "back unchecked, 내 할 일 2; toast button " + look;
+    });
+    await step("a row hidden for its answer's toast is out of every count; undo puts it back", async () => {
+      await openApp(page, "#/inbox");
+      const list = page.getByRole("list", { name: "결정 필요" });
+      await list.getByRole("button", { name: /배포를 금요일 오후에 해도 될까요/ }).click();
+      const pick = page.getByRole("button", { name: "금요일 오후 · 추천" });
+      await pick.waitFor({ timeout: 3_000 });
+      await pick.click();
+      const during = { decide: await headCount("decide"), rows: (await decisionNames(list)).length, sidebar: wide ? await sidebarCount(page, "nav-inbox") : "6" };
+      check(during.decide === 3 && during.rows === 3 && during.sidebar === "6", "during the toast: " + JSON.stringify(during));
+      await page.getByTestId("toast").getByRole("button", { name: "되돌리기" }).click();
+      const after = { decide: await headCount("decide"), rows: (await decisionNames(list)).length, sidebar: wide ? await sidebarCount(page, "nav-inbox") : "7" };
+      check(after.decide === 4 && after.rows === 4 && after.sidebar === "7", "after undo: " + JSON.stringify(after));
+      return "during " + JSON.stringify(during) + ", after undo " + JSON.stringify(after);
+    });
     await step("done, then 되돌리기 in the toast", async () => {
       await openApp(page, "#/goals/G2");
       const todos = page.locator(".detail").getByRole("list", { name: "할 일" });
@@ -695,6 +772,8 @@ const drivers = {
       const ask = (await page.getByTestId("with-open").innerText()).trim();
       check(ask.startsWith("열린 할 일 3개도 함께 완료할까요?"), "the question reads " + ask);
       check((await scene(() => window.__linaScene.itemDetails.G1.state)) === "in_progress", "asking already wrote");
+      await buttonLook(page, page.getByRole("button", { name: "함께 완료" }));
+      await buttonLook(page, page.getByRole("button", { name: "취소" }));
       await page.getByRole("button", { name: "함께 완료" }).click();
       await page.waitForFunction(() => ["G1", "T1", "T2", "T3"].every((id) => window.__linaScene.itemDetails[id].state === "done"), null, { timeout: 3_000 }).catch(() => check(false, "the goal and its to-dos are not all done"));
       const checked = await detail.getByRole("checkbox", { checked: true }).count();
@@ -720,6 +799,7 @@ const drivers = {
       return "row gone, answer 금요일 오후 recorded after the toast";
     });
     await step("a free-text answer and a card's question", async () => {
+      await openApp(page, "#/inbox");
       const list = page.getByRole("list", { name: "결정 필요" });
       await list.getByRole("button", { name: /자주 쓰는 검색어 열 개를/ }).click();
       await page.getByRole("textbox", { name: "답 달기" }).fill("결제, 환불, 배송");
@@ -732,7 +812,7 @@ const drivers = {
       await toastGone();
       await page.waitForFunction(() => window.__linaScene.cardDetails["k-102"].comments.some((comment) => comment.body === "앞 네 자리만요") && window.__linaScene.inbox.questions.length === 0, null, { timeout: 3_000 }).catch(() => check(false, "the card answer did not reach the card"));
       const left = await decisionNames(list);
-      check(left.length === 1, "decisions left " + left.join(" | "));
+      check(left.length === 2, "decisions left " + left.join(" | "));
       return "T12 and the card answered; left: " + left.join(" | ");
     });
     await step("다시 시도 on a stopped card", async () => {

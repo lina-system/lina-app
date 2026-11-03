@@ -415,12 +415,11 @@ export function App({ store }: { store: Store }) {
   const wide = useWide();
   const nav = useNav();
   const minute = Math.floor(now / 60);
-  const model = useMemo(() => buildModel(store.input(), now), [version, minute]);
+  const actions = useActionsFor(store);
+  const model = useMemo(() => buildModel({ ...store.input(), pending: actions.pending() }, now), [version, minute, actions.version]);
 
   useEffect(() => startRefresh(() => void store.refresh()), [store]);
   useEffect(() => store.want(wantsFor(nav.route, store)), [nav.hash, version]);
-
-  const actions = useActionsFor(store);
 
   const context: AppContext = { model, store, now, wide, selected: isList(nav.route) ? null : nav.hash };
   return (

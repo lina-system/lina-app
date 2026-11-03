@@ -35,7 +35,7 @@ Preconditions:
 - The page is `/app/?source=synthetic`, the synthetic scene; the drive opens it fresh for each width.
 
 - **Open the list.** Choose `목표`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive goals`. The list `목표` has 5 links.
-- **Open a goal.** Choose `결제 화면 개편`. Boxes `완료 조건`, `내 말` (closed), `할 일`, `작업`; 3 check boxes named `<title> 완료로 표시`, none `aria-disabled`; 3 work cards; a `댓글 달기` field.
+- **Open a goal.** Choose `결제 화면 개편`. Boxes `완료 조건`, `내 말` (closed), `할 일`, `작업`; 4 check boxes, none `aria-disabled`: the goal's own in its head (`결제 화면 개편 완료로 표시`) and one per to-do in `할 일` (3, each `<title> 완료로 표시`); 3 work cards; a `댓글 달기` field.
 - **Done goal.** Open `/app/?source=synthetic#/goals/G4`. The `완료 근거` box shows the closing sentence.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/goals/goals-1280.{png,aria.yml,json}` and `goals-390.{png,aria.yml,json}`.
 

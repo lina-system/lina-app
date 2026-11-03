@@ -54,6 +54,8 @@ function shuffle<T>(rng: Rng, values: readonly T[]): T[] {
 export interface SceneOptions {
   readonly now: number;
   readonly sourceError?: boolean;
+  /** No card or worker run is running, so 진행 중인 작업 holds only the stopped card (`&running=none`). */
+  readonly noRunning?: boolean;
 }
 
 export interface Scene {
@@ -455,6 +457,16 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     machines: machineList,
     quota: quotaList,
   };
+
+  if (options.noRunning) {
+    const running = new Set([...cardList.cards.filter((card) => card.state === "in_progress").map((card) => card.id), ...runCards.filter((run) => run.state === "in_progress").map((run) => run.id)]);
+    cardList.cards = cardList.cards.filter((card) => !running.has(card.id));
+    for (const id of running) delete cardDetails[id];
+    for (const goal of goalCards) goal.workCards = goal.workCards.filter((card) => !running.has(card.id));
+    board.cards = board.cards.filter((run) => !running.has(run.id));
+    board.counts.running = 0;
+    for (const agent of Object.keys(board.counts.agents ?? {})) if (board.counts.agents) board.counts.agents[agent] = 0;
+  }
 
   return {
     now,

@@ -39,9 +39,10 @@ Preconditions:
 - The page is `/app/?source=synthetic`, the synthetic scene; the drive opens it fresh for each width.
 
 - **Open a to-do.** On `결제 화면 개편`, choose `카드 입력 폼 다듬기`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive item-detail`.
-- **Decision.** In 수신함 choose the decision `배포를 금요일 오후에 해도 될까요?`. The to-do page shows a `결정 필요` box with that sentence, `질문` and `n일 전`.
+- **Decision.** In 수신함 expand the decision `배포를 금요일 오후에 해도 될까요?` and follow its `릴리스 노트 정리 › 배포 순서 정하기` line. The address is `#/items/T2` (배포 순서 정하기), whose `결정 필요` box holds that sentence, `질문` and `n일 전`.
 - **Read it.** The check box `카드 입력 폼 다듬기 완료로 표시` is not `aria-disabled`; boxes `완료 조건`, `실행`, `댓글`; the run line reads `카드 입력 폼 다듬기 · 진행 중`; 2 comments and 2 replies, each reply with `author · n분 전`.
 - **Resolved thread.** One `해결됨 · …` line, closed.
+- **Button.** `보내기` is grey while the field is empty and accent once it has text; on a phone it is at least 44 px tall.
 - **Comment.** Type `휴대폰 가로 화면도 봐 주세요` into `댓글 달기` and choose `보내기`. At once `<agent>에게 보냄 · 방금` shows and the field is empty; the synthetic record holds the owner's comment. Within 25 s the reply line `<agent> · n분 전 · 반영함` shows and the pending line is gone.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/item-detail/item-detail-1280.{png,aria.yml,json}` and `item-detail-390.{png,aria.yml,json}`.
 

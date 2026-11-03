@@ -1,5 +1,13 @@
-import { cardAnswerPath, NOTICES_READ_PATH, routePath, writePath, type ActionResult, type AnswerRequest, type AnswerResult, type CommentRequest, type DoneRequest, type NoticesReadRequest, type NoticesReadResult, type RouteName, type Routes } from "../api/client";
-import { nowSeconds, type ReadResult, type Source, type WriteResult } from "./source";
+import { cardAnswerPath, NOTICES_READ_PATH, routePath, talkPath, writePath, type ActionResult, type AnswerRequest, type AnswerResult, type CommentRequest, type DoneRequest, type NoticesReadRequest, type NoticesReadResult, type RouteName, type Routes, type TalkEvent, type TalkRequest } from "../api/client";
+import { nowSeconds, type ReadResult, type Source, type TalkResult, type WriteResult } from "./source";
+import { readSse } from "./sse";
+
+/** Each frame's JSON `data` with its `event` name; a frame whose data is not JSON ends the turn as failed. */
+export async function* talkEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<TalkEvent> {
+  for await (const frame of readSse(body)) {
+    yield { event: frame.event, data: JSON.parse(frame.data) } as TalkEvent;
+  }
+}
 
 declare global {
   interface Window {
@@ -83,6 +91,27 @@ export class HttpSource implements Source {
 
   readNotices(body: NoticesReadRequest): Promise<WriteResult<NoticesReadResult>> {
     return this.post(NOTICES_READ_PATH, body);
+  }
+
+  /** POST, not EventSource: the reply is read off the fetch body as it streams. */
+  async talk(id: string, body: TalkRequest, signal?: AbortSignal): Promise<TalkResult> {
+    const headers: Record<string, string> = { Accept: "text/event-stream", "Content-Type": "application/json" };
+    if (this.token) headers["X-Hermes-Session-Token"] = this.token;
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.basePath}${talkPath(id)}`, { method: "POST", headers, body: JSON.stringify(body), credentials: "same-origin", signal });
+    } catch {
+      return { ok: false, status: 0, code: null };
+    }
+    if (response.ok && response.body) return { ok: true, events: talkEvents(response.body) };
+    let json: unknown = null;
+    try {
+      json = await response.json();
+    } catch {
+      json = null;
+    }
+    const error = typeof json === "object" && json !== null ? (json as { error?: { code?: unknown } }).error : undefined;
+    return { ok: false, status: response.ok ? 0 : response.status, code: typeof error?.code === "string" ? error.code : null };
   }
 
   /** One write: JSON body, the session token like the reads, and `keepalive` so a write sent as the page goes still lands. */

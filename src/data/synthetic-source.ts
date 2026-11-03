@@ -1,6 +1,6 @@
-import type { ActionResult, AnswerRequest, AnswerResult, BoardSnapshot, CommentRequest, DoneRequest, ItemDetail, ItemSummary, NoticesReadRequest, NoticesReadResult, RouteName, Routes, WorkState } from "../api/client";
+import type { ActionResult, AnswerRequest, AnswerResult, BoardSnapshot, CommentRequest, DoneRequest, ItemDetail, ItemSummary, NoticesReadRequest, NoticesReadResult, RouteName, Routes, TalkEvent, TalkRequest, WorkState } from "../api/client";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type Scene } from "../fixtures/synthetic";
-import { nowSeconds, type ReadResult, type Source, type WriteResult } from "./source";
+import { nowSeconds, type ReadResult, type Source, type TalkResult, type WriteResult } from "./source";
 
 function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
   switch (name) {
@@ -50,6 +50,55 @@ export const RETRY_TEXT = "다시 시도해 주세요.";
 
 const REPLY_TEXT = { comment: "확인했어요. 반영할게요.", answer: "답을 받았어요. 이어서 할게요." } as const;
 
+/** Milliseconds between two frames of the synthetic talk stream. */
+export const TALK_FRAME_MS = 400;
+
+/** The synthetic agent's reply to any message, in the pieces it streams. */
+export const TALK_REPLY_DELTAS = ["네, 확인했어요. ", "입력 폼 간격부터 ", "맞추고 오늘 안에 ", "다시 알려 드릴게요."] as const;
+
+/** How the synthetic gateway refuses a turn (`&talk=busy|down|none`): busy 429, down 503, no owning agent 409. */
+export type TalkRefusal = "busy" | "down" | "none";
+
+const TALK_REFUSED: Record<TalkRefusal, { status: number; code: string | null }> = {
+  busy: { status: 429, code: null },
+  down: { status: 503, code: "gateway_unreachable" },
+  none: { status: 409, code: "no_owning_agent" },
+};
+
+function wait(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason);
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", stop);
+      resolve();
+    }, ms);
+    const stop = () => {
+      clearTimeout(timer);
+      reject(signal?.reason);
+    };
+    signal?.addEventListener("abort", stop, { once: true });
+  });
+}
+
+/** The frames the core relays for one turn, in its order: talk.started, the gateway's run, talk.carried after the reply, done. */
+export function syntheticTalkFrames(item: { id: string; title: string }, agent: string, message: string, ts: number): TalkEvent[] {
+  const session = `app-${agent}`;
+  const run = `run-${item.id}-${ts}`;
+  const messageId = `msg-${item.id}-${ts}`;
+  let seq = 0;
+  const frame = () => ({ session_id: session, run_id: run, seq: (seq += 1), ts });
+  return [
+    { event: "talk.started", data: { item: { id: item.id, title: item.title }, agent, session_id: session } },
+    { event: "run.started", data: { ...frame(), user_message: { role: "user", content: message } } },
+    { event: "message.started", data: { ...frame(), message: { id: messageId, role: "assistant" } } },
+    ...TALK_REPLY_DELTAS.map((delta): TalkEvent => ({ event: "assistant.delta", data: { ...frame(), message_id: messageId, delta } })),
+    { event: "assistant.completed", data: { ...frame(), message_id: messageId, content: TALK_REPLY_DELTAS.join("") } },
+    { event: "talk.carried", data: { agent, item: item.id } },
+    { event: "run.completed", data: { ...frame(), message_id: messageId } },
+    { event: "done", data: frame() },
+  ];
+}
+
 /** Each scene's write count: a source answers "unchanged" while the scene has not changed since it served a route. */
 const versions = new WeakMap<Scene, number>();
 
@@ -70,9 +119,11 @@ export class SyntheticSource implements Source {
   private nextCardComment = 100;
   /** The last record per item: the owner's own done mark, or null once anything else was written after it. */
   private readonly marks = new Map<string, DoneMark | null>();
+  private readonly talkRefusal: TalkRefusal | null;
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; noRunning?: boolean; scene?: Scene } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; noRunning?: boolean; scene?: Scene; talk?: TalkRefusal | null } = {}) {
+    this.talkRefusal = options.talk ?? null;
     this.scene =
       options.scene ??
       generateScene(options.seed ?? SYNTHETIC_SEED, {
@@ -193,6 +244,30 @@ export class SyntheticSource implements Source {
     this.scene.board.counts.unread = unread;
     this.changed();
     return { ok: true, data: { ok: true, unread } };
+  }
+
+  /**
+   * One talk turn like the core's: the same refusals, then the frames one TALK_FRAME_MS apart on timers, so fake
+   * timers step through it. The exchange lives in the agent's conversation, not in the work record: the scene does
+   * not change.
+   */
+  async talk(id: string, body: TalkRequest, signal?: AbortSignal): Promise<TalkResult> {
+    const detail = this.scene.itemDetails[id];
+    if (!detail) return { ok: false, status: 404, code: "unknown_item" };
+    const message = body.message.trim();
+    if (!message) return { ok: false, status: 400, code: "empty_message" };
+    if (message.length > 4000) return { ok: false, status: 413, code: "message_too_long" };
+    if (this.talkRefusal) return { ok: false, ...TALK_REFUSED[this.talkRefusal] };
+    const agent = detail.agent ?? (detail.parent ? this.scene.itemDetails[detail.parent]?.agent : null);
+    if (!agent) return { ok: false, status: 409, code: "no_owning_agent" };
+    const frames = syntheticTalkFrames(detail, agent, message, nowSeconds());
+    async function* events(): AsyncGenerator<TalkEvent> {
+      for (const frame of frames) {
+        await wait(TALK_FRAME_MS, signal);
+        yield frame;
+      }
+    }
+    return { ok: true, events: events() };
   }
 
   /** Goals' to-do counts follow their to-dos' states. */

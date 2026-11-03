@@ -3,7 +3,8 @@ import { bootstrapOptions, HttpSource } from "./http-source";
 import { startRefresh, type RefreshHost } from "./refresh";
 import { chooseSource } from "./select";
 import { Store } from "./store";
-import { SYNTHETIC_REPLY_AFTER, SyntheticSource, UNDO_SECONDS } from "./synthetic-source";
+import type { TalkEvent } from "../api/client";
+import { SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS, UNDO_SECONDS } from "./synthetic-source";
 
 test("reads each route on its schema's server url with the session token and the last ETag", async () => {
   const calls: { url: string; headers: Record<string, string> }[] = [];
@@ -246,4 +247,89 @@ test("read marks post the chosen keys or all, and the synthetic copy answers the
   expect(await source.readNotices({ keys: [key] })).toEqual({ ok: true, data: { ok: true, unread: 4 } });
   expect(source.scene.board.counts.unread).toBe(4);
   expect(await source.readNotices({ all: true })).toEqual({ ok: true, data: { ok: true, unread: 0 } });
+});
+
+test("the synthetic talk turn streams the core's frames one TALK_FRAME_MS apart, the same on every run", async () => {
+  vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+  try {
+    const runs: string[][] = [];
+    for (const _run of [1, 2]) {
+      vi.setSystemTime(new Date("2026-03-02T09:00:00Z"));
+      const source = new SyntheticSource();
+      const comments = source.scene.itemDetails.T4.comments.length;
+      const result = await source.talk("T4", { message: "  입력 폼 봐 주세요  " });
+      if (!result.ok) throw new Error("refused");
+      const seen: TalkEvent[] = [];
+      const reading = (async () => {
+        for await (const event of result.events) seen.push(event);
+      })();
+      await vi.advanceTimersByTimeAsync(TALK_FRAME_MS - 1);
+      expect(seen).toEqual([]);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(seen.map((event) => event.event)).toEqual(["talk.started"]);
+      await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 20);
+      await reading;
+      expect(seen.map((event) => event.event)).toEqual(["talk.started", "run.started", "message.started", ...TALK_REPLY_DELTAS.map(() => "assistant.delta"), "assistant.completed", "talk.carried", "run.completed", "done"]);
+      const started = seen[0];
+      expect(started.event === "talk.started" && started.data).toMatchObject({ item: { id: "T4", title: "카드 입력 폼 다듬기" }, agent: source.scene.itemDetails.T4.agent });
+      const run = seen[1];
+      expect(run.event === "run.started" && run.data.user_message).toEqual({ role: "user", content: "입력 폼 봐 주세요" });
+      const completed = seen.find((event) => event.event === "assistant.completed");
+      expect(completed?.event === "assistant.completed" && completed.data.content).toBe(TALK_REPLY_DELTAS.join(""));
+      expect(source.scene.itemDetails.T4.comments).toHaveLength(comments);
+      runs.push(seen.map((event) => JSON.stringify(event)));
+    }
+    expect(runs[0]).toEqual(runs[1]);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("the synthetic talk turn refuses like the core: one status per case", async () => {
+  const cases = [
+    [new SyntheticSource({ talk: "busy" }), "T4", "안녕", 429, null],
+    [new SyntheticSource({ talk: "down" }), "T4", "안녕", 503, "gateway_unreachable"],
+    [new SyntheticSource({ talk: "none" }), "T4", "안녕", 409, "no_owning_agent"],
+    [new SyntheticSource(), "T404", "안녕", 404, "unknown_item"],
+    [new SyntheticSource(), "T4", "   ", 400, "empty_message"],
+    [new SyntheticSource(), "T4", "가".repeat(4001), 413, "message_too_long"],
+  ] as const;
+  for (const [source, id, message, status, code] of cases) {
+    expect(await source.talk(id, { message })).toEqual({ ok: false, status, code });
+  }
+  expect(chooseSource({ search: "?source=synthetic&talk=busy" }) instanceof SyntheticSource).toBe(true);
+  const busy = chooseSource({ search: "?source=synthetic&talk=busy" });
+  expect(await busy.talk("T4", { message: "안녕" })).toEqual({ ok: false, status: 429, code: null });
+});
+
+test("talk posts the message with the session token and reads the reply off the fetch body as server-sent events", async () => {
+  const calls: { url: string; init: RequestInit }[] = [];
+  const stream = 'event: talk.started\r\ndata: {"item":{"id":"T1","title":"t"},"agent":"a","session_id":"s"}\r\n\r\n: keepalive\r\n\r\nevent: assistant.delta\r\ndata: {"session_id":"s","run_id":"r","seq":1,"ts":1,"message_id":"m","delta":"안녕"}\r\n\r\n';
+  const bytes = new TextEncoder().encode(stream);
+  const fetchImpl = (async (url: string, init: RequestInit) => {
+    calls.push({ url, init });
+    if (url.includes("busy")) return new Response("gateway busy", { status: 429 });
+    if (url.includes("none")) return new Response(JSON.stringify({ error: { code: "no_owning_agent", message: "x" } }), { status: 409 });
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (let at = 0; at < bytes.length; at += 7) controller.enqueue(bytes.slice(at, at + 7));
+        controller.close();
+      },
+    });
+    return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+  }) as typeof fetch;
+  const source = new HttpSource({ fetch: fetchImpl, token: "token-a" });
+  const result = await source.talk("T1", { message: "안녕" });
+  if (!result.ok) throw new Error("refused");
+  const events: TalkEvent[] = [];
+  for await (const event of result.events) events.push(event);
+  expect(events.map((event) => event.event)).toEqual(["talk.started", "assistant.delta"]);
+  expect(events[1].event === "assistant.delta" && events[1].data.delta).toBe("안녕");
+  expect(calls[0].url).toBe("/api/lina/work/items/T1/talk");
+  expect(calls[0].init.method).toBe("POST");
+  expect(calls[0].init.body).toBe('{"message":"안녕"}');
+  expect((calls[0].init.headers as Record<string, string>)["X-Hermes-Session-Token"]).toBe("token-a");
+  expect((calls[0].init.headers as Record<string, string>).Accept).toBe("text/event-stream");
+  expect(await source.talk("busy", { message: "안녕" })).toEqual({ ok: false, status: 429, code: null });
+  expect(await source.talk("none", { message: "안녕" })).toEqual({ ok: false, status: 409, code: "no_owning_agent" });
 });

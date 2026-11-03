@@ -218,6 +218,7 @@ export function Bell() {
           </span>
         ) : null}
       </button>
+      {open ? <div class="sheet-scrim" aria-hidden="true" onClick={() => setOpen(false)} /> : null}
       {open ? (
         <div class="popover" role="dialog" aria-label={W.bell} data-testid="notices">
           <div class="popover-bar">
@@ -371,7 +372,7 @@ function WideShell({ route, stack }: { route: Route; stack: readonly string[] })
 
 function PhoneShell({ route, stack }: { route: Route; stack: readonly string[] }) {
   const { model, store } = useApp();
-  const mainRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
   const saved = (window.history.state?.scroll ?? {}) as Record<string, number>;
   useScrollKeeping({ main: mainRef }, { list: "", detail: "", main: href(route) }, saved);
   const parent = parentOf(route, stack);
@@ -382,7 +383,7 @@ function PhoneShell({ route, stack }: { route: Route; stack: readonly string[] }
     else navigate(parent, { replace: true });
   };
   return (
-    <div class="stack" data-layout="phone" ref={mainRef}>
+    <div class="stack" data-layout="phone">
       <header class="navbar">
         {isRoot ? (
           <span />
@@ -396,7 +397,7 @@ function PhoneShell({ route, stack }: { route: Route; stack: readonly string[] }
           <Bell />
         </div>
       </header>
-      <main class="phone-main">
+      <main class="phone-main" ref={mainRef}>
         {large ? (
           <h1 class="large-title" data-testid="screen-title">
             {titleOf(route, model, store)}

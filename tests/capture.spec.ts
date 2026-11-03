@@ -177,6 +177,14 @@ for (const screen of SCREENS) {
     if (screen.open) await screen.open(page);
     const fits = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
     expect(fits).toBe(true);
+    // On a phone only the screen between the bars scrolls, so a full capture grows the window to the screen's length.
+    if (phone) {
+      const tall = await page.evaluate(() => {
+        const main = document.querySelector(".phone-main");
+        return main ? Math.ceil(innerHeight - main.clientHeight + main.scrollHeight) : 0;
+      });
+      if (tall > page.viewportSize()!.height) await page.setViewportSize({ width: page.viewportSize()!.width, height: tall });
+    }
     await page.screenshot({ path: `captures/${screen.id}-${suffix(testInfo.project.name)}.png`, fullPage: true, animations: "disabled" });
   });
 }

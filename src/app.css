@@ -1147,24 +1147,32 @@ button.check:hover:not([aria-disabled="true"]):not(.is-done) {
 
 /* Narrow: NavigationStack. */
 
+/* The page itself never scrolls or rubber-bands on a phone; only the screen between the bars scrolls. */
+html:has(.stack),
+html:has(.stack) body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 .stack {
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  overflow-y: auto;
+  overflow: hidden;
   background: var(--bg-2);
+  font-size: var(--text-body);
 }
 
 .navbar {
-  position: sticky;
-  top: 0;
+  position: relative;
+  flex: none;
   z-index: 5;
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: calc(44px + var(--safe-top));
   padding: var(--safe-top) calc(8px + var(--safe-right)) 0 calc(8px + var(--safe-left));
-  background: color-mix(in srgb, var(--bg-2) 86%, transparent);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background: var(--bg-2);
 }
 
 .back {
@@ -1172,15 +1180,23 @@ button.check:hover:not([aria-disabled="true"]):not(.is-done) {
   align-items: center;
   gap: 0;
   max-width: 60%;
+  min-width: var(--hit);
+  min-height: var(--hit);
+  padding-right: 8px;
   color: var(--accent);
   font-size: 17px;
 }
 
 .phone-main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding-bottom: calc(64px + var(--safe-bottom) + var(--keyboard-inset, 0px));
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
-  min-height: calc(100% - 44px - var(--safe-top));
+  background: var(--bg-2);
+  view-transition-name: phone-screen;
 }
 
 .large-title {
@@ -1252,7 +1268,7 @@ button.check:hover:not([aria-disabled="true"]):not(.is-done) {
   right: 0;
   bottom: var(--keyboard-inset, 0px);
   display: grid;
-  grid-template-columns: 32px 1fr 32px;
+  grid-template-columns: var(--hit) 1fr var(--hit);
   align-items: center;
   gap: 8px;
   height: calc(44px + var(--safe-bottom));
@@ -1283,3 +1299,210 @@ button.check:hover:not([aria-disabled="true"]):not(.is-done) {
   font-size: var(--text-small);
 }
 
+/* Phone: every control has a 44 pt hit area, even where the glyph stays small. */
+
+.stack .tool {
+  width: var(--hit);
+  height: var(--hit);
+}
+
+.stack .badge {
+  top: 6px;
+  right: 3px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  font-size: var(--text-small);
+  line-height: 18px;
+}
+
+.stack .mark,
+.stack .is-dim .mark {
+  width: 20px;
+  height: 20px;
+  font-size: var(--text-small);
+}
+
+.stack .tag {
+  font-size: var(--text-small);
+}
+
+.stack .is-dim > a,
+.stack .is-dim > .row-body,
+.stack .notice-row > a {
+  min-height: var(--row);
+}
+
+.stack .text-button,
+.stack .choice {
+  min-width: var(--hit);
+}
+
+.stack .note.is-inline input {
+  height: var(--hit);
+}
+
+.stack .crumb {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--hit);
+}
+
+.stack .fold > summary,
+.stack .resolved > summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--hit);
+  margin-bottom: 0;
+}
+
+/* The check box is a 44 pt button; the 20 pt circle is drawn inside it, where it always was. */
+.stack .check {
+  position: relative;
+  width: var(--hit);
+  height: var(--hit);
+  margin-left: -12px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.stack .check::before {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border-radius: 50%;
+  border: 1.5px solid var(--label-3);
+}
+
+.stack .check.is-done::before {
+  border-color: var(--accent);
+  background: var(--accent) center / 12px no-repeat
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2.5 6.2 2.3 2.3 4.7-5'/%3E%3C/svg%3E");
+}
+
+.stack .rows .check-row > a,
+.stack .check-row > .lines {
+  padding-left: 0;
+}
+
+.stack .head-check {
+  gap: 0;
+}
+
+/* Phone: no grey tap flash, no double-tap zoom delay, no text selection or callout on chrome and rows. */
+.stack,
+.stack ~ .toast-slot {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* touch-action is not inherited: set it on every control and on each scroller between it and the page. */
+.stack :is(a, button, summary, input, textarea, [role="checkbox"]),
+.stack .phone-main,
+.stack .popover {
+  touch-action: manipulation;
+}
+
+.stack input,
+.stack textarea,
+.stack .comment-text,
+.stack .talk-bubble,
+.stack .box-text,
+.stack .detail-title,
+.stack .decision-row.is-open .title {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* A tap must not leave a row grey on a touch screen; the pressed state shows at once and fades on release. */
+@media (hover: none) {
+  .stack .row > a:hover,
+  .stack .nav-row a:hover,
+  .stack .tool:hover:not(:disabled),
+  .stack .text-button:hover:not(:disabled) {
+    background: transparent;
+  }
+}
+
+.stack .row > a:active,
+.stack .row > .row-button:active,
+.stack .nav-row a:active,
+.stack .notice-row > a:active,
+.stack .quota-fold > summary:active,
+.stack .fold > summary:active,
+.stack .resolved > summary:active {
+  background: var(--fill);
+  transition: none;
+}
+
+.stack .tool:active:not(:disabled),
+.stack .back:active,
+.stack .text-button:active:not(:disabled),
+.stack .choice:active:not(:disabled),
+.stack .crumb:active,
+.stack button.check:active:not([aria-disabled="true"]),
+.stack ~ .toast-slot .toast-undo:active {
+  opacity: 0.4;
+  transition: none;
+}
+
+/* Phone: the bell's notices open as a bottom sheet over a dimmed screen. */
+
+.sheet-scrim {
+  display: none;
+}
+
+.stack .sheet-scrim {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.3);
+  animation: fade-in var(--motion);
+}
+
+.stack .popover {
+  position: fixed;
+  top: auto;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 31;
+  width: auto;
+  max-height: 70vh;
+  padding: 14px var(--safe-right) calc(8px + var(--safe-bottom)) var(--safe-left);
+  border: 0;
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.18);
+  overscroll-behavior: contain;
+  animation: sheet-up var(--stack-motion);
+}
+
+.stack .popover::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 36px;
+  height: 5px;
+  margin-left: -18px;
+  border-radius: 3px;
+  background: var(--label-3);
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}

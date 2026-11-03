@@ -1,6 +1,6 @@
-import type { ActionResult, AnswerRequest, AnswerResult, BoardSnapshot, CommentRequest, DoneRequest, ItemDetail, ItemSummary, NoticesReadRequest, NoticesReadResult, RouteName, Routes, TalkEvent, TalkRequest, WorkState } from "../api/client";
+import type { ActionResult, AnswerRequest, AnswerResult, BoardSnapshot, ChangeEvent, ChangeMessage, CommentRequest, DoneRequest, ItemDetail, ItemSummary, NoticesReadRequest, NoticesReadResult, RouteName, Routes, TalkEvent, TalkRequest, WorkState } from "../api/client";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type Scene } from "../fixtures/synthetic";
-import { nowSeconds, type ReadResult, type Source, type TalkResult, type WriteResult } from "./source";
+import { nowSeconds, type ChangeHandlers, type ChangeSocket, type ReadResult, type Source, type TalkResult, type WriteResult } from "./source";
 
 function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
   switch (name) {
@@ -102,6 +102,73 @@ export function syntheticTalkFrames(item: { id: string; title: string }, agent: 
 /** Each scene's write count: a source answers "unchanged" while the scene has not changed since it served a route. */
 const versions = new WeakMap<Scene, number>();
 
+/** How often the synthetic stream sends what changed, like the core's batch interval. */
+export const STREAM_TICK_MS = 300;
+/** Events the synthetic stream keeps; a `since` older than that gets a resync, like the core's kept history. */
+export const STREAM_HISTORY = 200;
+/** `&live=drop`: the first connection drops this long after it opens, and another device writes meanwhile. */
+export const STREAM_DROP_AFTER_MS = 3_000;
+/** `&live=resync`: one resync this long after the first connection opens. */
+export const STREAM_RESYNC_AFTER_MS = 2_000;
+
+/** How the synthetic stream behaves (`&live=`): as the core, refusing every connection, dropping once, or one resync. */
+export type StreamScript = "ok" | "down" | "drop" | "resync";
+
+/** Each scene's change log, shared by every source on it like the core's stores: `total` events so far. */
+interface ChangeLog {
+  readonly epoch: number;
+  total: number;
+  readonly events: ChangeEvent[];
+}
+const logs = new WeakMap<Scene, ChangeLog>();
+let epochs = 0;
+
+function logOf(scene: Scene): ChangeLog {
+  let log = logs.get(scene);
+  if (!log) {
+    log = { epoch: (epochs += 1), total: 0, events: [] };
+    logs.set(scene, log);
+  }
+  return log;
+}
+
+function cursorOf(log: ChangeLog, at: number): string {
+  return `s.${log.epoch}.${at}`;
+}
+
+/** The position a cursor names in this log, or null when it is not this log's or no longer kept. */
+function positionOf(log: ChangeLog, cursor: string): number | null {
+  const match = /^s\.(\d+)\.(\d+)$/.exec(cursor);
+  if (!match || Number(match[1]) !== log.epoch) return null;
+  const at = Number(match[2]);
+  return at > log.total || at < log.total - log.events.length ? null : at;
+}
+
+function eventsAfter(log: ChangeLog, at: number): ChangeEvent[] {
+  return log.events.slice(log.events.length - (log.total - at));
+}
+
+/** One connection of the synthetic stream, as verify.mjs reads it: what it resumed from and what it got first. */
+export interface StreamConnection {
+  readonly since: string | null;
+  first: "tail" | "missed" | "resync" | "refused";
+  missed: number;
+  open: boolean;
+}
+
+interface Connection {
+  readonly handlers: ChangeHandlers;
+  readonly record: StreamConnection;
+  at: number;
+  timer: ReturnType<typeof setInterval> | null;
+  resync: boolean;
+  closed: boolean;
+}
+
+function work(kind: string, id: string): Omit<ChangeEvent, "at"> {
+  return { source: "work", kind, id };
+}
+
 function fail(status: number, detail: string): WriteResult<never> {
   return { ok: false, status, detail };
 }
@@ -120,10 +187,18 @@ export class SyntheticSource implements Source {
   /** The last record per item: the owner's own done mark, or null once anything else was written after it. */
   private readonly marks = new Map<string, DoneMark | null>();
   private readonly talkRefusal: TalkRefusal | null;
+  private readonly connections = new Set<Connection>();
+  private readonly script: StreamScript;
+  private streamDown: boolean;
+  /** Every connection opened, and every snapshot read, for verify.mjs and the tests. */
+  readonly stream: StreamConnection[] = [];
+  reads = 0;
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; noRunning?: boolean; scene?: Scene; talk?: TalkRefusal | null } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; noRunning?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript } = {}) {
     this.talkRefusal = options.talk ?? null;
+    this.script = options.live ?? "ok";
+    this.streamDown = this.script === "down";
     this.scene =
       options.scene ??
       generateScene(options.seed ?? SYNTHETIC_SEED, {
@@ -135,6 +210,7 @@ export class SyntheticSource implements Source {
 
   async read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {
     const at = nowSeconds();
+    this.reads += 1;
     this.deliverReplies(at);
     const body = bodyOf(this.scene, name, id);
     if (body === undefined) return { kind: "missing", at };
@@ -163,7 +239,7 @@ export class SyntheticSource implements Source {
     }
     this.replies.push({ id, cid, at, kind });
     if (this.marks.has(id)) this.marks.set(id, null);
-    this.changed();
+    this.changed(work("commented", id));
     return { ok: true, data: { ok: true, id, state: detail.state, reason: detail.reason, cid, undoUntil: null } };
   }
 
@@ -192,7 +268,7 @@ export class SyntheticSource implements Source {
     detail.ownerDone = { at, undoUntil: mark.undoUntil, with: open };
     this.marks.set(id, mark);
     this.recount(ids);
-    this.changed();
+    this.changed(...ids.map((each) => work("done", each)));
     return { ok: true, data: { ok: true, id, state: "done", reason: null, cid: null, undoUntil: mark.undoUntil } };
   }
 
@@ -208,7 +284,7 @@ export class SyntheticSource implements Source {
     detail.ownerDone = null;
     this.marks.delete(id);
     this.recount(mark.before.map((before) => before.id));
-    this.changed();
+    this.changed(...mark.before.map((before) => work("reopened", before.id)));
     return { ok: true, data: { ok: true, id, state: detail.state, reason: detail.reason, cid: null, undoUntil: null } };
   }
 
@@ -220,7 +296,7 @@ export class SyntheticSource implements Source {
     detail.comments.push({ cid, by: SYNTHETIC_OWNER.id, at, text: RETRY_TEXT, status: "open", kind: "comment", replies: [] });
     this.patchItem(id, { commentCount: detail.comments.length, lastActivityAt: at });
     if (this.marks.has(id)) this.marks.set(id, null);
-    this.changed();
+    this.changed(work("commented", id));
     return { ok: true, data: { ok: true, id, state: detail.state, reason: detail.reason, cid, undoUntil: null } };
   }
 
@@ -232,7 +308,7 @@ export class SyntheticSource implements Source {
     const commentId = this.nextCardComment++;
     card.comments.push({ id: commentId, author: SYNTHETIC_OWNER.id, body: text, createdAt: Math.floor(nowSeconds()) });
     this.scene.inbox.questions = this.scene.inbox.questions.filter((question) => question.cardId !== cardId);
-    this.changed();
+    this.changed({ source: "kanban", kind: "commented", id: cardId });
     return { ok: true, data: { ok: true, cardId, commentId, unblocked: false, state: card.state, reason: card.reason } };
   }
 
@@ -242,7 +318,7 @@ export class SyntheticSource implements Source {
     for (const notice of this.scene.board.notices) if (!keys || keys.includes(notice.key)) notice.read = true;
     const unread = this.scene.board.notices.filter((notice) => !notice.read).length;
     this.scene.board.counts.unread = unread;
-    this.changed();
+    this.changed(work("notices_read", keys?.join(",") ?? "all"));
     return { ok: true, data: { ok: true, unread } };
   }
 
@@ -270,6 +346,92 @@ export class SyntheticSource implements Source {
     return { ok: true, events: events() };
   }
 
+  /**
+   * The core's change stream over this scene's log: the first message after a microtask (the tail, what a kept
+   * `since` missed, or one resync), then what changed every STREAM_TICK_MS on a timer, so fake timers step it. The
+   * tick also lets the synthetic agent reply, as the core's agents write on their own.
+   */
+  changes(since: string | null, handlers: ChangeHandlers): ChangeSocket {
+    const record: StreamConnection = { since, first: "refused", missed: 0, open: false };
+    this.stream.push(record);
+    const connection: Connection = { handlers, record, at: 0, timer: null, resync: false, closed: false };
+    const opening = this.stream.length === 1;
+    queueMicrotask(() => {
+      if (connection.closed) return;
+      if (this.streamDown) {
+        connection.closed = true;
+        handlers.closed();
+        return;
+      }
+      const log = logOf(this.scene);
+      const at = since === null ? log.total : positionOf(log, since);
+      let message: ChangeMessage;
+      if (at === null) {
+        record.first = "resync";
+        message = { cursor: cursorOf(log, log.total), resync: true };
+      } else {
+        const missed = eventsAfter(log, at);
+        record.first = since === null ? "tail" : "missed";
+        record.missed = missed.length;
+        message = { cursor: cursorOf(log, log.total), events: missed };
+      }
+      record.open = true;
+      connection.at = log.total;
+      this.connections.add(connection);
+      connection.timer = setInterval(() => this.tick(connection), STREAM_TICK_MS);
+      handlers.message(message);
+      if (opening && this.script === "drop") setTimeout(() => this.dropWhileAnotherDeviceWrites(), STREAM_DROP_AFTER_MS);
+      if (opening && this.script === "resync") setTimeout(() => this.resyncStreams(), STREAM_RESYNC_AFTER_MS);
+    });
+    return { close: () => this.end(connection, false) };
+  }
+
+  /** Every open connection drops, as on sleep or a network change. */
+  dropStreams(): void {
+    for (const connection of [...this.connections]) this.end(connection, true);
+  }
+
+  /** The next tick of every open connection is one resync, as when a store that was down reads again. */
+  resyncStreams(): void {
+    for (const connection of this.connections) connection.resync = true;
+  }
+
+  /** While down, every new connection closes before its first message. */
+  setStreamDown(down: boolean): void {
+    this.streamDown = down;
+  }
+
+  /** `&live=drop`: the stream drops, then another device marks the first unread notice read before the reconnect. */
+  private dropWhileAnotherDeviceWrites(): void {
+    this.dropStreams();
+    const key = this.scene.board.notices.find((notice) => !notice.read)?.key;
+    if (key) void this.readNotices({ keys: [key] });
+  }
+
+  private end(connection: Connection, notify: boolean): void {
+    if (connection.timer !== null) clearInterval(connection.timer);
+    connection.timer = null;
+    connection.closed = true;
+    connection.record.open = false;
+    const wasOpen = this.connections.delete(connection);
+    if (notify && wasOpen) connection.handlers.closed();
+  }
+
+  private tick(connection: Connection): void {
+    this.deliverReplies(nowSeconds());
+    const log = logOf(this.scene);
+    if (connection.resync) {
+      connection.resync = false;
+      connection.at = log.total;
+      connection.handlers.message({ cursor: cursorOf(log, log.total), resync: true });
+      return;
+    }
+    if (connection.at === log.total) return;
+    const events = eventsAfter(log, connection.at);
+    connection.at = log.total;
+    connection.handlers.message({ cursor: cursorOf(log, log.total), events });
+  }
+
   /** Goals' to-do counts follow their to-dos' states. */
   private recount(ids: readonly string[]): void {
     const goals = new Set(ids.map((id) => this.scene.itemDetails[id]).map((item) => (item?.kind === "goal" ? item.id : item?.parent)).filter((id): id is string => Boolean(id)));
@@ -295,7 +457,7 @@ export class SyntheticSource implements Source {
         for (let index = decide.length - 1; index >= 0; index -= 1) if (decide[index].target === reply.id) decide.splice(index, 1);
       }
     }
-    this.changed();
+    this.changed(...due.map((reply) => work("comment_replied", reply.id)));
   }
 
   /** The same fields on the item's list entry, its detail and its row in its goal's children. */
@@ -306,8 +468,16 @@ export class SyntheticSource implements Source {
     for (const target of targets) if (target) Object.assign(target, patch);
   }
 
-  /** The scene changed: every route answers with data again on its next read, from every source sharing it. */
-  protected changed(): void {
+  /**
+   * The scene changed: every route answers with data again on its next read, from every source sharing it, and the
+   * change goes into the scene's log for every stream on it.
+   */
+  protected changed(...events: Omit<ChangeEvent, "at">[]): void {
     versions.set(this.scene, (versions.get(this.scene) ?? 0) + 1);
+    const log = logOf(this.scene);
+    const at = Math.floor(nowSeconds());
+    log.events.push(...events.map((event) => ({ ...event, at })));
+    log.total += events.length;
+    if (log.events.length > STREAM_HISTORY) log.events.splice(0, log.events.length - STREAM_HISTORY);
   }
 }

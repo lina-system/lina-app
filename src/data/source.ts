@@ -1,4 +1,4 @@
-import type { ActionResult, AnswerRequest, AnswerResult, CommentRequest, DoneRequest, NoticesReadRequest, NoticesReadResult, RouteName, Routes, TalkEvent, TalkRequest } from "../api/client";
+import type { ActionResult, AnswerRequest, ChangeMessage, AnswerResult, CommentRequest, DoneRequest, NoticesReadRequest, NoticesReadResult, RouteName, Routes, TalkEvent, TalkRequest } from "../api/client";
 
 export type ReadResult<T> =
   | { readonly kind: "data"; readonly data: T; readonly at: number }
@@ -15,6 +15,17 @@ export type WriteResult<T> = { readonly ok: true; readonly data: T } | { readonl
  */
 export type TalkResult = { readonly ok: true; readonly events: AsyncIterable<TalkEvent> } | { readonly ok: false; readonly status: number; readonly code: string | null };
 
+/** What one change stream connection tells its opener. `closed` comes once, when the connection ends or never opens. */
+export interface ChangeHandlers {
+  message(message: ChangeMessage): void;
+  closed(): void;
+}
+
+/** One open change stream connection; `close` ends it without calling `closed`. */
+export interface ChangeSocket {
+  close(): void;
+}
+
 /** Where the screens' data comes from, and where the owner's writes go: the core over HTTP, or the synthetic scene. */
 export interface Source {
   read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>>;
@@ -27,6 +38,8 @@ export interface Source {
   readNotices(body: NoticesReadRequest): Promise<WriteResult<NoticesReadResult>>;
   /** One turn with the agent that owns the item, in that agent's app conversation; `signal` stops reading the reply. */
   talk(id: string, body: TalkRequest, signal?: AbortSignal): Promise<TalkResult>;
+  /** One connection to the core's change stream, resuming after `since` (null: from the tail). */
+  changes(since: string | null, handlers: ChangeHandlers): ChangeSocket;
 }
 
 export function nowSeconds(): number {

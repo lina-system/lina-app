@@ -2,8 +2,9 @@ import { act, fireEvent, render, waitFor, within } from "@testing-library/preact
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { RouteName } from "./api/client";
 import { App } from "./app";
-import { SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS } from "./data/synthetic-source";
+import { STREAM_TICK_MS, SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS } from "./data/synthetic-source";
 import type { ReadResult, Source } from "./data/source";
+import { BACKOFF_MAX_MS } from "./data/live";
 import { Store } from "./data/store";
 import { SCENE_COUNTS } from "./fixtures/synthetic";
 import { buildModel } from "./model";
@@ -40,7 +41,7 @@ async function open(hash: string, options: { wide: boolean; source?: Source }) {
   window.history.replaceState(null, "", `/app/${hash}`);
   const source = options.source ?? new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
   const view = render(<App store={new Store(source)} />);
-  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toMatch(/^갱신 \d+초 전$/));
+  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("실시간"));
   if (/^#\/(goals|items|cards|runs)\//.test(hash)) {
     await waitFor(() => expect(view.container.querySelector("article.detail")).not.toBeNull());
   }
@@ -250,19 +251,34 @@ describe("freshness", () => {
     await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("연결 끊김"));
   });
 
-  test("갱신 지연 after 30 s with no answer", async () => {
-    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+  test("with the stream open the line reads 실시간; down, it reads 갱신 지연 until a reconnect", async () => {
+    vi.useFakeTimers(TIMERS);
     try {
-      let answer = true;
-      const view = await open("#/inbox", { wide: true, source: new FailingSource(() => (answer ? null : "failed")) });
-      answer = false;
+      const source = new SyntheticSource();
+      const view = await open("#/inbox", { wide: true, source });
+      source.setStreamDown(true);
+      await act(async () => source.dropStreams());
+      expect(view.getByTestId("freshness-line").textContent).toBe("갱신 지연");
       await act(async () => {
-        vi.advanceTimersByTime(31_000);
+        await vi.advanceTimersByTimeAsync(BACKOFF_MAX_MS * 2);
       });
       expect(view.getByTestId("freshness-line").textContent).toBe("갱신 지연");
+      source.setStreamDown(false);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(BACKOFF_MAX_MS);
+      });
+      expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  test("a stream that never opens reads 갱신 지연, not 실시간", async () => {
+    setWide(true);
+    window.history.replaceState(null, "", "/app/#/inbox");
+    const view = render(<App store={new Store(new SyntheticSource({ live: "down" }))} />);
+    await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("갱신 지연"));
+    expect(rowsIn(view.getByTestId("screen-inbox"))).toBe(SCENE_COUNTS.inbox);
   });
 });
 
@@ -597,7 +613,7 @@ describe("done marks", () => {
 });
 
 describe("retry", () => {
-  test("다시 시도 on a stopped card asks its to-do's agent and says so until the next refresh", async () => {
+  test("다시 시도 on a stopped card asks its to-do's agent and says so for as long as a toast", async () => {
     vi.useFakeTimers(TIMERS);
     try {
       const source = new SpySource();
@@ -659,7 +675,7 @@ describe("bell", () => {
     setItem.mockRestore();
   });
 
-  test("a read on one device is the count on the other after its next refresh, both ways", async () => {
+  test("a read on one device is the count on the other within 2 s, both ways", async () => {
     vi.useFakeTimers(TIMERS);
     try {
       const core = new SyntheticSource();
@@ -672,7 +688,7 @@ describe("bell", () => {
       expect(await desktopStore.write((source) => source.readNotices({ keys: [key] }))).toMatchObject({ ok: true });
       expect(buildModelCount(desktopStore)).toBe(4);
       await act(async () => {
-        vi.advanceTimersByTime(10_000);
+        await vi.advanceTimersByTimeAsync(2_000);
       });
       await waitFor(() => expect(phone.getByRole("button", { name: "알림 4" })).toBeTruthy());
       fireEvent.click(phone.getByTestId("bell"));
@@ -727,7 +743,8 @@ describe("lists while a write is in flight", () => {
       await act(async () => {
         vi.advanceTimersByTime(TOAST_MS);
       });
-      expect(view.queryByRole("checkbox", { name: /^공지 문구 확인/ })).toBeNull();
+      // The screens draw the record once the write's own read has landed.
+      await waitFor(() => expect(view.queryByRole("checkbox", { name: /^공지 문구 확인/ })).toBeNull());
       expect(inboxCounts(view)).toEqual({ sidebar: 6, decide: 4, mine: 1, rows: 6 });
     } finally {
       vi.useRealTimers();
@@ -866,5 +883,56 @@ describe("talk", () => {
     expect(field.value).toBe("오늘 어디까지 했어요?");
     expect(send.disabled).toBe(false);
     expect(box.queryByTestId("talk-mine")).toBeNull();
+  });
+});
+
+describe("live updates", () => {
+  test("a write on another device shows here within 2 s; a resync, a drop and a reconnect keep the open row and the screen", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const core = new SyntheticSource();
+      const view = await open("#/inbox", { wide: true, source: core });
+      const screen = view.getByTestId("screen-inbox");
+      const row = decisionButton(view, "배포를 금요일 오후에 해도 될까요");
+      fireEvent.click(row);
+      expect(row.getAttribute("aria-expanded")).toBe("true");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const read = vi.spyOn(core, "read");
+
+      const otherDevice = new Store(new SyntheticSource({ scene: core.scene }));
+      expect(await otherDevice.write((source) => source.done("T3", {}))).toMatchObject({ ok: true });
+      expect(view.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" })).toBeTruthy();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_000);
+      });
+      expect(view.queryByRole("checkbox", { name: /^공지 문구 확인/ })).toBeNull();
+      expect(view.getByTestId("nav-inbox").textContent).toContain("6");
+      // Only the routes a done mark touches were read, not every snapshot.
+      expect([...new Set(read.mock.calls.map(([name, id]) => (id ? `${name}:${id}` : name)))].sort()).toEqual(["board", "items"]);
+      read.mockRestore();
+
+      core.resyncStreams();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(STREAM_TICK_MS);
+      });
+      await act(async () => core.dropStreams());
+      expect(view.getByTestId("freshness-line").textContent).toBe("갱신 지연");
+      await otherDevice.write((source) => source.readNotices({ keys: [core.scene.board.notices.find((notice) => !notice.read)?.key ?? ""] }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(BACKOFF_MAX_MS);
+      });
+      expect(core.stream.at(-1)).toMatchObject({ first: "missed", missed: 1, open: true });
+      await waitFor(() => expect(view.getByRole("button", { name: "알림 4" })).toBeTruthy());
+      expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
+
+      expect(view.getByTestId("screen-inbox")).toBe(screen);
+      expect(decisionButton(view, "배포를 금요일 오후에 해도 될까요")).toBe(row);
+      expect(row.getAttribute("aria-expanded")).toBe("true");
+      expect(core.stream.filter((connection) => connection.open)).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

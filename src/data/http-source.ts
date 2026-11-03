@@ -1,5 +1,5 @@
-import { cardAnswerPath, NOTICES_READ_PATH, routePath, talkPath, writePath, type ActionResult, type AnswerRequest, type AnswerResult, type CommentRequest, type DoneRequest, type NoticesReadRequest, type NoticesReadResult, type RouteName, type Routes, type TalkEvent, type TalkRequest } from "../api/client";
-import { nowSeconds, type ReadResult, type Source, type TalkResult, type WriteResult } from "./source";
+import { cardAnswerPath, EVENTS_PATH, NOTICES_READ_PATH, routePath, talkPath, writePath, type ActionResult, type AnswerRequest, type AnswerResult, type ChangeMessage, type CommentRequest, type DoneRequest, type NoticesReadRequest, type NoticesReadResult, type RouteName, type Routes, type TalkEvent, type TalkRequest } from "../api/client";
+import { nowSeconds, type ChangeHandlers, type ChangeSocket, type ReadResult, type Source, type TalkResult, type WriteResult } from "./source";
 import { readSse } from "./sse";
 
 /** Each frame's JSON `data` with its `event` name; a frame whose data is not JSON ends the turn as failed. */
@@ -22,6 +22,21 @@ export interface HttpOptions {
   /** Prefix before `/api/...`; the core's bootstrap sets `__HERMES_BASE_PATH__`. */
   readonly basePath?: string;
   readonly token?: string | null;
+  /** The change stream's socket; the browser's WebSocket by default. */
+  readonly webSocket?: new (url: string) => WebSocket;
+  /** The page's address, for the socket's origin. */
+  readonly location?: Pick<Location, "href">;
+}
+
+/** The change stream's address on the page's own origin: ws(s), the base path, `?token=` and `since`. */
+export function eventsUrl(href: string, basePath: string, token: string | null, since: string | null): string {
+  const url = new URL(`${basePath}${EVENTS_PATH}`, href);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  url.hash = "";
+  url.search = "";
+  if (token) url.searchParams.set("token", token);
+  if (since) url.searchParams.set("since", since);
+  return url.toString();
 }
 
 export function bootstrapOptions(host: Partial<Window> = window): HttpOptions {
@@ -36,11 +51,59 @@ export class HttpSource implements Source {
   private readonly fetchImpl: typeof fetch;
   private readonly basePath: string;
   private readonly token: string | null;
+  private readonly webSocket: (url: string) => WebSocket;
+  private readonly href: () => string;
 
   constructor(options: HttpOptions = {}) {
     this.fetchImpl = options.fetch ?? ((input, init) => fetch(input, init));
     this.basePath = (options.basePath ?? "").replace(/\/+$/, "");
     this.token = options.token ?? null;
+    const Socket = options.webSocket;
+    this.webSocket = Socket ? (url) => new Socket(url) : (url) => new WebSocket(url);
+    this.href = () => (options.location ?? window.location).href;
+  }
+
+  /**
+   * One WebSocket to `/api/lina/events`. A message that is not JSON, an error or a close ends it: `closed` comes
+   * once, and the caller decides when to connect again.
+   */
+  changes(since: string | null, handlers: ChangeHandlers): ChangeSocket {
+    let ended = false;
+    const end = () => {
+      if (ended) return;
+      ended = true;
+      handlers.closed();
+    };
+    let socket: WebSocket;
+    try {
+      socket = this.webSocket(eventsUrl(this.href(), this.basePath, this.token, since));
+    } catch {
+      queueMicrotask(end);
+      return { close: () => void (ended = true) };
+    }
+    socket.onmessage = (event: MessageEvent) => {
+      if (ended) return;
+      let message: ChangeMessage;
+      try {
+        message = JSON.parse(String(event.data)) as ChangeMessage;
+      } catch {
+        socket.close();
+        end();
+        return;
+      }
+      handlers.message(message);
+    };
+    socket.onerror = () => {
+      socket.close();
+      end();
+    };
+    socket.onclose = end;
+    return {
+      close: () => {
+        ended = true;
+        socket.close();
+      },
+    };
   }
 
   async read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {

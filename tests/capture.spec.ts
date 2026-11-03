@@ -13,9 +13,11 @@ async function talk(page: Page, message: string): Promise<void> {
 }
 
 // `clock`: the page's timers run only when the capture says, so a streaming reply is caught between two frames.
-const SCREENS: readonly { id: string; hash: string; query?: string; wideOnly?: boolean; phoneOnly?: boolean; clock?: boolean; open?: (page: Page) => Promise<void> }[] = [
+// `line`: the freshness line the screen is ready at (실시간 once the change stream is open).
+const SCREENS: readonly { id: string; hash: string; query?: string; line?: string; wideOnly?: boolean; phoneOnly?: boolean; clock?: boolean; open?: (page: Page) => Promise<void> }[] = [
   { id: "menu", hash: "#/", phoneOnly: true },
   { id: "inbox", hash: "#/inbox" },
+  { id: "live-stale", hash: "#/inbox", query: "&live=down", line: "갱신 지연" },
   { id: "running", hash: "#/running" },
   { id: "due", hash: "#/due" },
   { id: "done", hash: "#/done" },
@@ -172,7 +174,7 @@ for (const screen of SCREENS) {
     test.skip(Boolean(screen.wideOnly && phone) || Boolean(screen.phoneOnly && !phone), "not drawn at this width");
     if (screen.clock) await page.clock.install();
     await page.goto(`${APP}${screen.query ?? ""}${screen.hash}`);
-    await expect(page.getByTestId("freshness-line")).toHaveText(/^갱신 \d+초 전$/);
+    await expect(page.getByTestId("freshness-line")).toHaveText(screen.line ?? "실시간");
     await expect(page.locator("[data-testid=screen-title], .detail-title").first()).toBeVisible();
     if (screen.open) await screen.open(page);
     const fits = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);

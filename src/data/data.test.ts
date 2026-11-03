@@ -1,6 +1,5 @@
 import { expect, test, vi } from "vitest";
 import { bootstrapOptions, HttpSource } from "./http-source";
-import { startRefresh, type RefreshHost } from "./refresh";
 import { chooseSource } from "./select";
 import { Store } from "./store";
 import type { TalkEvent } from "../api/client";
@@ -49,42 +48,6 @@ test("picks the synthetic scene only when asked", () => {
   expect(chooseSource({ search: "?source=synthetic" }, undefined)).toBeInstanceOf(SyntheticSource);
   expect(chooseSource({ search: "" }, "synthetic")).toBeInstanceOf(SyntheticSource);
   expect(chooseSource({ search: "" }, undefined)).toBeInstanceOf(HttpSource);
-});
-
-test("refreshes every 10 s while visible, pauses while hidden and reads once on return", () => {
-  vi.useFakeTimers();
-  try {
-    let visibility: DocumentVisibilityState = "visible";
-    const listeners: (() => void)[] = [];
-    const host: RefreshHost = {
-      document: {
-        get visibilityState() {
-          return visibility;
-        },
-        addEventListener: (_type: string, listener: () => void) => listeners.push(listener),
-        removeEventListener: () => {},
-      } as unknown as RefreshHost["document"],
-      setInterval: (handler, ms) => setInterval(handler, ms) as unknown as number,
-      clearInterval: (handle) => clearInterval(handle),
-    };
-    const run = vi.fn();
-    const stop = startRefresh(run, host);
-    expect(run).toHaveBeenCalledTimes(1);
-    vi.advanceTimersByTime(20_000);
-    expect(run).toHaveBeenCalledTimes(3);
-    visibility = "hidden";
-    for (const listener of listeners) listener();
-    vi.advanceTimersByTime(60_000);
-    expect(run).toHaveBeenCalledTimes(3);
-    visibility = "visible";
-    for (const listener of listeners) listener();
-    expect(run).toHaveBeenCalledTimes(4);
-    stop();
-    vi.advanceTimersByTime(60_000);
-    expect(run).toHaveBeenCalledTimes(4);
-  } finally {
-    vi.useRealTimers();
-  }
 });
 
 test("machines and quota are read on the same refresh, at most once a minute", async () => {

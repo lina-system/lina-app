@@ -1,6 +1,6 @@
 import type { ComponentChildren, RefObject } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
-import { startRefresh } from "./data/refresh";
+import { startLive } from "./data/live";
 import { nowSeconds } from "./data/source";
 import { useClock, useStore, type Store, type Want } from "./data/store";
 import { buildModel, type Model } from "./model";
@@ -162,8 +162,9 @@ export function Freshness() {
   const { model, store, now } = useApp();
   let line: { text: string; tone: string };
   if (store.offline) line = { text: W.offline, tone: "is-red" };
-  else if (store.lastOk === null) line = { text: W.loading, tone: "" };
-  else if (now - store.lastOk > 30) line = { text: W.stale, tone: "" };
+  else if (store.lastOk === null || store.version === 0) line = { text: W.loading, tone: "" };
+  else if (store.live === "open" && !store.boardFailed) line = { text: W.live, tone: "" };
+  else if (store.live === "down" || now - store.lastOk > 30) line = { text: W.stale, tone: "" };
   else line = { text: W.fresh(Math.max(0, Math.floor(now - store.lastOk))), tone: "" };
   return (
     <span class="freshness" data-testid="freshness">
@@ -436,7 +437,7 @@ export function App({ store }: { store: Store }) {
   const actions = useActionsFor(store);
   const model = useMemo(() => buildModel({ ...store.input(), pending: actions.pending() }, now), [version, minute, actions.version]);
 
-  useEffect(() => startRefresh(() => void store.refresh()), [store]);
+  useEffect(() => startLive(store), [store]);
   useEffect(() => store.want(wantsFor(nav.route, store)), [nav.hash, version]);
 
   const context: AppContext = { model, store, now, wide, selected: isList(nav.route) ? null : nav.hash };

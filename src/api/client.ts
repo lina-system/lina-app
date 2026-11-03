@@ -27,6 +27,14 @@ export interface CommentRequest {
   readonly text: string;
   readonly answer?: boolean;
 }
+export interface DoneRequest {
+  readonly withOpen?: boolean;
+}
+/** work-client's AnswerRequest; `author` has a default (owner), so the app sends text only. */
+export interface AnswerRequest {
+  readonly text: string;
+}
+export type AnswerResult = Work["schemas"]["AnswerResult"];
 
 export type GoalList = Work["schemas"]["GoalList"];
 export type WorkGoal = Work["schemas"]["WorkGoal"];
@@ -56,10 +64,15 @@ export const BOARD_BASE = "/api/lina";
 export const WORK_BASE = "/api/plugins/kanban";
 
 /** The owner's write routes (lina#149); each answers ActionResult or 4xx {detail}. */
-export type WriteRoute = "comments";
+export type WriteRoute = "comments" | "done" | "undo" | "retry";
 
 export function writePath(route: WriteRoute, id: string): string {
   return `${BOARD_BASE}/work/items/${encodeURIComponent(id)}/${route}`;
+}
+
+/** A question a work card asks is answered on the work API (work-client.yaml). */
+export function cardAnswerPath(cardId: string): string {
+  return `${WORK_BASE}/work/inbox/${encodeURIComponent(cardId)}/answer`;
 }
 
 export function routePath(name: RouteName, id?: string): string {

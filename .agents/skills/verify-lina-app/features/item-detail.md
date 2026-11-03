@@ -10,7 +10,7 @@ A to-do opens on its own page: its check box, done condition, state and time, th
 
 ## Intended behavior
 
-- The head shows the round check box (inert, named `<title> 완료로 표시`) with `state · time`.
+- The head shows the round check box (named `<title> 완료로 표시`, `<title> 완료됨` once checked) with `state · time`, and `되돌리기` while the owner's own done mark can be taken back (ten minutes, after the toast). Ticking it is in actions.md.
 - A pending decision on the to-do (or on a goal, on its goal page) shows on top as a `결정 필요` box: the sentence, then agent, kind word (`질문` or `요청`) and age.
 - `완료 조건`, then `실행` with one line per run (`title · state`), then `댓글`.
 - Each comment shows its sentence, then author and `n분 전`; replies sit under it with their author, time and result word (`반영함`, `답변 필요`, `반영 안 함`). Never only a count.
@@ -40,7 +40,7 @@ Preconditions:
 
 - **Open a to-do.** On `결제 화면 개편`, choose `카드 입력 폼 다듬기`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive item-detail`.
 - **Decision.** In 수신함 choose the decision `배포를 금요일 오후에 해도 될까요?`. The to-do page shows a `결정 필요` box with that sentence, `질문` and `n일 전`.
-- **Read it.** The check box `카드 입력 폼 다듬기 완료로 표시` is `aria-disabled`; boxes `완료 조건`, `실행`, `댓글`; the run line reads `카드 입력 폼 다듬기 · 진행 중`; 2 comments and 2 replies, each reply with `author · n분 전`.
+- **Read it.** The check box `카드 입력 폼 다듬기 완료로 표시` is not `aria-disabled`; boxes `완료 조건`, `실행`, `댓글`; the run line reads `카드 입력 폼 다듬기 · 진행 중`; 2 comments and 2 replies, each reply with `author · n분 전`.
 - **Resolved thread.** One `해결됨 · …` line, closed.
 - **Comment.** Type `휴대폰 가로 화면도 봐 주세요` into `댓글 달기` and choose `보내기`. At once `<agent>에게 보냄 · 방금` shows and the field is empty; the synthetic record holds the owner's comment. Within 25 s the reply line `<agent> · n분 전 · 반영함` shows and the pending line is gone.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/item-detail/item-detail-1280.{png,aria.yml,json}` and `item-detail-390.{png,aria.yml,json}`.

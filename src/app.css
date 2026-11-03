@@ -473,8 +473,10 @@ button:disabled {
   stroke-width: 2.5;
 }
 
-.dial-track {
-  stroke: var(--fill);
+/* A filled disc, so a goal's progress never reads as an empty check box beside one. */
+.dial .dial-track {
+  fill: var(--fill);
+  stroke: none;
 }
 
 .dial-fill {
@@ -809,6 +811,179 @@ button:disabled {
   margin-top: 6px;
   font-size: var(--text-small);
   color: var(--red);
+}
+
+.row > .write-error {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 0 var(--inset) 8px calc(var(--inset) + 30px);
+}
+
+button.check {
+  cursor: pointer;
+  transition: background-color var(--motion), border-color var(--motion);
+}
+
+button.check[aria-disabled="true"] {
+  cursor: default;
+}
+
+button.check:hover:not([aria-disabled="true"]):not(.is-done) {
+  border-color: var(--accent);
+}
+
+.check-row {
+  flex-wrap: wrap;
+}
+
+.is-checked .title {
+  text-decoration: line-through;
+  color: var(--label-2);
+}
+
+/* A decision row: the whole row is a disclosure button; its panel opens under it. */
+
+.row > .row-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--row);
+  padding: 6px var(--inset);
+  text-align: left;
+  transition: background-color var(--motion);
+}
+
+@media (hover: hover) {
+  .row > .row-button:hover {
+    background: var(--fill);
+  }
+}
+
+.decision-panel {
+  display: grid;
+  gap: 8px;
+  padding: 0 var(--inset) 12px calc(var(--inset) + 30px);
+}
+
+.decision-panel .crumb {
+  color: var(--accent);
+}
+
+.decision-panel .comment-form {
+  margin-top: 0;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  background: var(--fill);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+@media (hover: hover) {
+  .choice:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+}
+
+.tag {
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* A card row with a control after its link (다시 시도). */
+
+.row.has-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.row.has-action > a {
+  flex: 1;
+  min-width: 0;
+}
+
+.row.has-action > .retry,
+.row.has-action > .requested {
+  margin-right: calc(var(--inset) - 8px);
+}
+
+.requested {
+  padding-right: 8px;
+}
+
+.head-undo {
+  margin-left: auto;
+}
+
+.confirm {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--fill);
+}
+
+.confirm-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.text-button.is-plain {
+  color: var(--label-2);
+  font-weight: 400;
+}
+
+/* The toast: one line at the bottom centre, above the phone's bottom bar. */
+
+.toast-slot {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(24px + var(--safe-bottom));
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.stack ~ .toast-slot {
+  bottom: calc(56px + var(--safe-bottom) + var(--keyboard-inset, 0px));
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: rgba(30, 30, 32, 0.94);
+  color: #ffffff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  pointer-events: auto;
+  animation: pop var(--motion);
+}
+
+.toast-undo {
+  color: #64d2ff;
+  font-weight: 600;
 }
 
 /* Bell. */

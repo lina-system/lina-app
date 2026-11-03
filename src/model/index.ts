@@ -61,12 +61,17 @@ export interface CardRow {
   readonly endedAt: number | null;
   readonly totalSeconds: number | null;
   readonly now: string | null;
+  /** The work record to-do the card's runs take on: retry goes there; null for a card with none. */
+  readonly todo: string | null;
 }
 
+/** Where an answer to a decision goes: the record's item (comments with answer) or a work card's question. */
+export type DecisionTarget = { readonly kind: "item"; readonly id: string } | { readonly kind: "card"; readonly id: string };
+
 export type InboxRow =
-  | { readonly type: "decide"; readonly key: string; readonly href: string; readonly agent: string | null; readonly context: string; readonly text: string; readonly ask: boolean; readonly at: number }
+  | { readonly type: "decide"; readonly key: string; readonly href: string; readonly agent: string | null; readonly context: string; readonly text: string; readonly ask: boolean; readonly at: number; readonly target: DecisionTarget }
   | { readonly type: "review"; readonly key: string; readonly href: string; readonly agent: string | null; readonly card: CardRow }
-  | { readonly type: "mine"; readonly key: string; readonly href: string; readonly agent: string | null; readonly title: string; readonly due: string | null };
+  | { readonly type: "mine"; readonly key: string; readonly id: string; readonly href: string; readonly agent: string | null; readonly title: string; readonly due: string | null };
 
 export interface Section<T> {
   readonly id: string;
@@ -184,6 +189,7 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
     endedAt: card.state === "done" ? (ended ?? receivedAt) : null,
     totalSeconds: card.state === "done" ? card.elapsedSeconds : null,
     now: card.now,
+    todo: (detail?.workerRuns ?? []).map((worker) => runCards.get(worker.id)?.todo).find((todo): todo is string => Boolean(todo)) ?? null,
   };
 }
 
@@ -203,6 +209,7 @@ export function runRow(run: RunCard): CardRow {
     endedAt: run.state === "done" ? run.endedAt : null,
     totalSeconds: run.state === "done" && run.endedAt !== null && run.startedAt !== null ? run.endedAt - run.startedAt : null,
     now: run.now,
+    todo: run.todo,
   };
 }
 
@@ -260,6 +267,7 @@ export function buildModel(input: ModelInput, now: number): Model {
         text: row.text,
         ask: row.kind === "ask",
         at: row.at,
+        target: { kind: "item", id: row.target },
       })),
     ...(workInbox?.questions ?? []).map((question): InboxRow => {
       const goalTitle = goalTitleOfCard(question.cardId);
@@ -272,6 +280,7 @@ export function buildModel(input: ModelInput, now: number): Model {
         text: question.body,
         ask: true,
         at: question.askedAt,
+        target: { kind: "card", id: question.cardId },
       };
     }),
   ].sort((a, b) => (a.type === "decide" && b.type === "decide" ? a.at - b.at : 0));
@@ -282,6 +291,7 @@ export function buildModel(input: ModelInput, now: number): Model {
   const mineRows: InboxRow[] = (board?.inbox.mine ?? []).map((row) => ({
     type: "mine",
     key: `mine:${row.id}`,
+    id: row.id,
     href: href({ name: "item", id: row.id }),
     agent: row.agent,
     title: row.title,

@@ -3,7 +3,7 @@ import { bootstrapOptions, HttpSource } from "./http-source";
 import { startRefresh, type RefreshHost } from "./refresh";
 import { chooseSource } from "./select";
 import { Store } from "./store";
-import { SYNTHETIC_REPLY_AFTER, SyntheticSource } from "./synthetic-source";
+import { SYNTHETIC_REPLY_AFTER, SyntheticSource, UNDO_SECONDS } from "./synthetic-source";
 
 test("reads each route on its schema's server url with the session token and the last ETag", async () => {
   const calls: { url: string; headers: Record<string, string> }[] = [];
@@ -174,4 +174,60 @@ test("the synthetic source adds the comment to its copy and the agent replies on
   } finally {
     vi.useRealTimers();
   }
+});
+
+test("done, undo, retry and a card answer post to their routes with their bodies", async () => {
+  const { calls, fetchImpl } = recordingFetch(() => new Response(JSON.stringify(ACTION), { status: 200 }));
+  const source = new HttpSource({ fetch: fetchImpl, token: "token-a" });
+  await source.done("G1", { withOpen: true });
+  await source.done("T3", {});
+  await source.undo("G1");
+  await source.retry("T5");
+  await source.answerCard("k-102", { text: "네" });
+  expect(calls.map((call) => [call.method, call.url, call.body])).toEqual([
+    ["POST", "/api/lina/work/items/G1/done", { withOpen: true }],
+    ["POST", "/api/lina/work/items/T3/done", {}],
+    ["POST", "/api/lina/work/items/G1/undo", {}],
+    ["POST", "/api/lina/work/items/T5/retry", {}],
+    ["POST", "/api/plugins/kanban/work/inbox/k-102/answer", { text: "네" }],
+  ]);
+  expect(calls.every((call) => call.headers["X-Hermes-Session-Token"] === "token-a" && call.headers["Content-Type"] === "application/json")).toBe(true);
+});
+
+test("the synthetic copy marks done, refuses a goal with open to-dos, and one undo within ten minutes reopens all", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  try {
+    const source = new SyntheticSource();
+    const scene = source.scene;
+    expect(await source.done("G1", {})).toMatchObject({ ok: false, status: 409 });
+    const marked = await source.done("G1", { withOpen: true });
+    expect(marked).toMatchObject({ ok: true, data: { state: "done", undoUntil: expect.any(Number) } });
+    expect(["G1", "T1", "T2", "T3"].map((id) => scene.itemDetails[id].state)).toEqual(["done", "done", "done", "done"]);
+    expect(scene.itemDetails.G1.ownerDone?.with).toEqual(["T1", "T2", "T3"]);
+    expect(scene.items.items.find((item) => item.id === "G1")?.todos).toEqual({ done: 3, total: 3 });
+    expect(scene.board.inbox.mine.map((row) => row.id)).toEqual(["T9"]);
+    expect(await source.undo("G1")).toMatchObject({ ok: true, data: { state: "in_progress" } });
+    expect(["G1", "T1", "T2", "T3"].map((id) => scene.itemDetails[id].state)).toEqual(["in_progress", "in_progress", "waiting", "planned"]);
+    expect(scene.board.inbox.mine.map((row) => row.id)).toEqual(["T3", "T9"]);
+    expect(await source.undo("G1")).toMatchObject({ ok: false, status: 409 });
+
+    await source.done("T3", {});
+    vi.advanceTimersByTime((UNDO_SECONDS + 1) * 1000);
+    expect(await source.undo("T3")).toMatchObject({ ok: false, status: 409, detail: "ten minutes have passed" });
+    await source.done("T9", {});
+    await source.comment("T9", { text: "끝냈어요" });
+    expect(await source.undo("T9")).toMatchObject({ ok: false, status: 409, detail: "the last record is not the owner's done mark" });
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("a card answer leaves a comment on the card and takes its question out of the work inbox", async () => {
+  const source = new SyntheticSource();
+  expect(await source.answerCard("k-102", { text: "네, 여섯 자리까지요" })).toMatchObject({ ok: true, data: { cardId: "k-102" } });
+  expect(source.scene.cardDetails["k-102"].comments.at(-1)).toMatchObject({ author: "owner", body: "네, 여섯 자리까지요" });
+  expect(source.scene.inbox.questions).toEqual([]);
+  expect(await source.retry("T5")).toMatchObject({ ok: true });
+  expect(source.scene.itemDetails.T5.comments.at(-1)).toMatchObject({ by: "owner", text: "다시 시도해 주세요." });
+  expect(source.scene.itemDetails.T5.state).toBe("stopped");
 });

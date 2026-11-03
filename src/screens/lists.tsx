@@ -1,36 +1,100 @@
 import type { ComponentChildren } from "preact";
 import type { Machine, QuotaAccount, QuotaService } from "../api/client";
-import type { DueRow, GoalRow, InboxRow } from "../model";
+import type { CardRow, DueRow, GoalRow, InboxRow } from "../model";
 import { agentView } from "../model";
 import { href } from "../router";
 import { ago, dayLabel, until } from "../time";
-import { AgentMark, agentName, CardRowView, CountPair, Dial, Disclosure, Empty, Link, ListSection, useApp } from "../ui/parts";
+import { useEffect, useState } from "preact/hooks";
+import { KoreanInput } from "../korean-input";
+import { useActions } from "../ui/actions";
+import { AgentMark, agentName, CardRowView, CountPair, Dial, Disclosure, DoneCheck, Empty, ErrorLine, Link, ListSection, useApp } from "../ui/parts";
 import { machineWhy, serviceName, SEP, W } from "../words";
 
-function InboxRowView({ row }: { row: InboxRow }) {
-  const { model, now, selected } = useApp();
+type DecideRow = Extract<InboxRow, { type: "decide" }>;
+
+/**
+ * A decision expands in place: the full sentence, a link to its record, `진행 대기:` when to-dos wait on it, and
+ * the answer buttons (the recommended one marked) or a field. Answering hides the row and holds the answer back
+ * for the toast (see Actions.answer).
+ */
+function DecisionRow({ row }: { row: DecideRow }) {
+  const { model, store, now } = useApp();
+  const actions = useActions();
+  const error = actions.error(row.key);
+  const [open, setOpen] = useState(Boolean(error));
+  const [text, setText] = useState(error?.text ?? "");
+  useEffect(() => {
+    if (open && row.target.kind === "item") store.ensure([["item", row.target.id]]);
+  }, [open]);
+  if (actions.hidden(row.key)) return null;
   const name = agentName(model, row.agent);
-  if (row.type === "review") return <CardRowView card={row.card} kindIcon={false} />;
-  if (row.type === "decide") {
-    const kind = row.ask ? W.ask : W.act;
-    return (
-      <li class="row inbox-row" data-testid="row">
-        <Link href={row.href} label={[name, row.text, kind].filter(Boolean).join(SEP)} current={selected === row.href}>
-          <AgentMark id={row.agent} />
-          <span class="lines">
-            <span class="context one-line">{row.context}</span>
-            <span class="title">{row.text}</span>
-          </span>
-          <span class="trail">
-            <span class="kind-word">{kind}</span>
-            <span class="time">{ago(now - row.at)}</span>
-          </span>
-        </Link>
-      </li>
-    );
-  }
+  const kind = row.ask ? W.ask : W.act;
+  const detail = row.target.kind === "item" ? store.get("item", row.target.id) : undefined;
+  const choices = detail?.decision?.choices ?? [];
+  const recommended = detail?.decision?.recommended ?? null;
+  const waiting = (detail?.children ?? []).filter((child) => child.reason === "blocked_by_item").map((child) => child.title);
+  const busy = actions.busy(row.key);
+  const send = (answer: string) => {
+    const body = answer.trim();
+    if (body) actions.answer(row.key, row.target, body);
+  };
   return (
-    <li class="row inbox-row" data-testid="row">
+    <li class={`row inbox-row decision-row${open ? " is-open" : ""}`} data-testid="row">
+      <button type="button" class="row-button" aria-expanded={open} aria-label={[name, row.text, kind].filter(Boolean).join(SEP)} onClick={() => setOpen(!open)}>
+        <AgentMark id={row.agent} />
+        <span class="lines">
+          {open ? null : <span class="context one-line">{row.context}</span>}
+          <span class={open ? "title" : "title one-line"}>{row.text}</span>
+        </span>
+        <span class="trail">
+          <span class="kind-word">{kind}</span>
+          <span class="time">{ago(now - row.at)}</span>
+        </span>
+      </button>
+      {open ? (
+        <div class="decision-panel" data-testid="decision-panel">
+          <Link href={row.href} class="context crumb">
+            {row.context}
+          </Link>
+          {waiting.length ? <p class="sub" data-testid="waiting-on">{W.waitingOn(waiting.join(", "))}</p> : null}
+          {choices.length ? (
+            <div class="choices" role="group" aria-label={row.text}>
+              {choices.map((choice) => (
+                <button key={choice} type="button" class="choice" disabled={busy} aria-label={choice === recommended ? `${choice}${SEP}${W.recommended}` : choice} onClick={() => send(choice)}>
+                  {choice}
+                  {choice === recommended ? <span class="tag">{W.recommended}</span> : null}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <form
+              class="comment-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                send(text);
+              }}
+            >
+              <KoreanInput label={W.answerField} value={text} onValue={setText} inline />
+              <button type="submit" class="text-button" disabled={busy || !text.trim()}>
+                {W.send}
+              </button>
+            </form>
+          )}
+          <ErrorLine line={error?.line} />
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+function MineRow({ row }: { row: Extract<InboxRow, { type: "mine" }> }) {
+  const { model, selected } = useApp();
+  const actions = useActions();
+  const name = agentName(model, row.agent);
+  const shown = actions.isDone(row.id, false);
+  return (
+    <li class={`row inbox-row check-row${shown ? " is-checked" : ""}`} data-testid="row">
+      <DoneCheck id={row.id} title={row.title} done={false} />
       <Link href={row.href} label={[name, row.title, W.mine].filter(Boolean).join(SEP)} current={selected === row.href}>
         <AgentMark id={row.agent} />
         <span class="lines">
@@ -38,8 +102,15 @@ function InboxRowView({ row }: { row: InboxRow }) {
         </span>
         {row.due ? <DueDate day={row.due} /> : null}
       </Link>
+      <ErrorLine line={actions.error(`done:${row.id}`)?.line} />
     </li>
   );
+}
+
+function InboxRowView({ row }: { row: InboxRow }) {
+  if (row.type === "review") return <CardRowView card={row.card} kindIcon={false} />;
+  if (row.type === "decide") return <DecisionRow row={row} />;
+  return <MineRow row={row} />;
 }
 
 function DueDate({ day }: { day: string }) {
@@ -60,14 +131,33 @@ export function InboxScreen() {
   );
 }
 
+/** A stopped card asks its agent to try again: retry on its to-do, or a comment on a card with none. */
+function RetryControl({ card }: { card: CardRow }) {
+  const { model } = useApp();
+  const actions = useActions();
+  if (card.kind === "run" && !card.todo) return null;
+  if (actions.requested(card.key))
+    return (
+      <span class="trail requested" data-testid="retry-requested">
+        {W.requestedTo(agentName(model, card.agent))}
+      </span>
+    );
+  return (
+    <button type="button" class="text-button retry" aria-label={`${card.title}${SEP}${W.retry}`} onClick={() => void actions.retry(card)} data-testid="retry">
+      {W.retry}
+    </button>
+  );
+}
+
 export function RunningScreen() {
   const { model } = useApp();
+  const actions = useActions();
   if (!model.counts.running) return <Empty />;
   return (
     <div class="list" data-testid="screen-running">
       <ul class="rows" aria-label={W.running}>
         {model.running.rows.map((card) => (
-          <CardRowView key={card.key} card={card} />
+          <CardRowView key={card.key} card={card} action={card.state === "stopped" ? <RetryControl card={card} /> : undefined} error={actions.error(`retry:${card.key}`)?.line} />
         ))}
       </ul>
     </div>
@@ -117,14 +207,18 @@ export function DoneScreen() {
 
 function GoalLine({ goal, showAgent }: { goal: GoalRow; showAgent: boolean }) {
   const { model, selected } = useApp();
+  const actions = useActions();
+  const closed = goal.todosTotal > 0 && goal.todosDone === goal.todosTotal;
+  const shown = actions.isDone(goal.id, goal.state === "done");
   return (
-    <li class="row goal-row" data-testid="row">
+    <li class={`row goal-row${closed ? " check-row" : ""}${closed && shown ? " is-checked" : ""}`} data-testid="row">
+      {closed ? <DoneCheck id={goal.id} title={goal.title} done={goal.state === "done"} /> : null}
       <Link
         href={goal.href}
         label={[showAgent ? agentName(model, goal.agent) : "", goal.title, W.progress(goal.todosDone, goal.todosTotal)].filter(Boolean).join(SEP)}
         current={selected === goal.href}
       >
-        <Dial done={goal.todosDone} totalCount={goal.todosTotal} />
+        {closed ? null : <Dial done={goal.todosDone} totalCount={goal.todosTotal} />}
         {showAgent ? <AgentMark id={goal.agent} /> : null}
         <span class="lines">
           <span class="title one-line">{goal.title}</span>
@@ -132,6 +226,7 @@ function GoalLine({ goal, showAgent }: { goal: GoalRow; showAgent: boolean }) {
         </span>
         {goal.runningCount ? <span class="trail">{W.runningCount(goal.runningCount)}</span> : null}
       </Link>
+      {closed ? <ErrorLine line={actions.error(`done:${goal.id}`)?.line} /> : null}
     </li>
   );
 }

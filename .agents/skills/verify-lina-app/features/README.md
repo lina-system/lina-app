@@ -62,6 +62,7 @@ Keep implementation details out of the map. Name only user paths, stable handles
 - [할 일 detail](./item-detail.md) covers a to-do with its runs and comment thread.
 - [작업 detail](./card-detail.md) covers a work card or a worker run outside any card.
 - [기기·쿼터](./status.md) covers machines and quota.
+- [Owner actions](./actions.md) covers done, undo, done with open to-dos, answers and retry.
 - [Freshness and the bell](./freshness.md) covers the toolbar's freshness line, read failures and notices.
 - [Navigation](./phone-nav.md) covers the phone navigation stack, the wide split view and back.
 - [Install on the Home Screen](./install.md) covers the web app manifest, the icons and the service worker.

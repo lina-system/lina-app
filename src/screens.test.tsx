@@ -6,6 +6,7 @@ import { SYNTHETIC_REPLY_AFTER, SyntheticSource } from "./data/synthetic-source"
 import type { ReadResult, Source } from "./data/source";
 import { Store } from "./data/store";
 import { SCENE_COUNTS } from "./fixtures/synthetic";
+import { TOAST_MS } from "./ui/actions";
 import { BANNED_WORDS } from "./words";
 
 const SCREENS = [
@@ -300,10 +301,12 @@ describe("wide split view", () => {
 describe("decisions", () => {
   test("each 결정 필요 row opens the record it is aimed at, and that record shows the decision", async () => {
     const inbox = await open("#/inbox", { wide: true });
-    const rows = [...inbox.getByRole("list", { name: "결정 필요" }).querySelectorAll("a")].map((link) => ({
-      href: link.getAttribute("href") ?? "",
-      text: link.querySelector(".title")?.textContent ?? "",
-      context: link.querySelector(".context")?.textContent ?? "",
+    const list = inbox.getByRole("list", { name: "결정 필요" });
+    for (const button of list.querySelectorAll(":scope > li > .row-button")) fireEvent.click(button);
+    const rows = [...list.querySelectorAll(":scope > li")].map((row) => ({
+      href: row.querySelector(".decision-panel a")?.getAttribute("href") ?? "",
+      text: row.querySelector(".row-button .title")?.textContent ?? "",
+      context: row.querySelector(".decision-panel a")?.textContent ?? "",
     }));
     inbox.unmount();
     expect(rows.filter((row) => /^#\/(items|goals)\//.test(row.href)).length).toBeGreaterThanOrEqual(1);
@@ -387,5 +390,226 @@ describe("comments", () => {
     const resolved = view.getByTestId("resolved") as HTMLDetailsElement;
     expect(resolved.open).toBe(false);
     expect(resolved.querySelector("summary")?.textContent).toBe("해결됨 · 오류가 나면 입력한 값은…");
+  });
+});
+
+/** The synthetic source with every write recorded; `refuse` makes chosen writes answer 409. */
+class SpySource extends SyntheticSource {
+  calls: string[] = [];
+  refuse = new Set<string>();
+  private async spy<T>(name: string, args: unknown[], run: () => Promise<T>): Promise<T> {
+    this.calls.push(`${name} ${JSON.stringify(args)}`);
+    if (this.refuse.has(name)) return { ok: false, status: 409, detail: "refused" } as T;
+    return run();
+  }
+  override comment(...args: Parameters<SyntheticSource["comment"]>) {
+    return this.spy("comment", args, () => super.comment(...args));
+  }
+  override done(...args: Parameters<SyntheticSource["done"]>) {
+    return this.spy("done", args, () => super.done(...args));
+  }
+  override undo(...args: Parameters<SyntheticSource["undo"]>) {
+    return this.spy("undo", args, () => super.undo(...args));
+  }
+  override retry(...args: Parameters<SyntheticSource["retry"]>) {
+    return this.spy("retry", args, () => super.retry(...args));
+  }
+  override answerCard(...args: Parameters<SyntheticSource["answerCard"]>) {
+    return this.spy("answerCard", args, () => super.answerCard(...args));
+  }
+}
+
+const TIMERS: Parameters<typeof vi.useFakeTimers>[0] = { toFake: ["Date", "setInterval", "clearInterval", "setTimeout", "clearTimeout"] };
+
+function decisionButton(view: ReturnType<typeof render>, text: string): HTMLElement {
+  return view.getByRole("button", { name: new RegExp(text.replace(/[?.]/g, "\\$&")) });
+}
+
+describe("answers", () => {
+  test("a choice hides the row at once and is sent only when the toast ends", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SpySource();
+      const view = await open("#/inbox", { wide: true, source });
+      const row = decisionButton(view, "배포를 금요일 오후에 해도 될까요");
+      fireEvent.click(row);
+      expect(row.getAttribute("aria-expanded")).toBe("true");
+      await waitFor(() => expect(view.getByRole("button", { name: "금요일 오후 · 추천" })).toBeTruthy());
+      expect(view.getByRole("button", { name: "월요일 오전" })).toBeTruthy();
+      fireEvent.click(view.getByRole("button", { name: "금요일 오후 · 추천" }));
+      expect(view.getByTestId("toast").textContent).toBe("답함되돌리기");
+      expect(view.queryByRole("button", { name: /배포를 금요일/ })).toBeNull();
+      await act(async () => {
+        vi.advanceTimersByTime(TOAST_MS - 100);
+      });
+      expect(source.calls).toEqual([]);
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      await waitFor(() => expect(source.calls).toEqual(['comment ["T2",{"text":"금요일 오후","answer":true}]']));
+      expect(view.queryByTestId("toast")).toBeNull();
+      expect(view.queryByRole("button", { name: /배포를 금요일/ })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("되돌리기 in the toast brings the row back and sends nothing", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SpySource();
+      const view = await open("#/inbox", { wide: true, source });
+      fireEvent.click(decisionButton(view, "자주 쓰는 검색어 열 개를"));
+      const field = view.getByRole("textbox", { name: "답 달기" }) as HTMLInputElement;
+      field.value = "결제, 환불, 배송";
+      fireEvent.input(field);
+      fireEvent.submit(field.form as HTMLFormElement);
+      expect(view.queryByRole("button", { name: /자주 쓰는 검색어/ })).toBeNull();
+      fireEvent.click(view.getByRole("button", { name: "되돌리기" }));
+      expect(view.getByRole("button", { name: /자주 쓰는 검색어/ })).toBeTruthy();
+      await act(async () => {
+        vi.advanceTimersByTime(TOAST_MS * 2);
+      });
+      expect(source.calls).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a card question is answered on the work card route; a refused answer returns with its line", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SpySource();
+      const view = await open("#/inbox", { wide: true, source });
+      fireEvent.click(decisionButton(view, "카드 번호는 앞 여섯 자리까지"));
+      const field = view.getByRole("textbox", { name: "답 달기" }) as HTMLInputElement;
+      field.value = "네";
+      fireEvent.input(field);
+      fireEvent.submit(field.form as HTMLFormElement);
+      await act(async () => {
+        vi.advanceTimersByTime(TOAST_MS);
+      });
+      await waitFor(() => expect(source.calls).toEqual(['answerCard ["k-102",{"text":"네"}]']));
+      await waitFor(() => expect(view.queryByRole("button", { name: /카드 번호는/ })).toBeNull());
+
+      source.refuse.add("comment");
+      fireEvent.click(decisionButton(view, "복구 연습에 쓸 두 시간을"));
+      const act2 = view.getByRole("textbox", { name: "답 달기" }) as HTMLInputElement;
+      act2.value = "목요일 오후";
+      fireEvent.input(act2);
+      fireEvent.submit(act2.form as HTMLFormElement);
+      await act(async () => {
+        vi.advanceTimersByTime(TOAST_MS);
+      });
+      await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("열린 결정 없음"));
+      expect((view.getByRole("textbox", { name: "답 달기" }) as HTMLInputElement).value).toBe("목요일 오후");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("done marks", () => {
+  test("a tap strikes the row and sends done at once; 되돌리기 in the toast calls undo", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SpySource();
+      const view = await open("#/goals/G2", { wide: true, source });
+      const box = view.getByRole("checkbox", { name: "결제 실패 화면 검토 완료로 표시" });
+      expect(box.getAttribute("aria-checked")).toBe("false");
+      fireEvent.click(box);
+      expect(source.calls).toEqual(['done ["T6",{}]']);
+      const done = view.getByRole("checkbox", { name: "결제 실패 화면 검토 완료됨" });
+      expect(done.getAttribute("aria-checked")).toBe("true");
+      expect(done.closest("li")?.classList.contains("is-checked")).toBe(true);
+      expect(view.getByTestId("toast").textContent).toBe("완료로 표시함되돌리기");
+      await waitFor(() => expect(source.scene.itemDetails.T6.state).toBe("done"));
+      fireEvent.click(view.getByRole("button", { name: "되돌리기" }));
+      await waitFor(() => expect(source.calls).toEqual(['done ["T6",{}]', 'undo ["T6"]']));
+      await waitFor(() => expect(view.getByRole("checkbox", { name: "결제 실패 화면 검토 완료로 표시" }).getAttribute("aria-checked")).toBe("false"));
+      expect(source.scene.itemDetails.T6.state).toBe("waiting");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("after the toast the to-do page offers 되돌리기 until the undo window closes", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SpySource();
+      const page = await open("#/items/T3", { wide: true, source });
+      const view = within(page.getByTestId("detail-pane"));
+      fireEvent.click(view.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" }));
+      await waitFor(() => expect(source.scene.itemDetails.T3.state).toBe("done"));
+      expect(page.container.querySelector(".head-undo")).toBeNull();
+      await act(async () => {
+        vi.advanceTimersByTime(TOAST_MS);
+      });
+      await waitFor(() => expect(page.container.querySelector(".head-undo")?.textContent).toBe("되돌리기"));
+      await act(async () => {
+        vi.advanceTimersByTime(600_000);
+      });
+      expect(page.container.querySelector(".head-undo")).toBeNull();
+      expect(view.getByRole("checkbox", { name: "공지 문구 확인 완료됨" }).getAttribute("aria-disabled")).toBe("true");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a goal with open to-dos asks once, then sends withOpen; one undo reopens all", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SpySource();
+      const page = await open("#/goals/G1", { wide: true, source });
+      const view = within(page.getByTestId("detail-pane"));
+      fireEvent.click(view.getByRole("checkbox", { name: "릴리스 노트 정리 완료로 표시" }));
+      expect(source.calls).toEqual([]);
+      expect(view.getByTestId("with-open").textContent).toContain("열린 할 일 3개도 함께 완료할까요?");
+      fireEvent.click(view.getByRole("button", { name: "취소" }));
+      expect(view.queryByTestId("with-open")).toBeNull();
+      fireEvent.click(view.getByRole("checkbox", { name: "릴리스 노트 정리 완료로 표시" }));
+      fireEvent.click(view.getByRole("button", { name: "함께 완료" }));
+      expect(source.calls).toEqual(['done ["G1",{"withOpen":true}]']);
+      expect(view.getAllByRole("checkbox", { checked: true })).toHaveLength(4);
+      await waitFor(() => expect(source.scene.itemDetails.T3.state).toBe("done"));
+      fireEvent.click(within(page.getByTestId("toast")).getByRole("button", { name: "되돌리기" }));
+      await waitFor(() => expect(source.calls.at(-1)).toBe('undo ["G1"]'));
+      await waitFor(() => expect(view.queryAllByRole("checkbox", { checked: true })).toHaveLength(0));
+      expect(["G1", "T1", "T2", "T3"].map((id) => source.scene.itemDetails[id].state)).toEqual(["in_progress", "in_progress", "waiting", "planned"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a refused done reverts the row and shows the known line under it", async () => {
+    const source = new SpySource();
+    source.refuse.add("done");
+    const view = await open("#/inbox", { wide: true, source });
+    fireEvent.click(view.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" }));
+    await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("열린 할 일 있음"));
+    expect(view.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" }).getAttribute("aria-checked")).toBe("false");
+    expect(view.queryByTestId("toast")).toBeNull();
+  });
+});
+
+describe("retry", () => {
+  test("다시 시도 on a stopped card asks its to-do's agent and says so until the next refresh", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SpySource();
+      const view = await open("#/running", { wide: true, source });
+      const buttons = view.getAllByRole("button", { name: /다시 시도$/ });
+      expect(buttons).toHaveLength(1);
+      fireEvent.click(buttons[0]);
+      await waitFor(() => expect(source.calls).toEqual(['retry ["T5"]']));
+      await waitFor(() => expect(view.getByTestId("retry-requested").textContent).toMatch(/^\S+에게 요청함$/));
+      await act(async () => {
+        vi.advanceTimersByTime(10_000);
+      });
+      await waitFor(() => expect(view.queryByTestId("retry-requested")).toBeNull());
+      expect(view.getAllByRole("button", { name: /다시 시도$/ })).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

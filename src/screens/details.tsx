@@ -1,9 +1,11 @@
 import type { ComponentChildren } from "preact";
-import type { ItemDetail } from "../api/client";
+import { useState } from "preact/hooks";
+import type { ItemDetail, ItemSummary } from "../api/client";
 import { goalCards, runRow } from "../model";
 import { href } from "../router";
 import { ago } from "../time";
-import { agentName, Box, CardRowView, CheckBox, Link, sinceText, StateText, StateTime, cardTime, useApp } from "../ui/parts";
+import { useActions } from "../ui/actions";
+import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, Link, sinceText, StateText, StateTime, cardTime, useApp } from "../ui/parts";
 import { SEP, stateLabel, W } from "../words";
 import { Comments } from "./comments";
 
@@ -40,6 +42,70 @@ function ItemDecision({ detail }: { detail: ItemDetail }) {
   return <DecisionBox text={detail.decision.text} agent={detail.agent} ask={detail.decision.kind === "ask"} at={detail.decision.at} />;
 }
 
+/** The head's check box with its state line, 되돌리기 while the owner's mark can be taken back, and a goal's question. */
+function DoneHead({ detail }: { detail: ItemDetail }) {
+  const actions = useActions();
+  const { now } = useApp();
+  const [asking, setAsking] = useState(false);
+  const open = detail.kind === "goal" ? detail.children.filter((child) => !actions.isDone(child.id, child.state === "done")).map((child) => child.id) : [];
+  const withIds = detail.ownerDone?.with ?? [];
+  const shown = actions.isDone(detail.id, detail.state === "done");
+  const until = actions.undoUntil(detail.id, detail.ownerDone?.undoUntil);
+  const showUndo = shown && until !== null && now < until && actions.toast?.owner !== detail.id;
+  return (
+    <>
+      <div class="head-check">
+        <DoneCheck id={detail.id} title={detail.title} done={detail.state === "done"} undoUntil={detail.ownerDone?.undoUntil} withOpen={withIds} openTodos={open.length} onOpenTodos={() => setAsking(true)} />
+        <StateTime state={detail.state} reason={detail.reason} time={sinceText(detail.state, detail.stateSince, now)} />
+        {showUndo ? (
+          <button type="button" class="text-button head-undo" disabled={actions.busy(`done:${detail.id}`)} onClick={() => void actions.undoDone(detail.id, withIds)}>
+            {W.undo}
+          </button>
+        ) : null}
+      </div>
+      {asking ? (
+        <div class="confirm" role="group" aria-label={W.withOpenQuestion(open.length)} data-testid="with-open">
+          <p class="box-text">{W.withOpenQuestion(open.length)}</p>
+          <div class="confirm-buttons">
+            <button
+              type="button"
+              class="text-button"
+              onClick={() => {
+                setAsking(false);
+                void actions.markDone(detail.id, open);
+              }}
+            >
+              {W.withOpen}
+            </button>
+            <button type="button" class="text-button is-plain" onClick={() => setAsking(false)}>
+              {W.cancel}
+            </button>
+          </div>
+        </div>
+      ) : null}
+      <ErrorLine line={actions.error(`done:${detail.id}`)?.line} />
+    </>
+  );
+}
+
+function TodoLine({ todo }: { todo: ItemSummary }) {
+  const actions = useActions();
+  const { now } = useApp();
+  const shown = actions.isDone(todo.id, todo.state === "done");
+  return (
+    <li class={`row check-row${shown ? " is-checked" : ""}`} data-testid="row">
+      <DoneCheck id={todo.id} title={todo.title} done={todo.state === "done"} />
+      <Link href={href({ name: "item", id: todo.id })} label={[todo.title, stateLabel(todo.state, todo.reason)].join(SEP)}>
+        <span class="lines">
+          <span class="title one-line">{todo.title}</span>
+          <StateTime state={todo.state} reason={todo.reason} time={sinceText(todo.state, todo.stateSince, now)} />
+        </span>
+      </Link>
+      <ErrorLine line={actions.error(`done:${todo.id}`)?.line} />
+    </li>
+  );
+}
+
 function GoalBody({ detail }: { detail: ItemDetail }) {
   const { model, store, now } = useApp();
   const { cards, evidence } = goalCards(model, detail, {
@@ -49,7 +115,7 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
   return (
     <article class="detail" data-testid="screen-goal">
       <Header title={detail.title}>
-        <StateTime state={detail.state} reason={detail.reason} time={sinceText(detail.state, detail.stateSince, now)} />
+        <DoneHead detail={detail} />
       </Header>
       <ItemDecision detail={detail} />
       {detail.doneCondition ? (
@@ -71,15 +137,7 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
         <Box title={W.todos}>
           <ul class="rows checklist" aria-label={W.todos}>
             {detail.children.map((todo) => (
-              <li key={todo.id} class="row check-row" data-testid="row">
-                <CheckBox title={todo.title} done={todo.state === "done"} />
-                <Link href={href({ name: "item", id: todo.id })} label={[todo.title, stateLabel(todo.state, todo.reason)].join(SEP)}>
-                  <span class="lines">
-                    <span class="title one-line">{todo.title}</span>
-                    <StateTime state={todo.state} reason={todo.reason} time={sinceText(todo.state, todo.stateSince, now)} />
-                  </span>
-                </Link>
-              </li>
+              <TodoLine key={todo.id} todo={todo} />
             ))}
           </ul>
         </Box>
@@ -109,14 +167,11 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
 }
 
 function TodoBody({ detail }: { detail: ItemDetail }) {
-  const { model, now } = useApp();
+  const { model } = useApp();
   return (
     <article class="detail" data-testid="screen-item">
       <Header title={detail.title}>
-        <div class="head-check">
-          <CheckBox title={detail.title} done={detail.state === "done"} />
-          <StateTime state={detail.state} reason={detail.reason} time={sinceText(detail.state, detail.stateSince, now)} />
-        </div>
+        <DoneHead detail={detail} />
       </Header>
       <ItemDecision detail={detail} />
       {detail.doneCondition ? (

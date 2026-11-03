@@ -9,6 +9,7 @@ import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RunningSc
 import { CardScreen, GoalScreen, ItemScreen, RunScreen } from "./screens/details";
 import { BackIcon, BellIcon, CalendarIcon, DeviceIcon, DoneIcon, GoalIcon, InboxIcon, PlusIcon, RunningIcon } from "./ui/icons";
 import { AgentMark, CountPair, Ctx, Disclosure, useApp, type AppContext } from "./ui/parts";
+import { ActionsCtx, useActions, useActionsFor } from "./ui/actions";
 import { APP_VERSION } from "./version";
 import { SEP, W } from "./words";
 
@@ -232,6 +233,24 @@ export function Bell() {
   );
 }
 
+/** The one toast: what was just done and 되돌리기, for five seconds. */
+export function Toast() {
+  const actions = useActions();
+  const toast = actions.toast;
+  return (
+    <div class="toast-slot" aria-live="polite">
+      {toast ? (
+        <div class="toast" role="status" data-testid="toast" key={toast.id}>
+          <span>{toast.text}</span>
+          <button type="button" class="toast-undo" onClick={() => actions.undoToast()}>
+            {W.undo}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function QuickAdd() {
   return (
     <button type="button" class="tool" aria-label={W.quickAdd} disabled data-testid="quick-add">
@@ -377,10 +396,15 @@ export function App({ store }: { store: Store }) {
   useEffect(() => startRefresh(() => void store.refresh()), [store]);
   useEffect(() => store.want(wantsFor(nav.route, store)), [nav.hash, version]);
 
+  const actions = useActionsFor(store);
+
   const context: AppContext = { model, store, now, wide, selected: isList(nav.route) ? null : nav.hash };
   return (
     <Ctx.Provider value={context}>
-      {wide ? <WideShell route={nav.route} stack={nav.state.stack} /> : <PhoneShell route={nav.route} stack={nav.state.stack} />}
+      <ActionsCtx.Provider value={actions}>
+        {wide ? <WideShell route={nav.route} stack={nav.state.stack} /> : <PhoneShell route={nav.route} stack={nav.state.stack} />}
+        <Toast />
+      </ActionsCtx.Provider>
     </Ctx.Provider>
   );
 }

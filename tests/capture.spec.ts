@@ -53,6 +53,51 @@ const SCREENS: readonly { id: string; hash: string; query?: string; wideOnly?: b
   },
   { id: "read-failed", hash: "#/inbox", query: "&error=quota" },
   {
+    id: "decision-open",
+    hash: "#/inbox",
+    open: async (page) => {
+      const rows = page.getByRole("list", { name: "결정 필요" }).locator(".row-button");
+      await rows.nth(0).click();
+      await rows.nth(1).click();
+      await expect(page.getByRole("button", { name: /추천$/ })).toBeVisible();
+      await expect(page.getByTestId("waiting-on")).toBeVisible();
+    },
+  },
+  {
+    id: "answered-toast",
+    hash: "#/inbox",
+    open: async (page) => {
+      await page.getByRole("list", { name: "결정 필요" }).locator(".row-button").first().click();
+      await page.getByRole("button", { name: /추천$/ }).click();
+      await expect(page.getByTestId("toast")).toHaveText(/^답함/);
+    },
+  },
+  {
+    id: "done-toast",
+    hash: "#/goals/G2",
+    open: async (page) => {
+      await page.getByRole("checkbox", { name: "결제 실패 화면 검토 완료로 표시" }).click();
+      await expect(page.getByRole("checkbox", { name: "결제 실패 화면 검토 완료됨" })).toBeVisible();
+      await expect(page.getByTestId("toast")).toHaveText(/^완료로 표시함/);
+    },
+  },
+  {
+    id: "goal-with-open",
+    hash: "#/goals/G1",
+    open: async (page) => {
+      await page.getByRole("checkbox", { name: "릴리스 노트 정리 완료로 표시" }).click();
+      await expect(page.getByTestId("with-open")).toBeVisible();
+    },
+  },
+  {
+    id: "retry-requested",
+    hash: "#/running",
+    open: async (page) => {
+      await page.getByTestId("retry").click();
+      await expect(page.getByTestId("retry-requested")).toBeVisible();
+    },
+  },
+  {
     id: "bell",
     hash: "#/inbox",
     open: async (page) => {

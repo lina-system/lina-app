@@ -260,8 +260,8 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
   const goalWorkCards: Record<string, string[]> = { G1: ["kg-1", "k-101"], G2: ["kg-2", "k-102", "k-103", "k-104"], G3: ["kg-3", "k-105"], G4: ["kg-4"], G5: [] };
   const todoWorkCards: Record<string, string[]> = { T1: ["k-101"], T3: ["k-101"], T4: ["k-102"], T5: ["k-103"], T6: ["k-104"], T7: ["k-105"] };
 
-  const decisions: Record<string, { text: string; kind: "ask" | "act"; ago: number }> = {
-    T2: { text: "배포를 금요일 오후에 해도 될까요?", kind: "ask", ago: 3 * DAY },
+  const decisions: Record<string, { text: string; kind: "ask" | "act"; ago: number; choices?: string[]; recommended?: string }> = {
+    T2: { text: "배포를 금요일 오후에 해도 될까요?", kind: "ask", ago: 3 * DAY, choices: ["금요일 오후", "월요일 오전"], recommended: "금요일 오후" },
     G3: { text: "복구 연습에 쓸 두 시간을 비워 주세요.", kind: "act", ago: 2 * DAY },
     T12: { text: "자주 쓰는 검색어 열 개를 알려 주세요.", kind: "act", ago: 1 * DAY },
   };
@@ -342,7 +342,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       links: [],
       workCards: todoWorkCards[todo.id] ?? [],
       decision: decision
-        ? { text: decision.text, kind: decision.kind, choices: [], recommended: null, cid: null, at: now - decision.ago, answered: false }
+        ? { text: decision.text, kind: decision.kind, choices: decision.choices ?? [], recommended: decision.recommended ?? null, cid: null, at: now - decision.ago, answered: false }
         : null,
       ownerDone: null,
     };

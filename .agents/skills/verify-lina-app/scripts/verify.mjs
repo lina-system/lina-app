@@ -243,10 +243,30 @@ async function text(locator) {
 
 // The app lives under /app/ on the core's origin; the drive always draws the synthetic scene.
 // Always a fresh load: going to the address the page already shows only moves the hash and keeps the scene.
-async function openApp(page, hash, query = "") {
+// Ready means the data is drawn and the change stream is open (실시간); a page whose stream cannot open
+// (&live=down) is ready at 갱신 지연.
+async function openApp(page, hash, query = "", line = "실시간") {
   if (page.url() !== "about:blank") await page.goto("about:blank");
   await page.goto(APP_PATH + query + hash);
-  await page.getByTestId("freshness-line").filter({ hasText: /^갱신 \d+초 전$/ }).waitFor({ timeout: 10_000 });
+  await page.getByTestId("freshness-line").filter({ hasText: new RegExp("^" + line + "$") }).waitFor({ timeout: 10_000 });
+}
+
+async function freshnessLine(page) {
+  return (await page.getByTestId("freshness-line").innerText()).trim();
+}
+
+// The synthetic stream's connections and the page's snapshot reads (window.__linaStream).
+async function stream(page) {
+  return page.evaluate(() => window.__linaStream);
+}
+
+// A mark on the window that a page load would wipe: still there means nothing reloaded the page.
+async function markPage(page) {
+  await page.evaluate(() => (window.__notReloaded = true));
+}
+
+async function notReloaded(page) {
+  return page.evaluate(() => window.__notReloaded === true);
 }
 
 // On a phone a tap pushes the next screen with a slide; it is in the document once the root drops data-nav.
@@ -1283,10 +1303,9 @@ const drivers = {
   async freshness(page, step) {
     await step("read the freshness line", async () => {
       await openApp(page, "#/inbox");
-      const first = await page.getByTestId("freshness-line").innerText();
-      check(/^갱신 \d+초 전$/.test(first), "freshness reads " + first);
-      await page.waitForFunction((before) => document.querySelector("[data-testid=freshness-line]")?.textContent !== before, first, { timeout: 5_000 });
-      return first + " → " + (await page.getByTestId("freshness-line").innerText());
+      const line = await freshnessLine(page);
+      check(line === "실시간", "freshness reads " + line);
+      return line;
     });
     await step("a failed source reads 읽기 실패 and the rest still draws", async () => {
       await openApp(page, "#/inbox", "&error=quota");
@@ -1342,7 +1361,31 @@ const drivers = {
         return (await phoneRules(page, "bell sheet @" + width)) + ", sheet " + Math.round(box.top) + "-" + Math.round(box.bottom);
       });
     }
+    await step("under reduced motion the bell sheet opens at once", async () => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      try {
+        await openApp(page, "#/inbox");
+        await page.getByRole("button", { name: "알림 5" }).click();
+        const sheet = page.getByRole("dialog", { name: "알림" });
+        await sheet.waitFor();
+        // Read in the first frame after the tap: a sliding sheet is still below the window then.
+        const seen = await sheet.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          const running = element.getAnimations().filter((animation) => animation.playState === "running").map((animation) => animation.animationName + " " + animation.effect.getTiming().duration + "ms");
+          return { bottom: rect.bottom, height: innerHeight, duration: getComputedStyle(element).animationDuration, running };
+        });
+        check(seen.running.length === 0, "the sheet still animates under reduced motion: " + seen.running.join(", "));
+        check(Math.abs(seen.bottom - seen.height) < 1, "in its first frame the sheet ends at " + seen.bottom + " of " + seen.height);
+        return "sheet at the bottom in its first frame, animation " + seen.duration;
+      } finally {
+        await page.emulateMedia({ reducedMotion: "no-preference" });
+      }
+    });
     await page.setViewportSize({ width: 390, height: 844 });
+    await step("at 390, the stale line on a stream that is down keeps the phone rules", async () => {
+      await openApp(page, "#/inbox", "&live=down", "갱신 지연");
+      return phoneRules(page, "stream down @390");
+    });
     await dividerSteps(page, step, 390);
     await focusSteps(page, step);
     await openApp(page, "#/inbox");
@@ -1587,6 +1630,106 @@ const drivers = {
       check(back >= 47, "the back control starts at " + back + " px, under a 47 px status bar");
       check(bar.lineBottom <= bar.viewport - 34, "the freshness line ends at " + bar.lineBottom + " px, under the home indicator");
       return "back at " + back + " px, bar text ends " + (bar.viewport - bar.lineBottom) + " px above the bottom";
+    });
+  },
+
+  async live(page, step) {
+    const wide = page.viewportSize().width >= 900;
+    await step("one socket for the app: moving between screens opens no other", async () => {
+      await openApp(page, "#/inbox");
+      await markPage(page);
+      const go = async (name) => {
+        if (!wide && new URL(page.url()).hash !== "#/") {
+          await page.getByTestId("back").click();
+          await settled(page);
+        }
+        await page.getByRole("link", { name }).first().click();
+        await settled(page);
+      };
+      await go(/^진행 중인 작업/);
+      await go(/^목표/);
+      await go(/^마감일/);
+      const { connections } = await stream(page);
+      check(connections.length === 1 && connections[0].open, "the stream had " + JSON.stringify(connections));
+      check(await notReloaded(page), "the page reloaded");
+      return "1 connection after 3 screens; " + (await freshnessLine(page));
+    });
+    await step("nothing polls: a still page reads no snapshot", async () => {
+      const before = (await stream(page)).reads;
+      await page.waitForTimeout(12_000);
+      const after = (await stream(page)).reads;
+      check(after === before, "the page read " + (after - before) + " snapshot route(s) in 12 s with nothing changing");
+      return "0 reads in 12 s, " + before + " before";
+    });
+    await step("the agent's reply arrives through the stream, without a reload", async () => {
+      await openApp(page, "#/items/T4");
+      await markPage(page);
+      const replies = await page.getByTestId("reply").count();
+      const field = page.getByRole("textbox", { name: "댓글 달기" });
+      await field.fill("폭도 봐 주세요");
+      await page.getByTestId("comments").getByRole("button", { name: "보내기" }).click();
+      const sent = Date.now();
+      await page.waitForFunction((count) => document.querySelectorAll("[data-testid=reply]").length > count, replies, { timeout: 10_000 });
+      check(await notReloaded(page), "the page reloaded");
+      return "reply drawn " + ((Date.now() - sent) / 1000).toFixed(1) + " s after 보내기 (the agent answers after 5 s)";
+    });
+    await step("a drop says 갱신 지연, the reconnect resumes from its cursor and draws what another device did meanwhile, the open row, the selection and the scroll kept", async () => {
+      // Wide: a to-do is selected, its detail open beside the list. Phone: a short window, so the list scrolls.
+      const size = page.viewportSize();
+      if (!wide) await page.setViewportSize({ width: size.width, height: 480 });
+      await openApp(page, wide ? "#/items/T3" : "#/inbox", "&live=drop");
+      await markPage(page);
+      const row = page.getByRole("button", { name: /배포를 금요일 오후에 해도 될까요/ });
+      await row.click();
+      check((await row.getAttribute("aria-expanded")) === "true", "the decision row did not open");
+      const kept = async () =>
+        page.evaluate(() => ({
+          selected: document.querySelector(".list-pane [aria-current=page]")?.textContent?.trim() ?? null,
+          detail: document.querySelector(".detail-pane .detail-title")?.textContent?.trim() ?? null,
+          scroll: document.querySelector(".phone-main")?.scrollTop ?? null,
+        }));
+      if (!wide) await page.evaluate(() => document.querySelector(".phone-main").scrollTo(0, 40));
+      const before = await kept();
+      if (wide) check(before.selected && before.detail, "no selected row with its detail: " + JSON.stringify(before));
+      else check(before.scroll > 0, "the list did not scroll");
+      check((await page.getByTestId("bell").getAttribute("aria-label")) === "알림 5", "the bell does not read 알림 5 before the drop");
+      await page.getByTestId("freshness-line").filter({ hasText: /^갱신 지연$/ }).waitFor({ timeout: 6_000 });
+      await page.getByTestId("freshness-line").filter({ hasText: /^실시간$/ }).waitFor({ timeout: 6_000 });
+      await page.getByRole("button", { name: "알림 4" }).waitFor({ timeout: 3_000 });
+      const { connections } = await stream(page);
+      check(connections.length === 2, "the stream had " + connections.length + " connections");
+      check(connections[1].since !== null && connections[1].first === "missed" && connections[1].missed === 1, "the reconnect was " + JSON.stringify(connections[1]));
+      check((await row.getAttribute("aria-expanded")) === "true", "the open decision row closed");
+      const after = await kept();
+      check(JSON.stringify(after) === JSON.stringify(before), "the screen moved: " + JSON.stringify(before) + " -> " + JSON.stringify(after));
+      check(await notReloaded(page), "the page reloaded");
+      await page.setViewportSize(size);
+      return "갱신 지연 → 실시간, reconnect " + JSON.stringify(connections[1]) + ", 알림 5 → 알림 4, row open, kept " + JSON.stringify(after);
+    });
+    await step("a resync reads the snapshot once", async () => {
+      await openApp(page, "#/inbox", "&live=resync");
+      await markPage(page);
+      const before = (await stream(page)).reads;
+      await page.waitForFunction((count) => window.__linaStream.reads > count, before, { timeout: 5_000 });
+      await page.waitForTimeout(1_500);
+      const after = (await stream(page)).reads;
+      const { connections } = await stream(page);
+      // One refresh reads each list route and each card's detail once.
+      const once = await page.evaluate(() => 5 + window.__linaScene.cards.cards.length);
+      check(after - before === once, "the resync read " + (after - before) + " route(s), one refresh is " + once);
+      check(connections.length === 1, "the resync opened another connection");
+      check(await notReloaded(page), "the page reloaded");
+      return (after - before) + " reads (one refresh), still 1 connection";
+    });
+    await step("a stream that cannot open says 갱신 지연 and retries with growing waits; the screens still draw", async () => {
+      await openApp(page, "#/inbox", "&live=down", "갱신 지연");
+      const rows = (await decisionNames(page.getByRole("list", { name: "결정 필요" }))).length;
+      check(rows === 4, "the inbox drew " + rows + " decisions");
+      await page.waitForTimeout(5_000);
+      const { connections } = await stream(page);
+      check(connections.length >= 2 && connections.length <= 5, connections.length + " tries in 5 s");
+      check(connections.every((connection) => !connection.open), "a connection opened");
+      return (await freshnessLine(page)) + ", " + connections.length + " tries in 5 s, 결정 필요 " + rows;
     });
   },
 

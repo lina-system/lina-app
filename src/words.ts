@@ -1,0 +1,145 @@
+/**
+ * Every fixed string the screens show, in one place: the shared term table.
+ * Components never hold their own screen text; they read it from here.
+ */
+import type { WorkState } from "./api/client";
+
+export const STATE_WORD: Record<WorkState, string> = {
+  planned: "예정",
+  in_progress: "진행 중",
+  waiting: "대기",
+  stopped: "중단됨",
+  done: "완료",
+};
+
+/** API reason codes that read as one word after the state. Other codes (gate, budget, cancelled, unknown) show none. */
+export const REASON_WORD: Readonly<Record<string, string>> = {
+  decision: "결정 필요",
+  feedback: "피드백",
+  review: "검토 필요",
+  hold: "보류",
+  blocked_by_item: "진행 대기",
+  no_response: "응답 없음",
+  unresponsive: "응답 없음",
+  failed: "실패",
+  rejected: "실패",
+  result_missing: "결과 누락",
+};
+
+export const STATE_WORDS = Object.values(STATE_WORD);
+export const REASON_WORDS = [...new Set(Object.values(REASON_WORD))];
+
+export function reasonWord(reason: string | null | undefined): string | null {
+  if (!reason) return null;
+  return Object.hasOwn(REASON_WORD, reason) ? REASON_WORD[reason] : null;
+}
+
+export function stateLabel(state: WorkState, reason?: string | null): string {
+  const word = reasonWord(reason);
+  return word ? `${STATE_WORD[state]} · ${word}` : STATE_WORD[state];
+}
+
+export const SEP = " · ";
+export const CRUMB = " › ";
+
+export const W = {
+  app: "LINA",
+  inbox: "수신함",
+  running: "진행 중인 작업",
+  due: "마감일",
+  done: "완료",
+  agents: "에이전트",
+  goals: "목표",
+  status: "기기·쿼터",
+  back: "뒤로",
+  sidebar: "메뉴",
+
+  decide: "결정 필요",
+  review: "검토 필요",
+  mine: "내 할 일",
+  ask: "질문",
+  act: "요청",
+
+  dueOverdue: "지남",
+  dueToday: "오늘",
+  dueWeek: "이번 주",
+  dueLater: "이후",
+
+  agentRunning: "진행 중",
+  agentReview: "검토 필요",
+  agentGoals: "목표",
+  doneToday: (n: number) => `완료 · 오늘 ${n}`,
+
+  doneCondition: "완료 조건",
+  ownerWords: "내 말",
+  todos: "할 일",
+  cards: "작업",
+  workerRuns: "실행",
+  runs: "실행",
+  comments: "댓글",
+  evidence: "완료 근거",
+  now: "지금",
+  todo: "할 일",
+
+  devices: "기기",
+  quota: "쿼터",
+  deviceLine: (all: number, ok: number, warn: number, down: number) => ({ all: `기기 ${all}`, ok: `정상 ${ok}`, warn: `경고 ${warn}`, down: `꺼짐 ${down}` }),
+  stoppedCount: (n: number) => `중단됨 ${n}`,
+  machineState: { ok: "정상", warn: "경고", down: "꺼짐" } as Record<string, string>,
+  load: (running: number | null, cap: number) => `작업 ${running ?? 0}/${cap}`,
+  percent: (n: number) => `${Math.round(n)}%`,
+  ratePerHour: (n: number) => `시간당 +${Math.round(n)}%`,
+  resetIn: (text: string) => `${text} 초기화`,
+  quotaWarn: "주의",
+  quotaAccount: (n: number) => `계정 ${n}`,
+
+  fresh: (seconds: number) => `갱신 ${seconds}초 전`,
+  stale: "갱신 지연",
+  offline: "연결 끊김",
+  readFailed: (source: string) => `읽기 실패: ${source}`,
+  loading: "불러오는 중",
+  notFound: "찾을 수 없음",
+  empty: "없음",
+
+  bell: "알림",
+  quickAdd: "할 일 추가",
+  markDone: (title: string) => `${title} 완료로 표시`,
+  progress: (done: number, total: number) => `${done}/${total}`,
+  runningCount: (n: number) => `진행 중 ${n}`,
+};
+
+export const MACHINE_WHY: Readonly<Record<string, string>> = {
+  unreachable: "연결 안 됨",
+  runner: "실행기 멈춤",
+  service: "서비스 멈춤",
+  disk: "디스크 부족",
+  over: "상한 초과",
+  down: "꺼짐",
+  cpu: "CPU 높음",
+  memory: "메모리 부족",
+  temp: "온도 높음",
+  pending: "확인 중",
+  quiet: "응답 없음",
+};
+
+export const SOURCE_WORD: Readonly<Record<string, string>> = {
+  work: "할 일",
+  worker: "작업",
+  devices: "기기",
+  metrics: "기기 상태",
+  quota: "쿼터",
+  board: "현황",
+  items: "목표",
+  goals: "목표",
+  cards: "작업",
+  inbox: "수신함",
+  detail: "상세",
+};
+
+export const REPLY_RESULT: Readonly<Record<string, string>> = {
+  applied: "반영함",
+  needs_answer: "답변 필요",
+  not_applied: "반영 안 함",
+};
+
+export const BANNED_WORDS = ["세션", "일꾼", "회차", "판정", "장부"];

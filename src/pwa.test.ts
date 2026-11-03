@@ -20,7 +20,8 @@ test("the manifest and icons can install on a phone Home Screen", () => {
     icons: { src: string; sizes: string; purpose: string; type: string }[];
   };
   expect(manifest.display).toBe("standalone");
-  expect(manifest.start_url).toBe("/");
+  // Relative to the manifest, so the app installs at /app/ where the core serves it (lina-system/lina#168).
+  expect(manifest.start_url).toBe("./");
   expect(manifest.name).toBe("LINA");
   expect(manifest.icons.map((icon) => `${icon.sizes} ${icon.purpose}`)).toEqual([
     "192x192 any",

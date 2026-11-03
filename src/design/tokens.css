@@ -1,0 +1,76 @@
+:root {
+  color-scheme: light dark;
+
+  --label: #000000;
+  --label-2: rgba(60, 60, 67, 0.78);
+  --label-3: rgba(60, 60, 67, 0.3);
+  --separator: rgba(60, 60, 67, 0.18);
+  --fill: rgba(120, 120, 128, 0.12);
+  --bg: #ffffff;
+  --bg-2: #f2f2f7;
+  --sidebar: rgba(236, 236, 241, 0.82);
+  --bar: rgba(249, 249, 251, 0.86);
+  --accent: #007aff;
+  --on-accent: #ffffff;
+  --red: #ff3b30;
+  --orange: #ff9500;
+
+  --agent-0: #007aff;
+  --agent-1: #af52de;
+  --agent-2: #34c759;
+  --agent-3: #ff9500;
+  --agent-4: #5ac8fa;
+  --agent-5: #ff2d55;
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Pretendard", sans-serif;
+  --text-title: 26px;
+  --text-body: 15px;
+  --text-small: 12px;
+
+  --row: 44px;
+  --row-dense: 32px;
+  --inset: 16px;
+  --gap: 12px;
+  --radius: 7px;
+  --sidebar-width: 240px;
+  --list-width: 380px;
+  --toolbar: 52px;
+  --line: 0.5px;
+
+  --motion: 180ms ease-out;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --label: #ffffff;
+    --label-2: rgba(235, 235, 245, 0.6);
+    --label-3: rgba(235, 235, 245, 0.3);
+    --separator: rgba(84, 84, 88, 0.6);
+    --fill: rgba(120, 120, 128, 0.24);
+    --bg: #1c1c1e;
+    --bg-2: #000000;
+    --sidebar: rgba(44, 44, 46, 0.82);
+    --bar: rgba(30, 30, 32, 0.86);
+    --accent: #0a84ff;
+    --red: #ff453a;
+    --orange: #ff9f0a;
+
+    --agent-0: #0a84ff;
+    --agent-1: #bf5af2;
+    --agent-2: #30d158;
+    --agent-3: #ff9f0a;
+    --agent-4: #64d2ff;
+    --agent-5: #ff375f;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion: 0ms linear;
+  }
+}

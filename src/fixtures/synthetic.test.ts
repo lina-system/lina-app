@@ -1,82 +1,132 @@
 // @vitest-environment node
 import { expect, test } from "vitest";
 import { scanText } from "../../scripts/check-personal-data.ts";
-import {
-  SYNTHETIC_SEED,
-  countsFromAgents,
-  generateFixtures,
-  syntheticHome,
-  syntheticNotifications,
-  syntheticStatus,
-} from "./synthetic";
+import { buildModel } from "../model";
+import { generateScene, SCENE_COUNTS, SYNTHETIC_SEED, type Scene } from "./synthetic";
 
-const AGENT_NAME = /^Agent \d+$/;
-const MACHINE_NAME = /^Machine \d+$/;
-const ID = /^(?:agent|goal|todo|run|note|machine)-\d+$/;
-const TITLE =
-  /^(?:샘플 목표|점검 목표|Draft the fixture|Read the summary|Note a line|Run the check|Fixture notice|Synthetic notice)$/;
-const MODEL = /^fixture-model(?:-[a-z]+)?$/;
+const NOW = 1_793_700_000;
+const scene = generateScene(SYNTHETIC_SEED, { now: NOW });
 
-test("generates the same fixtures from the same seed", () => {
-  expect(generateFixtures()).toEqual({
-    home: syntheticHome,
-    notifications: syntheticNotifications,
-    status: syntheticStatus,
-  });
-});
-
-test("changes the fixtures when the seed changes", () => {
-  const variants = new Set(
-    [1, 2, 3, 4, 5].map((offset) => JSON.stringify(generateFixtures(SYNTHETIC_SEED + offset))),
+function model(input: Scene) {
+  return buildModel(
+    {
+      board: input.board,
+      items: input.items,
+      goals: input.goals,
+      cards: input.cards,
+      cardsAt: input.now,
+      inbox: input.inbox,
+      devices: input.devices,
+      quota: input.quota,
+      cardDetails: input.cardDetails,
+      failed: [],
+    },
+    input.now,
   );
+}
 
-  expect(variants.size).toBeGreaterThan(1);
+test("generates the same scene from the same seed and moves names with the seed", () => {
+  expect(generateScene(SYNTHETIC_SEED, { now: NOW })).toEqual(scene);
+  const names = new Set([1, 2, 3, 4, 5].map((offset) => generateScene(SYNTHETIC_SEED + offset, { now: NOW }).items.agents.map((agent) => agent.name).join()));
+  expect(names.size).toBeGreaterThan(1);
 });
 
-test("names, titles and ids are synthetic", () => {
-  const fixtures = generateFixtures();
+test("the scene holds what every screen needs", () => {
+  const items = scene.items.items;
+  const goals = items.filter((item) => item.kind === "goal");
+  const todos = items.filter((item) => item.kind === "todo");
+  const today = scene.board.due.today.map((row) => row.id);
+  const overdue = scene.board.due.overdue.map((row) => row.id);
 
-  for (const agent of fixtures.home.agents) {
-    expect(agent.id).toMatch(ID);
-    expect(agent.name).toMatch(AGENT_NAME);
-    for (const goal of agent.goals) {
-      expect(goal.id).toMatch(ID);
-      expect(goal.title).toMatch(TITLE);
-      for (const todo of goal.todos) {
-        expect(todo.id).toMatch(ID);
-        expect(todo.title).toMatch(TITLE);
-        expect(todo.addedBy).toMatch(AGENT_NAME);
-        for (const run of todo.runs) {
-          expect(run.id).toMatch(ID);
-          expect(run.title).toMatch(TITLE);
-        }
-      }
-    }
+  expect(scene.items.agents).toHaveLength(SCENE_COUNTS.agents);
+  expect(goals).toHaveLength(SCENE_COUNTS.goals);
+  expect(new Set(goals.map((goal) => goal.agent)).size).toBe(SCENE_COUNTS.agents);
+  expect(goals.filter((goal) => goal.state === "done")).toHaveLength(1);
+  expect(goals.filter((goal) => today.includes(goal.id))).toHaveLength(1);
+  expect(goals.filter((goal) => overdue.includes(goal.id))).toHaveLength(1);
+
+  expect(todos).toHaveLength(SCENE_COUNTS.todos);
+  expect(new Set(todos.map((todo) => todo.state))).toEqual(new Set(["planned", "in_progress", "waiting", "stopped", "done"]));
+  expect(todos.filter((todo) => todo.mine)).toHaveLength(2);
+
+  const decisions = [...scene.board.inbox.decide.map((row) => row.kind), ...scene.inbox.questions.map(() => "ask")];
+  expect(decisions).toHaveLength(SCENE_COUNTS.decisions);
+  expect(decisions.filter((kind) => kind === "ask")).toHaveLength(2);
+  expect(decisions.filter((kind) => kind === "act")).toHaveLength(2);
+
+  const review = scene.board.inbox.review.map((id) => scene.board.cards.find((run) => run.id === id));
+  expect(review.map((run) => run?.state)).toEqual(["waiting"]);
+
+  const cards = scene.cards.cards;
+  expect(cards.filter((card) => card.state === "in_progress")).toHaveLength(2);
+  expect(cards.filter((card) => card.state === "in_progress" && card.now)).toHaveLength(1);
+  const stopped = cards.filter((card) => card.state === "stopped");
+  expect(stopped.map((card) => card.reason)).toEqual(["unresponsive"]);
+  expect(scene.cardDetails[stopped[0].id].runs.every((run) => typeof run.lastHeartbeatAt === "number")).toBe(true);
+  expect(cards.filter((card) => card.state === "waiting")).toHaveLength(1);
+  expect(cards.filter((card) => card.state === "done")).toHaveLength(1);
+  for (const card of cards) {
+    expect(scene.cardDetails[card.id].todos.length).toBeGreaterThan(0);
+    expect(scene.cardDetails[card.id].workerRuns.length).toBeGreaterThan(0);
   }
-  for (const machine of fixtures.status.machines) {
-    expect(machine.id).toMatch(ID);
-    expect(machine.name).toMatch(MACHINE_NAME);
-  }
-  for (const window of fixtures.status.quota) {
-    expect(window.model).toMatch(MODEL);
-  }
-  for (const item of fixtures.notifications.items) {
-    expect(item.id).toMatch(ID);
-    expect(item.title).toMatch(TITLE);
-  }
+  const owned = new Set(Object.values(scene.cardDetails).flatMap((detail) => detail.workerRuns.map((run) => run.id)));
+  expect(scene.board.cards.filter((run) => !owned.has(run.id))).toHaveLength(1);
+
+  expect(scene.devices.machines.map((machine) => machine.state).sort()).toEqual(["down", "ok", "warn"]);
+  expect(scene.quota.quota).toHaveLength(2);
+  expect(scene.quota.quota.filter((service) => service.accounts.some((account) => account.warn))).toHaveLength(1);
+
+  const threads = Object.values(scene.itemDetails).filter((detail) => detail.kind === "todo" && detail.comments.some((comment) => comment.replies.length));
+  expect(threads).toHaveLength(2);
+
+  const failed = generateScene(SYNTHETIC_SEED, { now: NOW, sourceError: true });
+  expect(failed.board.errors.map((error) => error.source)).toEqual(["quota"]);
+  expect(scene.board.errors).toEqual([]);
 });
 
-test("summary counts match the generated rows", () => {
-  const counts = countsFromAgents(syntheticHome);
-  expect(syntheticHome.summary).toEqual({
-    goalCount: counts.goals,
-    todoCount: counts.todos,
-    runCount: counts.runs,
+test("the model's counts on the scene are the numbers doctor and the drivers expect", () => {
+  const counts = model(scene).counts;
+  expect(counts).toMatchObject({
+    inbox: SCENE_COUNTS.inbox,
+    running: SCENE_COUNTS.running,
+    stopped: SCENE_COUNTS.stopped,
+    due: SCENE_COUNTS.due,
+    done: SCENE_COUNTS.done,
+    goals: SCENE_COUNTS.goals,
+    notices: SCENE_COUNTS.notices,
+    devices: { all: SCENE_COUNTS.machines, ok: SCENE_COUNTS.machinesOk, warn: SCENE_COUNTS.machinesWarn, down: SCENE_COUNTS.machinesDown },
   });
+  expect(model(scene).running.rows).toHaveLength(SCENE_COUNTS.running + SCENE_COUNTS.stopped);
 });
 
-test("the generated fixtures contain no personal-data pattern or configured name", () => {
-  expect(
-    scanText(JSON.stringify(generateFixtures()), "fixtures.json", process.env.PERSONAL_DATA_NAMES),
-  ).toEqual([]);
+test("names are invented and titles are Korean", () => {
+  for (const agent of scene.items.agents) expect(agent.name).toMatch(/^[A-Z][a-z]{3,6}$/);
+  for (const item of scene.items.items) expect(item.title).toMatch(/^[가-힣 ]+$/);
+  for (const card of scene.cards.cards) expect(card.title).toMatch(/^[가-힣 :]+$/);
+  for (const machine of scene.devices.machines) expect(machine.name).toMatch(/^[가-힣]+$/);
+});
+
+test("the scene contains no personal-data pattern or configured name", () => {
+  expect(scanText(JSON.stringify(scene), "scene.json", process.env.PERSONAL_DATA_NAMES)).toEqual([]);
+});
+
+test("the scene does not contradict itself", () => {
+  const runs = new Map(scene.board.cards.map((run) => [run.id, run]));
+  for (const detail of Object.values(scene.cardDetails)) {
+    const running = detail.workerRuns.some((worker) => runs.get(worker.id)?.state === "in_progress");
+    if (running) expect(detail.todos.filter((todo) => todo.done)).toEqual([]);
+    expect(running).toBe(detail.state === "in_progress");
+  }
+  for (const item of scene.items.items.filter((candidate) => candidate.kind === "todo")) {
+    const own = scene.itemDetails[item.id].runs;
+    if (item.state === "done") expect(own.every((run) => run.state === "done")).toBe(true);
+    if (own.some((run) => run.state === "in_progress")) expect(item.state).toBe("in_progress");
+  }
+});
+
+test("cards differ in kind: code, docs, research and device all appear", () => {
+  const kinds = new Set([...model(scene).cards.values()].map((card) => card.work));
+  expect(kinds).toEqual(new Set(["code", "docs", "research", "device"]));
+  const running = model(scene).running.rows.filter((card) => card.state === "in_progress");
+  expect(new Set(running.map((card) => card.work)).size).toBe(running.length);
 });

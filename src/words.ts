@@ -138,6 +138,16 @@ export const W = {
   errTextLength: "글은 2000자까지",
   errTooMany: "쓰기가 너무 많음",
 
+  talk: "대화",
+  talkField: "메시지",
+  replying: "답하는 중",
+  carried: (agent: string) => (agent ? `${agent} 대화에 남음` : "대화에 남음"),
+  talkBusy: "에이전트가 바쁨",
+  talkDown: "에이전트 연결 안 됨",
+  talkNoAgent: "맡은 에이전트 없음",
+  talkTooLong: "글은 4000자까지",
+  talkFailed: "답을 받지 못함",
+
   bell: "알림",
   readAll: "모두 읽음",
   unread: (n: number) => `안 읽음 ${n}`,

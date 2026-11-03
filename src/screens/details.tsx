@@ -8,6 +8,7 @@ import { useActions } from "../ui/actions";
 import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, Link, sinceText, StateText, StateTime, cardTime, useApp } from "../ui/parts";
 import { SEP, stateLabel, W } from "../words";
 import { Comments } from "./comments";
+import { Talk } from "./talk";
 
 function Missing() {
   return <p class="empty">{W.notFound}</p>;
@@ -162,6 +163,7 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
         </Box>
       ) : null}
       <Comments detail={detail} />
+      <Talk key={detail.id} detail={detail} />
     </article>
   );
 }
@@ -205,6 +207,7 @@ function TodoBody({ detail }: { detail: ItemDetail }) {
         </Box>
       ) : null}
       <Comments detail={detail} />
+      <Talk key={detail.id} detail={detail} />
     </article>
   );
 }

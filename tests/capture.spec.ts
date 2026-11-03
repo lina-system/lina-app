@@ -1,11 +1,19 @@
 import { mkdirSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
+import { TALK_FRAME_MS } from "../src/data/synthetic-source";
 
 // Every screen on the synthetic scene, at 1280 (light and dark) and 390. The app is served under /app/
 // like the core serves it (lina-system/lina#168).
 const APP = "/app/?source=synthetic";
 
-const SCREENS: readonly { id: string; hash: string; query?: string; wideOnly?: boolean; phoneOnly?: boolean; open?: (page: Page) => Promise<void> }[] = [
+async function talk(page: Page, message: string): Promise<void> {
+  const box = page.getByTestId("talk");
+  await box.getByRole("textbox", { name: "메시지" }).fill(message);
+  await box.getByRole("textbox", { name: "메시지" }).press("Enter");
+}
+
+// `clock`: the page's timers run only when the capture says, so a streaming reply is caught between two frames.
+const SCREENS: readonly { id: string; hash: string; query?: string; wideOnly?: boolean; phoneOnly?: boolean; clock?: boolean; open?: (page: Page) => Promise<void> }[] = [
   { id: "menu", hash: "#/", phoneOnly: true },
   { id: "inbox", hash: "#/inbox" },
   { id: "running", hash: "#/running" },
@@ -21,8 +29,40 @@ const SCREENS: readonly { id: string; hash: string; query?: string; wideOnly?: b
     hash: "#/items/T4",
     open: async (page) => {
       await page.getByRole("textbox", { name: "댓글 달기" }).fill("휴대폰 가로 화면도 봐 주세요");
-      await page.getByRole("button", { name: "보내기", exact: true }).click();
+      await page.getByTestId("comments").getByRole("button", { name: "보내기", exact: true }).click();
       await expect(page.getByTestId("comment-pending")).toHaveText(/에게 보냄 · 방금$/);
+    },
+  },
+  {
+    id: "talk-streaming",
+    hash: "#/items/T4",
+    clock: true,
+    open: async (page) => {
+      await page.clock.pauseAt(new Date(Date.now() + 60_000));
+      await talk(page, "입력 폼 간격 봐 주세요");
+      await page.clock.runFor(TALK_FRAME_MS * 5);
+      await expect(page.getByTestId("talk-live")).toBeAttached();
+      await expect(page.getByTestId("talk-reply")).toContainText("입력 폼 간격부터");
+      await page.getByTestId("talk").scrollIntoViewIfNeeded();
+    },
+  },
+  {
+    id: "talk-replied",
+    hash: "#/items/T4",
+    open: async (page) => {
+      await talk(page, "입력 폼 간격 봐 주세요");
+      await expect(page.getByTestId("talk-carried")).toHaveText(/ 대화에 남음$/, { timeout: 10_000 });
+      await expect(page.getByTestId("talk-live")).toHaveCount(0);
+    },
+  },
+  {
+    id: "talk-refused",
+    hash: "#/items/T4",
+    query: "&talk=busy",
+    open: async (page) => {
+      await talk(page, "입력 폼 간격 봐 주세요");
+      await expect(page.getByTestId("talk").getByTestId("write-error")).toHaveText("에이전트가 바쁨");
+      await expect(page.getByTestId("talk").getByRole("textbox", { name: "메시지" })).toHaveValue("입력 폼 간격 봐 주세요");
     },
   },
   { id: "item-decision", hash: "#/items/T2" },
@@ -130,6 +170,7 @@ for (const screen of SCREENS) {
   test(`capture ${screen.id}`, async ({ page }, testInfo) => {
     const phone = testInfo.project.name === "phone";
     test.skip(Boolean(screen.wideOnly && phone) || Boolean(screen.phoneOnly && !phone), "not drawn at this width");
+    if (screen.clock) await page.clock.install();
     await page.goto(`${APP}${screen.query ?? ""}${screen.hash}`);
     await expect(page.getByTestId("freshness-line")).toHaveText(/^갱신 \d+초 전$/);
     await expect(page.locator("[data-testid=screen-title], .detail-title").first()).toBeVisible();

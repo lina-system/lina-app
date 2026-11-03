@@ -2,7 +2,7 @@ import { act, fireEvent, render, waitFor, within } from "@testing-library/preact
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { RouteName } from "./api/client";
 import { App } from "./app";
-import { SYNTHETIC_REPLY_AFTER, SyntheticSource } from "./data/synthetic-source";
+import { SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS } from "./data/synthetic-source";
 import type { ReadResult, Source } from "./data/source";
 import { Store } from "./data/store";
 import { SCENE_COUNTS } from "./fixtures/synthetic";
@@ -353,14 +353,14 @@ describe("comments", () => {
       const agent = source.scene.items.agents.find((person) => person.id === source.scene.itemDetails.T4.agent)?.name;
       const view = await open("#/items/T4", { wide: true, source });
       const field = view.getByRole("textbox", { name: "댓글 달기" }) as HTMLInputElement;
-      const send = view.getByRole("button", { name: "보내기" }) as HTMLButtonElement;
+      const send = within(view.getByTestId("comments")).getByRole("button", { name: "보내기" }) as HTMLButtonElement;
       expect(send.disabled).toBe(true);
       field.value = "가로 폭도 봐 주세요";
       fireEvent.input(field);
       expect(send.disabled).toBe(false);
       fireEvent.submit(field.form as HTMLFormElement);
       expect(view.getByTestId("comment-pending").textContent).toBe(`${agent}에게 보냄 · 방금`);
-      expect((view.getByRole("button", { name: "보내기" }) as HTMLButtonElement).disabled).toBe(true);
+      expect((within(view.getByTestId("comments")).getByRole("button", { name: "보내기" }) as HTMLButtonElement).disabled).toBe(true);
       expect(field.value).toBe("");
       await waitFor(() => expect(source.scene.itemDetails.T4.comments.at(-1)?.text).toBe("가로 폭도 봐 주세요"));
       await waitFor(() => expect(view.getAllByTestId("comment-pending")).toHaveLength(1));
@@ -776,5 +776,95 @@ describe("lists while a write is in flight", () => {
     expect(rows[0].classList.contains("is-stopped")).toBe(true);
     expect(view.getByRole("button", { name: /다시 시도$/ })).toBeTruthy();
     expect(view.getByTestId("nav-running").querySelector("[data-testid=nav-stopped]")?.textContent).toBe("1");
+  });
+});
+
+describe("talk", () => {
+  function talkParts(view: ReturnType<typeof render>) {
+    const box = within(view.getByTestId("talk"));
+    return { box, field: box.getByRole("textbox", { name: "메시지" }) as HTMLInputElement, send: box.getByRole("button", { name: "보내기" }) as HTMLButtonElement };
+  }
+
+  function type(field: HTMLInputElement, text: string) {
+    field.value = text;
+    fireEvent.input(field);
+  }
+
+  test("대화 sits under 댓글; Enter sends, the reply streams with a live mark, then one line says the agent keeps it", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SyntheticSource();
+      const agent = source.scene.items.agents.find((person) => person.id === source.scene.itemDetails.T4.agent)?.name;
+      const comments = source.scene.itemDetails.T4.comments.length;
+      const view = await open("#/items/T4", { wide: true, source });
+      const heads = [...view.container.querySelectorAll(".detail .box-head")].map((head) => head.textContent);
+      expect(heads.slice(-2)).toEqual(["댓글", "대화"]);
+      const { box, field, send } = talkParts(view);
+      expect(send.disabled).toBe(true);
+      type(field, "입력 폼 간격 봐 주세요");
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(box.getByTestId("talk-mine").textContent).toBe("입력 폼 간격 봐 주세요");
+      expect(field.value).toBe("");
+      expect(send.disabled).toBe(true);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 5);
+      });
+      const reply = box.getByTestId("talk-reply");
+      expect(reply.querySelector(".talk-bubble")?.textContent).toBe(`${TALK_REPLY_DELTAS[0]}${TALK_REPLY_DELTAS[1]}답하는 중`);
+      expect(box.getByTestId("talk-live")).toBeTruthy();
+      expect(reply.querySelector(".mark")?.textContent).toBe(Array.from(agent ?? "")[0]);
+      expect(box.queryByTestId("talk-carried")).toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 10);
+      });
+      expect(reply.querySelector(".talk-bubble")?.textContent).toBe(TALK_REPLY_DELTAS.join(""));
+      expect(box.queryByTestId("talk-live")).toBeNull();
+      expect(box.getAllByTestId("talk-carried").map((line) => line.textContent)).toEqual([`${agent} 대화에 남음`]);
+      expect(view.queryByTestId("write-error")).toBeNull();
+      expect(source.scene.itemDetails.T4.comments).toHaveLength(comments);
+      type(field, "고마워요");
+      fireEvent.click(send);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(box.queryByTestId("talk-carried")).toBeNull();
+      expect(box.getAllByTestId("talk-mine")).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("an Enter that ends a Hangul composition does not send", async () => {
+    const source = new SyntheticSource();
+    const talk = vi.spyOn(source, "talk");
+    const view = await open("#/items/T4", { wide: true, source });
+    const { field } = talkParts(view);
+    fireEvent.compositionStart(field);
+    field.value = "안녕";
+    fireEvent.keyDown(field, { key: "Enter", keyCode: 229, isComposing: true });
+    fireEvent.compositionEnd(field, { data: "안녕" });
+    fireEvent.keyDown(field, { key: "Enter", keyCode: 229 });
+    expect(talk).not.toHaveBeenCalled();
+    expect(field.value).toBe("안녕");
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(talk).toHaveBeenCalledWith("T4", { message: "안녕" }, expect.any(AbortSignal));
+  });
+
+  test.each([
+    ["busy", "에이전트가 바쁨"],
+    ["down", "에이전트 연결 안 됨"],
+    ["none", "맡은 에이전트 없음"],
+  ] as const)("a %s refusal shows one line and keeps the message in the field", async (talk, line) => {
+    const view = await open("#/goals/G2", { wide: true, source: new SyntheticSource({ talk }) });
+    const { box, field, send } = talkParts(view);
+    type(field, "오늘 어디까지 했어요?");
+    fireEvent.click(send);
+    await waitFor(() => expect(box.getByTestId("write-error").textContent).toBe(line));
+    expect(field.value).toBe("오늘 어디까지 했어요?");
+    expect(send.disabled).toBe(false);
+    expect(box.queryByTestId("talk-mine")).toBeNull();
   });
 });

@@ -4,7 +4,9 @@ import { startRefresh } from "./data/refresh";
 import { nowSeconds } from "./data/source";
 import { useClock, useStore, type Store, type Want } from "./data/store";
 import { buildModel, type Model } from "./model";
-import { back, defaultListFor, href, isList, linkClick, navigate, onSaveScroll, parse, useNav, type Route } from "./router";
+import { back, defaultListFor, href, isList, linkClick, navigate, onSaveScroll, onStackMotion, parse, useNav, type Route } from "./router";
+import { slideMotion } from "./stack-motion";
+import { bindSwipeBack, isStandalone } from "./swipe-back";
 import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RunningScreen, StatusScreen } from "./screens/lists";
 import { CardScreen, GoalScreen, ItemScreen, RunScreen } from "./screens/details";
 import { BackIcon, BellIcon, CalendarIcon, DeviceIcon, DoneIcon, GoalIcon, InboxIcon, PlusIcon, RunningIcon } from "./ui/icons";
@@ -380,8 +382,18 @@ function PhoneShell({ route, stack }: { route: Route; stack: readonly string[] }
   const large = isRoot || isList(route);
   const goBack = () => {
     if (stack.length > 1) back();
-    else navigate(parent, { replace: true });
+    else navigate(parent, { replace: true, direction: "pop" });
   };
+  const current = useRef({ isRoot, goBack });
+  current.current = { isRoot, goBack };
+  useLayoutEffect(() => {
+    onStackMotion(slideMotion());
+    const unbind = bindSwipeBack({ standalone: () => isStandalone(), atRoot: () => current.current.isRoot, onBack: () => current.current.goBack() });
+    return () => {
+      onStackMotion(null);
+      unbind();
+    };
+  }, []);
   return (
     <div class="stack" data-layout="phone">
       <header class="navbar">

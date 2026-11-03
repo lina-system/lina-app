@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
 export type ListName = "inbox" | "running" | "due" | "done" | "goals" | "status";
 export type Route =
@@ -66,9 +66,31 @@ export function onSaveScroll(reader: ScrollReader): void {
   readScroll = reader;
 }
 
-const listeners = new Set<() => void>();
+/** Which way the stack moves: a push slides the next screen in from the right, a pop slides the top one out. */
+export type Direction = "push" | "pop" | "none";
 
-export function navigate(to: Route | string, options: { replace?: boolean } = {}): void {
+/** The direction between two history stacks: deeper is a push, shallower a pop, the same depth a plain swap. */
+export function directionOf(from: readonly string[], to: readonly string[]): Direction {
+  if (to.length > from.length) return "push";
+  if (to.length < from.length) return "pop";
+  return "none";
+}
+
+/**
+ * How the screen swap is drawn. The phone shell sets a sliding one; everywhere else the swap is instant. `apply`
+ * resolves once the next screen is in the document, scroll included.
+ */
+export type Motion = (direction: Direction, apply: () => Promise<void>) => void;
+const instant: Motion = (_direction, apply) => void apply();
+let motion: Motion = instant;
+
+export function onStackMotion(next: Motion | null): void {
+  motion = next ?? instant;
+}
+
+const listeners = new Set<(direction?: Direction) => void>();
+
+export function navigate(to: Route | string, options: { replace?: boolean; direction?: Direction } = {}): void {
   const hash = typeof to === "string" ? to : href(to);
   const current = readState();
   window.history.replaceState({ ...current, scroll: readScroll() }, "");
@@ -77,7 +99,8 @@ export function navigate(to: Route | string, options: { replace?: boolean } = {}
   const next: NavState = { stack, scroll: {} };
   if (options.replace) window.history.replaceState(next, "", hash);
   else window.history.pushState(next, "", hash);
-  for (const listener of listeners) listener();
+  const direction = options.direction ?? directionOf(current.stack, stack);
+  for (const listener of listeners) listener(direction);
 }
 
 export function back(): void {
@@ -87,15 +110,39 @@ export function back(): void {
 export function useNav(): { route: Route; state: NavState; hash: string } {
   const read = () => ({ route: parse(currentHash()), state: readState(), hash: currentHash() });
   const [nav, setNav] = useState(read);
+  const shown = useRef(nav);
+  const settle = useRef<(() => void) | null>(null);
+  // Children's layout effects (the scroll restore) run first, so the swap is done, scroll included, before paint.
+  useLayoutEffect(() => {
+    settle.current?.();
+    settle.current = null;
+  }, [nav]);
   useEffect(() => {
-    const update = () => setNav(read());
+    const update = (direction?: Direction) => {
+      const next = read();
+      // popstate and hashchange both fire for one back: the second finds the screen already shown.
+      if (next.hash === shown.current.hash && next.state.stack.length === shown.current.state.stack.length) return;
+      const way = direction ?? directionOf(shown.current.state.stack, next.state.stack);
+      shown.current = next;
+      motion(
+        way,
+        () =>
+          new Promise<void>((resolve) => {
+            settle.current?.();
+            settle.current = resolve;
+            setNav(next);
+          }),
+      );
+    };
+    const onHistory = () => update();
     listeners.add(update);
-    window.addEventListener("popstate", update);
-    window.addEventListener("hashchange", update);
+    window.addEventListener("popstate", onHistory);
+    window.addEventListener("hashchange", onHistory);
     return () => {
       listeners.delete(update);
-      window.removeEventListener("popstate", update);
-      window.removeEventListener("hashchange", update);
+      window.removeEventListener("popstate", onHistory);
+      window.removeEventListener("hashchange", onHistory);
+      settle.current?.();
     };
   }, []);
   return nav;

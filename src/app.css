@@ -1506,3 +1506,56 @@ html:has(.stack) body {
     opacity: 0;
   }
 }
+
+/* Phone push and pop (same-document View Transitions): a push slides the next screen in from the right over the
+   last one, which moves a little left; a pop slides the top screen out to the right. The nav bar cross-fades. */
+
+::view-transition-old(phone-screen),
+::view-transition-new(phone-screen) {
+  animation-duration: 350ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-fill-mode: both;
+  mix-blend-mode: normal;
+}
+
+html[data-nav="push"]::view-transition-old(phone-screen) {
+  animation-name: stack-under;
+}
+
+html[data-nav="push"]::view-transition-new(phone-screen) {
+  animation-name: stack-in;
+}
+
+html[data-nav="pop"]::view-transition-old(phone-screen) {
+  z-index: 1;
+  animation-name: stack-out;
+}
+
+html[data-nav="pop"]::view-transition-new(phone-screen) {
+  animation-name: stack-back;
+}
+
+@keyframes stack-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes stack-out {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes stack-under {
+  to {
+    transform: translateX(-30%);
+  }
+}
+
+@keyframes stack-back {
+  from {
+    transform: translateX(-30%);
+  }
+}
+

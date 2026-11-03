@@ -11,7 +11,7 @@ The bell in the toolbar (the navigation bar on a phone) carries the core's unrea
 ## Intended behavior
 
 - The badge is the core's `counts.unread`, hidden at 0; the button is named `알림 n` (`알림` at 0).
-- The dialog `알림` opens with `안 읽음 n`, the same n as the badge, so the badge is told apart from 수신함's count. It lists every notice line; unread ones have a blue dot, read ones are dimmed. `모두 읽음` (disabled when nothing is unread) and `닫기` sit on top as accent text buttons; Escape or a click outside also closes it.
+- The dialog `알림` opens with `안 읽음 n`, the same n as the badge, so the badge is told apart from 수신함's count. It lists every notice line; unread ones have a blue dot, read ones are dimmed. `모두 읽음` (disabled when nothing is unread) and `닫기` sit on top as accent text buttons; Escape or a click outside also closes it. On a phone it opens as a bottom sheet over a dimmed screen (see [Phone](./phone.md)).
 - Choosing a notice: on screen its item opens and the badge drops by one at once; in the record that notice is read (`{keys: [key]}`).
 - `모두 읽음`: on screen the badge goes and every line dims; in the record every notice is read (`{all: true}`).
 - A refused read mark puts the lines back as they were and shows the core's line in red in the dialog.

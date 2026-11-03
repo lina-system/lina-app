@@ -66,5 +66,6 @@ Keep implementation details out of the map. Name only user paths, stable handles
 - [Owner actions](./actions.md) covers done, undo, done with open to-dos, answers and retry.
 - [Freshness](./freshness.md) covers the toolbar's freshness line and read failures.
 - [알림](./bell.md) covers the bell, its notices and their read marks.
+- [Phone](./phone.md) covers hit areas, type, press feedback, bars, sheets and the push and pop on a phone.
 - [Navigation](./phone-nav.md) covers the phone navigation stack, the wide split view and back.
 - [Install on the Home Screen](./install.md) covers the web app manifest, the icons and the service worker.

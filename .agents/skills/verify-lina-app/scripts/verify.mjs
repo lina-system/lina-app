@@ -249,6 +249,11 @@ async function openApp(page, hash, query = "") {
   await page.getByTestId("freshness-line").filter({ hasText: /^갱신 \d+초 전$/ }).waitFor({ timeout: 10_000 });
 }
 
+// On a phone a tap pushes the next screen with a slide; it is in the document once the root drops data-nav.
+async function settled(page) {
+  await page.waitForFunction(() => !document.documentElement.dataset.nav);
+}
+
 async function title(page) {
   return text(page.locator("[data-testid=screen-title]").first());
 }
@@ -298,6 +303,82 @@ async function sidebarCount(page, testid) {
   const nav = page.getByTestId(testid);
   if (!(await nav.count())) return null;
   return (await nav.getByTestId("nav-count").innerText()).trim();
+}
+
+// Phone rules (features/phone.md), measured on the page. Tappable: every a, button, input, textarea, summary and
+// every element with a role of button, link, checkbox or textbox, drawn and not hidden. Text: every visible text node.
+const HIT = 44;
+const MIN_TEXT = 13;
+
+async function phoneAudit(page) {
+  return page.evaluate(({ hit, minText }) => {
+    const drawn = (element) => {
+      const box = element.getBoundingClientRect();
+      if (box.width === 0 || box.height === 0) return null;
+      const style = getComputedStyle(element);
+      return style.visibility === "hidden" || style.display === "none" ? null : box;
+    };
+    const roleOf = (element) => element.getAttribute("role") || { A: "link", BUTTON: "button", INPUT: "textbox", TEXTAREA: "textbox", SUMMARY: "disclosure" }[element.tagName] || element.tagName.toLowerCase();
+    const nameOf = (element) => (element.getAttribute("aria-label") || element.getAttribute("placeholder") || element.textContent || "").trim().replace(/\s+/g, " ").slice(0, 60);
+    const small = [];
+    let tappable = 0;
+    for (const element of document.querySelectorAll("a, button, input, textarea, summary, [role=button], [role=link], [role=checkbox], [role=textbox]")) {
+      const box = drawn(element);
+      if (!box) continue;
+      tappable += 1;
+      if (box.width < hit - 0.5 || box.height < hit - 0.5) small.push(roleOf(element) + ' "' + nameOf(element) + '" ' + Math.round(box.width) + "x" + Math.round(box.height));
+    }
+    const tiny = [];
+    let texts = 0;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const words = node.textContent.trim();
+      if (!words || !node.parentElement || !drawn(node.parentElement)) continue;
+      texts += 1;
+      const size = parseFloat(getComputedStyle(node.parentElement).fontSize);
+      if (size < minText) tiny.push('"' + words.slice(0, 30) + '" ' + size + "px");
+    }
+    return { tappable, small, texts, tiny };
+  }, { hit: HIT, minText: MIN_TEXT });
+}
+
+async function phoneRules(page, where) {
+  const audit = await phoneAudit(page);
+  check(audit.small.length === 0, where + ": " + audit.small.length + " hit area(s) under " + HIT + "x" + HIT + ": " + audit.small.join("; "));
+  check(audit.tiny.length === 0, where + ": " + audit.tiny.length + " text(s) under " + MIN_TEXT + "px: " + audit.tiny.join("; "));
+  return where + ": " + audit.tappable + " tappable >= " + HIT + "x" + HIT + ", " + audit.texts + " texts >= " + MIN_TEXT + "px";
+}
+
+// Rows show at most two lines: the title and one status line.
+async function rowLines(page) {
+  return page.locator("[data-testid=row]:not(.is-open) .lines").evaluateAll((all) =>
+    all.flatMap((lines) => {
+      const children = [...lines.children].filter((child) => child.getBoundingClientRect().height > 0);
+      const lineHeight = (child) => parseFloat(getComputedStyle(child).lineHeight) || parseFloat(getComputedStyle(child).fontSize) * 1.35;
+      const tall = children.filter((child) => child.getBoundingClientRect().height > lineHeight(child) * 1.5 + 1);
+      return children.length > 2 || tall.length ? [lines.textContent.trim().slice(0, 40) + " (" + children.length + " lines)"] : [];
+    }),
+  );
+}
+
+// A context like the drive's, with touch, to send the touches a finger would.
+async function touchContext(page, options = {}) {
+  const { width, height } = page.viewportSize();
+  const context = await page.context().browser().newContext({ baseURL: new URL(page.url()).origin, viewport: { width, height }, deviceScaleFactor: 1, hasTouch: true, ...options });
+  return context;
+}
+
+async function swipe(page, from, to) {
+  await page.evaluate(
+    ({ from, to }) => {
+      const touch = (point) => new Touch({ identifier: 1, target: document.elementFromPoint(point.x, point.y) || document.body, clientX: point.x, clientY: point.y });
+      const send = (type, point, active) => document.elementFromPoint(from.x, from.y).dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: active ? [touch(point)] : [], changedTouches: [touch(point)] }));
+      send("touchstart", from, true);
+      for (let step = 1; step <= 6; step += 1) send("touchmove", { x: from.x + ((to.x - from.x) * step) / 6, y: from.y + ((to.y - from.y) * step) / 6 }, true);
+      send("touchend", to, false);
+    },
+    { from, to },
+  );
 }
 
 const drivers = {
@@ -372,6 +453,7 @@ const drivers = {
     await step("open 진행 중인 작업", async () => {
       await openApp(page, "#/");
       await page.getByRole("link", { name: /^진행 중인 작업/ }).click();
+      await settled(page);
       return await title(page);
     });
     await step("stopped cards come first, then running cards", async () => {
@@ -417,6 +499,7 @@ const drivers = {
     await step("open 마감일", async () => {
       await openApp(page, "#/");
       await page.getByRole("link", { name: /^마감일/ }).click();
+      await settled(page);
       return await title(page);
     });
     await step("read the groups", async () => {
@@ -447,6 +530,7 @@ const drivers = {
     await step("open 완료", async () => {
       await openApp(page, "#/");
       await page.getByRole("link", { name: /^완료/ }).first().click();
+      await settled(page);
       return await title(page);
     });
     await step("read the finished cards", async () => {
@@ -466,6 +550,7 @@ const drivers = {
       const link = page.getByRole("list", { name: "에이전트" }).getByRole("link").nth(1);
       agent = (await link.locator(".nav-label").innerText()).trim();
       await link.click();
+      await settled(page);
       return agent + " at " + new URL(page.url()).hash;
     });
     await step("the screen reads 진행 중, 검토 필요, 목표, then one done line", async () => {
@@ -511,6 +596,7 @@ const drivers = {
     await step("open 목표", async () => {
       await openApp(page, "#/");
       await page.getByRole("link", { name: /^목표/ }).click();
+      await settled(page);
       return await title(page);
     });
     await step("read the goal lines", async () => {
@@ -1006,6 +1092,120 @@ const drivers = {
     });
   },
 
+  async phone(page, step) {
+    if (page.viewportSize().width >= 900) {
+      await step("a wide window draws the split view, where the phone rules do not apply", async () => {
+        await openApp(page, "#/inbox");
+        check((await page.locator("[data-layout=wide]").count()) === 1, "no split view at " + page.viewportSize().width);
+        check((await page.locator("[data-layout=phone]").count()) === 0, "the phone stack is drawn at " + page.viewportSize().width);
+        return "split view";
+      });
+      return;
+    }
+    const screens = [
+      ["home", "#/"],
+      ["list 진행 중인 작업", "#/running"],
+      ["goal detail", "#/goals/G2"],
+      ["to-do detail", "#/items/T4"],
+      ["card detail", "#/cards/k-101"],
+    ];
+    for (const width of [390, 430]) {
+      await page.setViewportSize({ width, height: 844 });
+      for (const [where, hash] of screens) {
+        await step("at " + width + ", " + where + ": every hit area is 44x44 and every text 13px or larger", async () => {
+          await openApp(page, hash);
+          await page.locator("[data-testid=screen-title], .detail-title").first().waitFor();
+          const lines = await rowLines(page);
+          check(lines.length === 0, "rows with more than two lines: " + lines.join("; "));
+          return await phoneRules(page, where + " @" + width);
+        });
+      }
+      await step("at " + width + ", the bell opens a bottom sheet that keeps the same rules", async () => {
+        await openApp(page, "#/inbox");
+        await page.getByRole("button", { name: "알림 5" }).click();
+        const sheet = page.getByRole("dialog", { name: "알림" });
+        await sheet.waitFor();
+        await sheet.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+        const box = await sheet.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          return { left: rect.left, right: rect.right, bottom: rect.bottom, top: rect.top, width: innerWidth, height: innerHeight };
+        });
+        check(box.left === 0 && box.right === box.width, "the sheet spans " + box.left + "-" + box.right + " of " + box.width);
+        check(Math.abs(box.bottom - box.height) < 1, "the sheet ends at " + box.bottom + " of " + box.height);
+        return (await phoneRules(page, "bell sheet @" + width)) + ", sheet " + Math.round(box.top) + "-" + Math.round(box.bottom);
+      });
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await step("Escape and a tap outside close the sheet", async () => {
+      const sheet = page.getByRole("dialog", { name: "알림" });
+      await page.keyboard.press("Escape");
+      await sheet.waitFor({ state: "detached" });
+      await page.getByRole("button", { name: "알림 5" }).click();
+      await sheet.waitFor();
+      await page.mouse.click(200, 120);
+      await sheet.waitFor({ state: "detached" });
+      check(new URL(page.url()).hash === "#/inbox", "the outside tap went through to " + new URL(page.url()).hash);
+      return "closed by Escape and by a tap on the dimmed screen";
+    });
+    await step("a pressed row and a pressed button change at once; no tap flash, no zoom delay, no selection on rows", async () => {
+      await openApp(page, "#/");
+      const pressed = async (locator, property) => {
+        const box = await locator.boundingBox();
+        const rest = await locator.evaluate((element, property) => getComputedStyle(element)[property], property);
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down();
+        const down = await locator.evaluate((element, property) => ({ value: getComputedStyle(element)[property], running: element.getAnimations().length }), property);
+        await page.mouse.move(1, 1);
+        await page.mouse.up();
+        check(down.value !== rest, property + " stays " + rest + " when pressed");
+        check(down.running === 0, "the pressed state waits on a transition");
+        return rest + " -> " + down.value;
+      };
+      const row = await pressed(page.getByTestId("nav-running").getByRole("link"), "backgroundColor");
+      const bell = await pressed(page.getByRole("button", { name: "알림 5" }), "opacity");
+      const look = await page.getByTestId("nav-running").getByRole("link").evaluate((element) => {
+        const style = getComputedStyle(element);
+        return { flash: style.webkitTapHighlightColor, touch: style.touchAction, select: style.userSelect || style.webkitUserSelect, callout: style.webkitTouchCallout };
+      });
+      check(look.flash === "rgba(0, 0, 0, 0)", "tap highlight is " + look.flash);
+      check(look.touch === "manipulation", "touch-action is " + look.touch);
+      check(look.select === "none", "a row is selectable: " + look.select);
+      await openApp(page, "#/items/T4");
+      const field = await page.getByRole("textbox", { name: "댓글 달기" }).evaluate((element) => getComputedStyle(element).userSelect);
+      const body = await page.locator(".comment-text").first().evaluate((element) => getComputedStyle(element).userSelect);
+      check(field !== "none" && body !== "none", "a field or a comment is not selectable: " + field + ", " + body);
+      return "row " + row + ", bell " + bell + ", flash " + look.flash + ", " + look.touch + ", rows " + look.select + ", fields " + field + ", comments " + body;
+    });
+    await step("the bars stay put, only the screen scrolls, and the page does not rubber-band", async () => {
+      // A short window, so the to-do screen has something to scroll.
+      await page.setViewportSize({ width: 390, height: 480 });
+      await openApp(page, "#/items/T4");
+      await page.getByTestId("talk").waitFor();
+      const before = await page.evaluate(() => ({ bar: document.querySelector(".navbar").getBoundingClientRect().top, bottom: document.querySelector(".bottombar").getBoundingClientRect().bottom }));
+      const after = await page.evaluate(() => {
+        const main = document.querySelector(".phone-main");
+        main.scrollTo(0, main.scrollHeight);
+        return {
+          scrolled: main.scrollTop,
+          page: document.scrollingElement.scrollTop,
+          bar: document.querySelector(".navbar").getBoundingClientRect().top,
+          bottom: document.querySelector(".bottombar").getBoundingClientRect().bottom,
+          height: innerHeight,
+          pane: getComputedStyle(main).overscrollBehaviorY,
+          root: getComputedStyle(document.documentElement).overscrollBehaviorY,
+          overflow: getComputedStyle(document.body).overflowY,
+        };
+      });
+      check(after.scrolled > 0, "the to-do screen did not scroll");
+      check(after.page === 0, "the page scrolled by " + after.page);
+      check(after.bar === before.bar && after.bottom === before.bottom && after.bottom === after.height, "a bar moved: nav " + before.bar + "->" + after.bar + ", bottom " + before.bottom + "->" + after.bottom);
+      check(after.pane === "contain", "the screen's overscroll is " + after.pane);
+      check(after.root === "none" && after.overflow === "hidden", "the page can rubber-band: " + after.root + ", " + after.overflow);
+      await page.setViewportSize({ width: 390, height: 844 });
+      return "screen scrolled " + after.scrolled + " px, page 0, bars fixed, overscroll " + after.pane + "/" + after.root;
+    });
+  },
+
   async "phone-nav"(page, step) {
     const wide = page.viewportSize().width >= 900;
     if (wide) {
@@ -1050,16 +1250,114 @@ const drivers = {
       await page.goBack();
       await page.waitForFunction(() => location.hash === "#/running");
       check((await title(page)) === "진행 중인 작업", "back did not restore the list");
+      // A short window, so the menu has something to scroll.
+      await page.setViewportSize({ width: 390, height: 480 });
       await openApp(page, "#/");
-      await page.evaluate(() => document.querySelector(".stack").scrollTo(0, 120));
-      const before = await page.evaluate(() => document.querySelector(".stack").scrollTop);
+      await page.evaluate(() => document.querySelector(".phone-main").scrollTo(0, 120));
+      const before = await page.evaluate(() => document.querySelector(".phone-main").scrollTop);
+      check(before === 120, "the menu scrolled to " + before + ", not 120");
       await page.getByRole("link", { name: /^목표/ }).click();
       await page.waitForFunction(() => location.hash === "#/goals");
       await page.goBack();
       await page.waitForFunction(() => location.hash === "#/");
-      const after = await page.evaluate(() => document.querySelector(".stack").scrollTop);
+      const after = await page.evaluate(() => document.querySelector(".phone-main").scrollTop);
       check(after === before, "scroll " + after + " after back, " + before + " before");
+      await page.setViewportSize({ width: 390, height: 844 });
       return "scroll kept at " + after;
+    });
+    await step("a push slides in from the right, a pop slides out, and back draws no frame without its scroll", async () => {
+      await page.setViewportSize({ width: 390, height: 480 });
+      await openApp(page, "#/");
+      await page.evaluate(() => document.querySelector(".phone-main").scrollTo(0, 120));
+      check((await page.evaluate(() => document.querySelector(".phone-main").scrollTop)) === 120, "the menu does not scroll to 120");
+      await page.evaluate(() => {
+        window.__nav = [];
+        window.__frames = [];
+        new MutationObserver(() => window.__nav.push(document.documentElement.dataset.nav ?? "")).observe(document.documentElement, { attributes: true, attributeFilter: ["data-nav"] });
+        const frame = () => {
+          const main = document.querySelector(".phone-main");
+          window.__frames.push({ hash: location.hash, title: document.querySelector("[data-testid=screen-title]")?.textContent ?? "", scroll: main ? main.scrollTop : -1, rows: main ? main.querySelectorAll("a").length : 0 });
+          requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+      });
+      await page.getByRole("link", { name: /^목표/ }).click();
+      await page.waitForFunction(() => location.hash === "#/goals" && !document.documentElement.dataset.nav);
+      await page.getByTestId("back").click();
+      await page.waitForFunction(() => location.hash === "#/" && !document.documentElement.dataset.nav);
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      const { nav, frames } = await page.evaluate(() => ({ nav: window.__nav, frames: window.__frames }));
+      check(nav.includes("push") && nav.includes("pop"), "the stack set " + JSON.stringify(nav) + ", not a push and a pop");
+      const menu = frames.filter((frame, index) => frame.title === "LINA" && frames.slice(0, index).some((seen) => seen.hash === "#/goals"));
+      check(menu.length > 0, "no frame of the menu after back");
+      const off = menu.filter((frame) => frame.scroll !== 120 || frame.rows === 0);
+      check(off.length === 0, off.length + " frame(s) of the menu after back without its scroll or rows: " + JSON.stringify(off[0]));
+      await page.setViewportSize({ width: 390, height: 844 });
+      return "directions " + nav.filter(Boolean).join(", ") + "; " + menu.length + " menu frames after back, all at scroll 120";
+    });
+    await step("under reduced motion the screens swap at once", async () => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await openApp(page, "#/");
+      await page.evaluate(() => {
+        window.__nav = [];
+        new MutationObserver(() => window.__nav.push(document.documentElement.dataset.nav ?? "")).observe(document.documentElement, { attributes: true, attributeFilter: ["data-nav"] });
+      });
+      await page.getByRole("link", { name: /^목표/ }).click();
+      await page.waitForFunction(() => location.hash === "#/goals");
+      const nav = await page.evaluate(() => window.__nav);
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      check(nav.length === 0, "a slide ran under reduced motion: " + JSON.stringify(nav));
+      return "no slide";
+    });
+    await step("in the installed app a swipe from the left edge goes back; not in a tab, not vertical, not on the menu", async () => {
+      const tab = await touchContext(page);
+      const app = await touchContext(page);
+      const countBacks = () => {
+        window.__backs = 0;
+        const back = history.back.bind(history);
+        history.back = () => {
+          window.__backs += 1;
+          back();
+        };
+      };
+      await tab.addInitScript(countBacks);
+      await app.addInitScript(countBacks);
+      await app.addInitScript(() => Object.defineProperty(navigator, "standalone", { value: true }));
+      try {
+        const results = [];
+        const tryIt = async (context, hash, from, to) => {
+          const touchPage = await context.newPage();
+          await openApp(touchPage, hash);
+          await swipe(touchPage, from, to);
+          // The swipe goes back inside touchend, so a swipe that went back has called history.back by now.
+          const backs = await touchPage.evaluate(() => window.__backs);
+          const after = new URL(touchPage.url()).hash;
+          await touchPage.close();
+          return backs ? "back" : after;
+        };
+        await (async () => {
+          const touchPage = await app.newPage();
+          await openApp(touchPage, "#/");
+          await touchPage.getByRole("link", { name: /^진행 중인 작업/ }).click();
+          // A person swipes once the push has slid in.
+          await touchPage.waitForFunction(() => location.hash === "#/running" && !document.documentElement.dataset.nav);
+          await swipe(touchPage, { x: 6, y: 400 }, { x: 200, y: 410 });
+          await touchPage.waitForFunction(() => location.hash === "#/", null, { timeout: 5_000 }).catch(() => null);
+          results.push(["installed, edge to the right", new URL(touchPage.url()).hash, "#/"]);
+          await touchPage.close();
+        })();
+        results.push(["installed, from the middle", await tryIt(app, "#/running", { x: 120, y: 400 }, { x: 320, y: 410 }), "#/running"]);
+        results.push(["installed, mostly vertical", await tryIt(app, "#/running", { x: 6, y: 300 }, { x: 60, y: 600 }), "#/running"]);
+        results.push(["installed, short", await tryIt(app, "#/running", { x: 6, y: 400 }, { x: 50, y: 400 }), "#/running"]);
+        results.push(["installed, on the menu", await tryIt(app, "#/", { x: 6, y: 400 }, { x: 200, y: 400 }), "#/"]);
+        results.push(["browser tab, edge to the right", await tryIt(tab, "#/running", { x: 6, y: 400 }, { x: 200, y: 410 }), "#/running"]);
+        const wrong = results.filter(([, got, want]) => got !== want);
+        check(wrong.length === 0, wrong.map(([what, got, want]) => what + " ended on " + got + ", not " + want).join("; "));
+        return results.map(([what, got]) => what + " -> " + got).join("; ");
+      } finally {
+        await tab.close();
+        await app.close();
+      }
     });
     await step("the bars keep clear of the status bar and the home indicator", async () => {
       // Headless Chromium has no notch, so the driver sets the safe-area tokens the page reads from env().

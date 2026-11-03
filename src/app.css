@@ -436,6 +436,78 @@ button:disabled {
   margin-top: 20px;
 }
 
+/* 완료's agent filter: one choice per agent, the count beside its name. */
+.filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.filter .choice[aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.filter .count {
+  color: inherit;
+  opacity: 0.7;
+}
+
+.agent-latest,
+.agent-latest-line {
+  color: var(--label-2);
+  font-size: var(--text-small);
+}
+
+.agent-latest-line:empty {
+  display: none;
+}
+
+/* A running card's to-dos: a thin bar and the count, after the lines on a wide window and in the detail head. */
+.progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  color: var(--label-2);
+  font-size: var(--text-small);
+}
+
+.progress-bar {
+  width: 48px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--fill);
+  overflow: hidden;
+}
+
+.progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+/* A comment that would show a path, a command or a fragment: one folded line, its text only on demand. */
+.comment-fold > summary {
+  min-height: var(--hit, 28px);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.comment-raw {
+  margin: 4px 0 0;
+  color: var(--label-2);
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+
+/* A round whose start is not on record: one dim line. */
+.round.is-no-start .round-head {
+  font-weight: 400;
+}
+
 /* A work card's worker runs, one block per follow-up round, newest first. */
 .round + .round,
 .round + .rows {

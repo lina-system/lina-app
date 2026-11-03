@@ -690,7 +690,8 @@ const drivers = {
       const names = await rowNames(page.getByRole("list", { name: "진행 중인 작업" }));
       check(names.length === 3, "expected 3 cards, got " + names.length);
       check(names[0].endsWith("중단됨 · 응답 없음"), "the first card is not stopped: " + names[0]);
-      check(names.slice(1).every((name) => name.endsWith("진행 중")), "the rest are not running: " + names.join(" | "));
+      // A running card's name ends with its state, then on a wide window its to-do count (할 일 n/m).
+      check(names.slice(1).every((name) => / · 진행 중( · 할 일 \d+\/\d+)?$/.test(name)), "the rest are not running: " + names.join(" | "));
       check(!names.some((name) => name.includes("실패 화면 검토")), "a waiting card is in the list");
       const grey = await sidebarCount(page, "nav-running");
       if (grey !== null) {
@@ -1343,6 +1344,8 @@ const drivers = {
       ["card detail", "#/cards/k-101"],
       ["card with no checked lines", "#/cards/k-102"],
       ["worker run outside a card", "#/runs/r7"],
+      ["card with folded comments", "#/cards/k-103"],
+      ["완료 filtered to one agent", "#/done?agent=ag-1"],
     ];
     for (const width of [390, 430]) {
       await page.setViewportSize({ width, height: 844 });
@@ -1848,6 +1851,59 @@ const drivers = {
       const dim = await detail.getByTestId("round").locator("li.row").evaluateAll((rows) => rows.every((row) => row.classList.contains("is-dim")));
       check(dim, "a worker run is not dimmed");
       return heads.join(", ") + "; " + rounds.join(" | ");
+    });
+    await step("a comment with a path, a hash or a cut-off fragment is one folded entry; it opens on demand", async () => {
+      await openApp(page, "#/cards/k-103");
+      const comments = page.getByTestId("comment");
+      const folded = await comments.evaluateAll((items) => items.map((item) => item.getAttribute("data-folded")));
+      check(JSON.stringify(folded) === JSON.stringify([null, "hash", "fragment"]), "the comments fold as " + JSON.stringify(folded));
+      const text = await page.getByTestId("screen-card").innerText();
+      check(!text.includes("errors.json") && !text.includes("3f2a1c9"), "a folded comment shows its text closed");
+      const label = (await comments.nth(1).locator("summary").innerText()).trim();
+      check(/^접힌 댓글 · \S+ · \d+(분|시간) 전$/.test(label), "the folded entry reads " + label);
+      await comments.nth(1).locator("summary").click();
+      const raw = (await comments.nth(1).locator(".comment-raw").innerText()).trim();
+      check(raw.includes("errors.json"), "the opened entry reads " + raw);
+      return label + "; opened: " + raw;
+    });
+    await step("a round with no start on record is one dim line when it holds content; an end alone shows nothing", async () => {
+      const heads = await page.getByTestId("round").locator(".round-head").allInnerTexts();
+      check(heads.length === 2 && heads[0].startsWith("라운드 3 · ") && heads[1] === "라운드 1 · 시작 기록 없음", "the rounds read " + JSON.stringify(heads));
+      const weight = await page.getByTestId("round").nth(1).locator(".round-head").evaluate((head) => getComputedStyle(head).fontWeight);
+      check(weight === "400", "the no-start line has weight " + weight);
+      return heads.join(" | ");
+    });
+    await step("완료's agent filter is the address and survives a reload; each count is its list; latest activity agrees", async () => {
+      await openApp(page, "#/done");
+      const choice = page.getByTestId("done-filter").getByRole("button").nth(1);
+      const name = (await choice.getAttribute("aria-label")) ?? "";
+      await choice.click();
+      await page.waitForFunction(() => location.hash.startsWith("#/done?agent="));
+      const hash = new URL(page.url()).hash;
+      await page.reload();
+      await page.getByTestId("freshness-line").filter({ hasText: /^실시간$/ }).waitFor({ timeout: 10_000 });
+      check(new URL(page.url()).hash === hash, "the reload lost the filter: " + new URL(page.url()).hash);
+      const pressed = (await page.getByTestId("done-filter").locator('[aria-pressed="true"]').getAttribute("aria-label")) ?? "";
+      check(pressed === name, "after the reload the filter is " + pressed + ", not " + name);
+      const rows = await page.getByTestId("screen-done").getByRole("list", { name: "완료", exact: true }).locator(":scope > li").count();
+      check(name.endsWith(" " + rows), "the choice " + name + " lists " + rows);
+      const doneLatest = (await page.getByTestId("done-latest").innerText()).trim();
+      const agent = new URLSearchParams(hash.split("?")[1]).get("agent");
+      await openApp(page, "#/agents/" + agent);
+      const agentLatest = (await page.getByTestId("agent-latest").innerText()).trim();
+      check(doneLatest === agentLatest, "완료 says " + doneLatest + ", the agent screen " + agentLatest);
+      const stored = await page.evaluate(() => Object.keys(localStorage).length + Object.keys(sessionStorage).length);
+      check(stored === 0, "the page keeps " + stored + " keys in web storage");
+      return hash + ": " + name + "; " + doneLatest;
+    });
+    await step("a running card's to-dos: a thin bar and the count on a wide window, in the detail only on a phone", async () => {
+      await openApp(page, "#/running");
+      const bars = await page.getByTestId("screen-running").getByTestId("progress").evaluateAll((items) => items.map((item) => item.getAttribute("aria-label")));
+      check(JSON.stringify(bars) === JSON.stringify(wide ? ["할 일 1/3", "할 일 0/1"] : []), "the home's bars read " + JSON.stringify(bars));
+      await openApp(page, "#/cards/k-101");
+      const head = await page.locator(".detail-head [data-testid=progress]").getAttribute("aria-label");
+      check(head === "할 일 1/3", "the detail head's bar reads " + head);
+      return (wide ? bars.join(", ") : "no bar on the phone home") + "; detail " + head;
     });
     await step("a stopped writer: one 요약 멈춤 line beside the freshness line", async () => {
       await openApp(page, "#/running", "&writer=stopped");

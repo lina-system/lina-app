@@ -1,8 +1,8 @@
 import type { ComponentChildren } from "preact";
 import type { Machine, QuotaAccount, QuotaService } from "../api/client";
 import type { CardRow, DueRow, GoalRow, InboxRow } from "../model";
-import { agentView } from "../model";
-import { href } from "../router";
+import { agentView, doneFor } from "../model";
+import { href, navigate } from "../router";
 import { ago, dayLabel, until } from "../time";
 import { useEffect, useState } from "preact/hooks";
 import { KoreanInput } from "../korean-input";
@@ -214,16 +214,51 @@ export function DueScreen() {
   );
 }
 
-export function DoneScreen() {
+/** An agent's latest activity, read from agentView: the agent screen and the filtered 완료 draw this same line. */
+function LatestLine({ agentId, testid }: { agentId: string; testid: string }) {
+  const { model, now } = useApp();
+  const latest = agentView(model, agentId)?.latest ?? null;
+  if (latest === null) return null;
+  return (
+    <span class="agent-latest" data-testid={testid}>
+      {W.latest(ago(now - latest))}
+    </span>
+  );
+}
+
+/**
+ * 완료, for every agent or one. The filter is the address (`#/done?agent=<id>`), so it survives a reload and every
+ * live update; each choice's count is the length of the list it shows.
+ */
+export function DoneScreen({ agent }: { agent?: string }) {
   const { model } = useApp();
   if (!model.counts.done) return <Empty />;
+  const shown = doneFor(model, agent);
+  const choose = (id?: string) => navigate(id ? { name: "done", agent: id } : { name: "done" }, { replace: true, direction: "none" });
+  const choices = [{ id: undefined as string | undefined, name: W.allAgents }, ...model.agents.map((each) => ({ id: each.id as string | undefined, name: each.name }))];
   return (
     <div class="list" data-testid="screen-done">
-      <ul class="rows" aria-label={W.done}>
-        {model.done.map((card) => (
-          <CardRowView key={card.key} card={card} />
-        ))}
-      </ul>
+      <div class="filter" role="group" aria-label={W.agents} data-testid="done-filter">
+        {choices.map((choice) => {
+          const count = doneFor(model, choice.id).length;
+          return (
+            <button key={choice.id ?? "all"} type="button" class="choice" aria-pressed={choice.id === agent} aria-label={`${choice.name} ${count}`} onClick={() => choose(choice.id)}>
+              {choice.name}
+              <span class="count">{count}</span>
+            </button>
+          );
+        })}
+      </div>
+      {agent ? <LatestLine agentId={agent} testid="done-latest" /> : null}
+      {shown.length ? (
+        <ul class="rows" aria-label={W.done}>
+          {shown.map((card) => (
+            <CardRowView key={card.key} card={card} />
+          ))}
+        </ul>
+      ) : (
+        <Empty />
+      )}
     </div>
   );
 }
@@ -281,6 +316,9 @@ export function AgentScreen({ id }: { id: string }) {
             {section.title} <CountPair count={section.count} stopped={section.stopped} showZero />
           </span>
         ))}
+      </p>
+      <p class="agent-latest-line">
+        <LatestLine agentId={id} testid="agent-latest" />
       </p>
       <ListSection section={view.running} render={(card) => <CardRowView key={card.key} card={card} />} />
       <ListSection section={view.review} render={(card) => <CardRowView key={card.key} card={card} />} />

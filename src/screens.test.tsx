@@ -1104,3 +1104,82 @@ describe("work cards", () => {
     }
   });
 });
+
+describe("work cards, round 4", () => {
+  beforeEach(() => setWide(true));
+
+  test("a comment that would show a path, a hash or a cut-off fragment is one folded entry; its text opens on demand", async () => {
+    const view = await open("#/cards/k-103", { wide: true });
+    const comments = view.getAllByTestId("comment");
+    expect(comments.map((comment) => comment.getAttribute("data-folded"))).toEqual([null, "hash", "fragment"]);
+    expect(comments[0].querySelector(".comment-text")?.textContent).toBe("오류 문구 초안을 공유했어요.");
+    expect(comments[1].querySelector("summary")?.textContent).toMatch(/^접힌 댓글 · \S+ · \d+(분|시간) 전$/);
+    expect(screenText(view.container)).not.toContain("errors.json");
+    const fold = comments[1].querySelector("details") as HTMLDetailsElement;
+    fold.open = true;
+    fireEvent(fold, new Event("toggle"));
+    await waitFor(() => expect(comments[1].querySelector(".comment-raw")?.textContent).toContain("errors.json"));
+  });
+
+  test("완료's agent filter is the address: it survives a reload and a live update, and each count is its list", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const core = new SyntheticSource();
+      const view = await open("#/done?agent=ag-1", { wide: true, source: core });
+      const listed = () => [...view.getByTestId("screen-done").querySelectorAll('[aria-label="완료"] > li > a')].map((link) => link.getAttribute("href"));
+      expect(listed()).toEqual(["#/runs/r7", "#/runs/r8"]);
+      const choices = within(view.getByTestId("done-filter")).getAllByRole("button");
+      expect(choices.find((button) => button.getAttribute("aria-pressed") === "true")?.getAttribute("aria-label")).toMatch(/ 2$/);
+      for (const button of choices) {
+        const id = button.getAttribute("aria-label")?.startsWith("전체") ? "" : null;
+        if (id === "") expect(button.getAttribute("aria-label")).toBe(`전체 ${SCENE_COUNTS.done}`);
+      }
+      const otherDevice = new Store(new SyntheticSource({ scene: core.scene }));
+      await otherDevice.write((source) => source.comment("T4", { text: "확인 부탁해요" }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(STREAM_TICK_MS * 3);
+      });
+      expect(window.location.hash).toBe("#/done?agent=ag-1");
+      expect(listed()).toEqual(["#/runs/r7", "#/runs/r8"]);
+      view.unmount();
+      const reloaded = await open("#/done?agent=ag-1", { wide: true, source: new SyntheticSource({ scene: core.scene }) });
+      expect([...reloaded.getByTestId("screen-done").querySelectorAll('[aria-label="완료"] > li > a')]).toHaveLength(2);
+      fireEvent.click(within(reloaded.getByTestId("done-filter")).getByRole("button", { name: /^전체/ }));
+      await waitFor(() => expect(window.location.hash).toBe("#/done"));
+      expect(window.localStorage.length + window.sessionStorage.length).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("an agent's latest activity reads the same on its screen and on its 완료", async () => {
+    const agentScreen = await open("#/agents/ag-2", { wide: true });
+    const onAgent = agentScreen.getByTestId("agent-latest").textContent;
+    agentScreen.unmount();
+    const done = await open("#/done?agent=ag-2", { wide: true });
+    expect(onAgent).toMatch(/^최근 활동 /);
+    expect(done.getByTestId("done-latest").textContent).toBe(onAgent);
+  });
+
+  test("a running card with to-dos shows a thin bar and its count on a wide window; on a phone only in its detail", async () => {
+    const wide = await open("#/running", { wide: true });
+    const row = wide.container.querySelector('li:has(> a[href="#/cards/k-101"])') as HTMLElement;
+    expect(within(row).getByTestId("progress").getAttribute("aria-label")).toBe("할 일 1/3");
+    expect(row.querySelector(".progress-count")?.textContent).toBe("1/3");
+    expect(wide.container.querySelector('li:has(> a[href="#/runs/r7"]) [data-testid=progress]')).toBeNull();
+    wide.unmount();
+    const phone = await open("#/running", { wide: false });
+    expect(phone.container.querySelectorAll("[data-testid=progress]")).toHaveLength(0);
+    phone.unmount();
+    const detail = await open("#/cards/k-101", { wide: false });
+    expect(detail.container.querySelector(".detail-head [data-testid=progress]")?.getAttribute("aria-label")).toBe("할 일 1/3");
+  });
+
+  test("a round with no start on record shows one dim line when it holds content; an end receipt alone shows nothing", async () => {
+    const view = await open("#/cards/k-103", { wide: true });
+    const heads = view.getAllByTestId("round").map((round) => round.querySelector(".round-head")?.textContent);
+    expect(heads).toEqual([expect.stringMatching(/^라운드 3 · /), "라운드 1 · 시작 기록 없음"]);
+    expect(view.getAllByTestId("round")[1].classList.contains("is-no-start")).toBe(true);
+    expect(view.getAllByTestId("round")[1].querySelector("li")).toBeNull();
+  });
+});

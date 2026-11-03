@@ -191,7 +191,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
   const runCards: RunCard[] = [
     { id: "r1", title: "release-notes: collect merged PRs (round 3)", state: "in_progress", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[0], startedAt: now - 12 * MIN, endedAt: null, now: "grouping merged PRs by feature in CHANGES.md", plain: plain("변경 목록 모으기", "병합된 변경을 기능별로 묶는 중") },
     { id: "r2", title: "card-form.tsx polish", state: "in_progress", reason: null, agent: agentId(1), kind: "ulw", todo: "T4", host: machines[1], startedAt: now - 2 * HOUR, endedAt: null, now: "editing src/payment/card-form.tsx", plain: NO_LINES },
-    { id: "r3", title: "error-copy.json rewrite", state: "stopped", reason: "unresponsive", agent: agentId(1), kind: "ulw", todo: "T5", host: machines[2], startedAt: now - 3 * HOUR, endedAt: null, now: null, plain: plain("오류 문구 바꾸기") },
+    { id: "r3", title: "error-copy.json rewrite", state: "stopped", reason: "unresponsive", agent: agentId(1), kind: "ulw", todo: "T5", host: machines[2], startedAt: now - 58 * MIN, endedAt: null, now: null, plain: plain("오류 문구 바꾸기") },
     { id: "r4", title: "payment failure screen review", state: "waiting", reason: "review", agent: agentId(1), kind: "research", todo: "T6", host: machines[0], startedAt: now - 4 * HOUR, endedAt: now - 3 * HOUR, now: null, plain: plain("결제 실패 화면 검토", null, "실패 화면 세 곳의 문구와 버튼을 비교함") },
     { id: "r5", title: "backup log audit", state: "done", reason: null, agent: agentId(2), kind: "ulw", todo: "T7", host: machines[1], startedAt: now - 2 * HOUR - 9 * MIN, endedAt: now - 2 * HOUR, now: null, plain: plain("백업 기록 살펴보기", null, "지난 한 달 백업이 모두 끝까지 돌았음") },
     { id: "r6", title: "index-structure benchmark v2", state: "waiting", reason: "review", agent: agentId(1), kind: "research", todo: "T11", host: machines[0], startedAt: now - 6 * HOUR, endedAt: now - 5 * HOUR, now: null, plain: plain("색인 구조 다시 비교", null, "새 색인이 느린 질의에서 두 배 빠름") },
@@ -209,8 +209,14 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     { id: "k-104", goal: "kg-2", agent: 1, title: "payment failure review", state: "waiting", reason: "review", elapsed: 3 * HOUR, now: null, plain: plain("결제: 실패 화면 검토", null, "실패 화면 세 곳의 문구와 버튼을 비교함"), todos: [["T6", false]], runs: ["r4"], lastBeat: now - 3 * HOUR },
     { id: "k-105", goal: "kg-3", agent: 2, title: "backup log audit", state: "done", reason: null, elapsed: 9 * MIN, now: null, plain: plain("백업: 지난 기록 살펴보기", null, "지난 한 달 백업이 모두 끝까지 돌았음"), todos: [["T7", true]], runs: ["r5"], lastBeat: now - 2 * HOUR },
   ] as const;
-  // k-101's rounds: each one's own start and end; the worker run of a round started inside it.
+  // k-101's rounds: each one's own start and end; the worker run of a round started inside it. k-103's first two
+  // rounds started before the kept history (start 0): the first left a line, the second only its end receipt.
   const rounds: Record<string, WorkCardDetail["runs"]> = {
+    "k-103": [
+      { id: 1, profile: null, status: "done", outcome: "completed", startedAt: 0, endedAt: now - 2 * HOUR, lastHeartbeatAt: now - 2 * HOUR, summary: "오류 문구 초안을 남김", live: false },
+      { id: 2, profile: null, status: "done", outcome: "completed", startedAt: 0, endedAt: now - 90 * MIN, lastHeartbeatAt: now - 90 * MIN, summary: null, live: false },
+      { id: 3, profile: null, status: "blocked", outcome: null, startedAt: now - HOUR, endedAt: null, lastHeartbeatAt: now - 52 * MIN, summary: null, live: false },
+    ],
     "k-101": [
       { id: 1, profile: null, status: "done", outcome: "completed", startedAt: now - 3 * HOUR - MIN, endedAt: now - 2 * HOUR - 38 * MIN, lastHeartbeatAt: now - 2 * HOUR - 38 * MIN, summary: null, live: false },
       { id: 2, profile: null, status: "done", outcome: "completed", startedAt: now - HOUR - MIN, endedAt: now - 38 * MIN, lastHeartbeatAt: now - 38 * MIN, summary: null, live: false },
@@ -239,7 +245,13 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       }),
       gates: [],
       comments:
-        card.id === "k-101"
+        card.id === "k-103"
+          ? [
+              { id: 3, author: agentId(1), body: "오류 문구 초안을 공유했어요.", createdAt: now - 70 * MIN },
+              { id: 4, author: agentId(1), body: "copy/errors.json 키 12개를 바꿈 (3f2a1c9)", createdAt: now - 60 * MIN },
+              { id: 5, author: agentId(1), body: "결제 실패 문구를 새 문체로 바꾸는 중인데 카드사별로…", createdAt: now - 55 * MIN },
+            ]
+          : card.id === "k-101"
           ? [
               { id: 1, author: agentId(0), body: "지난 릴리스 이후 병합된 변경부터 모읍니다.", createdAt: now - 11 * MIN },
               { id: 2, author: OWNER.id, body: "문서만 바뀐 변경은 따로 묶어 주세요.", createdAt: now - 6 * MIN },

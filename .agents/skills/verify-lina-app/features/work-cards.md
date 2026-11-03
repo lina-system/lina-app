@@ -17,6 +17,10 @@ Each piece of work is one card: a work card (a kanban sub-card an agent runs a s
 - When the writer of the checked lines has stopped, the freshness line adds one orange `· 요약 멈춤`.
 - Every count equals its list: the sidebar's `진행 중인 작업` grey and red numbers are the running list, `완료` is the two finished sections, and each section head is its rows.
 - A card's detail: its kind icon and word, its title and state line; then `지금` (`plain.now`), `끝난 것` (`plain.result` and its finished to-dos), `다음` (its first open to-do), `할 일` (the to-dos it owns), `실행` (its worker runs, dimmed, grouped by follow-up round, newest round first, each round with its own start and end time) and its comments.
+- A running card with to-dos shows a thin bar and its count (`1/3`) after its lines on a wide window; on a phone the bar is in its detail head only.
+- A comment on a card shows its sentence with author and time. One that would show a path, a command, a hash, an issue number, an address or a cut-off fragment is one folded entry, `접힌 댓글 · <author> · <time>`; its text opens only when chosen.
+- A round whose start fell out of the kept history shows one dim line, `라운드 n · 시작 기록 없음`, only when it holds content (a line it said, or a worker run); a round with only its end on record shows nothing.
+- 완료's agent filter is the address (`#/done?agent=<id>`): it survives a reload and every live update, nothing goes to web storage, each choice's count is the list it shows, and the filtered list's `최근 활동 <time>` reads the same as on the agent's screen.
 - A card's checked lines change in place when its kanban event arrives: only the card list and that card's detail are read again (live.md).
 
 ## Sub-features
@@ -27,6 +31,10 @@ Each piece of work is one card: a work card (a kanban sub-card an agent runs a s
 - `cards-writer` says 요약 멈춤 when the writer stopped
 - `cards-counts` makes every count equal its list
 - `cards-detail` shows now, done so far, next, to-dos and worker runs by round
+- `cards-progress` draws a running card's to-dos as a bar and a count
+- `cards-folded` folds a comment that would show a path, a command or a fragment
+- `cards-no-start` draws a round with no start on record as one dim line, only with content
+- `cards-done-filter` keeps 완료's agent filter in the address
 
 ## How to get to it (user POV)
 
@@ -46,6 +54,10 @@ Preconditions:
 - **One card per run.** `릴리스 노트: 변경 목록 정리` shows once and r9, r10 not at all; `가이드 초안 다듬기` shows twice, to `#/runs/r7` and `#/runs/r8`.
 - **Checked lines.** No raw title or live line (`grouping merged PRs`, `payment card-form polish`, `guide-draft.md`) is on the home; `변경 목록을 기능별로 묶는 중` shows at 1280 only. The k-102 card has no title and reads `진행 중`; its detail has no title, the kind `코드` and no `지금`.
 - **Detail.** `#/cards/k-101` shows `지금`, `끝난 것`, `다음`, `할 일`, `실행`, `댓글`; its rounds read `라운드 3 · <hh:mm> · 진행 중`, `라운드 2 · <hh:mm>–<hh:mm>`, `라운드 1 · …`, every worker run dimmed.
+- **Folded comments.** `#/cards/k-103` has three comments: the first reads as written; the second (a file and a hash) and the third (cut off) read `접힌 댓글 · …`, and the page shows neither `errors.json` nor `3f2a1c9` until the second is opened.
+- **No start on record.** `#/cards/k-103` shows `라운드 3 · …` and `라운드 1 · 시작 기록 없음` (regular weight); round 2, which kept only its end, is not drawn.
+- **완료 filter.** On `#/done` choose the first agent: the address becomes `#/done?agent=<id>`, a reload keeps it pressed, its count equals its rows, `최근 활동` equals the agent screen's, and web storage stays empty.
+- **To-do bar.** At 1280 the home's running cards read `할 일 1/3` and `할 일 0/1`; at 390 there is none on the home. `#/cards/k-101`'s head reads `할 일 1/3` at both widths.
 - **Writer stopped.** `#/running&writer=stopped` shows one `· 요약 멈춤`; at 390 the phone measurements hold.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/work-cards/work-cards-1280.{png,aria.yml,json}` and `work-cards-390.{png,aria.yml,json}`.
 
@@ -53,7 +65,7 @@ Preconditions:
 
 - Round times are clock times of the scene's own `now`; match their shape, not their digits.
 - A card's update in place from its kanban event is driven in the unit tests (`src/screens.test.tsx`, work cards): the synthetic page has no hand that writes checked lines on its own.
-- The `phone` driver measures `#/cards/k-102` and `#/runs/r7` with the other phone screens.
+- The `phone` driver measures `#/cards/k-102`, `#/runs/r7`, `#/cards/k-103` and `#/done?agent=ag-1` with the other phone screens.
 
 ## Not goals
 

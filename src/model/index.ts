@@ -78,6 +78,8 @@ export interface CardRow {
   readonly now: string | null;
   /** The checked result line of a finished card. */
   readonly result: string | null;
+  /** A work card's to-dos done and in all; null when it has none (a worker run has none). */
+  readonly progress: { readonly done: number; readonly total: number } | null;
   /** The work record to-do the card's runs take on: retry goes there; null for a card with none. */
   readonly todo: string | null;
 }
@@ -126,6 +128,8 @@ export interface GoalRow {
 
 export interface AgentView {
   readonly agent: Agent;
+  /** The latest moment any of the agent's cards moved (latestActivity), the same everywhere it shows. */
+  readonly latest: number | null;
   readonly running: Section<CardRow>;
   readonly review: Section<CardRow>;
   readonly goals: Section<GoalRow>;
@@ -225,6 +229,7 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
     totalSeconds: card.state === "done" ? card.elapsedSeconds : null,
     now: card.plain.now,
     result: card.plain.result,
+    progress: card.todoProgress.total > 0 ? { done: card.todoProgress.done, total: card.todoProgress.total } : null,
     todo: (detail?.workerRuns ?? []).map((worker) => runCards.get(worker.id)?.todo).find((todo): todo is string => Boolean(todo)) ?? null,
   };
 }
@@ -246,6 +251,7 @@ export function runRow(run: RunCard): CardRow {
     totalSeconds: run.state === "done" && run.endedAt !== null && run.startedAt !== null ? run.endedAt - run.startedAt : null,
     now: run.plain.now,
     result: run.plain.result,
+    progress: null,
     todo: run.todo,
   };
 }
@@ -447,6 +453,16 @@ export function buildModel(input: ModelInput, now: number): Model {
   };
 }
 
+/** The latest moment one of these cards moved: started, changed state or ended. The one definition every view uses. */
+export function latestActivity(cards: Iterable<CardRow>): number | null {
+  return maxOf([...cards].flatMap((card) => [card.startedAt, card.stateAt, card.endedAt]));
+}
+
+/** 완료, for every agent or for one; the filter's counts and the list are this one list. */
+export function doneFor(model: Model, agentId?: string): readonly CardRow[] {
+  return agentId ? model.done.filter((card) => card.agent === agentId) : model.done;
+}
+
 export function agentView(model: Model, agentId: string): AgentView | null {
   const agent = model.agents.find((candidate) => candidate.id === agentId);
   if (!agent) return null;
@@ -458,6 +474,7 @@ export function agentView(model: Model, agentId: string): AgentView | null {
   const doneToday = model.done.filter((card) => card.agent === agentId && card.endedAt !== null && localDay(card.endedAt) === model.today);
   return {
     agent,
+    latest: latestActivity(mine),
     running: section("running", W.agentRunning, running),
     review: section("review", W.agentReview, review),
     goals: section("goals", W.agentGoals, goals),

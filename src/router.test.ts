@@ -1,12 +1,21 @@
 import { act, cleanup, render } from "@testing-library/preact";
 import { h } from "preact";
 import { afterEach, describe, expect, test } from "vitest";
-import { back, directionOf, navigate, onSaveScroll, onStackMotion, useNav, type Direction } from "./router";
+import { back, directionOf, href, navigate, onSaveScroll, onStackMotion, parse, useNav, type Direction } from "./router";
 
 // Preact runs a passive effect's cleanup after paint; unmounting inside act flushes it before the test ends, so no
 // timer outlives the test environment (and no old listener sees the next test's history).
 afterEach(async () => {
   await act(async () => cleanup());
+});
+
+describe("the 완료 filter lives in the address", () => {
+  test("#/done?agent=<id> reads back as the same filter and writes the same address", () => {
+    expect(parse("#/done?agent=ag-1")).toEqual({ name: "done", agent: "ag-1" });
+    expect(href({ name: "done", agent: "ag-1" })).toBe("#/done?agent=ag-1");
+    expect(parse("#/done")).toEqual({ name: "done" });
+    expect(href({ name: "done" })).toBe("#/done");
+  });
 });
 
 describe("stack direction", () => {

@@ -44,6 +44,20 @@ export function AgentMark({ id }: { id: string | null | undefined }) {
   );
 }
 
+/** A running card's to-dos as a thin bar and their count (▮▮▮▯▯ 3/5); the number is the text, the bar its picture. */
+export function Progress({ done, total }: { done: number; total: number }) {
+  return (
+    <span class="progress" data-testid="progress" aria-label={W.todoProgress(done, total)}>
+      <span class="progress-bar" aria-hidden="true">
+        <span class="progress-fill" style={{ width: `${Math.round((100 * Math.min(done, total)) / total)}%` }} />
+      </span>
+      <span class="progress-count" aria-hidden="true">
+        {W.progress(done, total)}
+      </span>
+    </span>
+  );
+}
+
 /** A work card's kind: its icon, and the kind word beside it in a detail head. */
 export function KindMark({ work, word = false }: { work: CardKind; word?: boolean }) {
   return (
@@ -95,7 +109,8 @@ export function StateTime({ state, reason, time }: { state: WorkState; reason?: 
 export function CardRowView({ card, dim = false, kindIcon = true, action, error }: { card: CardRow; dim?: boolean; kindIcon?: boolean; action?: ComponentChildren; error?: string }) {
   const { model, now, wide, selected } = useApp();
   const time = cardTime(card, now);
-  const label = [agentName(model, card.agent), card.title, stateLabel(card.state, card.reason)].filter(Boolean).join(SEP);
+  const progress = wide && card.state === "in_progress" && card.progress ? card.progress : null;
+  const label = [agentName(model, card.agent), card.title, stateLabel(card.state, card.reason), progress ? W.todoProgress(progress.done, progress.total) : ""].filter(Boolean).join(SEP);
   return (
     <li class={`row card-row${card.state === "stopped" ? " is-stopped" : ""}${dim ? " is-dim" : ""}${action ? " has-action" : ""}`} data-testid="row">
       <Link href={card.href} label={label} current={selected === card.href}>
@@ -116,6 +131,7 @@ export function CardRowView({ card, dim = false, kindIcon = true, action, error 
             {wide && card.now && card.state === "in_progress" ? <span class="sub now one-line">{card.now}</span> : null}
           </span>
         )}
+        {progress ? <Progress done={progress.done} total={progress.total} /> : null}
       </Link>
       {action}
       <ErrorLine line={error} />

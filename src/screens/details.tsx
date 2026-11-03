@@ -2,11 +2,12 @@ import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, WorkCardDetail } from "../api/client";
 import { goalCards, runRow, type Model } from "../model";
+import { foldReason } from "../model/fold";
 import type { CardKind } from "../model/kind";
 import { href } from "../router";
 import { ago, clock } from "../time";
 import { useActions } from "../ui/actions";
-import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, KindMark, Link, sinceText, StateText, StateTime, cardTime, useApp } from "../ui/parts";
+import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, useApp } from "../ui/parts";
 import { SEP, STATE_WORD, stateLabel, W } from "../words";
 import { Comments } from "./comments";
 import { Talk } from "./talk";
@@ -239,25 +240,69 @@ function CardHead({ work, title, children }: { work: CardKind; title: string | n
 
 interface Round {
   readonly n: number;
-  readonly startedAt: number;
+  /** Null when the round's start fell out of the kept history ('시작 기록 없음'). */
+  readonly startedAt: number | null;
   readonly endedAt: number | null;
   readonly workers: readonly string[];
 }
 
 /**
  * The card's worker runs by follow-up round, newest round first: a worker run belongs to the round whose own start
- * and end hold its first sighting. Rounds with no worker run are left out; worker runs outside every round follow,
- * without a round head.
+ * and end hold its first sighting (a round with no start on record holds what was first seen before its end). The
+ * one place the rounds' boundaries are decided. A round shows only when it holds content: a worker run, or for a
+ * round with no start a line it said (its summary); a run that never started or a kept end alone draws nothing.
+ * Worker runs outside every round follow, without a round head.
  */
 export function workerRounds(detail: Pick<WorkCardDetail, "runs" | "workerRuns">): { rounds: Round[]; outside: string[] } {
-  const ordered = [...detail.runs].sort((a, b) => a.startedAt - b.startedAt);
+  const startOf = (run: WorkCardDetail["runs"][number]) => (run.startedAt > 0 ? run.startedAt : null);
+  const ordered = [...detail.runs].sort((a, b) => (startOf(a) ?? a.endedAt ?? 0) - (startOf(b) ?? b.endedAt ?? 0));
   const placed = new Set<string>();
-  const rounds = ordered.map((run, index): Round => {
-    const workers = detail.workerRuns.filter((worker) => !placed.has(worker.id) && worker.firstSeenAt >= run.startedAt && (run.endedAt === null || worker.firstSeenAt <= run.endedAt)).map((worker) => worker.id);
+  const rounds = ordered.map((run, index) => {
+    const start = startOf(run);
+    const workers = detail.workerRuns
+      .filter((worker) => !placed.has(worker.id) && (start === null || worker.firstSeenAt >= start) && (run.endedAt === null || worker.firstSeenAt <= run.endedAt))
+      .map((worker) => worker.id);
     for (const worker of workers) placed.add(worker);
-    return { n: index + 1, startedAt: run.startedAt, endedAt: run.endedAt, workers };
+    const content = workers.length > 0 || (start === null && Boolean(run.summary?.trim()));
+    return { round: { n: index + 1, startedAt: start, endedAt: run.endedAt, workers } satisfies Round, content };
   });
-  return { rounds: rounds.filter((round) => round.workers.length).reverse(), outside: detail.workerRuns.map((worker) => worker.id).filter((worker) => !placed.has(worker)) };
+  return {
+    rounds: rounds.filter(({ content }) => content).map(({ round }) => round).reverse(),
+    outside: detail.workerRuns.map((worker) => worker.id).filter((worker) => !placed.has(worker)),
+  };
+}
+
+function roundHead(round: Round): string {
+  if (round.startedAt === null) return [W.round(round.n), W.noStart].join(SEP);
+  const span = round.endedAt === null ? clock(round.startedAt) : `${clock(round.startedAt)}–${clock(round.endedAt)}`;
+  return [W.round(round.n), span, round.endedAt === null ? STATE_WORD.in_progress : ""].filter(Boolean).join(SEP);
+}
+
+/**
+ * One comment on a work card: its sentence with author and time. A comment that would show a path, a command, a
+ * hash, an issue number, an address or a cut-off fragment is one folded entry (접힌 댓글) instead; its text opens
+ * only on demand.
+ */
+function CardComment({ comment }: { comment: WorkCardDetail["comments"][number] }) {
+  const { model, now } = useApp();
+  const meta = [agentName(model, comment.author), ago(now - comment.createdAt)].filter(Boolean).join(SEP);
+  const reason = foldReason(comment.body);
+  const [open, setOpen] = useState(false);
+  if (!reason)
+    return (
+      <li class="comment" data-testid="comment">
+        <p class="comment-text">{comment.body}</p>
+        <span class="sub">{meta}</span>
+      </li>
+    );
+  return (
+    <li class="comment is-folded" data-testid="comment" data-folded={reason}>
+      <details class="comment-fold" onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}>
+        <summary class="sub">{[W.folded, meta].join(SEP)}</summary>
+        {open ? <p class="comment-raw">{comment.body}</p> : null}
+      </details>
+    </li>
+  );
 }
 
 function WorkerRows({ ids, model }: { ids: readonly string[]; model: Model }) {
@@ -284,6 +329,7 @@ export function CardScreen({ id }: { id: string }) {
     <article class="detail" data-testid="screen-card">
       <CardHead work={row?.work ?? "code"} title={detail.plain.title}>
         <StateTime state={detail.state} reason={detail.reason} time={row ? cardTime(row, now) : ""} />
+        {detail.state === "in_progress" && detail.todoProgress.total > 0 ? <Progress done={detail.todoProgress.done} total={detail.todoProgress.total} /> : null}
       </CardHead>
       {questions.map((question) => (
         <DecisionBox key={question.commentId} text={question.body} agent={question.agent} ask at={question.askedAt} />
@@ -332,9 +378,9 @@ export function CardScreen({ id }: { id: string }) {
       {detail.workerRuns.length ? (
         <Box title={W.workerRuns} testid="worker-runs">
           {rounds.map((round) => (
-            <section key={round.n} class="round" data-testid="round">
-              <h3 class="round-head">{[W.round(round.n), round.endedAt === null ? clock(round.startedAt) : `${clock(round.startedAt)}–${clock(round.endedAt)}`, round.endedAt === null ? STATE_WORD.in_progress : ""].filter(Boolean).join(SEP)}</h3>
-              <WorkerRows ids={round.workers} model={model} />
+            <section key={round.n} class={round.startedAt === null ? "round is-no-start" : "round"} data-testid="round">
+              <h3 class="round-head">{roundHead(round)}</h3>
+              {round.workers.length ? <WorkerRows ids={round.workers} model={model} /> : null}
             </section>
           ))}
           {outside.length ? <WorkerRows ids={outside} model={model} /> : null}
@@ -344,10 +390,7 @@ export function CardScreen({ id }: { id: string }) {
         <Box title={W.comments}>
           <ul class="thread" aria-label={W.comments}>
             {detail.comments.map((comment) => (
-              <li key={comment.id} class="comment" data-testid="comment">
-                <p class="comment-text">{comment.body}</p>
-                <span class="sub">{[agentName(model, comment.author), ago(now - comment.createdAt)].filter(Boolean).join(SEP)}</span>
-              </li>
+              <CardComment key={comment.id} comment={comment} />
             ))}
           </ul>
         </Box>

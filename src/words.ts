@@ -164,6 +164,11 @@ export const W = {
   next: "다음",
   round: (n: number) => `라운드 ${n}`,
   summariesStopped: "요약 멈춤",
+  folded: "접힌 댓글",
+  noStart: "시작 기록 없음",
+  latest: (time: string) => `최근 활동 ${time}`,
+  allAgents: "전체",
+  todoProgress: (done: number, total: number) => `할 일 ${done}/${total}`,
 };
 
 /** The kind word beside a work card's icon in its detail. */

@@ -79,7 +79,7 @@ function Screen({ route }: { route: Route }) {
     case "due":
       return <DueScreen />;
     case "done":
-      return <DoneScreen />;
+      return <DoneScreen agent={route.agent} />;
     case "goals":
       return <GoalsScreen />;
     case "status":

@@ -73,6 +73,9 @@ const SCREENS: readonly { id: string; hash: string; query?: string; line?: strin
   { id: "card-detail", hash: "#/cards/k-101" },
   // The home with the writer of the checked lines stopped (lina#151); card-question above is the card with none.
   { id: "summaries-stopped", hash: "#/running", query: "&writer=stopped" },
+  // 완료 filtered to one agent in its address, and a card whose comments fold.
+  { id: "done-filtered", hash: "#/done?agent=ag-1" },
+  { id: "card-comment-folded", hash: "#/cards/k-103" },
   { id: "run-detail", hash: "#/runs/r6" },
   { id: "status", hash: "#/status" },
   {

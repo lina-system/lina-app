@@ -159,6 +159,11 @@ export function AgentScreen({ id }: { id: string }) {
           <span key={section.id} data-testid={`agent-count-${section.id}`}>
             {index ? SEP : ""}
             {section.title} <span class="count">{section.count}</span>
+            {section.stopped ? (
+              <span class="count is-stopped-count" data-testid="stopped-count" aria-label={W.stoppedCount(section.stopped)}>
+                {section.stopped}
+              </span>
+            ) : null}
           </span>
         ))}
       </p>

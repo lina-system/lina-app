@@ -96,6 +96,10 @@ function count(element: Element | null): number {
   return Number(element?.textContent ?? "0");
 }
 
+function stoppedRows(root: Element | null): number {
+  return root ? root.querySelectorAll("[data-testid=row].is-stopped").length : 0;
+}
+
 function rowsIn(root: Element | null): number {
   return root ? root.querySelectorAll("[data-testid=row]").length : 0;
 }
@@ -112,8 +116,11 @@ describe("every count equals the length of the list it labels", () => {
     for (const [nav, hash] of pairs) {
       const view = await open(hash, { wide: true });
       const shown = count(view.getByTestId(nav).querySelector("[data-testid=nav-count]"));
+      const red = count(view.getByTestId(nav).querySelector("[data-testid=nav-stopped]"));
+      const list = view.container.querySelector(".list-pane .list");
       expect(shown).toBeGreaterThan(0);
-      expect(rowsIn(view.container.querySelector(".list-pane .list"))).toBe(shown);
+      expect(red).toBe(stoppedRows(list));
+      expect(rowsIn(list) - stoppedRows(list)).toBe(shown);
       view.unmount();
     }
   });
@@ -121,11 +128,15 @@ describe("every count equals the length of the list it labels", () => {
   test("agent rows count their running cards, hidden at 0", async () => {
     for (const index of [0, 1, 2]) {
       const view = await open(`#/agents/ag-${index + 1}`, { wide: true });
-      const shown = count(view.getByTestId(`nav-agent-${index}`).querySelector("[data-testid=nav-count]"));
-      expect(rowsIn(view.queryByTestId("section-running"))).toBe(shown);
+      const nav = view.getByTestId(`nav-agent-${index}`);
+      const running = view.queryByTestId("section-running");
+      expect(rowsIn(running) - stoppedRows(running)).toBe(count(nav.querySelector("[data-testid=nav-count]")));
+      expect(stoppedRows(running)).toBe(count(nav.querySelector("[data-testid=nav-stopped]")));
       for (const id of ["running", "review", "goals"]) {
-        const header = count(view.getByTestId(`agent-count-${id}`).querySelector(".count"));
-        expect(rowsIn(view.queryByTestId(`section-${id}`))).toBe(header);
+        const head = view.getByTestId(`agent-count-${id}`);
+        const section = view.queryByTestId(`section-${id}`);
+        expect(rowsIn(section) - stoppedRows(section)).toBe(count(head.querySelector(".count")));
+        expect(stoppedRows(section)).toBe(count(head.querySelector("[data-testid=stopped-count]")));
       }
       view.unmount();
     }
@@ -138,7 +149,9 @@ describe("every count equals the length of the list it labels", () => {
       expect(sections.length).toBeGreaterThan(0);
       for (const section of sections) {
         const head = section.querySelector("[data-testid=count]");
-        if (head) expect(rowsIn(section)).toBe(count(head));
+        if (!head) continue;
+        expect(rowsIn(section) - stoppedRows(section)).toBe(count(head));
+        expect(stoppedRows(section)).toBe(count(section.querySelector("[data-testid=stopped-count]")));
       }
       view.unmount();
     }
@@ -147,10 +160,13 @@ describe("every count equals the length of the list it labels", () => {
   test("the device line counts machine rows and the bell counts notices", async () => {
     const view = await open("#/status", { wide: true });
     const line = view.getByTestId("device-line").textContent ?? "";
-    const [all, ok, down] = (line.match(/\d+/g) ?? []).map(Number);
+    expect(line).toBe("기기 3 · 정상 1 · 경고 1 · 꺼짐 1");
+    const [all, ok, warn, down] = (line.match(/\d+/g) ?? []).map(Number);
+    expect(ok + warn + down).toBe(all);
     const machines = view.getByTestId("section-machines");
     expect(rowsIn(machines)).toBe(all);
     expect(machines.querySelectorAll(".machine-row.is-ok").length).toBe(ok);
+    expect(machines.querySelectorAll(".machine-row.is-warn").length).toBe(warn);
     expect(machines.querySelectorAll(".machine-row.is-down").length).toBe(down);
     const bell = count(view.getByTestId("bell-count"));
     fireEvent.click(view.getByTestId("bell"));
@@ -228,5 +244,20 @@ describe("phone navigation", () => {
       await new Promise((resolve) => window.addEventListener("popstate", resolve, { once: true }));
     });
     await waitFor(() => expect(view.getByTestId("screen-title").textContent).toBe("진행 중인 작업"));
+  });
+});
+
+describe("wide split view", () => {
+  test.each(["#/inbox", "#/running", "#/due", "#/done", "#/goals"])("%s with nothing selected folds the detail pane", async (hash) => {
+    const view = await open(hash, { wide: true });
+    expect(view.getByTestId("panes").classList.contains("is-folded")).toBe(true);
+    expect(view.queryByTestId("detail-pane")).toBeNull();
+  });
+
+  test("opening a row brings the detail pane back", async () => {
+    const view = await open("#/running", { wide: true });
+    fireEvent.click(view.getByTestId("screen-running").querySelector("[data-testid=row] a") as HTMLElement);
+    await waitFor(() => expect(view.getByTestId("detail-pane")).toBeTruthy());
+    expect(view.getByTestId("panes").classList.contains("is-folded")).toBe(false);
   });
 });

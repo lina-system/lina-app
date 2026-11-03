@@ -2,7 +2,7 @@
   color-scheme: light dark;
 
   --label: #000000;
-  --label-2: rgba(60, 60, 67, 0.6);
+  --label-2: rgba(60, 60, 67, 0.78);
   --label-3: rgba(60, 60, 67, 0.3);
   --separator: rgba(60, 60, 67, 0.18);
   --fill: rgba(120, 120, 128, 0.12);
@@ -32,12 +32,17 @@
   --inset: 16px;
   --gap: 12px;
   --radius: 7px;
-  --sidebar-width: 232px;
+  --sidebar-width: 240px;
   --list-width: 380px;
   --toolbar: 52px;
   --line: 0.5px;
 
   --motion: 180ms ease-out;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
 }
 
 @media (prefers-color-scheme: dark) {

@@ -30,7 +30,7 @@ const viteBin = path.join(repo, "node_modules", "vite", "bin", "vite.js");
 // The synthetic scene (src/fixtures/synthetic.ts, SCENE_COUNTS). Doctor compares the sidebar and the bell
 // against it, so a page showing anything else is not this run's instance.
 const APP_PATH = "/app/?source=synthetic";
-const FIXTURE = { inbox: "7", running: "3", due: "5", done: "1", goals: "5", bell: "알림 7", devices: "기기 3 · 정상 1 · 꺼짐 1" };
+const FIXTURE = { inbox: "7", running: "2", stopped: "1", due: "5", done: "1", goals: "5", bell: "알림 7", devices: "기기 3 · 정상 1 · 경고 1 · 꺼짐 1" };
 const WIDTHS = [1280, 390];
 const H2S = [
   "Platforms",
@@ -179,6 +179,7 @@ async function checkInstance(state) {
     const counts = {
       inbox: await count("nav-inbox"),
       running: await count("nav-running"),
+      stopped: (await page.getByTestId("nav-running").getByTestId("nav-stopped").textContent())?.trim(),
       due: await count("nav-due"),
       done: await count("nav-done"),
       goals: await count("nav-goals"),
@@ -304,6 +305,11 @@ const drivers = {
       check(names[0].endsWith("중단됨 · 응답 없음"), "the first card is not stopped: " + names[0]);
       check(names.slice(1).every((name) => name.endsWith("진행 중")), "the rest are not running: " + names.join(" | "));
       check(!names.some((name) => name.includes("실패 화면 검토")), "a waiting card is in the list");
+      const grey = await sidebarCount(page, "nav-running");
+      if (grey !== null) {
+        const red = (await page.getByTestId("nav-running").getByTestId("nav-stopped").innerText()).trim();
+        check(grey === "2" && red === "1", "sidebar reads " + grey + " and red " + red + ", expected 2 and red 1");
+      }
       return names.join(" | ");
     });
     await step("each card has one grey state line with its time", async () => {
@@ -382,12 +388,16 @@ const drivers = {
       check(/^완료 · 오늘 \d+$/.test(doneLine.trim()), "done line reads " + doneLine);
       return heads.join(" → ") + " → " + doneLine.trim();
     });
-    await step("the header shows counts only, equal to its sections", async () => {
+    await step("the header shows counts only; stopped cards get their own red number", async () => {
       const header = (await page.getByTestId("agent-counts").innerText()).trim();
-      for (const [label, list] of [["진행 중", "진행 중"], ["검토 필요", "검토 필요"], ["목표", "목표"]]) {
-        const shown = Number(header.match(new RegExp(label + " (\\d+)"))?.[1]);
-        const rows = await page.getByRole("list", { name: list, exact: true }).getByRole("link").count();
-        check(shown === rows, label + " header " + shown + " but " + rows + " rows");
+      for (const id of ["running", "review", "goals"]) {
+        const head = page.getByTestId("agent-count-" + id);
+        const grey = Number(await head.locator(".count").first().innerText());
+        const red = (await head.getByTestId("stopped-count").count()) ? Number(await head.getByTestId("stopped-count").innerText()) : 0;
+        const list = page.getByTestId("section-" + id);
+        const rows = (await list.count()) ? await list.getByTestId("row").count() : 0;
+        const stopped = (await list.count()) ? await list.locator("[data-testid=row].is-stopped").count() : 0;
+        check(grey === rows - stopped && red === stopped, id + " head " + grey + "/" + red + " but rows " + rows + " with " + stopped + " stopped");
       }
       return header;
     });
@@ -438,7 +448,7 @@ const drivers = {
       const heads = await page.locator(".detail .box-head").allInnerTexts();
       check(JSON.stringify(heads) === JSON.stringify(["완료 조건", "실행", "댓글"]), "boxes " + heads.join(", "));
       const runs = await page.getByRole("list", { name: "실행" }).innerText();
-      check(/카드 입력 폼 다듬기\s*·\s*완료/.test(runs), "run line reads " + runs);
+      check(/카드 입력 폼 다듬기\s*·\s*진행 중/.test(runs), "run line reads " + runs);
       const comments = await page.getByTestId("comment").count();
       const replies = await page.getByTestId("reply").count();
       check(comments === 2 && replies === 2, "thread has " + comments + " comments and " + replies + " replies");
@@ -461,8 +471,10 @@ const drivers = {
       const heads = await page.locator(".detail .box-head").allInnerTexts();
       check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "실행", "댓글"]), "boxes " + heads.join(", "));
       check((await page.getByRole("checkbox", { name: /완료로 표시$/ }).count()) === 2, "expected 2 to-dos");
-      const dim = await page.getByRole("list", { name: "실행" }).locator(".row.is-dim").count();
-      check(dim === 1, "expected 1 dimmed run, got " + dim);
+      const dim = page.getByRole("list", { name: "실행" }).locator(".row.is-dim");
+      check((await dim.count()) === 1, "expected 1 worker run row, got " + (await dim.count()));
+      const look = await dim.first().evaluate((row) => ({ opacity: getComputedStyle(row).opacity, state: getComputedStyle(row.querySelector("[data-testid=state]")).color }));
+      check(look.opacity === "1", "the worker run row is faded (opacity " + look.opacity + ")");
       check((await page.getByTestId("comment").count()) === 2, "expected 2 comments");
       return state + "; " + heads.join(", ");
     });
@@ -480,7 +492,9 @@ const drivers = {
     await step("open 기기·쿼터 from the sidebar line", async () => {
       await openApp(page, "#/");
       const line = (await page.getByTestId("device-line").innerText()).trim();
-      check(line === "기기 3 · 정상 1 · 꺼짐 1", "device line reads " + line);
+      check(line === "기기 3 · 정상 1 · 경고 1 · 꺼짐 1", "device line reads " + line);
+      const colours = await page.getByTestId("device-line").evaluate((element) => [...element.querySelectorAll("span")].map((span) => span.textContent.trim() + "=" + getComputedStyle(span).color));
+      check(colours.some((entry) => entry.endsWith("경고 1=rgb(255, 149, 0)")) && colours.some((entry) => entry.endsWith("꺼짐 1=rgb(255, 59, 48)")), "colours " + colours.join(", "));
       await page.getByTestId("device-line").click();
       await page.getByTestId("screen-status").waitFor();
       return line;
@@ -543,11 +557,15 @@ const drivers = {
         check(selected === 1, "no selected row");
         return new URL(page.url()).hash;
       });
-      await step("browser back restores the list without a selection", async () => {
+      await step("browser back restores the list without a selection and folds the detail pane", async () => {
         await page.goBack();
         await page.waitForFunction(() => location.hash === "#/running");
         check((await page.locator(".list-pane [aria-current=page]").count()) === 0, "a row is still selected");
-        return new URL(page.url()).hash;
+        check((await page.getByTestId("detail-pane").count()) === 0, "the empty detail pane is still drawn");
+        const width = await page.locator(".list-pane").evaluate((pane) => pane.getBoundingClientRect().width);
+        const room = await page.getByTestId("panes").evaluate((panes) => panes.getBoundingClientRect().width);
+        check(width === room, "the list takes " + width + " of " + room + " px");
+        return new URL(page.url()).hash + ", list " + width + " px wide";
       });
       return;
     }
@@ -581,6 +599,23 @@ const drivers = {
       const after = await page.evaluate(() => document.querySelector(".stack").scrollTop);
       check(after === before, "scroll " + after + " after back, " + before + " before");
       return "scroll kept at " + after;
+    });
+    await step("the bars keep clear of the status bar and the home indicator", async () => {
+      // Headless Chromium has no notch, so the driver sets the safe-area tokens the page reads from env().
+      await openApp(page, "#/running");
+      await page.evaluate(() => {
+        document.documentElement.style.setProperty("--safe-top", "47px");
+        document.documentElement.style.setProperty("--safe-bottom", "34px");
+      });
+      const back = await page.getByTestId("back").evaluate((element) => element.getBoundingClientRect().top);
+      const bar = await page.locator(".bottombar").evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        const line = element.querySelector("[data-testid=freshness]").getBoundingClientRect();
+        return { bottom: box.bottom, viewport: innerHeight, lineBottom: line.bottom };
+      });
+      check(back >= 47, "the back control starts at " + back + " px, under a 47 px status bar");
+      check(bar.lineBottom <= bar.viewport - 34, "the freshness line ends at " + bar.lineBottom + " px, under the home indicator");
+      return "back at " + back + " px, bar text ends " + (bar.viewport - bar.lineBottom) + " px above the bottom";
     });
   },
 

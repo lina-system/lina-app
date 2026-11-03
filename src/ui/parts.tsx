@@ -1,4 +1,4 @@
-import { createContext, type ComponentChildren } from "preact";
+import { createContext, type ComponentChildren, type JSX } from "preact";
 import { useContext } from "preact/hooks";
 import type { WorkState } from "../api/client";
 import type { Store } from "../data/store";
@@ -6,7 +6,10 @@ import type { CardRow, Model, Section } from "../model";
 import { linkClick } from "../router";
 import { ago, duration, total } from "../time";
 import { SEP, stateLabel, W } from "../words";
-import { CardIcon, ChevronIcon, RunIcon } from "./icons";
+import { ChevronIcon, CodeIcon, DeviceKindIcon, DocsIcon, ResearchIcon } from "./icons";
+import type { CardKind } from "../model/kind";
+
+const KIND_ICON: Record<CardKind, () => JSX.Element> = { code: CodeIcon, docs: DocsIcon, research: ResearchIcon, device: DeviceKindIcon };
 
 export interface AppContext {
   readonly model: Model;
@@ -83,7 +86,7 @@ export function CardRowView({ card, dim = false, kindIcon = true }: { card: Card
   return (
     <li class={`row card-row${card.state === "stopped" ? " is-stopped" : ""}${dim ? " is-dim" : ""}`} data-testid="row">
       <Link href={card.href} label={label} current={selected === card.href}>
-        {kindIcon ? <span class="kind">{card.kind === "card" ? <CardIcon /> : <RunIcon />}</span> : null}
+        {kindIcon ? <span class="kind" data-kind={card.work}>{KIND_ICON[card.work]()}</span> : null}
         <AgentMark id={card.agent} />
         {dim ? (
           <span class="lines">
@@ -110,8 +113,15 @@ export function SectionHead({ section }: { section: Section<unknown> }) {
   return (
     <h2 class="section-head" data-testid={`head-${section.id}`}>
       <span>{section.title}</span>
-      <span class="count" data-testid="count">
-        {section.count}
+      <span class="head-counts">
+        <span class="count" data-testid="count">
+          {section.count}
+        </span>
+        {section.stopped ? (
+          <span class="count is-stopped-count" data-testid="stopped-count" aria-label={W.stoppedCount(section.stopped)}>
+            {section.stopped}
+          </span>
+        ) : null}
       </span>
     </h2>
   );

@@ -89,13 +89,14 @@ test("the model's counts on the scene are the numbers doctor and the drivers exp
   expect(counts).toMatchObject({
     inbox: SCENE_COUNTS.inbox,
     running: SCENE_COUNTS.running,
+    stopped: SCENE_COUNTS.stopped,
     due: SCENE_COUNTS.due,
     done: SCENE_COUNTS.done,
     goals: SCENE_COUNTS.goals,
     notices: SCENE_COUNTS.notices,
-    devices: { all: SCENE_COUNTS.machines, ok: SCENE_COUNTS.machinesOk, down: SCENE_COUNTS.machinesDown },
+    devices: { all: SCENE_COUNTS.machines, ok: SCENE_COUNTS.machinesOk, warn: SCENE_COUNTS.machinesWarn, down: SCENE_COUNTS.machinesDown },
   });
-  expect(model(scene).running.sections.map((section) => section.count)).toEqual([SCENE_COUNTS.stopped, SCENE_COUNTS.running - SCENE_COUNTS.stopped]);
+  expect(model(scene).running.rows).toHaveLength(SCENE_COUNTS.running + SCENE_COUNTS.stopped);
 });
 
 test("names are invented and titles are Korean", () => {
@@ -107,4 +108,25 @@ test("names are invented and titles are Korean", () => {
 
 test("the scene contains no personal-data pattern or configured name", () => {
   expect(scanText(JSON.stringify(scene), "scene.json", process.env.PERSONAL_DATA_NAMES)).toEqual([]);
+});
+
+test("the scene does not contradict itself", () => {
+  const runs = new Map(scene.board.cards.map((run) => [run.id, run]));
+  for (const detail of Object.values(scene.cardDetails)) {
+    const running = detail.workerRuns.some((worker) => runs.get(worker.id)?.state === "in_progress");
+    if (running) expect(detail.todos.filter((todo) => todo.done)).toEqual([]);
+    expect(running).toBe(detail.state === "in_progress");
+  }
+  for (const item of scene.items.items.filter((candidate) => candidate.kind === "todo")) {
+    const own = scene.itemDetails[item.id].runs;
+    if (item.state === "done") expect(own.every((run) => run.state === "done")).toBe(true);
+    if (own.some((run) => run.state === "in_progress")) expect(item.state).toBe("in_progress");
+  }
+});
+
+test("cards differ in kind: code, docs, research and device all appear", () => {
+  const kinds = new Set([...model(scene).cards.values()].map((card) => card.work));
+  expect(kinds).toEqual(new Set(["code", "docs", "research", "device"]));
+  const running = model(scene).running.rows.filter((card) => card.state === "in_progress");
+  expect(new Set(running.map((card) => card.work)).size).toBe(running.length);
 });

@@ -83,7 +83,8 @@ export const W = {
 
   devices: "기기",
   quota: "쿼터",
-  deviceLine: (all: number, ok: number, down: number) => ({ all: `기기 ${all}`, ok: `정상 ${ok}`, down: `꺼짐 ${down}` }),
+  deviceLine: (all: number, ok: number, warn: number, down: number) => ({ all: `기기 ${all}`, ok: `정상 ${ok}`, warn: `경고 ${warn}`, down: `꺼짐 ${down}` }),
+  stoppedCount: (n: number) => `중단됨 ${n}`,
   machineState: { ok: "정상", warn: "경고", down: "꺼짐" } as Record<string, string>,
   load: (running: number | null, cap: number) => `작업 ${running ?? 0}/${cap}`,
   percent: (n: number) => `${Math.round(n)}%`,

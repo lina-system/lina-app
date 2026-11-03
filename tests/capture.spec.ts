@@ -19,6 +19,18 @@ const SCREENS: readonly { id: string; hash: string; query?: string; wideOnly?: b
   { id: "card-detail", hash: "#/cards/k-101" },
   { id: "run-detail", hash: "#/runs/r6" },
   { id: "status", hash: "#/status" },
+  {
+    id: "safe-area",
+    hash: "#/cards/k-101",
+    phoneOnly: true,
+    open: async (page) => {
+      // An iPhone's status bar and home indicator, through the tokens the page reads from env().
+      await page.evaluate(() => {
+        document.documentElement.style.setProperty("--safe-top", "47px");
+        document.documentElement.style.setProperty("--safe-bottom", "34px");
+      });
+    },
+  },
   { id: "read-failed", hash: "#/inbox", query: "&error=quota" },
   {
     id: "bell",

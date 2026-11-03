@@ -10,9 +10,10 @@ Each configured agent has a screen: its running cards, cards needing review, its
 
 ## Intended behavior
 
-- The sidebar lists every agent with its colour dot, first letter and the count of its running cards, hidden at 0.
+- The sidebar lists every agent with its colour dot, first letter and the count of its running cards, hidden at 0, and its stopped cards as a separate small red number, also hidden at 0.
 - The screen reads `진행 중` → `검토 필요` → `목표` → one line `완료 · 오늘 n ›`; finished work never sits between running work and goals.
-- The header shows counts only: `진행 중 n · 검토 필요 n · 목표 n`, each equal to its section's rows.
+- `진행 중` holds the agent's stopped cards (first, red) and running cards; `검토 필요` holds its cards waiting for review.
+- The header shows counts only: `진행 중 n · 검토 필요 n · 목표 n`. Stopped cards add their own small red number beside `진행 중`, never summed into it; grey plus red equals the section's rows.
 - A goal line has a progress dial, the name, the done condition and `진행 중 n` when to-dos run.
 
 ## Sub-features
@@ -35,7 +36,7 @@ Preconditions:
 
 - **Open an agent.** Choose the second agent under `에이전트`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive agent-screen`.
 - **Sections.** Read the section headings. `진행 중`, `검토 필요`, `목표`, then `완료 · 오늘 n`.
-- **Header.** Compare each header number with the links in the list of the same name. They are equal.
+- **Header.** Compare each header's grey number with the section's rows that are not stopped, and its red number with the stopped rows. They are equal.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/agent-screen/agent-screen-1280.{png,aria.yml,json}` and `agent-screen-390.{png,aria.yml,json}`.
 
 ## Gotchas

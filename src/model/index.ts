@@ -18,6 +18,7 @@ import type {
 } from "../api/client";
 import { CRUMB, SOURCE_WORD, W } from "../words";
 import { href } from "../router";
+import { cardKind, type CardKind } from "./kind";
 
 export interface ModelInput {
   readonly board?: BoardSnapshot;
@@ -45,6 +46,7 @@ export interface Agent {
 export interface CardRow {
   readonly key: string;
   readonly kind: "card" | "run";
+  readonly work: CardKind;
   readonly id: string;
   readonly href: string;
   readonly title: string;
@@ -70,7 +72,10 @@ export interface Section<T> {
   readonly id: string;
   readonly title: string;
   readonly rows: readonly T[];
+  /** Rows that are not stopped (grey number). */
   readonly count: number;
+  /** Stopped rows, shown as their own red number and never summed into `count`. */
+  readonly stopped: number;
 }
 
 export interface DueRow {
@@ -108,12 +113,13 @@ export interface AgentView {
 export interface Counts {
   readonly inbox: number;
   readonly running: number;
+  readonly stopped: number;
   readonly due: number;
   readonly done: number;
   readonly goals: number;
   readonly notices: number;
-  readonly agents: Readonly<Record<string, number>>;
-  readonly devices: { readonly all: number; readonly ok: number; readonly down: number };
+  readonly agents: Readonly<Record<string, { readonly running: number; readonly stopped: number }>>;
+  readonly devices: { readonly all: number; readonly ok: number; readonly warn: number; readonly down: number };
 }
 
 export interface Model {
@@ -130,7 +136,7 @@ export interface Model {
   readonly runOwner: ReadonlyMap<string, string>;
   readonly items: ReadonlyMap<string, ItemSummary>;
   readonly machines: readonly Machine[];
-  readonly devices: { readonly ok: readonly Machine[]; readonly down: readonly Machine[] };
+  readonly devices: { readonly ok: readonly Machine[]; readonly warn: readonly Machine[]; readonly down: readonly Machine[] };
   readonly quota: readonly QuotaService[];
   readonly notices: readonly Notice[];
   readonly errors: readonly string[];
@@ -138,8 +144,13 @@ export interface Model {
   readonly today: string;
 }
 
+function isStopped(row: unknown): boolean {
+  return typeof row === "object" && row !== null && (row as { state?: unknown }).state === "stopped" && "kind" in row;
+}
+
 function section<T>(id: string, title: string, rows: readonly T[]): Section<T> {
-  return { id, title, rows, count: rows.length };
+  const stopped = rows.filter(isStopped).length;
+  return { id, title, rows, count: rows.length - stopped, stopped };
 }
 
 export function localDay(epochSeconds: number): string {
@@ -153,7 +164,7 @@ function maxOf(values: (number | null | undefined)[]): number | null {
   return present.length ? Math.max(...present) : null;
 }
 
-function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, receivedAt: number): CardRow {
+function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, receivedAt: number, runCards: ReadonlyMap<string, RunCard>): CardRow {
   const runs = detail?.runs ?? [];
   const lastBeat = maxOf(runs.map((run) => run.lastHeartbeatAt));
   const ended = maxOf(runs.map((run) => run.endedAt));
@@ -161,6 +172,7 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
   return {
     key: `card:${card.id}`,
     kind: "card",
+    work: cardKind(card.title, (detail?.workerRuns ?? []).map((worker) => runCards.get(worker.id)).filter((run): run is RunCard => run !== undefined)),
     id: card.id,
     href: href({ name: "card", id: card.id }),
     title: card.title,
@@ -179,6 +191,7 @@ export function runRow(run: RunCard): CardRow {
   return {
     key: `run:${run.id}`,
     kind: "run",
+    work: cardKind(run.title, [run]),
     id: run.id,
     href: href({ name: "run", id: run.id }),
     title: run.title,
@@ -217,7 +230,7 @@ export function buildModel(input: ModelInput, now: number): Model {
   const runs = new Map<string, RunCard>((board?.cards ?? []).map((run) => [run.id, run]));
   const receivedAt = input.cardsAt ?? now;
   const allCards: CardRow[] = [
-    ...(cards?.cards ?? []).map((card) => workCardRow(card, input.cardDetails[card.id], receivedAt)),
+    ...(cards?.cards ?? []).map((card) => workCardRow(card, input.cardDetails[card.id], receivedAt, runs)),
     ...(board?.cards ?? []).filter((run) => !runOwner.has(run.id)).map(runRow),
   ];
   const cardMap = new Map(allCards.map((card) => [card.id, card]));
@@ -315,6 +328,7 @@ export function buildModel(input: ModelInput, now: number): Model {
   const machines = input.devices?.machines ?? board?.machines ?? [];
   const quota = input.quota?.quota ?? board?.quota ?? [];
   const okMachines = machines.filter((machine) => machine.state === "ok");
+  const warnMachines = machines.filter((machine) => machine.state === "warn");
   const downMachines = machines.filter((machine) => machine.state === "down");
   const notices = board?.notices ?? [];
 
@@ -323,8 +337,13 @@ export function buildModel(input: ModelInput, now: number): Model {
   for (const route of input.failed) errorSources.add(route);
   const errors = [...errorSources].map((source) => SOURCE_WORD[source] ?? SOURCE_WORD.detail).filter((word, index, all) => all.indexOf(word) === index);
 
-  const agentCounts: Record<string, number> = {};
-  for (const agent of agents) agentCounts[agent.id] = running.filter((card) => card.agent === agent.id).length;
+  const agentCounts: Record<string, { running: number; stopped: number }> = {};
+  for (const agent of agents) {
+    agentCounts[agent.id] = {
+      running: running.filter((card) => card.agent === agent.id).length,
+      stopped: stopped.filter((card) => card.agent === agent.id).length,
+    };
+  }
 
   const inboxRows = [...decideRows, ...reviewRows, ...mineRows];
   const dueRows = dueSections.flatMap((group) => group.rows);
@@ -344,20 +363,21 @@ export function buildModel(input: ModelInput, now: number): Model {
     runOwner,
     items: itemMap,
     machines,
-    devices: { ok: okMachines, down: downMachines },
+    devices: { ok: okMachines, warn: warnMachines, down: downMachines },
     quota,
     notices,
     errors,
     today,
     counts: {
       inbox: inboxRows.length,
-      running: runningRows.length,
+      running: running.length,
+      stopped: stopped.length,
       due: dueRows.length,
       done: done.length,
       goals: goals.length,
       notices: notices.length,
       agents: agentCounts,
-      devices: { all: machines.length, ok: okMachines.length, down: downMachines.length },
+      devices: { all: machines.length, ok: okMachines.length, warn: warnMachines.length, down: downMachines.length },
     },
   };
 }
@@ -366,8 +386,9 @@ export function agentView(model: Model, agentId: string): AgentView | null {
   const agent = model.agents.find((candidate) => candidate.id === agentId);
   if (!agent) return null;
   const mine = [...model.cards.values()].filter((card) => card.agent === agentId);
-  const running = mine.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt));
-  const review = mine.filter((card) => card.state === "waiting" || card.state === "stopped").sort(newestFirst((card) => card.stateAt));
+  const stoppedCards = mine.filter((card) => card.state === "stopped").sort(newestFirst((card) => card.stateAt));
+  const running = [...stoppedCards, ...mine.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt))];
+  const review = mine.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt));
   const goals = model.goals.filter((goal) => goal.agent === agentId);
   const doneToday = model.done.filter((card) => card.agent === agentId && card.endedAt !== null && localDay(card.endedAt) === model.today);
   return {

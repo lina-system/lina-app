@@ -94,17 +94,22 @@ function Screen({ route }: { route: Route }) {
   }
 }
 
-function NavRow({ to, icon, label, count, current, testid, children }: { to: Route; icon?: ComponentChildren; label: string; count?: number; current: boolean; testid: string; children?: ComponentChildren }) {
+function NavRow({ to, icon, label, count, stopped, current, testid, children }: { to: Route; icon?: ComponentChildren; label: string; count?: number; stopped?: number; current: boolean; testid: string; children?: ComponentChildren }) {
   const { wide } = useApp();
   const target = href(to);
   return (
     <li class={`nav-row${current ? " is-current" : ""}`} data-testid={testid}>
-      <a href={target} onClick={linkClick} aria-current={current ? "page" : undefined} aria-label={count ? `${label} ${count}` : label}>
+      <a href={target} onClick={linkClick} aria-current={current ? "page" : undefined} aria-label={[count ? `${label} ${count}` : label, stopped ? W.stoppedCount(stopped) : ""].filter(Boolean).join(SEP)}>
         {icon ? <span class="nav-icon">{icon}</span> : null}
         {children ?? <span class="nav-label one-line">{label}</span>}
         {count ? (
           <span class="nav-count" data-testid="nav-count">
             {count}
+          </span>
+        ) : null}
+        {stopped ? (
+          <span class="nav-count is-stopped-count" data-testid="nav-stopped">
+            {stopped}
           </span>
         ) : null}
         {wide ? null : <Disclosure />}
@@ -116,12 +121,14 @@ function NavRow({ to, icon, label, count, current, testid, children }: { to: Rou
 export function Sidebar({ current }: { current?: Route }) {
   const { model } = useApp();
   const is = (name: string, id?: string) => Boolean(current && current.name === name && (id === undefined || ("id" in current && current.id === id)));
-  const devices = W.deviceLine(model.counts.devices.all, model.counts.devices.ok, model.counts.devices.down);
+  const { all, ok, warn, down } = model.counts.devices;
+  const devices = W.deviceLine(all, ok, warn, down);
+  const deviceParts = [devices.all, devices.ok, warn ? devices.warn : "", down ? devices.down : ""].filter(Boolean);
   return (
     <nav class="sidebar-list" aria-label={W.sidebar} data-testid="sidebar">
       <ul class="nav-group">
         <NavRow to={{ name: "inbox" }} icon={<InboxIcon />} label={W.inbox} count={model.counts.inbox} current={is("inbox")} testid="nav-inbox" />
-        <NavRow to={{ name: "running" }} icon={<RunningIcon />} label={W.running} count={model.counts.running} current={is("running")} testid="nav-running" />
+        <NavRow to={{ name: "running" }} icon={<RunningIcon />} label={W.running} count={model.counts.running} stopped={model.counts.stopped} current={is("running")} testid="nav-running" />
         <NavRow to={{ name: "due" }} icon={<CalendarIcon />} label={W.due} count={model.counts.due} current={is("due")} testid="nav-due" />
         <NavRow to={{ name: "done" }} icon={<DoneIcon />} label={W.done} count={model.counts.done} current={is("done")} testid="nav-done" />
       </ul>
@@ -130,7 +137,7 @@ export function Sidebar({ current }: { current?: Route }) {
           <h2 class="nav-head">{W.agents}</h2>
           <ul class="nav-group" aria-label={W.agents}>
             {model.agents.map((agent) => (
-              <NavRow key={agent.id} to={{ name: "agent", id: agent.id }} icon={<AgentMark id={agent.id} />} label={agent.name} count={model.counts.agents[agent.id]} current={is("agent", agent.id)} testid={`nav-agent-${agent.index}`} />
+              <NavRow key={agent.id} to={{ name: "agent", id: agent.id }} icon={<AgentMark id={agent.id} />} label={agent.name} count={model.counts.agents[agent.id]?.running} stopped={model.counts.agents[agent.id]?.stopped} current={is("agent", agent.id)} testid={`nav-agent-${agent.index}`} />
             ))}
           </ul>
         </>
@@ -140,13 +147,13 @@ export function Sidebar({ current }: { current?: Route }) {
       </ul>
       <h2 class="nav-head">{W.status}</h2>
       <ul class="nav-group" aria-label={W.status}>
-        <NavRow to={{ name: "status" }} icon={<DeviceIcon />} label={[devices.all, devices.ok, devices.down].join(SEP)} current={is("status")} testid="nav-status">
+        <NavRow to={{ name: "status" }} icon={<DeviceIcon />} label={deviceParts.join(SEP)} current={is("status")} testid="nav-status">
           <span class="nav-label one-line" data-testid="device-line">
             {devices.all}
             {SEP}
             {devices.ok}
-            {SEP}
-            <span class={model.counts.devices.down ? "is-red" : undefined}>{devices.down}</span>
+            {warn ? <span class="is-orange">{`${SEP}${devices.warn}`}</span> : null}
+            {down ? <span class="is-red">{`${SEP}${devices.down}`}</span> : null}
           </span>
         </NavRow>
       </ul>
@@ -308,13 +315,15 @@ function WideShell({ route, stack }: { route: Route; stack: readonly string[] })
             <QuickAdd />
           </div>
         </header>
-        <div class="panes">
+        <div class={detailRoute ? "panes" : "panes is-folded"} data-testid="panes">
           <section class="pane list-pane" ref={listRef} aria-label={titleOf(listRoute, model, store)}>
             <Screen route={listRoute} />
           </section>
-          <section class="pane detail-pane" ref={detailRef} aria-label={detailRoute ? titleOf(detailRoute, model, store) : undefined}>
-            {detailRoute ? <Screen route={detailRoute} /> : null}
-          </section>
+          {detailRoute ? (
+            <section class="pane detail-pane" ref={detailRef} aria-label={titleOf(detailRoute, model, store)} data-testid="detail-pane">
+              <Screen route={detailRoute} />
+            </section>
+          ) : null}
         </div>
       </div>
     </div>

@@ -34,7 +34,7 @@ Preconditions:
 - The page is `/app/?source=synthetic`, the synthetic scene; the drive opens it fresh for each width.
 
 - **Open a to-do.** On `결제 화면 개편`, choose `카드 입력 폼 다듬기`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive item-detail`.
-- **Read it.** The check box `카드 입력 폼 다듬기 완료로 표시` is `aria-disabled`; boxes `완료 조건`, `실행`, `댓글`; the run line reads `카드 입력 폼 다듬기 · 완료`; 2 comments and 2 replies, each reply with `author · n분 전`.
+- **Read it.** The check box `카드 입력 폼 다듬기 완료로 표시` is `aria-disabled`; boxes `완료 조건`, `실행`, `댓글`; the run line reads `카드 입력 폼 다듬기 · 진행 중`; 2 comments and 2 replies, each reply with `author · n분 전`.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/item-detail/item-detail-1280.{png,aria.yml,json}` and `item-detail-390.{png,aria.yml,json}`.
 
 ## Gotchas

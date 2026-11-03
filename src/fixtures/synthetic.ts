@@ -178,15 +178,15 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
   // Worker runs: r1-r5 were started by work cards; r6 runs outside any card and waits on the owner.
   const runCards: RunCard[] = [
     { id: "r1", title: "변경 목록 모으기", state: "in_progress", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[0], startedAt: now - 12 * MIN, endedAt: null, now: "병합된 변경을 기능별로 묶는 중" },
-    { id: "r2", title: "카드 입력 폼 다듬기", state: "done", reason: null, agent: agentId(1), kind: "ulw", todo: "T4", host: machines[1], startedAt: now - 2 * HOUR, endedAt: now - 70 * MIN, now: null },
+    { id: "r2", title: "카드 입력 폼 다듬기", state: "in_progress", reason: null, agent: agentId(1), kind: "ulw", todo: "T4", host: machines[1], startedAt: now - 2 * HOUR, endedAt: null, now: null },
     { id: "r3", title: "오류 문구 바꾸기", state: "stopped", reason: "unresponsive", agent: agentId(1), kind: "ulw", todo: "T5", host: machines[2], startedAt: now - 3 * HOUR, endedAt: null, now: null },
     { id: "r4", title: "결제 실패 화면 검토", state: "waiting", reason: "review", agent: agentId(1), kind: "research", todo: "T6", host: machines[0], startedAt: now - 4 * HOUR, endedAt: now - 3 * HOUR, now: null },
     { id: "r5", title: "백업 기록 살펴보기", state: "done", reason: null, agent: agentId(2), kind: "ulw", todo: "T7", host: machines[1], startedAt: now - 2 * HOUR - 9 * MIN, endedAt: now - 2 * HOUR, now: null },
-    { id: "r6", title: "색인 구조 다시 비교", state: "waiting", reason: "review", agent: agentId(1), kind: "ulw", todo: "T11", host: machines[0], startedAt: now - 6 * HOUR, endedAt: now - 5 * HOUR, now: null },
+    { id: "r6", title: "색인 구조 다시 비교", state: "waiting", reason: "review", agent: agentId(1), kind: "research", todo: "T11", host: machines[0], startedAt: now - 6 * HOUR, endedAt: now - 5 * HOUR, now: null },
   ];
 
   const cardSeeds = [
-    { id: "k-101", goal: "kg-1", agent: 0, title: "릴리스 노트: 변경 목록 정리", state: "in_progress", reason: null, elapsed: 12 * MIN, now: "변경 목록을 기능별로 묶는 중", todos: [["T1", true], ["T3", false]], runs: ["r1"], lastBeat: now - 20 },
+    { id: "k-101", goal: "kg-1", agent: 0, title: "릴리스 노트: 변경 목록 정리", state: "in_progress", reason: null, elapsed: 12 * MIN, now: "변경 목록을 기능별로 묶는 중", todos: [["T1", false], ["T3", false]], runs: ["r1"], lastBeat: now - 20 },
     { id: "k-102", goal: "kg-2", agent: 1, title: "결제: 카드 입력 폼 다듬기", state: "in_progress", reason: null, elapsed: 2 * HOUR, now: null, todos: [["T4", false]], runs: ["r2"], lastBeat: now - 40 },
     { id: "k-103", goal: "kg-2", agent: 1, title: "결제: 오류 문구 바꾸기", state: "stopped", reason: "unresponsive", elapsed: 52 * MIN, now: null, todos: [["T5", false]], runs: ["r3"], lastBeat: now - 52 * MIN },
     { id: "k-104", goal: "kg-2", agent: 1, title: "결제: 실패 화면 검토", state: "waiting", reason: "review", elapsed: 3 * HOUR, now: null, todos: [["T6", false]], runs: ["r4"], lastBeat: now - 3 * HOUR },
@@ -449,12 +449,13 @@ export const SCENE_COUNTS = {
   todos: 12,
   decisions: 4,
   inbox: 7,
-  running: 3,
+  running: 2,
   stopped: 1,
   due: 5,
   done: 1,
   machines: 3,
   machinesOk: 1,
+  machinesWarn: 1,
   machinesDown: 1,
   notices: 7,
 } as const;

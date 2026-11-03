@@ -15,7 +15,8 @@
 - Waiting and done cards are not here.
 - Running times count up every second on the page, without a reload.
 - On a phone nothing but the large title sits above the list.
-- The sidebar count equals the number of cards.
+- The sidebar shows the running cards as a grey number and the stopped cards as their own small red number beside it (`2` grey, `1` red); the two are never summed into one count.
+- Each card's kind icon (code, docs, research, device) tells the kind of work apart.
 
 ## Sub-features
 
@@ -36,7 +37,7 @@ Preconditions:
 - The page is `/app/?source=synthetic`, the synthetic scene; the drive opens it fresh for each width.
 
 - **Open the screen.** Choose `진행 중인 작업`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive running`.
-- **Order.** Read the list `진행 중인 작업`. 3 links; the first name ends in `중단됨 · 응답 없음`, the others in `진행 중`; no `실패 화면 검토` card.
+- **Order.** Read the list `진행 중인 작업`. 3 links; the first name ends in `중단됨 · 응답 없음`, the others in `진행 중`; no `실패 화면 검토` card; the sidebar reads `2` with a red `1`.
 - **State lines.** Read each grey line. `중단됨 · 응답 없음 · n분 전`, then `진행 중 · n분째` or `n시간째`.
 - **Now line.** Look for `변경 목록을 기능별로 묶는 중`. Visible at 1280, absent at 390.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/running/running-1280.{png,aria.yml,json}` and `running-390.{png,aria.yml,json}`.

@@ -187,6 +187,14 @@ button:disabled {
   padding: 8px 0 24px;
 }
 
+.panes.is-folded {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.panes.is-folded .list-pane {
+  border-right: 0;
+}
+
 .detail-pane {
   padding: 0 0 32px;
 }
@@ -245,14 +253,15 @@ button:disabled {
 
 .split .nav-row.is-current .nav-icon,
 .split .nav-row.is-current .nav-count,
-.split .nav-row.is-current .is-red {
+.split .nav-row.is-current .is-red,
+.split .nav-row.is-current .is-orange {
   color: var(--on-accent);
 }
 
 .version {
   padding: 8px 10px 0;
   font-size: var(--text-small);
-  color: var(--label-3);
+  color: var(--label-2);
 }
 
 /* Agent mark: a colour dot with the first letter. */
@@ -317,13 +326,21 @@ button:disabled {
   background: var(--fill);
 }
 
-.row + .row > a::before,
-.row + .row > .row-body::before {
+.rows {
+  overflow: hidden;
+}
+
+/* The divider starts where the row's text starts (after the icon and avatar) and runs to the edge. */
+.lines {
+  position: relative;
+}
+
+.row + .row .lines::before {
   content: "";
   position: absolute;
-  top: 0;
-  left: calc(var(--inset) + 30px);
-  right: 0;
+  top: -6px;
+  left: 0;
+  right: -100vw;
   border-top: var(--line) solid var(--separator);
 }
 
@@ -335,8 +352,8 @@ button:disabled {
   padding: 6px calc(var(--inset) - 6px);
 }
 
-.row > a[aria-current="page"]::before,
-.row > a[aria-current="page"] + *::before {
+.row:has(> a[aria-current="page"]) .lines::before,
+.row:has(> a[aria-current="page"]) + .row .lines::before {
   display: none;
 }
 
@@ -390,8 +407,21 @@ button:disabled {
   color: var(--red);
 }
 
-.is-dim {
-  opacity: 0.55;
+/* A worker run inside a card: told apart by size and weight, never by fading. */
+.is-dim > a,
+.is-dim > .row-body {
+  min-height: var(--row-dense);
+}
+
+.is-dim .title {
+  font-size: var(--text-small);
+  color: var(--label);
+}
+
+.is-dim .mark {
+  width: 16px;
+  height: 16px;
+  font-size: 9px;
 }
 
 .due-date.is-overdue {
@@ -599,9 +629,6 @@ button:disabled {
   padding-left: 10px;
 }
 
-.check-row > a::before {
-  left: 10px !important;
-}
 
 .thread {
   display: grid;
@@ -647,9 +674,6 @@ button:disabled {
   min-height: var(--row-dense);
 }
 
-.notice-row + .notice-row > a::before {
-  left: var(--inset);
-}
 
 @keyframes pop {
   from {
@@ -673,8 +697,8 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 44px;
-  padding: env(safe-area-inset-top) 8px 0;
+  height: calc(44px + var(--safe-top));
+  padding: var(--safe-top) calc(8px + var(--safe-right)) 0 calc(8px + var(--safe-left));
   background: color-mix(in srgb, var(--bg-2) 86%, transparent);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
@@ -690,8 +714,10 @@ button:disabled {
 }
 
 .phone-main {
-  padding-bottom: calc(64px + var(--keyboard-inset, 0px));
-  min-height: calc(100% - 44px);
+  padding-bottom: calc(64px + var(--safe-bottom) + var(--keyboard-inset, 0px));
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+  min-height: calc(100% - 44px - var(--safe-top));
 }
 
 .large-title {
@@ -766,8 +792,8 @@ button:disabled {
   grid-template-columns: 32px 1fr 32px;
   align-items: center;
   gap: 8px;
-  height: calc(44px + env(safe-area-inset-bottom));
-  padding: 0 8px env(safe-area-inset-bottom);
+  height: calc(44px + var(--safe-bottom));
+  padding: 0 calc(8px + var(--safe-right)) var(--safe-bottom) calc(8px + var(--safe-left));
   background: var(--bar);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
@@ -781,4 +807,27 @@ button:disabled {
 
 .bottombar .tool:disabled {
   color: var(--label-3);
+}
+
+.is-stopped-count {
+  color: var(--red);
+  font-size: var(--text-small);
+  font-weight: 600;
+  margin-left: 6px;
+}
+
+.split .nav-row.is-current .is-stopped-count {
+  color: #ffffff;
+  background: var(--red);
+  border-radius: 8px;
+  padding: 0 5px;
+}
+
+[data-testid="device-line"] {
+  font-size: var(--text-small);
+}
+
+.head-counts {
+  display: inline-flex;
+  align-items: baseline;
 }

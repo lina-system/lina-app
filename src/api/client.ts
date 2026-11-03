@@ -10,6 +10,7 @@ export type ItemRow = Board["schemas"]["ItemRow"];
 export type Notice = Board["schemas"]["Notice"];
 export type Machine = Board["schemas"]["Machine"];
 export type QuotaService = Board["schemas"]["QuotaService"];
+export type QuotaAccount = Board["schemas"]["QuotaAccount"];
 export type SourceError = Board["schemas"]["SourceError"];
 export type DevicesView = Board["schemas"]["DevicesView"];
 export type QuotaView = Board["schemas"]["QuotaView"];

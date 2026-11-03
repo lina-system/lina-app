@@ -24,7 +24,8 @@ export const SYNTHETIC_SEED = 0x5eed;
 
 const AGENT_NAMES = ["Mirel", "Tavo", "Quenna", "Orli", "Pesk"] as const;
 const MACHINE_NAMES = ["솔방울", "징검돌", "모래톱", "물레방아"] as const;
-const SERVICE_NAMES = ["가온셈", "나린셈"] as const;
+// Two services the app has display names for and one it shows as the core gives it.
+const SERVICE_NAMES = ["anthropic", "openai", "가온셈"] as const;
 const OWNER = { id: "owner", name: "나" } as const;
 
 type Rng = () => number;
@@ -381,6 +382,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     { name: machines[1], state: "warn", why: "disk", cpu: 35, memory: 58, disk: 91, temp: 55, load: 1.2, cores: 8, running: 1, cap: 4, freeGb: 18, metricsAt: now - 25 },
     { name: machines[2], state: "down", why: "unreachable", cpu: null, memory: null, disk: null, temp: null, load: null, cores: null, running: null, cap: 2, freeGb: null, metricsAt: now - 3 * HOUR },
   ];
+  const quotaWindow = (key: string, percent: number, resetIn: number, ratePerHour: number | null, warn: boolean) => ({ key, percent, resetAt: now + resetIn, ratePerHour, warn });
   const quotaList: BoardSnapshot["quota"] = options.sourceError
     ? []
     : [
@@ -389,25 +391,30 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
           percent: 72,
           ratePerHour: 9,
           accounts: [
-            { id: "acct-a", number: 1, plan: "pro", paused: false, unavailable: false, mainWindow: "fiveHour", warn: true, windows: [{ key: "fiveHour", percent: 72, resetAt: now + 3 * HOUR, ratePerHour: 9, warn: true }] },
+            { id: "acct-a", number: 1, plan: "pro", paused: false, unavailable: false, mainWindow: "fiveHour", warn: true, windows: [quotaWindow("fiveHour", 72, 3 * HOUR, 9, true), quotaWindow("weekly", 40, 4 * DAY, 1, false)] },
+            { id: "acct-b", number: 2, plan: "pro", paused: false, unavailable: false, mainWindow: "fiveHour", warn: false, windows: [quotaWindow("fiveHour", 18, 2 * HOUR, 3, false)] },
           ],
         },
         {
           service: SERVICE_NAMES[1],
           percent: 31,
           ratePerHour: 2,
-          accounts: [
-            { id: "acct-b", number: 1, plan: "team", paused: false, unavailable: false, mainWindow: "weekly", warn: false, windows: [{ key: "weekly", percent: 31, resetAt: now + 4 * DAY, ratePerHour: 2, warn: false }] },
-          ],
+          accounts: [{ id: "acct-c", number: 1, plan: "team", paused: false, unavailable: false, mainWindow: "weekly", warn: false, windows: [quotaWindow("weekly", 31, 4 * DAY, 2, false)] }],
+        },
+        {
+          service: SERVICE_NAMES[2],
+          percent: 5,
+          ratePerHour: null,
+          accounts: [{ id: "acct-d", number: 1, plan: "basic", paused: true, unavailable: false, mainWindow: "monthly", warn: false, windows: [quotaWindow("monthly", 5, 12 * DAY, null, false)] }],
         },
       ];
   const errors: BoardSnapshot["errors"] = options.sourceError ? [{ source: "quota", message: "quota source did not answer" }] : [];
 
   const notices: BoardSnapshot["notices"] = [
-    ...decide.map((row) => ({ key: `ask:${row.target}:${row.at}`, target: row.target, at: row.at, kind: "ask" as const, line: `${row.title}: ${row.kind === "ask" ? "질문" : "요청"}` })),
-    { key: `ask:${question.cardId}:${question.askedAt}`, target: question.cardId, at: question.askedAt, kind: "ask", line: `${question.title}: 질문` },
-    { key: `review:r6:${now - 5 * HOUR}`, target: "r6", at: now - 5 * HOUR, kind: "review", line: "색인 구조 다시 비교: 검토 필요" },
-    ...mineRows.map((row) => ({ key: `todo:${row.id}:${now - DAY}`, target: row.id, at: now - DAY, kind: "todo" as const, line: `${row.title}: 내 할 일` })),
+    ...decide.map((row) => ({ key: `ask:${row.target}:${row.at}`, target: row.target, at: row.at, kind: "ask" as const, line: `${row.title}: ${row.kind === "ask" ? "질문" : "요청"}`, read: false })),
+    { key: `ask:${question.cardId}:${question.askedAt}`, target: question.cardId, at: question.askedAt, kind: "ask", line: `${question.title}: 질문`, read: false },
+    { key: `review:r6:${now - 5 * HOUR}`, target: "r6", at: now - 5 * HOUR, kind: "review", line: "색인 구조 다시 비교: 검토 필요", read: false },
+    ...mineRows.map((row) => ({ key: `todo:${row.id}:${now - DAY}`, target: row.id, at: now - DAY, kind: "todo" as const, line: `${row.title}: 내 할 일`, read: false })),
   ];
 
   const board: BoardSnapshot = {
@@ -421,6 +428,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       due: due.overdue.length + due.today.length + due.week.length + due.later.length,
       done: 1,
       agents: { [agentId(0)]: 1, [agentId(1)]: 1, [agentId(2)]: 0 },
+      unread: notices.filter((notice) => !notice.read).length,
     },
     cards: runCards,
     inbox: { decide, review: ["r6"], mine: mineRows },

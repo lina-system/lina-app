@@ -73,7 +73,8 @@ test("the scene holds what every screen needs", () => {
   expect(scene.board.cards.filter((run) => !owned.has(run.id))).toHaveLength(1);
 
   expect(scene.devices.machines.map((machine) => machine.state).sort()).toEqual(["down", "ok", "warn"]);
-  expect(scene.quota.quota).toHaveLength(2);
+  expect(scene.quota.quota).toHaveLength(3);
+  expect(scene.quota.quota.map((service) => service.accounts.length)).toEqual([2, 1, 1]);
   expect(scene.quota.quota.filter((service) => service.accounts.some((account) => account.warn))).toHaveLength(1);
 
   const threads = Object.values(scene.itemDetails).filter((detail) => detail.kind === "todo" && detail.comments.some((comment) => comment.replies.length));

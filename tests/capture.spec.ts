@@ -23,6 +23,14 @@ const SCREENS: readonly { id: string; hash: string; query?: string; wideOnly?: b
   { id: "run-detail", hash: "#/runs/r6" },
   { id: "status", hash: "#/status" },
   {
+    id: "status-accounts",
+    hash: "#/status",
+    open: async (page) => {
+      await page.getByRole("list", { name: "쿼터" }).locator("summary").first().click();
+      await expect(page.getByTestId("account").first()).toBeVisible();
+    },
+  },
+  {
     id: "safe-area",
     hash: "#/cards/k-101",
     phoneOnly: true,

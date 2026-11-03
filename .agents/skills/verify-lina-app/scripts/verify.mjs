@@ -569,17 +569,34 @@ const drivers = {
     await step("read the machines", async () => {
       const names = await page.getByRole("list", { name: "기기" }).locator(".row-body").evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
       check(names.length === 3, "expected 3 machines");
-      for (const word of ["정상", "경고", "꺼짐"]) check(names.some((name) => name.includes(word)), "no machine reads " + word);
+      const meters = "CPU (\\d+%|—) · 메모리 (\\d+%|—) · 디스크 (\\d+%|—) · 작업 (\\d+|—)/\\d+$";
+      check(names.some((name) => new RegExp(" · 정상 · " + meters).test(name)), "no 정상 machine with its meters: " + names.join(" | "));
+      check(names.some((name) => new RegExp(" · 경고 · 디스크 · " + meters).test(name)), "no 경고 machine with its reason word: " + names.join(" | "));
+      check(names.some((name) => / · 꺼짐 · 연결 끊김 · CPU — · 메모리 — · 디스크 — · 작업 —\/\d+$/.test(name)), "no 꺼짐 machine reading 연결 끊김 and — meters: " + names.join(" | "));
+      const colours = await page.getByRole("list", { name: "기기" }).locator(".machine-state").evaluateAll((words) => words.map((word) => word.textContent + "=" + getComputedStyle(word).color));
+      check(colours.includes("경고=rgb(255, 149, 0)") && colours.includes("꺼짐=rgb(255, 59, 48)"), "state colours " + colours.join(", "));
+      const bars = await page.getByRole("list", { name: "기기" }).locator(".mini-meter .meter").count();
+      check(bars === 6, "expected 6 thin bars on the two machines that report, got " + bars);
       const loads = await page.getByRole("list", { name: "기기" }).locator(".trail").allInnerTexts();
-      check(loads.every((text) => /^작업 \d+\/\d+$/.test(text)), "loads read " + loads.join(", "));
+      check(loads.every((text) => /^작업 (\d+|—)\/\d+$/.test(text)), "loads read " + loads.join(", "));
       return names.join(" | ");
     });
-    await step("read the quota", async () => {
-      const names = await page.getByRole("list", { name: "쿼터" }).locator(".row-body").evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
-      check(names.length === 2, "expected 2 services");
+    await step("read the quota and unfold a service", async () => {
+      const list = page.getByRole("list", { name: "쿼터" });
+      const names = await list.locator("summary").evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
+      check(names.length === 3, "expected 3 services, got " + names.length);
+      check(names[0].startsWith("Claude · ") && names[1].startsWith("ChatGPT · ") && names[2].startsWith("가온셈 · "), "service names " + names.join(" | "));
       check(names.filter((name) => name.endsWith("주의")).length === 1, "expected one service with 주의");
-      check(names.every((name) => /\d+% · 시간당 \+\d+% · \d+(분|시간|일) 후 초기화/.test(name)), "quota lines " + names.join(" | "));
-      return names.join(" | ");
+      check(names.every((name) => /^\S+ · \d+%( · 시간당 \+\d+%)? · \d+(분|시간|일) 후( · 주의)?$/.test(name)), "quota lines " + names.join(" | "));
+      const title = await list.locator(".rate").first().getAttribute("title");
+      check(title === "최근 5시간 평균", "the rate's title is " + title);
+      const warn = await list.locator("summary .warn-mark").evaluate((mark) => getComputedStyle(mark).color);
+      check(warn === "rgb(255, 59, 48)", "주의 is drawn " + warn);
+      check(!(await list.getByTestId("account").first().isVisible()), "accounts are not folded");
+      await list.locator("summary").first().click();
+      const accounts = await list.getByTestId("account").evaluateAll((rows) => rows.filter((row) => row.checkVisibility()).map((row) => row.getAttribute("aria-label")));
+      check(accounts.length === 2 && accounts.every((name) => /^계정 \d · \d+% · 시간당 \+\d+% · \d+(분|시간|일) 후( · 주의)?$/.test(name)), "Claude's accounts read " + accounts.join(" | "));
+      return names.join(" | ") + "; Claude: " + accounts.join(" | ");
     });
   },
 

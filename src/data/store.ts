@@ -13,7 +13,10 @@ interface Entry {
 
 export type Want = readonly (readonly [RouteName, string?])[];
 
-const LIST_ROUTES: readonly RouteName[] = ["board", "items", "goals", "cards", "inbox", "devices", "quota"];
+const LIST_ROUTES: readonly RouteName[] = ["board", "items", "goals", "cards", "inbox"];
+/** Machines and quota change slowly: read on the same refresh trigger, at most once a minute. */
+const SLOW_ROUTES: readonly RouteName[] = ["devices", "quota"];
+export const SLOW_REFRESH_S = 60;
 
 /**
  * The last answer of every route the screens read. A read that returns 304 keeps the same objects, so the
@@ -26,6 +29,7 @@ export class Store {
   private readonly entries = new Map<string, Entry>();
   private readonly listeners = new Set<() => void>();
   private wanted: Want = [];
+  private slowReadAt: number | null = null;
 
   constructor(readonly source: Source) {}
 
@@ -78,7 +82,10 @@ export class Store {
 
   /** One read of every list route, every work card's detail and whatever the open screen wants. */
   async refresh(): Promise<void> {
-    const firstWave = await Promise.all(LIST_ROUTES.map((name) => this.load(name)));
+    const now = nowSeconds();
+    const slow = this.slowReadAt === null || now - this.slowReadAt >= SLOW_REFRESH_S - 1 ? SLOW_ROUTES : [];
+    if (slow.length) this.slowReadAt = now;
+    const firstWave = await Promise.all([...LIST_ROUTES, ...slow].map((name) => this.load(name)));
     const cardIds = (this.get("cards")?.cards ?? []).map((card) => card.id);
     const secondWave = await Promise.all([
       ...cardIds.map((id) => this.load("card", id)),

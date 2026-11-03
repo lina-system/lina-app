@@ -38,6 +38,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notices/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["readNotices"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/quota": {
         parameters: {
             query?: never;
@@ -49,6 +65,22 @@ export interface paths {
         get: operations["getQuota"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/work/add": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["addWorkItem"];
         delete?: never;
         options?: never;
         head?: never;
@@ -79,6 +111,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** Every open goal and to-do plus those closed in the last three days (lina#166). */
         get: operations["listWorkItems"];
         put?: never;
         post?: never;
@@ -95,9 +128,74 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** One goal or to-do with the owner's words, children, comments, runs, links and decision (lina#166). */
         get: operations["getWorkItem"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/work/items/{id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["commentWorkItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/work/items/{id}/done": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["markWorkItemDone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/work/items/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["retryWorkItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/work/items/{id}/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["undoWorkItemDone"];
         delete?: never;
         options?: never;
         head?: never;
@@ -108,6 +206,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ActionResult: {
+            cid: string | null;
+            id: string;
+            ok: boolean;
+            reason: string | null;
+            state: components["schemas"]["WorkState"];
+            undoUntil: number | null;
+        };
         Basis: {
             at: number | null;
             text: string;
@@ -136,6 +242,8 @@ export interface components {
             inbox: components["schemas"]["Count"];
             running: components["schemas"]["Count"];
             stopped: components["schemas"]["Count"];
+            /** @description from lina#149, replaced when it merges: unread notices. */
+            unread: components["schemas"]["Count"];
         };
         DecideRow: {
             agent: string | null;
@@ -200,20 +308,51 @@ export interface components {
             status: "open" | "resolved";
             text: string;
         };
-        ItemDetail: components["schemas"]["ItemSummary"] & {
+        /** @description ItemSummary's fields (written flat, as the shapes comment allows) and the item's detail. */
+        ItemDetail: {
+            /** @description First writer: an agent id or the owner id. */
+            addedBy: string | null;
+            /** @description The agent the item answers to (agent_of). */
+            agent: string | null;
+            /** @description The area's title. */
+            area: string | null;
             basis: components["schemas"]["Basis"][];
             children: components["schemas"]["ItemSummary"][];
+            closedAt: number | null;
+            commentCount: number;
             comments: components["schemas"]["ItemComment"][];
+            createdAt: number;
             decision: components["schemas"]["Decision"] | null;
+            doneCondition: string | null;
+            due: string | null;
+            /** @description G12, T40 */
+            id: string;
+            /** @enum {string} */
+            kind: "goal" | "todo";
+            lastActivityAt: number | null;
             links: components["schemas"]["ItemLink"][];
+            /** @description The owner's own to-do. */
+            mine: boolean;
             ownerDone: components["schemas"]["OwnerDone"] | null;
+            /** @description A to-do's goal; a goal's area. */
+            parent: string | null;
+            projects: string[];
+            /** @description The store's reason code (v_todo): decision, feedback, review, hold, blocked_by_item, no_response, failed, result_missing; null when there is none (and on goals: v_goal has no reason). */
+            reason: string | null;
+            runCount: number;
             runs: components["schemas"]["ItemRun"][];
+            state: components["schemas"]["WorkState"];
+            /** @description When the item entered its state. */
+            stateSince: number | null;
+            title: string;
+            /** @description Goals only. */
+            todos: components["schemas"]["TodoCount"] | null;
             why: string | null;
             /** @description Kanban card ids linked from the item or its to-dos. */
             workCards: string[];
         };
         ItemLink: {
-            /** @description gh_ref, gh_milestone, desk, kanban, todoist, ... */
+            /** @description gh_ref, gh_milestone, desk, kanban, todoist, url (the store's link kinds). */
             kind: string;
             label: string;
             url: string | null;
@@ -272,6 +411,7 @@ export interface components {
             /** @description A to-do's goal; a goal's area. */
             parent: string | null;
             projects: string[];
+            /** @description The store's reason code (v_todo): decision, feedback, review, hold, blocked_by_item, no_response, failed, result_missing; null when there is none (and on goals: v_goal has no reason). */
             reason: string | null;
             runCount: number;
             state: components["schemas"]["WorkState"];
@@ -315,6 +455,8 @@ export interface components {
             kind: "ask" | "review" | "todo";
             /** @description One line in the work record's locale. */
             line: string;
+            /** @description from lina#149, replaced when it merges: read marks are kept by the core per owner, keyed by key. */
+            read: boolean;
             target: string;
         };
         OwnerDone: {
@@ -360,6 +502,10 @@ export interface components {
             resetAt: number | null;
             /** @description At this rate the window reaches 100% before it resets. */
             warn: boolean;
+        };
+        ReadResult: {
+            ok: boolean;
+            unread: number;
         };
         RunCard: {
             agent: string | null;
@@ -466,6 +612,16 @@ export interface operations {
             };
         };
     };
+    readNotices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: never;
+    };
     getQuota: {
         parameters: {
             query?: never;
@@ -495,6 +651,16 @@ export interface operations {
                 content?: never;
             };
         };
+    };
+    addWorkItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: never;
     };
     getWorkDue: {
         parameters: {
@@ -529,6 +695,7 @@ export interface operations {
     listWorkItems: {
         parameters: {
             query?: {
+                /** @description Only the items that answer to this agent. */
                 agent?: string;
             };
             header?: {
@@ -539,8 +706,10 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The goals and to-dos; a record that fails to read is in errors and items is empty. */
             200: {
                 headers: {
+                    ETag: components["headers"]["ETag"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -569,8 +738,10 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The item. */
             200: {
                 headers: {
+                    ETag: components["headers"]["ETag"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -584,13 +755,60 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description No such goal or to-do. */
+            /** @description No such goal or to-do (an unknown id, an area, a memo or a dropped item). */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
+            /** @description The work record failed to read. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
+    };
+    commentWorkItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: never;
+    };
+    markWorkItemDone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: never;
+    };
+    retryWorkItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: never;
+    };
+    undoWorkItemDone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: never;
     };
 }

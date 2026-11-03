@@ -40,6 +40,7 @@ export function stateLabel(state: WorkState, reason?: string | null): string {
 }
 
 export const SEP = " · ";
+const NONE = "—";
 export const CRUMB = " › ";
 
 export const W = {
@@ -86,12 +87,19 @@ export const W = {
   deviceLine: (all: number, ok: number, warn: number, down: number) => ({ all: `기기 ${all}`, ok: `정상 ${ok}`, warn: `경고 ${warn}`, down: `꺼짐 ${down}` }),
   stoppedCount: (n: number) => `중단됨 ${n}`,
   machineState: { ok: "정상", warn: "경고", down: "꺼짐" } as Record<string, string>,
-  load: (running: number | null, cap: number) => `작업 ${running ?? 0}/${cap}`,
+  load: (running: number | null, cap: number) => `작업 ${running ?? NONE}/${cap}`,
+  cpu: "CPU",
+  memory: "메모리",
+  disk: "디스크",
+  meter: (label: string, n: number | null) => `${label} ${n === null ? NONE : `${Math.round(n)}%`}`,
+  none: NONE,
   percent: (n: number) => `${Math.round(n)}%`,
   ratePerHour: (n: number) => `시간당 +${Math.round(n)}%`,
-  resetIn: (text: string) => `${text} 초기화`,
+  rateTitle: "최근 5시간 평균",
   quotaWarn: "주의",
   quotaAccount: (n: number) => `계정 ${n}`,
+  quotaPaused: "일시 정지",
+  quotaUnavailable: "사용 불가",
 
   fresh: (seconds: number) => `갱신 ${seconds}초 전`,
   stale: "갱신 지연",
@@ -108,19 +116,35 @@ export const W = {
   runningCount: (n: number) => `진행 중 ${n}`,
 };
 
+/** The one reason word after a machine's state, from the core's `why`. `down` is the state itself and shows none. */
 export const MACHINE_WHY: Readonly<Record<string, string>> = {
-  unreachable: "연결 안 됨",
-  runner: "실행기 멈춤",
-  service: "서비스 멈춤",
-  disk: "디스크 부족",
-  over: "상한 초과",
-  down: "꺼짐",
-  cpu: "CPU 높음",
-  memory: "메모리 부족",
-  temp: "온도 높음",
-  pending: "확인 중",
+  unreachable: "연결 끊김",
+  disk: "디스크",
+  memory: "메모리",
+  cpu: "CPU",
+  temp: "온도",
+  runner: "실행기",
+  service: "실행기",
+  over: "작업 초과",
   quiet: "응답 없음",
+  pending: "응답 없음",
 };
+
+export function machineWhy(why: string | null | undefined): string | null {
+  return why && Object.hasOwn(MACHINE_WHY, why) ? MACHINE_WHY[why] : null;
+}
+
+/** Display names for the services the core knows; any other service shows as the core gives it. */
+export const SERVICE_NAME: Readonly<Record<string, string>> = {
+  anthropic: "Claude",
+  openai: "ChatGPT",
+  google: "Gemini",
+  xai: "Grok",
+};
+
+export function serviceName(service: string): string {
+  return Object.hasOwn(SERVICE_NAME, service) ? SERVICE_NAME[service] : service;
+}
 
 export const SOURCE_WORD: Readonly<Record<string, string>> = {
   work: "할 일",

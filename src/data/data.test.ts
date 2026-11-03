@@ -2,6 +2,7 @@ import { expect, test, vi } from "vitest";
 import { bootstrapOptions, HttpSource } from "./http-source";
 import { startRefresh, type RefreshHost } from "./refresh";
 import { chooseSource } from "./select";
+import { Store } from "./store";
 import { SyntheticSource } from "./synthetic-source";
 
 test("reads each route on its schema's server url with the session token and the last ETag", async () => {
@@ -80,6 +81,38 @@ test("refreshes every 10 s while visible, pauses while hidden and reads once on 
     stop();
     vi.advanceTimersByTime(60_000);
     expect(run).toHaveBeenCalledTimes(4);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("machines and quota are read on the same refresh, at most once a minute", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  try {
+    const reads: string[] = [];
+    const inner = new SyntheticSource();
+    const source = new Proxy(inner, {
+      get(target, key, receiver) {
+        if (key !== "read") return Reflect.get(target, key, receiver);
+        return (name: Parameters<SyntheticSource["read"]>[0], id?: string) => {
+          reads.push(name);
+          return target.read(name, id);
+        };
+      },
+    });
+    const store = new Store(source);
+    const slow = () => reads.filter((name) => name === "devices" || name === "quota").length;
+    await store.refresh();
+    expect(slow()).toBe(2);
+    for (let tick = 1; tick <= 5; tick += 1) {
+      vi.advanceTimersByTime(10_000);
+      await store.refresh();
+    }
+    expect(slow()).toBe(2);
+    expect(reads.filter((name) => name === "board")).toHaveLength(6);
+    vi.advanceTimersByTime(10_000);
+    await store.refresh();
+    expect(slow()).toBe(4);
   } finally {
     vi.useRealTimers();
   }

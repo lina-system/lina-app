@@ -62,6 +62,8 @@ afterEach(() => {
 // The shared term table, written out here so a change to src/words.ts cannot widen it unnoticed.
 const STATES = ["예정", "진행 중", "대기", "중단됨", "완료"];
 const REASONS = ["결정 필요", "피드백", "검토 필요", "보류", "진행 대기", "응답 없음", "실패", "결과 누락"];
+// Latin words the term table allows on screen: the app name, CPU and the services' display names.
+const LATIN_WORDS = ["LINA", "CPU", "Claude", "ChatGPT", "Gemini", "Grok"];
 const STATE_LINE = new RegExp(`^(?:${STATES.join("|")})(?: · (?:${REASONS.join("|")}))?$`);
 
 describe.each([
@@ -87,7 +89,7 @@ describe.each([
     expect(text).not.toMatch(/\b\d+\s*(?:h|m|s|min)\b|\d+시간(?![째 전후])/);
     for (const word of BANNED_WORDS) expect(text).not.toContain(word);
     const names = new Set(new SyntheticSource().scene.items.agents.map((agent) => agent.name));
-    const latin = (text.match(/[A-Za-z]{2,}/g) ?? []).filter((word) => !names.has(word) && word !== "LINA");
+    const latin = (text.match(/[A-Za-z]{2,}/g) ?? []).filter((word) => !names.has(word) && !LATIN_WORDS.includes(word));
     expect(latin).toEqual([]);
   });
 });
@@ -103,6 +105,38 @@ function stoppedRows(root: Element | null): number {
 function rowsIn(root: Element | null): number {
   return root ? root.querySelectorAll("[data-testid=row]").length : 0;
 }
+
+describe("machines and quota", () => {
+  test("each machine row reads name, state, the one reason word, three meters and its load", async () => {
+    const view = await open("#/status", { wide: true });
+    const rows = [...view.getByRole("list", { name: "기기" }).querySelectorAll(".row-body")].map((row) => row.getAttribute("aria-label"));
+    expect(rows).toHaveLength(3);
+    expect(rows.some((label) => /^\S+ · 정상 · CPU \d+% · 메모리 \d+% · 디스크 \d+% · 작업 \d+\/\d+$/.test(label ?? ""))).toBe(true);
+    expect(rows.some((label) => /^\S+ · 경고 · 디스크 · CPU \d+% · 메모리 \d+% · 디스크 \d+% · 작업 \d+\/\d+$/.test(label ?? ""))).toBe(true);
+    expect(rows.some((label) => /^\S+ · 꺼짐 · 연결 끊김 · CPU — · 메모리 — · 디스크 — · 작업 —\/\d+$/.test(label ?? ""))).toBe(true);
+    const down = view.container.querySelector(".machine-row.is-down") as HTMLElement;
+    expect(down.querySelectorAll(".mini-none")).toHaveLength(3);
+    expect(down.querySelectorAll(".meter")).toHaveLength(0);
+    expect(view.container.querySelectorAll(".machine-row.is-ok .meter")).toHaveLength(3);
+  });
+
+  test("one quota row per service with its accounts folded under it, known services by their display names", async () => {
+    const view = await open("#/status", { wide: true });
+    const list = view.getByRole("list", { name: "쿼터" });
+    const services = [...list.querySelectorAll(":scope > [data-testid=row]")];
+    expect(services.map((row) => row.querySelector("summary .title")?.textContent)).toEqual(["Claude", "ChatGPT", "가온셈"]);
+    const labels = services.map((row) => row.querySelector("summary")?.getAttribute("aria-label") ?? "");
+    expect(labels[0]).toMatch(/^Claude · 72% · 시간당 \+9% · \d시간 후 · 주의$/);
+    expect(labels[1]).toMatch(/^ChatGPT · 31% · 시간당 \+2% · \d일 후$/);
+    expect(labels[2]).toMatch(/^가온셈 · 5% · \d+일 후$/);
+    expect(services.map((row) => (row.querySelector("details") as HTMLDetailsElement).open)).toEqual([false, false, false]);
+    expect(services.map((row) => row.querySelectorAll("[data-testid=account]").length)).toEqual([2, 1, 1]);
+    expect(services[0].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toMatch(/^계정 1 · 72% · 시간당 \+9% · \d시간 후 · 주의$/);
+    expect(services[2].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toMatch(/^계정 1 · 일시 정지 · 5% · \d+일 후$/);
+    expect(services[0].querySelector(".rate")?.getAttribute("title")).toBe("최근 5시간 평균");
+    expect(services.filter((row) => row.querySelector("summary .warn-mark"))).toHaveLength(1);
+  });
+});
 
 describe("every count equals the length of the list it labels", () => {
   test("sidebar rows and their screens", async () => {

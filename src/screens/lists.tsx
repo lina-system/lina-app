@@ -1,9 +1,11 @@
+import type { ComponentChildren } from "preact";
+import type { Machine, QuotaAccount, QuotaService } from "../api/client";
 import type { DueRow, GoalRow, InboxRow } from "../model";
 import { agentView } from "../model";
 import { href } from "../router";
 import { ago, dayLabel, until } from "../time";
 import { AgentMark, agentName, CardRowView, CountPair, Dial, Disclosure, Empty, Link, ListSection, useApp } from "../ui/parts";
-import { MACHINE_WHY, SEP, W } from "../words";
+import { machineWhy, serviceName, SEP, W } from "../words";
 
 function InboxRowView({ row }: { row: InboxRow }) {
   const { model, now, selected } = useApp();
@@ -179,8 +181,133 @@ export function AgentScreen({ id }: { id: string }) {
   );
 }
 
+function Meter({ label, value }: { label: string; value: number | null }) {
+  return (
+    <span class="mini-meter" data-testid="machine-meter">
+      <span class="mini-label">{label}</span>
+      {value === null ? (
+        <span class="mini-none">{W.none}</span>
+      ) : (
+        <span class="meter" aria-hidden="true">
+          <span class={`meter-fill${value >= 90 ? " is-high" : ""}`} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
+        </span>
+      )}
+    </span>
+  );
+}
+
+function MachineRow({ machine }: { machine: Machine }) {
+  const word = W.machineState[machine.state] ?? "";
+  const why = machineWhy(machine.why);
+  const meters = [
+    [W.cpu, machine.cpu],
+    [W.memory, machine.memory],
+    [W.disk, machine.disk],
+  ] as const;
+  const label = [machine.name, word, why, ...meters.map(([name, value]) => W.meter(name, value)), W.load(machine.running, machine.cap)].filter(Boolean).join(SEP);
+  return (
+    <li class={`row machine-row is-${machine.state}`} data-testid="row">
+      <div class="row-body" aria-label={label}>
+        <span class={`status-dot is-${machine.state}`} aria-hidden="true" />
+        <span class="lines">
+          <span class="title one-line">{machine.name}</span>
+          <span class="sub">
+            <span class="machine-state">{word}</span>
+            {why ? <span class="machine-why">{`${SEP}${why}`}</span> : null}
+          </span>
+          <span class="mini-meters">
+            {meters.map(([name, value]) => (
+              <Meter key={name} label={name} value={value} />
+            ))}
+          </span>
+        </span>
+        <span class="trail">{W.load(machine.running, machine.cap)}</span>
+      </div>
+    </li>
+  );
+}
+
+interface QuotaLine {
+  readonly percent: number | null;
+  readonly rate: number | null;
+  readonly resetAt: number | null;
+  readonly warn: boolean;
+}
+
+function mainWindow(account: QuotaAccount): QuotaAccount["windows"][number] | undefined {
+  return account.windows.find((window) => window.key === account.mainWindow) ?? account.windows[0];
+}
+
+function QuotaParts({ line, now }: { line: QuotaLine; now: number }) {
+  const parts: ComponentChildren[] = [];
+  if (line.percent !== null) parts.push(<span key="p">{W.percent(line.percent)}</span>);
+  if (line.rate !== null)
+    parts.push(
+      <span key="r" class="rate" title={W.rateTitle}>
+        {W.ratePerHour(line.rate)}
+      </span>,
+    );
+  if (line.resetAt !== null) parts.push(<span key="t">{until(line.resetAt - now)}</span>);
+  return <>{parts.flatMap((part, index) => (index ? [SEP, part] : [part]))}</>;
+}
+
+function quotaText(line: QuotaLine, now: number): string[] {
+  return [line.percent !== null ? W.percent(line.percent) : null, line.rate !== null ? W.ratePerHour(line.rate) : null, line.resetAt !== null ? until(line.resetAt - now) : null].filter((part): part is string => Boolean(part));
+}
+
+function QuotaMeter({ line }: { line: QuotaLine }) {
+  return (
+    <span class="meter" aria-hidden="true">
+      <span class={`meter-fill${line.warn ? " is-high" : ""}`} style={{ width: `${Math.min(100, Math.max(0, line.percent ?? 0))}%` }} />
+    </span>
+  );
+}
+
+function QuotaRow({ service }: { service: QuotaService }) {
+  const { now } = useApp();
+  const name = serviceName(service.service);
+  const resets = service.accounts.map((account) => mainWindow(account)?.resetAt ?? null).filter((at): at is number => at !== null);
+  const line: QuotaLine = { percent: service.percent, rate: service.ratePerHour, resetAt: resets.length ? Math.min(...resets) : null, warn: service.accounts.some((account) => account.warn) };
+  return (
+    <li class={`row quota-row${line.warn ? " is-warn" : ""}`} data-testid="row">
+      <details class="quota-fold">
+        <summary class="row-body" aria-label={[name, ...quotaText(line, now), line.warn ? W.quotaWarn : ""].filter(Boolean).join(SEP)}>
+          <span class="lines">
+            <span class="title one-line">{name}</span>
+            <span class="sub">
+              <QuotaParts line={line} now={now} />
+            </span>
+          </span>
+          {line.warn ? <span class="trail warn-mark">{W.quotaWarn}</span> : null}
+          <Disclosure />
+          <QuotaMeter line={line} />
+        </summary>
+        <ul class="accounts" aria-label={name}>
+          {service.accounts.map((account) => {
+            const window = mainWindow(account);
+            const accountLine: QuotaLine = { percent: window?.percent ?? null, rate: window?.ratePerHour ?? null, resetAt: window?.resetAt ?? null, warn: account.warn };
+            const flags = [account.paused ? W.quotaPaused : null, account.unavailable ? W.quotaUnavailable : null].filter((flag): flag is string => Boolean(flag));
+            return (
+              <li key={account.id} class={`account-row${account.warn ? " is-warn" : ""}`} data-testid="account" aria-label={[W.quotaAccount(account.number), ...flags, ...quotaText(accountLine, now), account.warn ? W.quotaWarn : ""].filter(Boolean).join(SEP)}>
+                <span class="lines">
+                  <span class="title one-line">{[W.quotaAccount(account.number), ...flags].join(SEP)}</span>
+                  <span class="sub">
+                    <QuotaParts line={accountLine} now={now} />
+                  </span>
+                </span>
+                {account.warn ? <span class="trail warn-mark">{W.quotaWarn}</span> : null}
+                <QuotaMeter line={accountLine} />
+              </li>
+            );
+          })}
+        </ul>
+      </details>
+    </li>
+  );
+}
+
 export function StatusScreen() {
-  const { model, now } = useApp();
+  const { model } = useApp();
   return (
     <div class="list" data-testid="screen-status">
       <section class="list-section" data-testid="section-machines">
@@ -188,25 +315,9 @@ export function StatusScreen() {
           <span>{W.devices}</span>
         </h2>
         <ul class="rows" aria-label={W.devices}>
-          {model.machines.map((machine) => {
-            const word = W.machineState[machine.state] ?? "";
-            const why = machine.why ? MACHINE_WHY[machine.why] : null;
-            return (
-              <li key={machine.name} class={`row machine-row is-${machine.state}`} data-testid="row">
-                <div class="row-body" aria-label={[machine.name, word, why].filter(Boolean).join(SEP)}>
-                  <span class={`status-dot is-${machine.state}`} aria-hidden="true" />
-                  <span class="lines">
-                    <span class="title one-line">{machine.name}</span>
-                    <span class="sub">
-                      <span class="machine-state">{word}</span>
-                      {why ? `${SEP}${why}` : ""}
-                    </span>
-                  </span>
-                  <span class="trail">{W.load(machine.running, machine.cap)}</span>
-                </div>
-              </li>
-            );
-          })}
+          {model.machines.map((machine) => (
+            <MachineRow key={machine.name} machine={machine} />
+          ))}
         </ul>
       </section>
       {model.quota.length ? (
@@ -215,30 +326,9 @@ export function StatusScreen() {
             <span>{W.quota}</span>
           </h2>
           <ul class="rows" aria-label={W.quota}>
-            {model.quota.map((service) => {
-              const warn = service.accounts.some((account) => account.warn);
-              const resets = service.accounts.flatMap((account) => account.windows.filter((window) => window.key === account.mainWindow)).map((window) => window.resetAt).filter((at): at is number => at !== null);
-              const reset = resets.length ? Math.min(...resets) : null;
-              const parts = [
-                service.percent !== null ? W.percent(service.percent) : null,
-                service.ratePerHour !== null ? W.ratePerHour(service.ratePerHour) : null,
-                reset !== null ? W.resetIn(until(reset - now)) : null,
-              ].filter(Boolean);
-              return (
-                <li key={service.service} class={`row quota-row${warn ? " is-warn" : ""}`} data-testid="row">
-                  <div class="row-body" aria-label={[service.service, ...parts, warn ? W.quotaWarn : ""].filter(Boolean).join(SEP)}>
-                    <span class="lines">
-                      <span class="title one-line">{service.service}</span>
-                      <span class="sub">{parts.join(SEP)}</span>
-                    </span>
-                    {warn ? <span class="trail warn-mark">{W.quotaWarn}</span> : null}
-                    <span class="meter" aria-hidden="true">
-                      <span class="meter-fill" style={{ width: `${Math.min(100, service.percent ?? 0)}%` }} />
-                    </span>
-                  </div>
-                </li>
-              );
-            })}
+            {model.quota.map((service) => (
+              <QuotaRow key={service.service} service={service} />
+            ))}
           </ul>
         </section>
       ) : null}

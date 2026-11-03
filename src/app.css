@@ -508,7 +508,8 @@ button:disabled {
   color: var(--orange);
 }
 
-.quota-row .row-body {
+.quota-row .row-body,
+.account-row {
   flex-wrap: wrap;
 }
 
@@ -526,8 +527,87 @@ button:disabled {
   background: var(--accent);
 }
 
-.quota-row.is-warn .meter-fill {
+.meter-fill.is-high {
   background: var(--red);
+}
+
+.mini-meters {
+  display: flex;
+  gap: 14px;
+  margin-top: 3px;
+  font-size: var(--text-small);
+  color: var(--label-2);
+}
+
+.mini-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mini-meter .meter {
+  flex: none;
+  width: 44px;
+  height: 3px;
+}
+
+.mini-none {
+  color: var(--label-2);
+}
+
+.quota-fold > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--row);
+  padding: 6px var(--inset);
+  cursor: pointer;
+  list-style: none;
+}
+
+/* Hover only where there is a pointer: a tap on a phone must not leave the row grey. */
+@media (hover: hover) {
+  .quota-fold > summary:hover {
+    background: var(--fill);
+  }
+}
+
+.stack .quota-fold > summary {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.stack .accounts {
+  padding-left: 26px;
+  padding-right: 12px;
+}
+
+.quota-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.quota-fold .disclosure {
+  transition: transform var(--motion);
+}
+
+.quota-fold[open] .disclosure {
+  transform: rotate(90deg);
+}
+
+.accounts {
+  display: grid;
+  padding: 0 var(--inset) 8px calc(var(--inset) + 14px);
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.account-row + .account-row {
+  border-top: var(--line) solid var(--separator);
 }
 
 .warn-mark {

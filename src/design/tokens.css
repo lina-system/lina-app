@@ -82,4 +82,10 @@
   :root {
     --motion: 0ms linear;
   }
+
+  /* The bell sheet opens at once; the phone's push and pop already swap at once (stack-motion.ts). */
+  [data-layout="phone"],
+  [data-layout="phone"] ~ .toast-slot {
+    --stack-motion: 0ms linear;
+  }
 }

@@ -3,39 +3,32 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
+// Renaming a field the home screen reads (ItemSummary.title, in the lina#166 block of board-client.yaml) must
+// fail the app build, so a schema change in the core cannot slip past the screens.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const schemaPath = path.join(root, "openapi", "lina-client.yaml");
-const generatedPath = path.join(root, "src", "api", "generated.ts");
-
-const field = "        goalCount:\n          type: integer";
-const renamedField = "        objectiveCount:\n          type: integer";
-const required = "required:\n        - goalCount";
-const renamedRequired = "required:\n        - objectiveCount";
+const schemaPath = path.join(root, "openapi", "board-client.yaml");
+const generatedPath = path.join(root, "src", "api", "board.generated.ts");
 
 const originalSchema = readFileSync(schemaPath, "utf8");
 const originalGenerated = readFileSync(generatedPath, "utf8");
 
-if (!originalSchema.includes(field) || !originalSchema.includes(required)) {
-  throw new Error("schema is missing the goalCount field the app reads");
-}
-
-const renamedSchema = originalSchema.replace(field, renamedField).replace(required, renamedRequired);
+const start = originalSchema.indexOf("\n    ItemSummary:\n");
+const end = originalSchema.indexOf("\n    ItemList:\n", start);
+if (start < 0 || end < 0) throw new Error("schema is missing the ItemSummary schema the app reads");
+const block = originalSchema.slice(start, end);
+const required = "parent, title, agent";
+const field = "        title: {type: string}";
+if (!block.includes(required) || !block.includes(field)) throw new Error("ItemSummary is missing the title field the app reads");
+const renamedBlock = block.replace(required, "parent, heading, agent").replace(field, "        heading: {type: string}");
+const renamedSchema = originalSchema.slice(0, start) + renamedBlock + originalSchema.slice(end);
 
 let output = "";
-let status = 0;
 try {
   writeFileSync(schemaPath, renamedSchema);
-  const build = spawnSync("npm", ["run", "build"], {
-    cwd: root,
-    encoding: "utf8",
-    env: process.env,
-  });
-  status = build.status ?? 1;
+  const build = spawnSync("npm", ["run", "build"], { cwd: root, encoding: "utf8", env: process.env });
   output = `${build.stdout ?? ""}\n${build.stderr ?? ""}`;
-  if (status === 0 || !output.includes("goalCount")) {
-    throw new Error(
-      `renaming goalCount should fail the app build because the screen reads that field\n${output}`,
-    );
+  if (build.status === 0 || !/Property 'title' does not exist|'title'/.test(output)) {
+    throw new Error(`renaming ItemSummary.title should fail the app build because the screens read that field\n${output}`);
   }
 } finally {
   writeFileSync(schemaPath, originalSchema);

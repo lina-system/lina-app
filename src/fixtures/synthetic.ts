@@ -1,20 +1,31 @@
-import type { Home, NotificationList, Status } from "../api/client";
+import type {
+  BoardSnapshot,
+  DevicesView,
+  GoalList,
+  ItemDetail,
+  ItemList,
+  ItemSummary,
+  QuotaView,
+  RunCard,
+  WorkCardDetail,
+  WorkCardList,
+  WorkGoal,
+  WorkInbox,
+  WorkState,
+} from "../api/client";
 
 /**
- * Test fixtures are generated, never copied from a real home. A fixed seed keeps
- * tests and captures stable; names, titles and ids are synthetic tokens, so a
- * person's or agent's name cannot drift in from a capture or a manual edit.
+ * The synthetic scene behind tests, captures and the verify skill. It is generated from a seed, never copied
+ * from a real home: agent and machine names are invented words, titles are invented Korean work phrases, and
+ * every time is relative to the `now` it is generated for, so a capture always reads "12분째", never a date.
+ * Every route the app reads has its body here, shaped by the generated schema types.
  */
 export const SYNTHETIC_SEED = 0x5eed;
 
-const AGENT_NAMES = ["Agent 1", "Agent 2"] as const;
-const GOAL_TITLES = ["샘플 목표", "점검 목표"] as const;
-const TODO_TITLES = ["Draft the fixture", "Read the summary", "Note a line"] as const;
-const RUN_TITLES = ["Draft the fixture", "Run the check"] as const;
-const NOTICE_TITLES = ["Fixture notice", "Synthetic notice"] as const;
-const MACHINE_NAMES = ["Machine 1", "Machine 2"] as const;
-const MODELS = ["fixture-model", "fixture-model-small"] as const;
-const REMAINING = [20, 40, 60] as const;
+const AGENT_NAMES = ["Mirel", "Tavo", "Quenna", "Orli", "Pesk"] as const;
+const MACHINE_NAMES = ["솔방울", "징검돌", "모래톱", "물레방아"] as const;
+const SERVICE_NAMES = ["가온셈", "나린셈"] as const;
+const OWNER = { id: "owner", name: "나" } as const;
 
 type Rng = () => number;
 
@@ -33,130 +44,417 @@ function shuffle<T>(rng: Rng, values: readonly T[]): T[] {
   const result = [...values];
   for (let index = result.length - 1; index > 0; index -= 1) {
     const other = Math.floor(rng() * (index + 1));
-    const value = result[index];
-    result[index] = result[other];
-    result[other] = value;
+    [result[index], result[other]] = [result[other], result[index]];
   }
   return result;
 }
 
-function pick<T>(rng: Rng, values: readonly T[]): T {
-  return values[Math.floor(rng() * values.length)];
+export interface SceneOptions {
+  readonly now: number;
+  readonly sourceError?: boolean;
 }
 
-function counts(agents: Home["agents"]): { goals: number; todos: number; runs: number } {
-  let goals = 0;
-  let todos = 0;
-  let runs = 0;
-  for (const agent of agents) {
-    goals += agent.goals.length;
-    for (const goal of agent.goals) {
-      todos += goal.todos.length;
-      for (const todo of goal.todos) runs += todo.runs.length;
-    }
-  }
-  return { goals, todos, runs };
+export interface Scene {
+  readonly now: number;
+  readonly board: BoardSnapshot;
+  readonly items: ItemList;
+  readonly itemDetails: Readonly<Record<string, ItemDetail>>;
+  readonly devices: DevicesView;
+  readonly quota: QuotaView;
+  readonly goals: GoalList;
+  readonly cards: WorkCardList;
+  readonly cardDetails: Readonly<Record<string, WorkCardDetail>>;
+  readonly inbox: WorkInbox;
 }
 
-export function countsFromAgents(home: Home): { goals: number; todos: number; runs: number } {
-  return counts(home.agents);
+const MIN = 60;
+const HOUR = 3600;
+const DAY = 86400;
+
+function day(now: number, offsetDays: number): string {
+  const date = new Date((now + offsetDays * DAY) * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-function summaryOf(agents: Home["agents"]): Home["summary"] {
-  const { goals, todos, runs } = counts(agents);
-  return { goalCount: goals, todoCount: todos, runCount: runs };
+function daysToNextWeek(now: number): number {
+  const weekday = (new Date(now * 1000).getDay() + 6) % 7;
+  return 7 - weekday;
 }
 
-export function generateHome(seed = SYNTHETIC_SEED): Home {
+interface TodoSeed {
+  id: string;
+  goal: string;
+  agent: number;
+  title: string;
+  state: WorkState;
+  reason: string | null;
+  mine?: boolean;
+  sinceAgo: number;
+  due?: number;
+  doneCondition: string;
+}
+
+export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptions): Scene {
+  const { now } = options;
   const rng = mulberry32(seed);
-  const agents = shuffle(rng, AGENT_NAMES);
-  const goalTitles = shuffle(rng, GOAL_TITLES);
-  const todoTitles = shuffle(rng, TODO_TITLES);
-  const runTitles = shuffle(rng, RUN_TITLES);
-  const rows: Home["agents"] = [
-    {
-      id: "agent-1",
-      name: agents[0],
-      goals: [
+  const names = shuffle(rng, AGENT_NAMES).slice(0, 3);
+  const machines = shuffle(rng, MACHINE_NAMES).slice(0, 3);
+  const agents = names.map((name, index) => ({ id: `ag-${index + 1}`, name }));
+  const agentId = (index: number) => agents[index].id;
+  const weekOffset = Math.min(2, daysToNextWeek(now) - 1);
+
+  const goalSeeds = [
+    { id: "G1", agent: 0, title: "릴리스 노트 정리", state: "in_progress", sinceAgo: 2 * DAY, due: 0, doneCondition: "이번 릴리스의 변경이 모두 노트에 실림", why: "릴리스마다 바뀐 점을 한곳에서 보고 싶어요." },
+    { id: "G2", agent: 1, title: "결제 화면 개편", state: "in_progress", sinceAgo: 5 * DAY, due: -2, doneCondition: "새 결제 화면이 모든 카드사에서 통과", why: "결제 중에 이탈이 많다는 말을 들었어요." },
+    { id: "G3", agent: 2, title: "백업 주기 점검", state: "waiting", reason: "decision", sinceAgo: 3 * DAY, doneCondition: "복구 연습을 한 번 마침", why: "백업이 실제로 복구되는지 확인하고 싶어요." },
+    { id: "G4", agent: 0, title: "온보딩 문서 갱신", state: "done", sinceAgo: 1 * DAY, doneCondition: "새 가이드가 문서 사이트에 올라감", why: "처음 온 사람이 혼자 시작할 수 있게요." },
+    { id: "G5", agent: 1, title: "검색 속도 개선", state: "in_progress", sinceAgo: 4 * DAY, due: 20, doneCondition: "느린 질의 상위 열 개가 1초 안에 끝남", why: "검색이 느리다는 의견이 많아요." },
+  ] as const;
+
+  const todoSeeds: TodoSeed[] = [
+    { id: "T1", goal: "G1", agent: 0, title: "변경 목록 모으기", state: "in_progress", reason: null, sinceAgo: 40 * MIN, doneCondition: "병합된 변경이 빠짐없이 목록에 있음" },
+    { id: "T2", goal: "G1", agent: 0, title: "배포 순서 정하기", state: "waiting", reason: "decision", sinceAgo: 3 * DAY, doneCondition: "배포 순서가 정해짐" },
+    { id: "T3", goal: "G1", agent: 0, title: "공지 문구 확인", state: "planned", reason: null, mine: true, sinceAgo: 1 * DAY, due: weekOffset, doneCondition: "공지 문구를 확인함" },
+    { id: "T4", goal: "G2", agent: 1, title: "카드 입력 폼 다듬기", state: "in_progress", reason: null, sinceAgo: 2 * HOUR, doneCondition: "입력 폼이 모든 화면 폭에서 맞음" },
+    { id: "T5", goal: "G2", agent: 1, title: "오류 문구 바꾸기", state: "stopped", reason: "no_response", sinceAgo: 52 * MIN, doneCondition: "오류 문구가 새 문체로 바뀜" },
+    { id: "T6", goal: "G2", agent: 1, title: "결제 실패 화면 검토", state: "waiting", reason: "review", sinceAgo: 3 * HOUR, doneCondition: "실패 화면 검토를 마침" },
+    { id: "T7", goal: "G3", agent: 2, title: "백업 기록 살펴보기", state: "done", reason: null, sinceAgo: 2 * HOUR, doneCondition: "지난 한 달 백업 기록을 확인함" },
+    { id: "T8", goal: "G3", agent: 2, title: "복구 연습 일정 잡기", state: "waiting", reason: "decision", sinceAgo: 2 * DAY, doneCondition: "복구 연습 날짜가 정해짐" },
+    { id: "T9", goal: "G3", agent: 2, title: "저장소 접근 권한 주기", state: "planned", reason: null, mine: true, sinceAgo: 2 * DAY, due: 30, doneCondition: "복구용 저장소에 들어갈 수 있음" },
+    { id: "T10", goal: "G4", agent: 0, title: "가이드 초안 쓰기", state: "done", reason: null, sinceAgo: 1 * DAY, doneCondition: "초안이 검토를 통과함" },
+    { id: "T11", goal: "G5", agent: 1, title: "색인 구조 비교", state: "stopped", reason: "failed", sinceAgo: 5 * HOUR, doneCondition: "두 색인 구조의 속도를 비교함" },
+    { id: "T12", goal: "G5", agent: 1, title: "느린 질의 모으기", state: "waiting", reason: "feedback", sinceAgo: 1 * DAY, doneCondition: "느린 질의 목록이 정리됨" },
+  ];
+
+  const summary = (fields: Omit<ItemSummary, "createdAt" | "lastActivityAt" | "closedAt" | "area" | "projects" | "runCount" | "commentCount"> & Partial<ItemSummary>): ItemSummary => ({
+    createdAt: now - 7 * DAY,
+    lastActivityAt: fields.stateSince,
+    closedAt: fields.state === "done" ? fields.stateSince : null,
+    area: null,
+    projects: [],
+    runCount: 0,
+    commentCount: 0,
+    ...fields,
+  });
+
+  const todoItems: ItemSummary[] = todoSeeds.map((todo) =>
+    summary({
+      id: todo.id,
+      kind: "todo",
+      parent: todo.goal,
+      title: todo.title,
+      agent: agentId(todo.agent),
+      addedBy: agentId(todo.agent),
+      mine: Boolean(todo.mine),
+      state: todo.state,
+      reason: todo.reason,
+      stateSince: now - todo.sinceAgo,
+      due: todo.due === undefined ? null : day(now, todo.due),
+      doneCondition: todo.doneCondition,
+      todos: null,
+    }),
+  );
+
+  const goalItems: ItemSummary[] = goalSeeds.map((goal) => {
+    const children = todoItems.filter((todo) => todo.parent === goal.id);
+    return summary({
+      id: goal.id,
+      kind: "goal",
+      parent: null,
+      title: goal.title,
+      agent: agentId(goal.agent),
+      addedBy: OWNER.id,
+      mine: false,
+      state: goal.state,
+      reason: "reason" in goal ? goal.reason : null,
+      stateSince: now - goal.sinceAgo,
+      due: "due" in goal ? day(now, goal.due) : null,
+      doneCondition: goal.doneCondition,
+      todos: { done: children.filter((todo) => todo.state === "done").length, total: children.length },
+    });
+  });
+
+  // Worker runs: r1-r5 were started by work cards; r6 runs outside any card and waits on the owner.
+  const runCards: RunCard[] = [
+    { id: "r1", title: "변경 목록 모으기", state: "in_progress", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[0], startedAt: now - 12 * MIN, endedAt: null, now: "병합된 변경을 기능별로 묶는 중" },
+    { id: "r2", title: "카드 입력 폼 다듬기", state: "done", reason: null, agent: agentId(1), kind: "ulw", todo: "T4", host: machines[1], startedAt: now - 2 * HOUR, endedAt: now - 70 * MIN, now: null },
+    { id: "r3", title: "오류 문구 바꾸기", state: "stopped", reason: "unresponsive", agent: agentId(1), kind: "ulw", todo: "T5", host: machines[2], startedAt: now - 3 * HOUR, endedAt: null, now: null },
+    { id: "r4", title: "결제 실패 화면 검토", state: "waiting", reason: "review", agent: agentId(1), kind: "research", todo: "T6", host: machines[0], startedAt: now - 4 * HOUR, endedAt: now - 3 * HOUR, now: null },
+    { id: "r5", title: "백업 기록 살펴보기", state: "done", reason: null, agent: agentId(2), kind: "ulw", todo: "T7", host: machines[1], startedAt: now - 2 * HOUR - 9 * MIN, endedAt: now - 2 * HOUR, now: null },
+    { id: "r6", title: "색인 구조 다시 비교", state: "waiting", reason: "review", agent: agentId(1), kind: "ulw", todo: "T11", host: machines[0], startedAt: now - 6 * HOUR, endedAt: now - 5 * HOUR, now: null },
+  ];
+
+  const cardSeeds = [
+    { id: "k-101", goal: "kg-1", agent: 0, title: "릴리스 노트: 변경 목록 정리", state: "in_progress", reason: null, elapsed: 12 * MIN, now: "변경 목록을 기능별로 묶는 중", todos: [["T1", true], ["T3", false]], runs: ["r1"], lastBeat: now - 20 },
+    { id: "k-102", goal: "kg-2", agent: 1, title: "결제: 카드 입력 폼 다듬기", state: "in_progress", reason: null, elapsed: 2 * HOUR, now: null, todos: [["T4", false]], runs: ["r2"], lastBeat: now - 40 },
+    { id: "k-103", goal: "kg-2", agent: 1, title: "결제: 오류 문구 바꾸기", state: "stopped", reason: "unresponsive", elapsed: 52 * MIN, now: null, todos: [["T5", false]], runs: ["r3"], lastBeat: now - 52 * MIN },
+    { id: "k-104", goal: "kg-2", agent: 1, title: "결제: 실패 화면 검토", state: "waiting", reason: "review", elapsed: 3 * HOUR, now: null, todos: [["T6", false]], runs: ["r4"], lastBeat: now - 3 * HOUR },
+    { id: "k-105", goal: "kg-3", agent: 2, title: "백업: 지난 기록 살펴보기", state: "done", reason: null, elapsed: 9 * MIN, now: null, todos: [["T7", true]], runs: ["r5"], lastBeat: now - 2 * HOUR },
+  ] as const;
+
+  const todoTitle = (id: string) => todoSeeds.find((todo) => todo.id === id)?.title ?? "";
+  const cardDetails: Record<string, WorkCardDetail> = {};
+  for (const card of cardSeeds) {
+    const done = card.todos.filter(([, isDone]) => isDone).length;
+    const run = runCards.find((candidate) => candidate.id === card.runs[0]);
+    cardDetails[card.id] = {
+      id: card.id,
+      title: card.title,
+      agent: agentId(card.agent),
+      state: card.state,
+      reason: card.reason,
+      elapsedSeconds: card.elapsed,
+      todoProgress: { done, total: card.todos.length },
+      now: card.now,
+      todos: card.todos.map(([id, isDone], index) => ({ id: `check-${index + 1}`, title: todoTitle(id), kind: "check", done: isDone })),
+      workerRuns: card.runs.map((id) => ({ id, kind: "lina-worker", firstSeenAt: run?.startedAt ?? now, lastSeenAt: run?.endedAt ?? card.lastBeat })),
+      gates: [],
+      comments:
+        card.id === "k-101"
+          ? [
+              { id: 1, author: agentId(0), body: "지난 릴리스 이후 병합된 변경부터 모읍니다.", createdAt: now - 11 * MIN },
+              { id: 2, author: OWNER.id, body: "문서만 바뀐 변경은 따로 묶어 주세요.", createdAt: now - 6 * MIN },
+            ]
+          : [],
+      runs: [
         {
-          id: "goal-1",
-          title: goalTitles[0],
-          todos: [
-            {
-              id: "todo-1",
-              title: todoTitles[0],
-              state: "in_progress",
-              reason: "working",
-              addedBy: agents[0],
-              runs: [{ id: "run-1", title: runTitles[0], state: "in_progress", reason: "working" }],
-            },
-          ],
+          id: 1,
+          profile: null,
+          status: card.state === "done" ? "done" : card.state === "in_progress" ? "running" : "blocked",
+          outcome: null,
+          startedAt: now - card.elapsed,
+          endedAt: card.state === "done" ? card.lastBeat : null,
+          lastHeartbeatAt: card.lastBeat,
+          summary: null,
+          live: card.state === "in_progress",
         },
       ],
-    },
+    };
+  }
+  const cardList: WorkCardList = {
+    cards: cardSeeds.map((card) => {
+      const { todos: _todos, workerRuns: _runs, gates: _gates, comments: _comments, runs: _cardRuns, ...summaryFields } = cardDetails[card.id];
+      return summaryFields;
+    }),
+  };
+
+  const goalCards: WorkGoal[] = [
+    { id: "kg-1", title: "릴리스 노트 정리", agent: agentId(0), state: "in_progress", reason: null, elapsedSeconds: 2 * DAY, workCards: [cardList.cards[0]], evidence: [] },
+    { id: "kg-2", title: "결제 화면 개편", agent: agentId(1), state: "in_progress", reason: null, elapsedSeconds: 5 * DAY, workCards: cardList.cards.slice(1, 4), evidence: [] },
+    { id: "kg-3", title: "백업 주기 점검", agent: agentId(2), state: "waiting", reason: "review", elapsedSeconds: 3 * DAY, workCards: [cardList.cards[4]], evidence: [] },
     {
-      id: "agent-2",
-      name: agents[1],
-      goals: [
-        {
-          id: "goal-2",
-          title: goalTitles[1],
-          todos: [
-            {
-              id: "todo-2",
-              title: todoTitles[1],
-              state: "planned",
-              addedBy: agents[1],
-              runs: [],
-            },
-            {
-              id: "todo-3",
-              title: todoTitles[2],
-              state: "waiting",
-              reason: "input",
-              addedBy: agents[1],
-              runs: [],
-            },
-          ],
-        },
-      ],
+      id: "kg-4",
+      title: "온보딩 문서 갱신",
+      agent: agentId(0),
+      state: "done",
+      reason: null,
+      elapsedSeconds: 6 * DAY,
+      workCards: [],
+      evidence: [{ cardId: "kg-4", title: "온보딩 문서 갱신", summary: "새 가이드를 문서 사이트에 올리고 첫 화면에 연결함", metadata: null, completedAt: now - 1 * DAY }],
     },
   ];
-  return { summary: summaryOf(rows), agents: rows };
-}
 
-export function generateNotifications(seed = SYNTHETIC_SEED): NotificationList {
-  const rng = mulberry32(seed ^ 0x9e3779b9);
+  const goalWorkCards: Record<string, string[]> = { G1: ["kg-1", "k-101"], G2: ["kg-2", "k-102", "k-103", "k-104"], G3: ["kg-3", "k-105"], G4: ["kg-4"], G5: [] };
+  const todoWorkCards: Record<string, string[]> = { T1: ["k-101"], T3: ["k-101"], T4: ["k-102"], T5: ["k-103"], T6: ["k-104"], T7: ["k-105"] };
+
+  const decisions: Record<string, { text: string; kind: "ask" | "act"; ago: number }> = {
+    T2: { text: "배포를 금요일 오후에 해도 될까요?", kind: "ask", ago: 3 * DAY },
+    T8: { text: "복구 연습에 쓸 두 시간을 비워 주세요.", kind: "act", ago: 2 * DAY },
+    T12: { text: "자주 쓰는 검색어 열 개를 알려 주세요.", kind: "act", ago: 1 * DAY },
+  };
+
+  const comments: Record<string, ItemDetail["comments"]> = {
+    T4: [
+      {
+        cid: "c1",
+        by: agentId(1),
+        at: now - 90 * MIN,
+        text: "입력 칸 순서를 카드 번호, 유효 기간, 보안 코드로 바꿨어요.",
+        status: "open",
+        kind: "comment",
+        replies: [{ by: OWNER.id, at: now - 80 * MIN, text: "좋아요. 휴대폰에서도 한 줄에 맞는지 봐 주세요.", result: null }],
+      },
+      {
+        cid: "c2",
+        by: OWNER.id,
+        at: now - 60 * MIN,
+        text: "오류가 나면 입력한 값은 지우지 말아 주세요.",
+        status: "resolved",
+        kind: "comment",
+        replies: [{ by: agentId(1), at: now - 55 * MIN, text: "입력값을 남기도록 고쳤어요.", result: "applied" }],
+      },
+    ],
+    T2: [
+      {
+        cid: "c3",
+        by: agentId(0),
+        at: now - 3 * DAY,
+        text: "금요일 오후가 사용량이 가장 적어요.",
+        status: "open",
+        kind: "comment",
+        replies: [
+          { by: OWNER.id, at: now - 2 * DAY, text: "월요일 오전은 어떤가요?", result: null },
+          { by: agentId(0), at: now - 2 * DAY + HOUR, text: "월요일 오전에는 정산 작업이 겹쳐요.", result: "needs_answer" },
+        ],
+      },
+    ],
+  };
+
+  const itemRuns = (todoId: string): ItemDetail["runs"] =>
+    runCards
+      .filter((run) => run.todo === todoId)
+      .map((run) => ({ id: run.id, title: run.title, state: run.state, reason: run.reason, startedAt: run.startedAt === null ? null : Math.round(run.startedAt), endedAt: run.endedAt === null ? null : Math.round(run.endedAt) }));
+
+  const itemDetails: Record<string, ItemDetail> = {};
+  for (const goal of goalItems) {
+    const seedGoal = goalSeeds.find((candidate) => candidate.id === goal.id);
+    itemDetails[goal.id] = {
+      ...goal,
+      why: seedGoal?.why ?? null,
+      basis: [{ text: seedGoal?.why ?? "", at: now - 7 * DAY }],
+      children: todoItems.filter((todo) => todo.parent === goal.id),
+      comments: [],
+      runs: [],
+      links: [],
+      workCards: goalWorkCards[goal.id] ?? [],
+      decision: null,
+      ownerDone: null,
+    };
+  }
+  for (const todo of todoItems) {
+    const decision = decisions[todo.id];
+    const todoComments = comments[todo.id] ?? [];
+    const runs = itemRuns(todo.id);
+    itemDetails[todo.id] = {
+      ...todo,
+      runCount: runs.length,
+      commentCount: todoComments.length,
+      why: null,
+      basis: [],
+      children: [],
+      comments: todoComments,
+      runs,
+      links: [],
+      workCards: todoWorkCards[todo.id] ?? [],
+      decision: decision
+        ? { text: decision.text, kind: decision.kind, choices: [], recommended: null, cid: null, at: now - decision.ago, answered: false }
+        : null,
+      ownerDone: null,
+    };
+  }
+  const listItems = [...goalItems, ...todoItems].map((item) => {
+    const detail = itemDetails[item.id];
+    return { ...item, runCount: detail.runs.length, commentCount: detail.comments.length };
+  });
+
+  const question = { cardId: "k-102", title: "결제: 카드 입력 폼 다듬기", agent: agentId(1), commentId: 7, body: "카드 번호는 앞 여섯 자리까지 보여 줄까요?", askedAt: now - 1 * DAY - 4 * HOUR };
+
+  const decide = Object.entries(decisions).map(([target, decision]) => ({
+    target,
+    title: todoTitle(target),
+    agent: agentId(todoSeeds.find((todo) => todo.id === target)?.agent ?? 0),
+    kind: decision.kind,
+    text: decision.text,
+    at: now - decision.ago,
+    answered: false,
+  }));
+  const mineRows = todoItems
+    .filter((todo) => todo.mine)
+    .map((todo) => ({ id: todo.id, title: todo.title, waiting: false, due: todo.due, agent: todo.addedBy }));
+
+  const row = (item: ItemSummary) => ({ id: item.id, kind: item.kind, title: item.title, due: item.due, agent: item.agent });
+  const open = listItems.filter((item) => item.state !== "done" && item.due !== null);
+  const today = day(now, 0);
+  const weekEnd = day(now, daysToNextWeek(now) - 1);
+  const due = {
+    overdue: open.filter((item) => (item.due ?? "") < today).map(row),
+    today: open.filter((item) => item.due === today).map(row),
+    week: open.filter((item) => (item.due ?? "") > today && (item.due ?? "") <= weekEnd).map(row),
+    later: open.filter((item) => (item.due ?? "") > weekEnd).map(row),
+  };
+
+  const machineList: BoardSnapshot["machines"] = [
+    { name: machines[0], state: "ok", why: null, cpu: 22, memory: 41, disk: 37, temp: 48, load: 0.6, cores: 8, running: 2, cap: 4, freeGb: 210, metricsAt: now - 20 },
+    { name: machines[1], state: "warn", why: "disk", cpu: 35, memory: 58, disk: 91, temp: 55, load: 1.2, cores: 8, running: 1, cap: 4, freeGb: 18, metricsAt: now - 25 },
+    { name: machines[2], state: "down", why: "unreachable", cpu: null, memory: null, disk: null, temp: null, load: null, cores: null, running: null, cap: 2, freeGb: null, metricsAt: now - 3 * HOUR },
+  ];
+  const quotaList: BoardSnapshot["quota"] = options.sourceError
+    ? []
+    : [
+        {
+          service: SERVICE_NAMES[0],
+          percent: 72,
+          ratePerHour: 9,
+          accounts: [
+            { id: "acct-a", number: 1, plan: "pro", paused: false, unavailable: false, mainWindow: "fiveHour", warn: true, windows: [{ key: "fiveHour", percent: 72, resetAt: now + 3 * HOUR, ratePerHour: 9, warn: true }] },
+          ],
+        },
+        {
+          service: SERVICE_NAMES[1],
+          percent: 31,
+          ratePerHour: 2,
+          accounts: [
+            { id: "acct-b", number: 1, plan: "team", paused: false, unavailable: false, mainWindow: "weekly", warn: false, windows: [{ key: "weekly", percent: 31, resetAt: now + 4 * DAY, ratePerHour: 2, warn: false }] },
+          ],
+        },
+      ];
+  const errors: BoardSnapshot["errors"] = options.sourceError ? [{ source: "quota", message: "quota source did not answer" }] : [];
+
+  const notices: BoardSnapshot["notices"] = [
+    ...decide.map((row) => ({ key: `ask:${row.target}:${row.at}`, target: row.target, at: row.at, kind: "ask" as const, line: `${row.title}: ${row.kind === "ask" ? "질문" : "요청"}` })),
+    { key: `ask:${question.cardId}:${question.askedAt}`, target: question.cardId, at: question.askedAt, kind: "ask", line: `${question.title}: 질문` },
+    { key: `review:r6:${now - 5 * HOUR}`, target: "r6", at: now - 5 * HOUR, kind: "review", line: "색인 구조 다시 비교: 검토 필요" },
+    ...mineRows.map((row) => ({ key: `todo:${row.id}:${now - DAY}`, target: row.id, at: now - DAY, kind: "todo" as const, line: `${row.title}: 내 할 일` })),
+  ];
+
+  const board: BoardSnapshot = {
+    version: 1,
+    at: now,
+    errors,
+    counts: {
+      inbox: decide.length + 1 + 1 + mineRows.length,
+      running: 2,
+      stopped: 1,
+      due: due.overdue.length + due.today.length + due.week.length + due.later.length,
+      done: 1,
+      agents: { [agentId(0)]: 1, [agentId(1)]: 1, [agentId(2)]: 0 },
+    },
+    cards: runCards,
+    inbox: { decide, review: ["r6"], mine: mineRows },
+    due,
+    notices,
+    machines: machineList,
+    quota: quotaList,
+  };
+
   return {
-    unreadCount: 1,
-    items: [{ id: "note-1", title: pick(rng, NOTICE_TITLES), read: false }],
+    now,
+    board,
+    items: { version: 1, at: now, errors: [], owner: { ...OWNER }, agents, items: listItems },
+    itemDetails,
+    devices: { version: 1, at: now, errors: [], machines: machineList },
+    quota: { version: 1, at: now, errors, quota: quotaList },
+    goals: { goals: goalCards },
+    cards: cardList,
+    cardDetails,
+    inbox: { blocked: [], questions: [question] },
   };
 }
 
-export function generateStatus(seed = SYNTHETIC_SEED): Status {
-  const rng = mulberry32(seed ^ 0x85ebca6b);
-  return {
-    machines: [{ id: "machine-1", name: pick(rng, MACHINE_NAMES), state: "up" }],
-    quota: [{ model: pick(rng, MODELS), remaining: pick(rng, REMAINING), window: "hour" }],
-  };
-}
-
-export interface SyntheticFixtures {
-  readonly home: Home;
-  readonly notifications: NotificationList;
-  readonly status: Status;
-}
-
-export function generateFixtures(seed = SYNTHETIC_SEED): SyntheticFixtures {
-  return {
-    home: generateHome(seed),
-    notifications: generateNotifications(seed),
-    status: generateStatus(seed),
-  };
-}
-
-const fixtures = generateFixtures();
-
-export const syntheticHome: Home = fixtures.home;
-export const syntheticNotifications: NotificationList = fixtures.notifications;
-export const syntheticStatus: Status = fixtures.status;
+/** The numbers the scene is built to show; the fixture test and verify.mjs doctor hold the screens to them. */
+export const SCENE_COUNTS = {
+  agents: 3,
+  goals: 5,
+  todos: 12,
+  decisions: 4,
+  inbox: 7,
+  running: 3,
+  stopped: 1,
+  due: 5,
+  done: 1,
+  machines: 3,
+  machinesOk: 1,
+  machinesDown: 1,
+  notices: 7,
+} as const;

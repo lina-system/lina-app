@@ -935,4 +935,57 @@ describe("live updates", () => {
       vi.useRealTimers();
     }
   });
+test("a core restarted with a new token: the page reads it once and resumes, without a reload", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const core = new SyntheticSource();
+      const view = await open("#/inbox", { wide: true, source: core });
+      const screen = view.getByTestId("screen-inbox");
+      await act(async () => core.restartCore());
+      expect(view.getByTestId("freshness-line").textContent).toBe("갱신 지연");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(BACKOFF_MAX_MS);
+      });
+      expect(core.renewals).toBe(1);
+      // Whichever the new token refused first, a read or the reconnect, the page resumed from its cursor.
+      expect(core.stream[0].first).toBe("tail");
+      expect(core.stream.at(-1)).toMatchObject({ since: expect.stringMatching(/^s\./), first: "missed", missed: 1, open: true });
+      expect(core.stream.filter((connection) => connection.open)).toHaveLength(1);
+      await waitFor(() => expect(view.getByRole("button", { name: "알림 4" })).toBeTruthy());
+      expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
+      expect(view.getByTestId("screen-inbox")).toBe(screen);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("refused again after one renewal, the line turns red 연결 끊김 and the page asks nothing more", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      class StuckSource extends SyntheticSource {
+        override async renewCredential() {
+          this.renewals += 1;
+          return "same" as const;
+        }
+      }
+      const core = new StuckSource();
+      const view = await open("#/inbox", { wide: true, source: core });
+      await act(async () => core.restartCore());
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(BACKOFF_MAX_MS);
+      });
+      const line = view.getByTestId("freshness-line");
+      expect(line.textContent).toBe("연결 끊김");
+      expect(line.classList.contains("is-red")).toBe(true);
+      const tries = core.stream.length;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(BACKOFF_MAX_MS * 4);
+      });
+      expect(core.stream).toHaveLength(tries);
+      expect(core.renewals).toBe(1);
+      expect(rowsIn(view.getByTestId("screen-inbox"))).toBe(SCENE_COUNTS.inbox);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

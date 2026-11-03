@@ -1,5 +1,5 @@
 import { cardAnswerPath, EVENTS_PATH, NOTICES_READ_PATH, routePath, talkPath, writePath, type ActionResult, type AnswerRequest, type AnswerResult, type ChangeMessage, type CommentRequest, type DoneRequest, type NoticesReadRequest, type NoticesReadResult, type RouteName, type Routes, type TalkEvent, type TalkRequest } from "../api/client";
-import { nowSeconds, type ChangeHandlers, type ChangeSocket, type ReadResult, type Source, type TalkResult, type WriteResult } from "./source";
+import { nowSeconds, type ChangeHandlers, type ChangeSocket, type ReadResult, type Renewal, type Source, type TalkResult, type WriteResult } from "./source";
 import { readSse } from "./sse";
 
 /** Each frame's JSON `data` with its `event` name; a frame whose data is not JSON ends the turn as failed. */
@@ -39,6 +39,15 @@ export function eventsUrl(href: string, basePath: string, token: string | null, 
   return url.toString();
 }
 
+/** Close codes the dashboard's sockets use to turn a credential away (policy violation, the auth gate's 4401 and 4403). */
+const REFUSED_CODES: ReadonlySet<number> = new Set([1008, 4401, 4403]);
+
+/** The session token the core's bootstrap script sets on the page (`window.__HERMES_SESSION_TOKEN__="…"`), if any. */
+export function tokenInPage(html: string): string | null {
+  const match = /window\.__HERMES_SESSION_TOKEN__\s*=\s*"([^"\\<]+)"/.exec(html);
+  return match ? match[1] : null;
+}
+
 export function bootstrapOptions(host: Partial<Window> = window): HttpOptions {
   const basePath = typeof host.__HERMES_BASE_PATH__ === "string" ? host.__HERMES_BASE_PATH__ : "";
   const token = typeof host.__HERMES_SESSION_TOKEN__ === "string" && host.__HERMES_SESSION_TOKEN__ ? host.__HERMES_SESSION_TOKEN__ : null;
@@ -50,7 +59,10 @@ export class HttpSource implements Source {
   private readonly etags = new Map<string, string>();
   private readonly fetchImpl: typeof fetch;
   private readonly basePath: string;
-  private readonly token: string | null;
+  /** The page's session token; a core that restarted serves a new one, read again by renewCredential. */
+  private token: string | null;
+  /** No token in the page: the gated mode, where a cookie signs the page in and a 401 means signed out. */
+  private readonly gated: boolean;
   private readonly webSocket: (url: string) => WebSocket;
   private readonly href: () => string;
 
@@ -58,6 +70,7 @@ export class HttpSource implements Source {
     this.fetchImpl = options.fetch ?? ((input, init) => fetch(input, init));
     this.basePath = (options.basePath ?? "").replace(/\/+$/, "");
     this.token = options.token ?? null;
+    this.gated = this.token === null;
     const Socket = options.webSocket;
     this.webSocket = Socket ? (url) => new Socket(url) : (url) => new WebSocket(url);
     this.href = () => (options.location ?? window.location).href;
@@ -69,18 +82,22 @@ export class HttpSource implements Source {
    */
   changes(since: string | null, handlers: ChangeHandlers): ChangeSocket {
     let ended = false;
-    const end = () => {
+    let opened = false;
+    const end = (refused: boolean) => {
       if (ended) return;
       ended = true;
-      handlers.closed();
+      handlers.closed(refused);
     };
     let socket: WebSocket;
     try {
       socket = this.webSocket(eventsUrl(this.href(), this.basePath, this.token, since));
     } catch {
-      queueMicrotask(end);
+      queueMicrotask(() => end(false));
       return { close: () => void (ended = true) };
     }
+    socket.onopen = () => {
+      opened = true;
+    };
     socket.onmessage = (event: MessageEvent) => {
       if (ended) return;
       let message: ChangeMessage;
@@ -88,16 +105,14 @@ export class HttpSource implements Source {
         message = JSON.parse(String(event.data)) as ChangeMessage;
       } catch {
         socket.close();
-        end();
+        end(false);
         return;
       }
       handlers.message(message);
     };
-    socket.onerror = () => {
-      socket.close();
-      end();
-    };
-    socket.onclose = end;
+    // An error is always followed by a close, which carries the code; a refused upgrade never opened.
+    socket.onerror = () => socket.close();
+    socket.onclose = (event: CloseEvent) => end(!opened || REFUSED_CODES.has(event.code));
     return {
       close: () => {
         ended = true;
@@ -121,6 +136,7 @@ export class HttpSource implements Source {
     const at = nowSeconds();
     if (response.status === 304) return { kind: "unchanged", at };
     if (response.status === 404) return { kind: "missing", at };
+    if (response.status === 401 || response.status === 403) return { kind: "failed", offline: false, at, denied: true };
     if (!response.ok) return { kind: "failed", offline: false, at };
     try {
       const data = (await response.json()) as Routes[N];
@@ -154,6 +170,27 @@ export class HttpSource implements Source {
 
   readNotices(body: NoticesReadRequest): Promise<WriteResult<NoticesReadResult>> {
     return this.post(NOTICES_READ_PATH, body);
+  }
+
+  /**
+   * The page's own address once more (`<base>/app/`, never cached), for the token its bootstrap script carries now.
+   * A page signed in by cookie has no token to renew and asks nothing. The token lives in this object only.
+   */
+  async renewCredential(): Promise<Renewal> {
+    if (this.gated) return "gated";
+    let html: string;
+    try {
+      const response = await this.fetchImpl(`${this.basePath}/app/`, { cache: "no-store", credentials: "same-origin", headers: { Accept: "text/html" } });
+      if (!response.ok) return "unreachable";
+      html = await response.text();
+    } catch {
+      return "unreachable";
+    }
+    const token = tokenInPage(html);
+    if (!token) return "none";
+    if (token === this.token) return "same";
+    this.token = token;
+    return "renewed";
   }
 
   /** POST, not EventSource: the reply is read off the fetch body as it streams. */

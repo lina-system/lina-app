@@ -204,7 +204,7 @@ describe("the core's socket", () => {
     class FakeSocket {
       onmessage: ((event: MessageEvent) => void) | null = null;
       onerror: (() => void) | null = null;
-      onclose: (() => void) | null = null;
+      onclose: ((event: CloseEvent) => void) | null = null;
       closed = 0;
       constructor(readonly url: string) {
         sockets.push(this);
@@ -220,13 +220,13 @@ describe("the core's socket", () => {
     expect(sockets[0].url).toBe("ws://h/api/lina/events?token=t&since=c2.x");
     sockets[0].onmessage?.({ data: JSON.stringify({ cursor: "c2.y", events: [] }) } as MessageEvent);
     sockets[0].onerror?.();
-    sockets[0].onclose?.();
+    sockets[0].onclose?.({ code: 1006 } as CloseEvent);
     expect(messages).toEqual([{ cursor: "c2.y", events: [] }]);
     expect(closed).toBe(1);
 
     const mine = source.changes(null, { message: () => {}, closed: () => (closed += 1) });
     mine.close();
-    sockets[1].onclose?.();
+    sockets[1].onclose?.({ code: 1000 } as CloseEvent);
     expect(sockets[1].closed).toBe(1);
     expect(closed).toBe(1);
 

@@ -1,6 +1,6 @@
 import type { ActionResult, AnswerRequest, AnswerResult, BoardSnapshot, ChangeEvent, ChangeMessage, CommentRequest, DoneRequest, ItemDetail, ItemSummary, NoticesReadRequest, NoticesReadResult, RouteName, Routes, TalkEvent, TalkRequest, WorkState } from "../api/client";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type Scene } from "../fixtures/synthetic";
-import { nowSeconds, type ChangeHandlers, type ChangeSocket, type ReadResult, type Source, type TalkResult, type WriteResult } from "./source";
+import { nowSeconds, type ChangeHandlers, type ChangeSocket, type ReadResult, type Renewal, type Source, type TalkResult, type WriteResult } from "./source";
 
 function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
   switch (name) {
@@ -111,8 +111,14 @@ export const STREAM_DROP_AFTER_MS = 3_000;
 /** `&live=resync`: one resync this long after the first connection opens. */
 export const STREAM_RESYNC_AFTER_MS = 2_000;
 
-/** How the synthetic stream behaves (`&live=`): as the core, refusing every connection, dropping once, or one resync. */
-export type StreamScript = "ok" | "down" | "drop" | "resync";
+/** `&live=token`: the core restarts with a new session token this long after the first connection opens. */
+export const STREAM_RESTART_AFTER_MS = 3_000;
+
+/**
+ * How the synthetic stream behaves (`&live=`): as the core, refusing every connection, dropping once, one resync, or
+ * a core restart that hands out a new session token while another device writes.
+ */
+export type StreamScript = "ok" | "down" | "drop" | "resync" | "token";
 
 /** Each scene's change log, shared by every source on it like the core's stores: `total` events so far. */
 interface ChangeLog {
@@ -151,7 +157,7 @@ function eventsAfter(log: ChangeLog, at: number): ChangeEvent[] {
 /** One connection of the synthetic stream, as verify.mjs reads it: what it resumed from and what it got first. */
 export interface StreamConnection {
   readonly since: string | null;
-  first: "tail" | "missed" | "resync" | "refused";
+  first: "tail" | "missed" | "resync" | "refused" | "denied";
   missed: number;
   open: boolean;
 }
@@ -190,9 +196,13 @@ export class SyntheticSource implements Source {
   private readonly connections = new Set<Connection>();
   private readonly script: StreamScript;
   private streamDown: boolean;
-  /** Every connection opened, and every snapshot read, for verify.mjs and the tests. */
+  /** Every connection opened, every snapshot read and every credential renewal, for verify.mjs and the tests. */
   readonly stream: StreamConnection[] = [];
   reads = 0;
+  renewals = 0;
+  /** The session token the core takes, and the one this page holds; a restart changes the first. */
+  private coreToken = 1;
+  private pageToken = 1;
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
   constructor(options: { seed?: number; now?: number; sourceError?: boolean; noRunning?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript } = {}) {
@@ -211,6 +221,7 @@ export class SyntheticSource implements Source {
   async read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {
     const at = nowSeconds();
     this.reads += 1;
+    if (this.pageToken !== this.coreToken) return { kind: "failed", offline: false, at, denied: true };
     this.deliverReplies(at);
     const body = bodyOf(this.scene, name, id);
     if (body === undefined) return { kind: "missing", at };
@@ -360,7 +371,13 @@ export class SyntheticSource implements Source {
       if (connection.closed) return;
       if (this.streamDown) {
         connection.closed = true;
-        handlers.closed();
+        handlers.closed(false);
+        return;
+      }
+      if (this.pageToken !== this.coreToken) {
+        connection.closed = true;
+        record.first = "denied";
+        handlers.closed(true);
         return;
       }
       const log = logOf(this.scene);
@@ -382,6 +399,7 @@ export class SyntheticSource implements Source {
       handlers.message(message);
       if (opening && this.script === "drop") setTimeout(() => this.dropWhileAnotherDeviceWrites(), STREAM_DROP_AFTER_MS);
       if (opening && this.script === "resync") setTimeout(() => this.resyncStreams(), STREAM_RESYNC_AFTER_MS);
+      if (opening && this.script === "token") setTimeout(() => this.restartCore(), STREAM_RESTART_AFTER_MS);
     });
     return { close: () => this.end(connection, false) };
   }
@@ -394,6 +412,26 @@ export class SyntheticSource implements Source {
   /** The next tick of every open connection is one resync, as when a store that was down reads again. */
   resyncStreams(): void {
     for (const connection of this.connections) connection.resync = true;
+  }
+
+  /**
+   * The core restarts with a new session token: every connection drops, and another device marks the first unread
+   * notice read before the page reconnects. Until it renews its credential, the page's reads answer 403 and its
+   * connections are refused at the upgrade.
+   */
+  restartCore(): void {
+    this.dropStreams();
+    this.coreToken += 1;
+    const key = this.scene.board.notices.find((notice) => !notice.read)?.key;
+    if (key) void this.readNotices({ keys: [key] });
+  }
+
+  /** The page reads the token the core serves now, as from a fresh `/app/`. */
+  async renewCredential(): Promise<Renewal> {
+    this.renewals += 1;
+    if (this.pageToken === this.coreToken) return "same";
+    this.pageToken = this.coreToken;
+    return "renewed";
   }
 
   /** While down, every new connection closes before its first message. */
@@ -414,7 +452,7 @@ export class SyntheticSource implements Source {
     connection.closed = true;
     connection.record.open = false;
     const wasOpen = this.connections.delete(connection);
-    if (notify && wasOpen) connection.handlers.closed();
+    if (notify && wasOpen) connection.handlers.closed(false);
   }
 
   private tick(connection: Connection): void {

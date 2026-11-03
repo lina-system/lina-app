@@ -1721,6 +1721,23 @@ const drivers = {
       check(await notReloaded(page), "the page reloaded");
       return (after - before) + " reads (one refresh), still 1 connection";
     });
+    await step("a core restarted with a new session token: the page reads the token once, resumes from its cursor and draws what it missed, without a reload or a stored token", async () => {
+      await openApp(page, "#/inbox", "&live=token");
+      await markPage(page);
+      check((await page.getByTestId("bell").getAttribute("aria-label")) === "알림 5", "the bell does not read 알림 5 before the restart");
+      await page.getByTestId("freshness-line").filter({ hasText: /^갱신 지연$/ }).waitFor({ timeout: 6_000 });
+      await page.getByTestId("freshness-line").filter({ hasText: /^실시간$/ }).waitFor({ timeout: 6_000 });
+      await page.getByRole("button", { name: "알림 4" }).waitFor({ timeout: 3_000 });
+      const { connections, renewals } = await stream(page);
+      const last = connections.at(-1);
+      check(renewals === 1, "the page renewed its token " + renewals + " times");
+      check(last.open && last.first === "missed" && last.missed === 1 && last.since !== null, "the reconnect was " + JSON.stringify(last));
+      check(connections.filter((connection) => connection.open).length === 1, "open connections: " + JSON.stringify(connections));
+      const stored = await page.evaluate(() => Object.keys(localStorage).length + Object.keys(sessionStorage).length);
+      check(stored === 0, "the page keeps " + stored + " keys in web storage");
+      check(await notReloaded(page), "the page reloaded");
+      return "갱신 지연 → 실시간, 1 renewal, connections " + connections.map((connection) => connection.first).join(" → ") + ", 알림 5 → 알림 4";
+    });
     await step("a stream that cannot open says 갱신 지연 and retries with growing waits; the screens still draw", async () => {
       await openApp(page, "#/inbox", "&live=down", "갱신 지연");
       const rows = (await decisionNames(page.getByRole("list", { name: "결정 필요" }))).length;

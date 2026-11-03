@@ -161,7 +161,7 @@ export function Sidebar({ current }: { current?: Route }) {
 export function Freshness() {
   const { model, store, now } = useApp();
   let line: { text: string; tone: string };
-  if (store.offline) line = { text: W.offline, tone: "is-red" };
+  if (store.offline || store.denied) line = { text: W.offline, tone: "is-red" };
   else if (store.lastOk === null || store.version === 0) line = { text: W.loading, tone: "" };
   else if (store.live === "open" && !store.boardFailed) line = { text: W.live, tone: "" };
   else if (store.live === "down" || now - store.lastOk > 30) line = { text: W.stale, tone: "" };

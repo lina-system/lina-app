@@ -3,13 +3,14 @@ import type { Source } from "./source";
 import { SyntheticSource, type StreamScript, type TalkRefusal } from "./synthetic-source";
 
 const TALK_REFUSALS: readonly string[] = ["busy", "down", "none"] satisfies TalkRefusal[];
-const STREAM_SCRIPTS: readonly string[] = ["down", "drop", "resync"] satisfies StreamScript[];
+const STREAM_SCRIPTS: readonly string[] = ["down", "drop", "resync", "token"] satisfies StreamScript[];
 
 /**
  * The core by default. `?source=synthetic` or the build flag `VITE_LINA_SOURCE=synthetic` selects the synthetic
  * scene (tests, captures, verify.mjs); `&error=quota` adds the failed-source variant, `&running=none` one with no running card,
- * `&talk=busy|down|none` one whose talk turns are refused (429, 503, 409), `&live=down|drop|resync` a change stream that
- * refuses every connection, drops once while another device writes, or sends one resync.
+ * `&talk=busy|down|none` one whose talk turns are refused (429, 503, 409), `&live=down|drop|resync|token` a change stream
+ * that refuses every connection, drops once while another device writes, sends one resync, or restarts the core with a
+ * new session token.
  */
 export function chooseSource(location: Pick<Location, "search"> = window.location, flag: string | undefined = import.meta.env.VITE_LINA_SOURCE): Source {
   const params = new URLSearchParams(location.search);
@@ -27,7 +28,7 @@ export function chooseSource(location: Pick<Location, "search"> = window.locatio
     if (typeof window !== "undefined") {
       Object.defineProperty(window, "__linaScene", { configurable: true, get: () => structuredClone(synthetic.scene) });
       // verify.mjs reads which connections the stream had and how many snapshot reads the page made.
-      Object.defineProperty(window, "__linaStream", { configurable: true, get: () => ({ connections: structuredClone(synthetic.stream), reads: synthetic.reads }) });
+      Object.defineProperty(window, "__linaStream", { configurable: true, get: () => ({ connections: structuredClone(synthetic.stream), reads: synthetic.reads, renewals: synthetic.renewals }) });
     }
     return synthetic;
   }

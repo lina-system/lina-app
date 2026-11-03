@@ -34,6 +34,10 @@ export class Store {
   live: LiveState = "connecting";
   /** The board's last read failed while the core answered: the stream alone does not make the screens current. */
   boardFailed = false;
+  /** The core refused the page's credential again after one renewal: nothing will read until something changes. */
+  denied = false;
+  private renewing: Promise<boolean> | null = null;
+  private renewedInStreak = false;
   private readonly entries = new Map<string, Entry>();
   private readonly listeners = new Set<() => void>();
   private wanted: Want = [];
@@ -65,6 +69,8 @@ export class Store {
     const key = this.key(name, id);
     const before = this.entries.get(key);
     const result = await this.source.read(name, id);
+    if (result.kind === "data" || result.kind === "unchanged") this.setDenied(false);
+    else if (result.kind === "failed" && result.denied) void this.credentialRefused();
     if (name === "board") {
       this.offline = result.kind === "failed" && result.offline;
       this.boardFailed = result.kind === "failed";
@@ -96,6 +102,53 @@ export class Store {
   /** Redraw without a data change: the stream's state moved. */
   notify(): void {
     for (const listener of this.listeners) listener();
+  }
+
+  /**
+   * The core refused the page's credential (a 401 or 403 on a read, or the stream turned away at the upgrade). The
+   * first refusal of a streak reads the credential again and, when it got one, reads every snapshot with it; the
+   * answer says whether to connect again now. A refusal after that renewal marks the store denied (연결 끊김) and asks
+   * nothing more. A page signed in by cookie renews nothing: its sign-in path handles a 401. Concurrent refusals share
+   * one renewal.
+   */
+  credentialRefused(): Promise<boolean> {
+    if (this.renewing) return this.renewing;
+    if (this.renewedInStreak) {
+      this.setDenied(true);
+      return Promise.resolve(false);
+    }
+    this.renewing = this.source
+      .renewCredential()
+      .then((renewal) => {
+        if (renewal === "gated" || renewal === "unreachable") return false;
+        this.renewedInStreak = true;
+        if (renewal === "none") {
+          this.setDenied(true);
+          return false;
+        }
+        void this.refresh();
+        return true;
+      })
+      .finally(() => {
+        this.renewing = null;
+      });
+    return this.renewing;
+  }
+
+  /**
+   * The streak ends when the stream opens, or when the person comes back (the tab shown, online again), which may
+   * renew once more. A read that answers only clears the red line: a stream refused while reads pass must not renew
+   * on every try.
+   */
+  credentialTaken(): void {
+    this.renewedInStreak = false;
+    this.setDenied(false);
+  }
+
+  private setDenied(denied: boolean): void {
+    if (this.denied === denied) return;
+    this.denied = denied;
+    this.notify();
   }
 
   setLive(state: LiveState): void {

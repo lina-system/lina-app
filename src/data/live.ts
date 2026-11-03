@@ -99,9 +99,10 @@ export class Live {
     if (this.store.live === "open") this.store.setLive("down");
   }
 
-  /** Now, not after the wait: the tab is back or the network changed. */
+  /** Now, not after the wait: the tab is back or the network changed. A denied page tries one more renewal. */
   private resume(): void {
     if (this.stopped || this.socket || this.host.document.visibilityState === "hidden") return;
+    this.store.credentialTaken();
     this.clearTimer();
     this.attempt = 0;
     this.connect();
@@ -121,15 +122,28 @@ export class Live {
         if (first) {
           first = false;
           this.attempt = 0;
+          this.store.credentialTaken();
           this.store.setLive("open");
         }
         this.receive(message, since === null && this.cursor === null);
       },
-      closed: () => {
+      closed: (refused) => {
         if (this.socket !== socket) return;
         this.socket = null;
         this.store.setLive("down");
-        this.retry();
+        if (!refused) {
+          this.retry();
+          return;
+        }
+        // Turned away at the upgrade: read the credential again and come back at once with the same cursor (a cursor
+        // the core no longer keeps gets one resync); denied after a renewal, stop; the core unreachable, wait as usual.
+        void this.store.credentialRefused().then((again) => {
+          if (this.stopped || this.socket || this.timer !== null) return;
+          if (again) {
+            this.attempt = 0;
+            this.connect();
+          } else if (!this.store.denied) this.retry();
+        });
       },
     });
     this.socket = socket;

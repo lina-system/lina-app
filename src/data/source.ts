@@ -4,7 +4,7 @@ export type ReadResult<T> =
   | { readonly kind: "data"; readonly data: T; readonly at: number }
   | { readonly kind: "unchanged"; readonly at: number }
   | { readonly kind: "missing"; readonly at: number }
-  | { readonly kind: "failed"; readonly offline: boolean; readonly at: number };
+  | { readonly kind: "failed"; readonly offline: boolean; readonly at: number; readonly denied?: boolean };
 
 /** A write's answer: the core's result, or its status with the one-line `detail` of a 4xx (status 0: no answer). */
 export type WriteResult<T> = { readonly ok: true; readonly data: T } | { readonly ok: false; readonly status: number; readonly detail: string | null };
@@ -15,11 +15,21 @@ export type WriteResult<T> = { readonly ok: true; readonly data: T } | { readonl
  */
 export type TalkResult = { readonly ok: true; readonly events: AsyncIterable<TalkEvent> } | { readonly ok: false; readonly status: number; readonly code: string | null };
 
-/** What one change stream connection tells its opener. `closed` comes once, when the connection ends or never opens. */
+/**
+ * What one change stream connection tells its opener. `closed` comes once, when the connection ends or never opens;
+ * `refused` when the core turned it away at the upgrade (closed before it opened, or an auth close code), which is
+ * what a credential the core no longer takes looks like.
+ */
 export interface ChangeHandlers {
   message(message: ChangeMessage): void;
-  closed(): void;
+  closed(refused: boolean): void;
 }
+
+/**
+ * What asking the core again for the page's credential gave: a new one, the same one, no answer, no credential in
+ * the page (`none`), or nothing asked because the page signs in with a cookie (`gated`).
+ */
+export type Renewal = "renewed" | "same" | "unreachable" | "none" | "gated";
 
 /** One open change stream connection; `close` ends it without calling `closed`. */
 export interface ChangeSocket {
@@ -40,6 +50,8 @@ export interface Source {
   talk(id: string, body: TalkRequest, signal?: AbortSignal): Promise<TalkResult>;
   /** One connection to the core's change stream, resuming after `since` (null: from the tail). */
   changes(since: string | null, handlers: ChangeHandlers): ChangeSocket;
+  /** Reads the credential the core serves the page now, after it refused the one the page started with. */
+  renewCredential(): Promise<Renewal>;
 }
 
 export function nowSeconds(): number {

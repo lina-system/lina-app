@@ -7,7 +7,7 @@ description: "Launch a disposable LINA web app on the synthetic fixture, drive i
 
 The LINA app is a Preact web client (Vite) that people use in a desktop browser and from a phone Home Screen. This skill drives a disposable copy of it in Chromium through Playwright, using one helper, `scripts/verify.mjs`, and the feature map in [`features/`](features/README.md). Every command below runs from the repository root.
 
-The instance is always disposable and seeded with fixture data. Today the client renders the synthetic fixture built into it (`src/fixtures/synthetic.ts`) and talks to no core. When a screen starts reading a core, Launch must start a disposable core seeded with fixture data and point the app at it; never point a verification run at the owner's live core, and never drive an instance this run did not start.
+The instance is always disposable and seeded with fixture data. The client reads the core's client API by default; every drive loads `/app/?source=synthetic`, which swaps the core for the synthetic scene built into the client (`src/fixtures/synthetic.ts`), so the instance talks to no core. Never point a verification run at the owner's live core, and never drive an instance this run did not start.
 
 ## Launch
 
@@ -18,7 +18,7 @@ export VERIFY_RUN_ID=pr-123              # any short id; default "local"
 node .agents/skills/verify-lina-app/scripts/verify.mjs launch
 ```
 
-`launch` regenerates the API client, builds the app into `verify-runs/$VERIFY_RUN_ID/dist`, and starts `vite preview` on a free port on `127.0.0.1` in the background. It records the process id, port, version and git revision in `verify-runs/$VERIFY_RUN_ID/state.json`, and the server log in `preview.log` beside it. Ready means usable: the line `ready: http://127.0.0.1:<port> (pid <pid>, run <id>, version <version>)` appears only after a browser has loaded the page and read the version and the fixture counts. `launch --no-build` reuses the run's existing build.
+`launch` regenerates the API client, builds the app into `verify-runs/$VERIFY_RUN_ID/dist`, and starts `vite preview` on a free port on `127.0.0.1` in the background. The app is served under `/app/`, as the core serves it. It records the process id, port, version and git revision in `verify-runs/$VERIFY_RUN_ID/state.json`, and the server log in `preview.log` beside it. Ready means usable: the line `ready: http://127.0.0.1:<port> (pid <pid>, run <id>, version <version>)` appears only after a browser has loaded the page and read the version and the fixture counts. `launch --no-build` reuses the run's existing build.
 
 Two runs with different `VERIFY_RUN_ID`s run side by side; each has its own build, port and evidence. `launch` refuses to start a second instance for a run id that already has a live one.
 
@@ -28,18 +28,18 @@ Two runs with different `VERIFY_RUN_ID`s run side by side; each has its own buil
 node .agents/skills/verify-lina-app/scripts/verify.mjs doctor
 ```
 
-Read-only. It prints JSON with `"healthy"`, `problems` and `notes`, and exits `1` when unhealthy. It checks that the recorded process is alive, the URL answers `200`, the page's version equals `package.json`'s, and the summary shows the fixture counts (Goals `2`, To-dos `3`, Runs `1`), which is how it tells this run's fixture instance from any other page. A note says when the checkout has moved past the build's revision; relaunch to drive the current code. Run doctor before the first drive, after any failed drive, and whenever anything looks off.
+Read-only. It prints JSON with `"healthy"`, `problems` and `notes`, and exits `1` when unhealthy. It checks that the recorded process is alive, `/app/` answers `200`, the page's version equals `package.json`'s, and the sidebar and bell show the scene's counts (수신함 `7`, 진행 중인 작업 `3`, 마감일 `5`, 완료 `1`, 목표 `5`, `알림 7`, `기기 3 · 정상 1 · 꺼짐 1`), which is how it tells this run's fixture instance from any other page. A note says when the checkout has moved past the build's revision; relaunch to drive the current code. Run doctor before the first drive, after any failed drive, and whenever anything looks off.
 
 ## Drive
 
 ```sh
-node .agents/skills/verify-lina-app/scripts/verify.mjs drive home
-node .agents/skills/verify-lina-app/scripts/verify.mjs drive home note-input
+node .agents/skills/verify-lina-app/scripts/verify.mjs drive inbox
+node .agents/skills/verify-lina-app/scripts/verify.mjs drive running card-detail
 node .agents/skills/verify-lina-app/scripts/verify.mjs drive --all
 node .agents/skills/verify-lina-app/scripts/verify.mjs map
 ```
 
-`drive` runs the recipe of each named feature at 1280 and 390 wide in headless Chromium. Feature ids are the file names in [`features/`](features/README.md); each file's `Driving it with verify.mjs` section lists the steps and the result each one must show. Drivers find elements by role and accessible name (`getByRole("textbox", { name: "Note" })`, `getByRole("list", { name: "Summary" })`, level-2 agent headings) and then by `data-testid` (`version`, `goal-count`, `todo-count`, `run-count`). It prints `ok` or `DEFECT` per feature and width, exits `1` on any defect, and after the drive lists map drift.
+`drive` runs the recipe of each named feature at 1280 and 390 wide in headless Chromium. Feature ids are the file names in [`features/`](features/README.md); each file's `Driving it with verify.mjs` section lists the steps and the result each one must show. Drivers find elements by role and accessible name (`getByRole("list", { name: "결정 필요" })`, `getByRole("checkbox", { name: "<title> 완료로 표시" })`, `getByRole("button", { name: "알림 7" })`, rows named by agent, sentence and state) and then by `data-testid` (`freshness-line`, `nav-inbox`, `device-line`, `screen-title`, `back`). It prints `ok` or `DEFECT` per feature and width, exits `1` on any defect, and after the drive lists map drift.
 
 `map` checks the map alone: every feature file is listed in the index, has a driver, and has the seven sections in order, and every driver has a file. It exits `1` on drift.
 
@@ -50,7 +50,7 @@ To drive a step no driver covers yet, use Playwright against the URL in `state.j
 `drive` writes, per feature and width, to `verify-runs/$VERIFY_RUN_ID/evidence/<feature-id>/`:
 
 - `<feature-id>-<width>.json`: feature, width, URL, version, revision, time, and each action with the state it produced, plus the defect if one step failed.
-- `<feature-id>-<width>.png`: full-page screenshot after the last step, with the `LINA` mark and version visible.
+- `<feature-id>-<width>.png`: full-page screenshot after the last step.
 - `<feature-id>-<width>.aria.yml`: ARIA snapshot of the page after the last step.
 
 Proof standards: exercise the real user path, not internal setters or test-only routes; capture each action and the state it produced, not only the final screen; mocks only where a production boundary already isolates the external system. `verify-runs/` is ignored by git. Attach evidence to a pull request as a CI artifact or as files in a comment, never as committed files.

@@ -116,12 +116,18 @@ describe("the motion learns the direction before the screen swaps", () => {
       await done;
     });
     expect(queued).toHaveLength(2);
+    // Every swap completes, the late one too: a promise left pending holds its View Transition until it times out.
+    // act renders when its callback returns, so each swap's promise is awaited after it.
+    let newer: Promise<void> = Promise.resolve();
+    let late: Promise<void> = Promise.resolve();
     await act(async () => {
-      void queued[1]();
+      newer = queued[1]();
     });
+    await newer;
     await act(async () => {
-      void queued[0]();
+      late = queued[0]();
     });
+    await late;
     expect(view.getByTestId("shown").textContent).toBe("#/");
     expect(scrolls.at(-1)).toBe(120);
   });

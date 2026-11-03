@@ -115,9 +115,11 @@ export function useNav(): { route: Route; state: NavState; hash: string } {
   const read = () => ({ route: parse(currentHash()), state: readState(), hash: currentHash() });
   const [nav, setNav] = useState(read);
   const shown = useRef(nav);
+  const committed = useRef(nav);
   const settle = useRef<(() => void) | null>(null);
   // Children's layout effects (the scroll restore) run first, so the swap is done, scroll included, before paint.
   useLayoutEffect(() => {
+    committed.current = nav;
     settle.current?.();
     settle.current = null;
   }, [nav]);
@@ -132,6 +134,12 @@ export function useNav(): { route: Route; state: NavState; hash: string } {
         way,
         () =>
           new Promise<void>((resolve) => {
+            // A late swap of an overtaken transition finds the latest screen already drawn: setting the same state
+            // renders nothing and runs no layout effect, so it would never resolve and the transition would hang.
+            if (committed.current === shown.current) {
+              resolve();
+              return;
+            }
             settle.current?.();
             settle.current = resolve;
             // Always the latest screen: a transition skipped by a newer one still runs its swap, possibly after

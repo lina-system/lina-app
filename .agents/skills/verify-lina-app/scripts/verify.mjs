@@ -493,6 +493,7 @@ const drivers = {
       check((await boxes.first().getAttribute("aria-disabled")) === "true", "check boxes are not inert");
       const cards = await rowNames(page.getByRole("list", { name: "작업" }));
       check(cards.length === 3, "expected 3 work cards, got " + cards.length);
+      check(await page.getByRole("textbox", { name: "댓글 달기" }).isVisible(), "the goal page has no comment field");
       return heads.join(", ") + "; cards " + cards.join(" | ");
     });
     await step("a done goal shows the evidence that closed it", async () => {
@@ -514,6 +515,10 @@ const drivers = {
       check((await box.getAttribute("aria-disabled")) === "true", "the check box is not inert");
       const heads = await page.locator(".detail .box-head").allInnerTexts();
       check(JSON.stringify(heads) === JSON.stringify(["완료 조건", "실행", "댓글"]), "boxes " + heads.join(", "));
+      const resolved = page.getByTestId("resolved");
+      check((await resolved.count()) === 1 && !(await resolved.evaluate((fold) => fold.open)), "the resolved thread is not folded");
+      const fold = (await resolved.locator("summary").innerText()).trim();
+      check(/^해결됨 · \S+/.test(fold), "the resolved thread reads " + fold);
       const runs = await page.getByRole("list", { name: "실행" }).innerText();
       check(/카드 입력 폼 다듬기\s*·\s*진행 중/.test(runs), "run line reads " + runs);
       const comments = await page.getByTestId("comment").count();
@@ -522,6 +527,26 @@ const drivers = {
       const byline = await page.getByTestId("reply").first().locator(".sub").innerText();
       check(/^.+ · \d+(분|시간|일) 전/.test(byline), "reply byline reads " + byline);
       return heads.join(", ") + "; " + comments + " comments, " + replies + " replies";
+    });
+    await step("send a comment: it shows at once with its pending line and lands in the record", async () => {
+      const field = page.getByRole("textbox", { name: "댓글 달기" });
+      const send = page.getByRole("button", { name: "보내기", exact: true });
+      check(await send.isDisabled(), "보내기 is enabled on an empty field");
+      await field.fill("휴대폰 가로 화면도 봐 주세요");
+      await send.click();
+      const pending = page.getByTestId("comment-pending");
+      await pending.waitFor({ timeout: 2_000 });
+      const line = (await pending.innerText()).trim();
+      check(/^\S+에게 보냄 · 방금$/.test(line), "the pending line reads " + line);
+      check((await field.inputValue()) === "", "the field still holds the sent text");
+      await page.waitForFunction(() => window.__linaScene.itemDetails.T4.comments.some((comment) => comment.text === "휴대폰 가로 화면도 봐 주세요" && comment.by === "owner"), null, { timeout: 5_000 }).catch(() => check(false, "the synthetic record has no such comment"));
+      return line;
+    });
+    await step("the agent's reply arrives on a later refresh and the pending line goes", async () => {
+      await page.getByTestId("comment-pending").waitFor({ state: "detached", timeout: 25_000 }).catch(() => check(false, "the pending line stayed after the reply was due"));
+      const reply = (await page.getByTestId("reply").last().locator(".sub").innerText()).trim();
+      check(/^\S+ · \d+분 전 · 반영함$/.test(reply), "the reply reads " + reply);
+      return reply;
     });
   },
 

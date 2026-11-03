@@ -2,7 +2,7 @@ import { act, fireEvent, render, waitFor, within } from "@testing-library/preact
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { RouteName } from "./api/client";
 import { App } from "./app";
-import { SyntheticSource } from "./data/synthetic-source";
+import { SYNTHETIC_REPLY_AFTER, SyntheticSource } from "./data/synthetic-source";
 import type { ReadResult, Source } from "./data/source";
 import { Store } from "./data/store";
 import { SCENE_COUNTS } from "./fixtures/synthetic";
@@ -209,15 +209,18 @@ describe("every count equals the length of the list it labels", () => {
   });
 });
 
-class FailingSource implements Source {
+/** The synthetic scene with some reads failing; its writes are the synthetic source's own. */
+class FailingSource extends SyntheticSource {
   constructor(
-    private readonly inner: Source,
     private readonly failing: (name: RouteName) => "offline" | "failed" | null,
-  ) {}
-  async read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<import("./api/client").Routes[N]>> {
+    options: ConstructorParameters<typeof SyntheticSource>[0] = {},
+  ) {
+    super(options);
+  }
+  override async read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<import("./api/client").Routes[N]>> {
     const failure = this.failing(name);
     if (failure) return { kind: "failed", offline: failure === "offline", at: Date.now() / 1000 };
-    return this.inner.read(name, id);
+    return super.read(name, id);
   }
 }
 
@@ -225,8 +228,7 @@ describe("freshness", () => {
   beforeEach(() => setWide(true));
 
   test("a failed route shows its error line and the rest still draws", async () => {
-    const inner = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
-    const view = await open("#/inbox", { wide: true, source: new FailingSource(inner, (name) => (name === "devices" ? "failed" : null)) });
+    const view = await open("#/inbox", { wide: true, source: new FailingSource((name) => (name === "devices" ? "failed" : null)) });
     await waitFor(() => expect(view.getByTestId("read-failed").textContent).toBe(" · 읽기 실패: 기기"));
     expect(rowsIn(view.getByTestId("screen-inbox"))).toBe(SCENE_COUNTS.inbox);
   });
@@ -239,7 +241,7 @@ describe("freshness", () => {
   test("an unreachable core reads 연결 끊김", async () => {
     setWide(true);
     window.history.replaceState(null, "", "/app/#/inbox");
-    const view = render(<App store={new Store(new FailingSource(new SyntheticSource(), () => "offline"))} />);
+    const view = render(<App store={new Store(new FailingSource(() => "offline"))} />);
     await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("연결 끊김"));
   });
 
@@ -247,8 +249,7 @@ describe("freshness", () => {
     vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
     try {
       let answer = true;
-      const inner = new SyntheticSource();
-      const view = await open("#/inbox", { wide: true, source: new FailingSource(inner, () => (answer ? null : "failed")) });
+      const view = await open("#/inbox", { wide: true, source: new FailingSource(() => (answer ? null : "failed")) });
       answer = false;
       await act(async () => {
         vi.advanceTimersByTime(31_000);
@@ -326,5 +327,65 @@ describe("counts", () => {
     expect(counts.length).toBeGreaterThan(0);
     for (const element of counts) expect(element.closest(".count-pair")).not.toBeNull();
     expect(view.getByTestId("agent-counts").querySelectorAll(".count-pair .is-stopped-count")).toHaveLength(1);
+  });
+});
+
+class RefusingSource extends SyntheticSource {
+  sent: string[] = [];
+  override async comment(id: string, body: { text: string }) {
+    this.sent.push(`${id}:${body.text}`);
+    return { ok: false as const, status: 409, detail: "no open decision" };
+  }
+}
+
+describe("comments", () => {
+  test("a sent comment shows at once with its pending line, then the record's copy, then the agent's reply", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    try {
+      const source = new SyntheticSource();
+      const agent = source.scene.items.agents.find((person) => person.id === source.scene.itemDetails.T4.agent)?.name;
+      const view = await open("#/items/T4", { wide: true, source });
+      const field = view.getByRole("textbox", { name: "댓글 달기" }) as HTMLInputElement;
+      const send = view.getByRole("button", { name: "보내기" }) as HTMLButtonElement;
+      expect(send.disabled).toBe(true);
+      field.value = "가로 폭도 봐 주세요";
+      fireEvent.input(field);
+      expect(send.disabled).toBe(false);
+      fireEvent.submit(field.form as HTMLFormElement);
+      expect(view.getByTestId("comment-pending").textContent).toBe(`${agent}에게 보냄 · 방금`);
+      expect((view.getByRole("button", { name: "보내기" }) as HTMLButtonElement).disabled).toBe(true);
+      expect(field.value).toBe("");
+      await waitFor(() => expect(source.scene.itemDetails.T4.comments.at(-1)?.text).toBe("가로 폭도 봐 주세요"));
+      await waitFor(() => expect(view.getAllByTestId("comment-pending")).toHaveLength(1));
+      expect(SYNTHETIC_REPLY_AFTER).toBeLessThan(10);
+      await act(async () => {
+        vi.advanceTimersByTime(10_000);
+      });
+      await waitFor(() => expect(view.queryByTestId("comment-pending")).toBeNull());
+      expect(view.getAllByTestId("reply").at(-1)?.querySelector(".sub")?.textContent).toMatch(/ · 반영함$/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a refused comment comes back into the field with the core's line under it", async () => {
+    const source = new RefusingSource();
+    const view = await open("#/items/T4", { wide: true, source });
+    const field = view.getByRole("textbox", { name: "댓글 달기" }) as HTMLInputElement;
+    field.value = "다시";
+    fireEvent.input(field);
+    fireEvent.submit(field.form as HTMLFormElement);
+    await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("no open decision"));
+    expect(source.sent).toEqual(["T4:다시"]);
+    expect(field.value).toBe("다시");
+    expect(view.queryByTestId("comment-pending")).toBeNull();
+    expect(view.getAllByTestId("comment")).toHaveLength(2);
+  });
+
+  test("a resolved thread folds to one line with its first words", async () => {
+    const view = await open("#/items/T4", { wide: true });
+    const resolved = view.getByTestId("resolved") as HTMLDetailsElement;
+    expect(resolved.open).toBe(false);
+    expect(resolved.querySelector("summary")?.textContent).toBe("해결됨 · 오류가 나면 입력한 값은…");
   });
 });

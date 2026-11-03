@@ -27,6 +27,7 @@ const MACHINE_NAMES = ["솔방울", "징검돌", "모래톱", "물레방아"] as
 // Two services the app has display names for and one it shows as the core gives it.
 const SERVICE_NAMES = ["anthropic", "openai", "가온셈"] as const;
 const OWNER = { id: "owner", name: "나" } as const;
+export const SYNTHETIC_OWNER = OWNER;
 
 type Rng = () => number;
 

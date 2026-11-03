@@ -109,6 +109,13 @@ export const W = {
   notFound: "찾을 수 없음",
   empty: "없음",
 
+  commentField: "댓글 달기",
+  send: "보내기",
+  sentTo: (agent: string) => `${agent}에게 보냄`,
+  justNow: "방금",
+  resolved: "해결됨",
+  writeFailed: "보내지 못함",
+
   bell: "알림",
   quickAdd: "할 일 추가",
   markDone: (title: string) => `${title} 완료로 표시`,

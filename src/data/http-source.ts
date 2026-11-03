@@ -1,5 +1,5 @@
-import { routePath, type RouteName, type Routes } from "../api/client";
-import { nowSeconds, type ReadResult, type Source } from "./source";
+import { routePath, writePath, type ActionResult, type CommentRequest, type RouteName, type Routes } from "../api/client";
+import { nowSeconds, type ReadResult, type Source, type WriteResult } from "./source";
 
 declare global {
   interface Window {
@@ -59,5 +59,30 @@ export class HttpSource implements Source {
     } catch {
       return { kind: "failed", offline: false, at };
     }
+  }
+
+  comment(id: string, body: CommentRequest): Promise<WriteResult<ActionResult>> {
+    return this.post(writePath("comments", id), body);
+  }
+
+  /** One write: JSON body, the session token like the reads, and `keepalive` so a write sent as the page goes still lands. */
+  private async post<T>(path: string, body: unknown): Promise<WriteResult<T>> {
+    const headers: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json" };
+    if (this.token) headers["X-Hermes-Session-Token"] = this.token;
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.basePath}${path}`, { method: "POST", headers, body: JSON.stringify(body), credentials: "same-origin", keepalive: true });
+    } catch {
+      return { ok: false, status: 0, detail: null };
+    }
+    let json: unknown = null;
+    try {
+      json = await response.json();
+    } catch {
+      json = null;
+    }
+    if (response.ok && json !== null) return { ok: true, data: json as T };
+    const detail = typeof json === "object" && json !== null && typeof (json as { detail?: unknown }).detail === "string" ? (json as { detail: string }).detail : null;
+    return { ok: false, status: response.ok ? 0 : response.status, detail };
   }
 }

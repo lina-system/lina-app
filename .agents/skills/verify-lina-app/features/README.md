@@ -17,7 +17,7 @@ This directory is the maintained source for verifying what people see and do in 
 - Prefer ARIA roles and accessible names, then `data-testid`, over CSS selectors or DOM position.
 - Treat every command and quoted string as literal.
 - Every feature is driven at 1280 and 390 wide, the widths CI captures.
-- The app keeps no user data yet, so a drive needs no data restore. When a feature starts writing, its file says how to restore the fixture.
+- Writes on the synthetic instance change only the page's own copy of the scene; a page load starts the scene again, so a drive restores the fixture by reloading. Drivers read that copy through `window.__linaScene` to check what a write did to the record.
 
 ## Proof and skip reporting
 
@@ -29,8 +29,8 @@ This directory is the maintained source for verifying what people see and do in 
 
 ## Never press
 
-- On these screens the app has no write controls yet: nothing a drive can press changes data, so on a disposable instance there is nothing to avoid.
-- On a live core (a read-only pass after a deploy), never press `완료 표시`, `되돌리기`, `보내기` or `모두 읽음` once those controls exist. They write to the owner's record, and a read-only pass must leave it as it found it.
+- On a disposable instance (`?source=synthetic`) every control may be pressed: writes go to the page's copy of the scene and a reload undoes them.
+- On a live core (a read-only pass after a deploy), never press `완료 표시` (a check box), `되돌리기`, `보내기`, `다시 시도` or `모두 읽음`, and never choose a notice in the bell or an answer button. They write to the owner's record, and a read-only pass must leave it as it found it.
 
 ## Feature entry contract
 

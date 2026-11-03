@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import type { RouteName, Routes } from "../api/client";
 import type { ModelInput } from "../model";
-import { nowSeconds, type Source } from "./source";
+import { nowSeconds, type Source, type WriteResult } from "./source";
 
 type Status = "pending" | "ok" | "missing" | "failed";
 
@@ -93,6 +93,17 @@ export class Store {
     ]);
     if ([...firstWave, ...secondWave].some(Boolean) || this.version === 0) this.changed();
     else for (const listener of this.listeners) listener();
+  }
+
+  /**
+   * One of the owner's writes. After the core takes it, one read brings the record's own state back, so the
+   * screen shows what the record says rather than what the tap assumed; `refresh: false` leaves that to the
+   * next refresh.
+   */
+  async write<T>(send: (source: Source) => Promise<WriteResult<T>>, options: { refresh?: boolean } = {}): Promise<WriteResult<T>> {
+    const result = await send(this.source);
+    if (result.ok && options.refresh !== false) await this.refresh();
+    return result;
   }
 
   want(routes: Want): void {

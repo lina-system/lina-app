@@ -737,6 +737,80 @@ button:disabled {
   border-left: 2px solid var(--separator);
 }
 
+.resolved > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.resolved > summary::-webkit-details-marker {
+  display: none;
+}
+
+.resolved[open] > summary {
+  margin-bottom: 4px;
+}
+
+/* Writes: fields, text buttons and the one line a refused write leaves. */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.comment-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.note.is-inline {
+  flex: 1;
+  min-width: 0;
+}
+
+.note.is-inline input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: var(--line) solid var(--separator);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--label);
+  font: inherit;
+  font-size: var(--text-body);
+}
+
+.note.is-inline input::placeholder {
+  color: var(--label-2);
+}
+
+.text-button {
+  flex: none;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.text-button:hover:not(:disabled) {
+  background: var(--fill);
+}
+
+.text-button:disabled {
+  color: var(--label-3);
+}
+
+.write-error {
+  margin-top: 6px;
+  font-size: var(--text-small);
+  color: var(--red);
+}
+
 /* Bell. */
 
 .bell {

@@ -1,10 +1,11 @@
 import type { ComponentChildren } from "preact";
-import type { ItemComment, ItemDetail } from "../api/client";
+import type { ItemDetail } from "../api/client";
 import { goalCards, runRow } from "../model";
 import { href } from "../router";
 import { ago } from "../time";
 import { agentName, Box, CardRowView, CheckBox, Link, sinceText, StateText, StateTime, cardTime, useApp } from "../ui/parts";
-import { REPLY_RESULT, SEP, stateLabel, W } from "../words";
+import { SEP, stateLabel, W } from "../words";
+import { Comments } from "./comments";
 
 function Missing() {
   return <p class="empty">{W.notFound}</p>;
@@ -20,32 +21,6 @@ function Header({ title, children }: { title: string; children?: ComponentChildr
       <h1 class="detail-title">{title}</h1>
       {children}
     </header>
-  );
-}
-
-function Thread({ comments }: { comments: readonly ItemComment[] }) {
-  const { model, now } = useApp();
-  return (
-    <ul class="thread" aria-label={W.comments}>
-      {comments.map((comment) => (
-        <li key={comment.cid} class="comment" data-testid="comment">
-          <p class="comment-text">{comment.text}</p>
-          <span class="sub">{[agentName(model, comment.by), ago(now - comment.at)].filter(Boolean).join(SEP)}</span>
-          {comment.replies.length ? (
-            <ul class="replies">
-              {comment.replies.map((reply, index) => (
-                <li key={index} class="comment reply" data-testid="reply">
-                  <p class="comment-text">{reply.text}</p>
-                  <span class="sub">
-                    {[agentName(model, reply.by), ago(now - reply.at), reply.result ? REPLY_RESULT[reply.result] : null].filter(Boolean).join(SEP)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -128,6 +103,7 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
           ))}
         </Box>
       ) : null}
+      <Comments detail={detail} />
     </article>
   );
 }
@@ -173,11 +149,7 @@ function TodoBody({ detail }: { detail: ItemDetail }) {
           </ul>
         </Box>
       ) : null}
-      {detail.comments.length ? (
-        <Box title={W.comments}>
-          <Thread comments={detail.comments} />
-        </Box>
-      ) : null}
+      <Comments detail={detail} />
     </article>
   );
 }

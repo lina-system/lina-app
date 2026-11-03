@@ -9,6 +9,11 @@ import { SyntheticSource } from "./synthetic-source";
 export function chooseSource(location: Pick<Location, "search"> = window.location, flag: string | undefined = import.meta.env.VITE_LINA_SOURCE): Source {
   const params = new URLSearchParams(location.search);
   const source = params.get("source") ?? flag;
-  if (source === "synthetic") return new SyntheticSource({ sourceError: params.get("error") === "quota" });
+  if (source === "synthetic") {
+    const synthetic = new SyntheticSource({ sourceError: params.get("error") === "quota" });
+    // verify.mjs reads the synthetic copy after a write to check the record changed, not only the screen.
+    if (typeof window !== "undefined") Object.defineProperty(window, "__linaScene", { configurable: true, get: () => structuredClone(synthetic.scene) });
+    return synthetic;
+  }
   return new HttpSource(bootstrapOptions());
 }

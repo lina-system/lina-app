@@ -4,13 +4,15 @@ type Props = {
   label: string;
   value: string;
   onValue: (value: string) => void;
+  /** Shows the label inside the empty field instead of before it; the field keeps it as its accessible name. */
+  inline?: boolean;
 };
 
 function isImeEvent(event: KeyboardEvent): boolean {
   return event.isComposing || event.keyCode === 229;
 }
 
-export function KoreanInput({ label, value, onValue }: Props) {
+export function KoreanInput({ label, value, onValue, inline = false }: Props) {
   const ref = useRef<HTMLInputElement>(null);
   const composing = useRef(false);
 
@@ -27,9 +29,10 @@ export function KoreanInput({ label, value, onValue }: Props) {
   };
 
   return (
-    <label class="note">
-      {label}
+    <label class={inline ? "note is-inline" : "note"}>
+      {inline ? <span class="visually-hidden">{label}</span> : label}
       <input
+        placeholder={inline ? label : undefined}
         ref={ref}
         type="text"
         lang="ko"

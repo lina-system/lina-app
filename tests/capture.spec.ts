@@ -16,6 +16,15 @@ const SCREENS: readonly { id: string; hash: string; query?: string; wideOnly?: b
   { id: "goal-detail", hash: "#/goals/G2" },
   { id: "goal-done", hash: "#/goals/G4" },
   { id: "item-detail", hash: "#/items/T4" },
+  {
+    id: "item-comment",
+    hash: "#/items/T4",
+    open: async (page) => {
+      await page.getByRole("textbox", { name: "댓글 달기" }).fill("휴대폰 가로 화면도 봐 주세요");
+      await page.getByRole("button", { name: "보내기", exact: true }).click();
+      await expect(page.getByTestId("comment-pending")).toHaveText(/에게 보냄 · 방금$/);
+    },
+  },
   { id: "item-decision", hash: "#/items/T2" },
   { id: "goal-decision", hash: "#/goals/G3" },
   { id: "card-question", hash: "#/cards/k-102" },

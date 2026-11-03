@@ -16,6 +16,7 @@ import { createServer } from "node:net";
 import { appendFileSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { previewReady } from "./preview-log.mjs";
 
 const skillDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repo = path.resolve(skillDir, "..", "..", "..");
@@ -99,12 +100,12 @@ async function loadChromium() {
   return chromium;
 }
 
-function waitForLogLine(logPath, pattern, pid, timeoutMs) {
+function waitForLogLine(logPath, ready, pid, timeoutMs) {
   return new Promise((resolve, reject) => {
     const deadline = Date.now() + timeoutMs;
     const check = () => {
       const text = existsSync(logPath) ? readFileSync(logPath, "utf8") : "";
-      if (pattern.test(text)) return resolve();
+      if (ready(text)) return resolve();
       if (!alive(pid)) return reject(new Error(`preview exited before it was ready:\n${text}`));
       if (Date.now() > deadline) return reject(new Error(`preview not ready after ${timeoutMs} ms:\n${text}`));
       setTimeout(check, 200);
@@ -146,7 +147,7 @@ async function launch(args) {
   writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
 
   try {
-    await waitForLogLine(logPath, new RegExp(`127\\.0\\.0\\.1:${port}`), child.pid, 30_000);
+    await waitForLogLine(logPath, (text) => previewReady(text, port), child.pid, 30_000);
     const problems = await checkInstance(state);
     if (problems.length) throw new Error(problems.join("\n"));
   } catch (error) {

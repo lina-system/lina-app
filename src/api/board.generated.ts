@@ -238,6 +238,34 @@ export interface components {
             quota: components["schemas"]["QuotaService"][];
             version: number;
         };
+        ChangeBatch: {
+            /** @description Opaque; send it back as since= to resume after a reconnect. */
+            cursor: string;
+            events: components["schemas"]["ChangeEvent"][];
+        };
+        /** @description One change; no item body (refetch the snapshot it touches). */
+        ChangeEvent: {
+            at: number | null;
+            /** @description The item, run or card the event is about. */
+            id: string;
+            /** @description The store's own event kind (work event kind, worker receipt kind, kanban task event kind). */
+            kind: string;
+            /**
+             * @description work = the work record's event table; worker = a `lina worker` run state change (hub receipts); kanban = a kanban task event.
+             * @enum {string}
+             */
+            source: "work" | "worker" | "kanban";
+        };
+        /** @description A message of the change stream (lina#150). GET /api/lina/events is a WebSocket, not a JSON route (OpenAPI cannot describe it as a path): upgrade with the dashboard credential (?token=, as the other dashboard sockets) and optional since=<cursor>. Without since the first message is a ChangeBatch with the tail cursor and no events; with a kept since it is the missed events; otherwise one ChangeResync. Then a ChangeBatch whenever something changed, at most every 300 ms, and one ChangeResync when a store that was down when the cursor was taken reads again. */
+        ChangeMessage: components["schemas"]["ChangeBatch"] | components["schemas"]["ChangeResync"];
+        ChangeResync: {
+            cursor: string;
+            /**
+             * @description The since cursor was unreadable or older than the kept history, or a store that could not be read when the cursor was taken reads again (what it wrote meanwhile is not known); refetch every snapshot.
+             * @enum {boolean}
+             */
+            resync: true;
+        };
         /** @description The length of the list it labels; null when its source failed to read. */
         Count: number | null;
         Counts: {

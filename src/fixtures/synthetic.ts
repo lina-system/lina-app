@@ -120,7 +120,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     { id: "T5", goal: "G2", agent: 1, title: "오류 문구 바꾸기", state: "stopped", reason: "no_response", sinceAgo: 52 * MIN, doneCondition: "오류 문구가 새 문체로 바뀜" },
     { id: "T6", goal: "G2", agent: 1, title: "결제 실패 화면 검토", state: "waiting", reason: "review", sinceAgo: 3 * HOUR, doneCondition: "실패 화면 검토를 마침" },
     { id: "T7", goal: "G3", agent: 2, title: "백업 기록 살펴보기", state: "done", reason: null, sinceAgo: 2 * HOUR, doneCondition: "지난 한 달 백업 기록을 확인함" },
-    { id: "T8", goal: "G3", agent: 2, title: "복구 연습 일정 잡기", state: "waiting", reason: "decision", sinceAgo: 2 * DAY, doneCondition: "복구 연습 날짜가 정해짐" },
+    { id: "T8", goal: "G3", agent: 2, title: "복구 연습 일정 잡기", state: "waiting", reason: "blocked_by_item", sinceAgo: 2 * DAY, doneCondition: "복구 연습 날짜가 정해짐" },
     { id: "T9", goal: "G3", agent: 2, title: "저장소 접근 권한 주기", state: "planned", reason: null, mine: true, sinceAgo: 2 * DAY, due: 30, doneCondition: "복구용 저장소에 들어갈 수 있음" },
     { id: "T10", goal: "G4", agent: 0, title: "가이드 초안 쓰기", state: "done", reason: null, sinceAgo: 1 * DAY, doneCondition: "초안이 검토를 통과함" },
     { id: "T11", goal: "G5", agent: 1, title: "색인 구조 비교", state: "stopped", reason: "failed", sinceAgo: 5 * HOUR, doneCondition: "두 색인 구조의 속도를 비교함" },
@@ -260,7 +260,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
 
   const decisions: Record<string, { text: string; kind: "ask" | "act"; ago: number }> = {
     T2: { text: "배포를 금요일 오후에 해도 될까요?", kind: "ask", ago: 3 * DAY },
-    T8: { text: "복구 연습에 쓸 두 시간을 비워 주세요.", kind: "act", ago: 2 * DAY },
+    G3: { text: "복구 연습에 쓸 두 시간을 비워 주세요.", kind: "act", ago: 2 * DAY },
     T12: { text: "자주 쓰는 검색어 열 개를 알려 주세요.", kind: "act", ago: 1 * DAY },
   };
 
@@ -318,7 +318,9 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       runs: [],
       links: [],
       workCards: goalWorkCards[goal.id] ?? [],
-      decision: null,
+      decision: decisions[goal.id]
+        ? { text: decisions[goal.id].text, kind: decisions[goal.id].kind, choices: [], recommended: null, cid: null, at: now - decisions[goal.id].ago, answered: false }
+        : null,
       ownerDone: null,
     };
   }
@@ -352,8 +354,8 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
 
   const decide = Object.entries(decisions).map(([target, decision]) => ({
     target,
-    title: todoTitle(target),
-    agent: agentId(todoSeeds.find((todo) => todo.id === target)?.agent ?? 0),
+    title: listItems.find((item) => item.id === target)?.title ?? "",
+    agent: listItems.find((item) => item.id === target)?.agent ?? null,
     kind: decision.kind,
     text: decision.text,
     at: now - decision.ago,

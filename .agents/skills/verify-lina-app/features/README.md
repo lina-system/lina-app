@@ -27,6 +27,11 @@ This directory is the maintained source for verifying what people see and do in 
 - Report an unreachable path with the attempted command and the unmet precondition.
 - Do not report a skipped entry point as verified through a different path.
 
+## Never press
+
+- On these screens the app has no write controls yet: nothing a drive can press changes data, so on a disposable instance there is nothing to avoid.
+- On a live core (a read-only pass after a deploy), never press `완료 표시`, `되돌리기`, `보내기` or `모두 읽음` once those controls exist. They write to the owner's record, and a read-only pass must leave it as it found it.
+
 ## Feature entry contract
 
 Each feature file starts with an H1 title and one paragraph describing the user-visible behavior. It then uses exactly these H2 sections in this order. `verify.mjs map` checks the order and the index.

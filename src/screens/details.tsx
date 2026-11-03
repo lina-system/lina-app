@@ -49,6 +49,22 @@ function Thread({ comments }: { comments: readonly ItemComment[] }) {
   );
 }
 
+/** A pending decision or a card's question, drawn the same way on a goal, a to-do or a work card. */
+function DecisionBox({ text, agent, ask, at }: { text: string; agent: string | null; ask: boolean; at: number | null }) {
+  const { model, now } = useApp();
+  return (
+    <Box title={W.decide} testid="decision">
+      <p class="box-text">{text}</p>
+      <span class="sub">{[agentName(model, agent), ask ? W.ask : W.act, at ? ago(now - at) : null].filter(Boolean).join(SEP)}</span>
+    </Box>
+  );
+}
+
+function ItemDecision({ detail }: { detail: ItemDetail }) {
+  if (!detail.decision || detail.decision.answered) return null;
+  return <DecisionBox text={detail.decision.text} agent={detail.agent} ask={detail.decision.kind === "ask"} at={detail.decision.at} />;
+}
+
 function GoalBody({ detail }: { detail: ItemDetail }) {
   const { model, store, now } = useApp();
   const { cards, evidence } = goalCards(model, detail, {
@@ -60,6 +76,7 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
       <Header title={detail.title}>
         <StateTime state={detail.state} reason={detail.reason} time={sinceText(detail.state, detail.stateSince, now)} />
       </Header>
+      <ItemDecision detail={detail} />
       {detail.doneCondition ? (
         <Box title={W.doneCondition}>
           <p class="box-text">{detail.doneCondition}</p>
@@ -125,12 +142,7 @@ function TodoBody({ detail }: { detail: ItemDetail }) {
           <StateTime state={detail.state} reason={detail.reason} time={sinceText(detail.state, detail.stateSince, now)} />
         </div>
       </Header>
-      {detail.decision && !detail.decision.answered ? (
-        <Box title={W.decide}>
-          <p class="box-text">{detail.decision.text}</p>
-          <span class="sub">{[agentName(model, detail.agent), detail.decision.kind === "ask" ? W.ask : W.act, detail.decision.at ? ago(now - detail.decision.at) : null].filter(Boolean).join(SEP)}</span>
-        </Box>
-      ) : null}
+      <ItemDecision detail={detail} />
       {detail.doneCondition ? (
         <Box title={W.doneCondition}>
           <p class="box-text">{detail.doneCondition}</p>
@@ -185,11 +197,15 @@ export function CardScreen({ id }: { id: string }) {
   const detail = store.get("card", id);
   if (!detail) return store.status("card", id) === "missing" ? <Missing /> : <Loading />;
   const row = model.cards.get(id);
+  const questions = (store.get("inbox")?.questions ?? []).filter((question) => question.cardId === id);
   return (
     <article class="detail" data-testid="screen-card">
       <Header title={detail.title}>
         <StateTime state={detail.state} reason={detail.reason} time={row ? cardTime(row, now) : ""} />
       </Header>
+      {questions.map((question) => (
+        <DecisionBox key={question.commentId} text={question.body} agent={question.agent} ask at={question.askedAt} />
+      ))}
       {detail.now && detail.state === "in_progress" ? (
         <Box title={W.now}>
           <p class="box-text">{detail.now}</p>

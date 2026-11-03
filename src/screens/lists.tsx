@@ -2,7 +2,7 @@ import type { DueRow, GoalRow, InboxRow } from "../model";
 import { agentView } from "../model";
 import { href } from "../router";
 import { ago, dayLabel, until } from "../time";
-import { AgentMark, agentName, CardRowView, Dial, Disclosure, Empty, Link, ListSection, useApp } from "../ui/parts";
+import { AgentMark, agentName, CardRowView, CountPair, Dial, Disclosure, Empty, Link, ListSection, useApp } from "../ui/parts";
 import { MACHINE_WHY, SEP, W } from "../words";
 
 function InboxRowView({ row }: { row: InboxRow }) {
@@ -158,12 +158,7 @@ export function AgentScreen({ id }: { id: string }) {
         {[view.running, view.review, view.goals].map((section, index) => (
           <span key={section.id} data-testid={`agent-count-${section.id}`}>
             {index ? SEP : ""}
-            {section.title} <span class="count">{section.count}</span>
-            {section.stopped ? (
-              <span class="count is-stopped-count" data-testid="stopped-count" aria-label={W.stoppedCount(section.stopped)}>
-                {section.stopped}
-              </span>
-            ) : null}
+            {section.title} <CountPair count={section.count} stopped={section.stopped} showZero />
           </span>
         ))}
       </p>

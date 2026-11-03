@@ -261,3 +261,36 @@ describe("wide split view", () => {
     expect(view.getByTestId("panes").classList.contains("is-folded")).toBe(false);
   });
 });
+
+describe("decisions", () => {
+  test("each 결정 필요 row opens the record it is aimed at, and that record shows the decision", async () => {
+    const inbox = await open("#/inbox", { wide: true });
+    const rows = [...inbox.getByRole("list", { name: "결정 필요" }).querySelectorAll("a")].map((link) => ({
+      href: link.getAttribute("href") ?? "",
+      text: link.querySelector(".title")?.textContent ?? "",
+      context: link.querySelector(".context")?.textContent ?? "",
+    }));
+    inbox.unmount();
+    expect(rows.filter((row) => /^#\/(items|goals)\//.test(row.href)).length).toBeGreaterThanOrEqual(1);
+    expect(rows.filter((row) => row.href.startsWith("#/cards/")).length).toBe(1);
+    expect(rows.every((row) => /^#\/(items|goals|cards)\//.test(row.href))).toBe(true);
+    for (const row of rows) {
+      const view = await open(row.href, { wide: true });
+      await waitFor(() => expect(view.getByTestId("decision").textContent).toContain(row.text));
+      const title = view.container.querySelector(".detail-title")?.textContent ?? "";
+      expect(row.context === title || row.context.endsWith(` › ${title}`)).toBe(true);
+      if (row.href.startsWith("#/cards/")) expect(view.container.querySelector(".detail .box")?.getAttribute("data-testid")).toBe("decision");
+      view.unmount();
+    }
+  });
+});
+
+describe("counts", () => {
+  test("the sidebar, section headings and the agent head draw counts with one component", async () => {
+    const view = await open("#/agents/ag-2", { wide: true });
+    const counts = [...view.container.querySelectorAll("[data-testid=nav-count], [data-testid=nav-stopped], [data-testid=count], [data-testid=stopped-count], .agent-counts .count")];
+    expect(counts.length).toBeGreaterThan(0);
+    for (const element of counts) expect(element.closest(".count-pair")).not.toBeNull();
+    expect(view.getByTestId("agent-counts").querySelectorAll(".count-pair .is-stopped-count")).toHaveLength(1);
+  });
+});

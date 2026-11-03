@@ -108,21 +108,34 @@ export function CardRowView({ card, dim = false, kindIcon = true }: { card: Card
   );
 }
 
+/**
+ * The one way a count is drawn: the grey number of a list, then its stopped cards as a small red number,
+ * never summed. The sidebar, section headings and the agent head all use it.
+ */
+export function CountPair({ count, stopped, showZero = false, countId = "count", stoppedId = "stopped-count" }: { count: number; stopped?: number; showZero?: boolean; countId?: string; stoppedId?: string }) {
+  if (!count && !stopped && !showZero) return null;
+  return (
+    <span class="count-pair">
+      {count || showZero ? (
+        <span class="count" data-testid={countId}>
+          {count}
+        </span>
+      ) : null}
+      {stopped ? (
+        <span class="count is-stopped-count" data-testid={stoppedId} aria-label={W.stoppedCount(stopped)}>
+          {stopped}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 export function SectionHead({ section }: { section: Section<unknown> }) {
   if (!section.title) return null;
   return (
     <h2 class="section-head" data-testid={`head-${section.id}`}>
       <span>{section.title}</span>
-      <span class="head-counts">
-        <span class="count" data-testid="count">
-          {section.count}
-        </span>
-        {section.stopped ? (
-          <span class="count is-stopped-count" data-testid="stopped-count" aria-label={W.stoppedCount(section.stopped)}>
-            {section.stopped}
-          </span>
-        ) : null}
-      </span>
+      <CountPair count={section.count} stopped={section.stopped} showZero />
     </h2>
   );
 }

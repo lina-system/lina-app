@@ -8,7 +8,7 @@ import { back, defaultListFor, href, isList, linkClick, navigate, onSaveScroll, 
 import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RunningScreen, StatusScreen } from "./screens/lists";
 import { CardScreen, GoalScreen, ItemScreen, RunScreen } from "./screens/details";
 import { BackIcon, BellIcon, CalendarIcon, DeviceIcon, DoneIcon, GoalIcon, InboxIcon, PlusIcon, RunningIcon } from "./ui/icons";
-import { AgentMark, Ctx, Disclosure, useApp, type AppContext } from "./ui/parts";
+import { AgentMark, CountPair, Ctx, Disclosure, useApp, type AppContext } from "./ui/parts";
 import { APP_VERSION } from "./version";
 import { SEP, W } from "./words";
 
@@ -102,16 +102,7 @@ function NavRow({ to, icon, label, count, stopped, current, testid, children }: 
       <a href={target} onClick={linkClick} aria-current={current ? "page" : undefined} aria-label={[count ? `${label} ${count}` : label, stopped ? W.stoppedCount(stopped) : ""].filter(Boolean).join(SEP)}>
         {icon ? <span class="nav-icon">{icon}</span> : null}
         {children ?? <span class="nav-label one-line">{label}</span>}
-        {count ? (
-          <span class="nav-count" data-testid="nav-count">
-            {count}
-          </span>
-        ) : null}
-        {stopped ? (
-          <span class="nav-count is-stopped-count" data-testid="nav-stopped">
-            {stopped}
-          </span>
-        ) : null}
+        <CountPair count={count ?? 0} stopped={stopped} countId="nav-count" stoppedId="nav-stopped" />
         {wide ? null : <Disclosure />}
       </a>
     </li>

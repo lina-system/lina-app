@@ -285,6 +285,34 @@ const drivers = {
       check(ages.every((age, index) => index === 0 || age <= ages[index - 1]), "decisions are not oldest first: " + days.join(", "));
       return days.join(", ");
     });
+    await step("each decision opens the record it is aimed at, which shows the decision", async () => {
+      const rows = await page.getByRole("list", { name: "결정 필요" }).getByRole("link").evaluateAll((links) =>
+        links.map((link) => ({ href: link.getAttribute("href"), text: link.querySelector(".title").textContent.trim(), context: link.querySelector(".context").textContent.trim(), kind: link.querySelector(".kind-word").textContent.trim() })),
+      );
+      const seen = { item: 0, card: 0 };
+      for (const row of rows) {
+        await openApp(page, row.href);
+        const box = page.locator(".detail .box").filter({ has: page.locator(".box-head", { hasText: /^결정 필요$/ }) }).first();
+        await box.waitFor({ timeout: 5_000 }).catch(() => check(false, row.href + " shows no decision box"));
+        const boxText = await box.innerText();
+        check(boxText.includes(row.text), row.href + " shows a different decision: " + boxText);
+        check(boxText.includes(row.kind) && /\d+(분|시간|일) 전/.test(boxText), row.href + " decision box lacks kind word or age: " + boxText);
+        const title = (await page.locator(".detail-title").first().innerText()).trim();
+        if (row.href.startsWith("#/cards/")) {
+          seen.card += 1;
+          const first = (await page.locator(".detail .box").first().locator(".box-head").innerText()).trim();
+          check(first === "결정 필요", "the card's question box is not on top (first box " + first + ")");
+          check(row.context.endsWith(" › " + title), "card question context " + row.context + " does not end with the card " + title);
+        } else {
+          check(/^#\/(items|goals)\//.test(row.href), "a decision opens " + row.href + ", not a goal or to-do");
+          seen.item += 1;
+          check(row.context === title || row.context.endsWith(" › " + title), "context " + row.context + " does not read 목표 › 할 일 for " + title);
+        }
+      }
+      check(seen.item >= 1 && seen.card >= 1, "expected decisions on records and a card question: " + JSON.stringify(seen));
+      await openApp(page, "#/inbox");
+      return rows.length + " decisions: " + seen.item + " on goals or to-dos, " + seen.card + " on a card";
+    });
     await step("open the first decision", async () => {
       await page.getByRole("list", { name: "결정 필요" }).getByRole("link").first().click();
       await page.locator(".detail-title").waitFor();
@@ -387,6 +415,22 @@ const drivers = {
       const doneLine = await page.getByTestId("done-today").innerText();
       check(/^완료 · 오늘 \d+$/.test(doneLine.trim()), "done line reads " + doneLine);
       return heads.join(" → ") + " → " + doneLine.trim();
+    });
+    await step("the head draws its counts like the sidebar and the section headings: grey, stopped in red", async () => {
+      const read = (locator) => locator.evaluateAll((nodes) => nodes.map((node) => ({ text: node.textContent.trim(), colour: getComputedStyle(node).color, pair: Boolean(node.closest(".count-pair")) })));
+      const head = await read(page.getByTestId("agent-counts").locator(".count"));
+      const sections = await read(page.locator(".list .section-head .count"));
+      const sidebar = await read(page.locator(".nav-row:not(.is-current) .count"));
+      const red = "rgb(255, 59, 48)";
+      const grey = sections.find((entry) => entry.colour !== red)?.colour;
+      const stopped = await page.getByTestId("agent-counts").getByLabel(/^중단됨 \d+$/).evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).color));
+      check(stopped.length === 1 && stopped[0] === red, "the head's stopped count is drawn " + stopped.join(", ") + ", expected " + red);
+      const plain = head.filter((entry) => entry.colour !== red);
+      check(plain.every((entry) => entry.colour !== "rgb(0, 0, 0)" && entry.colour !== "rgb(255, 255, 255)"), "a head count is drawn in the label colour: " + plain.map((entry) => entry.text + "=" + entry.colour).join(", "));
+      check(plain.every((entry) => entry.colour === grey), "head counts are " + plain.map((entry) => entry.colour).join(", ") + ", section headings " + grey);
+      check(head.length > 0 && head.every((entry) => entry.pair), "the head does not use the shared count component");
+      check(sidebar.every((entry) => entry.pair) && sections.every((entry) => entry.pair), "the sidebar or a section heading does not use the shared count component");
+      return "grey " + grey + ", stopped " + stopped[0];
     });
     await step("the header shows counts only; stopped cards get their own red number", async () => {
       const header = (await page.getByTestId("agent-counts").innerText()).trim();

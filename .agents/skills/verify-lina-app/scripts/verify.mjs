@@ -31,7 +31,7 @@ const viteBin = path.join(repo, "node_modules", "vite", "bin", "vite.js");
 // The synthetic scene (src/fixtures/synthetic.ts, SCENE_COUNTS). Doctor compares the sidebar and the bell
 // against it, so a page showing anything else is not this run's instance.
 const APP_PATH = "/app/?source=synthetic";
-const FIXTURE = { inbox: "7", running: "2", stopped: "1", due: "5", done: "1", goals: "5", bell: "알림 5", devices: "기기 3 · 정상 1 · 경고 1 · 꺼짐 1" };
+const FIXTURE = { inbox: "7", running: "2", stopped: "1", due: "5", done: "3", goals: "5", bell: "알림 5", devices: "기기 3 · 정상 1 · 경고 1 · 꺼짐 1" };
 const WIDTHS = [1280, 390];
 const H2S = [
   "Platforms",
@@ -289,15 +289,18 @@ async function stoppedCardColours(list) {
   const rows = await list.locator("[data-testid=row]").evaluateAll((items) =>
     items.map((item) => ({
       stopped: item.classList.contains("is-stopped"),
-      title: getComputedStyle(item.querySelector(".title")).color,
+      // A card without a checked title draws none (work-cards.md); it has no title colour to compare.
+      title: item.querySelector(".title") ? getComputedStyle(item.querySelector(".title")).color : null,
       state: getComputedStyle(item.querySelector("[data-testid=state]")).color,
       time: item.querySelector(".time") ? getComputedStyle(item.querySelector(".time")).color : null,
     })),
   );
-  const stopped = rows.find((row) => row.stopped);
+  const stopped = rows.find((row) => row.stopped && row.title);
   const running = rows.find((row) => !row.stopped);
   check(stopped && running, "the list needs a stopped and a running card to compare");
-  check(stopped.title === running.title, "the stopped card's title is " + stopped.title + ", a running card's " + running.title);
+  // With no titled running card in the list, the label colour is the page's own text colour.
+  const label = rows.find((row) => !row.stopped && row.title)?.title ?? (await list.evaluate((element) => getComputedStyle(element.closest(".list") ?? document.body).color));
+  check(stopped.title === label, "the stopped card's title is " + stopped.title + ", the label colour " + label);
   check(stopped.state === "rgb(255, 59, 48)", "the stopped card's state words are " + stopped.state);
   check(stopped.time === running.time, "the stopped card's time is " + stopped.time + ", a running card's " + running.time);
   return "title " + stopped.title + ", state " + stopped.state + ", time " + stopped.time;
@@ -549,7 +552,7 @@ async function focusSteps(page, step) {
       const read = [];
       for (const hash of PHONE_SCREENS) {
         await openApp(page, hash);
-        await page.locator("[data-testid=screen-title], .detail-title").first().waitFor();
+        await page.locator("[data-testid=screen-title], .detail-head").first().waitFor();
         read.push(await pageHeight(page, hash));
       }
       return read.join(", ");
@@ -592,7 +595,7 @@ async function dividerSteps(page, step, width) {
   for (const [where, hash] of DIVIDER_SCREENS) {
     await step("at " + width + ", " + where + ": every divider lies on its row's top edge, from the row's text", async () => {
       await openApp(page, hash);
-      await page.locator("[data-testid=screen-title], .detail-title").first().waitFor();
+      await page.locator("[data-testid=screen-title], .detail-head").first().waitFor();
       await page.locator("[data-testid=row], .nav-row").first().waitFor();
       return await dividers(page, where + " @" + width);
     });
@@ -646,12 +649,13 @@ const drivers = {
         const boxText = await box.innerText();
         check(boxText.includes(row.text), row.href + " shows a different decision: " + boxText);
         check(boxText.includes(row.kind) && /\d+(분|시간|일) 전/.test(boxText), row.href + " decision box lacks kind word or age: " + boxText);
-        const title = (await page.locator(".detail-title").first().innerText()).trim();
+        // A card without a checked title draws none; its question names only its goal (work-cards.md).
+        const title = (await page.locator(".detail-title").count()) ? (await page.locator(".detail-title").first().innerText()).trim() : "";
         if (row.href.startsWith("#/cards/")) {
           seen.card += 1;
           const first = (await page.locator(".detail .box").first().locator(".box-head").innerText()).trim();
           check(first === "결정 필요", "the card's question box is not on top (first box " + first + ")");
-          check(row.context.endsWith(" › " + title), "card question context " + row.context + " does not end with the card " + title);
+          check(title ? row.context.endsWith(" › " + title) : !row.context.includes(" › "), "card question context " + row.context + " for the card titled " + JSON.stringify(title));
         } else {
           check(/^#\/(items|goals)\//.test(row.href), "a decision opens " + row.href + ", not a goal or to-do");
           seen.item += 1;
@@ -763,8 +767,10 @@ const drivers = {
       const list = page.getByRole("list", { name: "완료" });
       const names = await rowNames(list);
       const lines = await list.locator(".sub").allInnerTexts();
-      check(names.length === 1 && names.every((name) => name.endsWith("완료")), "done list " + names.join(" | "));
-      check(/^완료 · \d+분$/.test(lines[0]), "done line reads " + lines[0]);
+      // Three finished cards: two jobs with one generated title stay two (work-cards.md).
+      check(names.length === 3 && names.every((name) => name.endsWith("완료")), "done list " + names.join(" | "));
+      check(names.filter((name) => name.includes("가이드 초안 다듬기")).length === 2, "the two jobs with one title read " + names.join(" | "));
+      check(lines.every((line) => /^완료 · \d+분$/.test(line)), "done lines read " + lines.join(", "));
       return names.join(" | ") + " / " + lines.join(", ");
     });
   },
@@ -1016,10 +1022,11 @@ const drivers = {
       const state = await page.locator(".detail-head .sub").innerText();
       check(/^진행 중 · \d+분째$/.test(state), "state reads " + state);
       const heads = await page.locator(".detail .box-head").allInnerTexts();
-      check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "실행", "댓글"]), "boxes " + heads.join(", "));
-      check((await page.getByRole("checkbox", { name: /완료로 표시$/ }).count()) === 2, "expected 2 to-dos");
-      const dim = page.getByRole("list", { name: "실행" }).locator(".row.is-dim");
-      check((await dim.count()) === 1, "expected 1 worker run row, got " + (await dim.count()));
+      check(JSON.stringify(heads) === JSON.stringify(["지금", "끝난 것", "다음", "할 일", "실행", "댓글"]), "boxes " + heads.join(", "));
+      check((await page.getByTestId("card-now").innerText()).includes("변경 목록을 기능별로 묶는 중"), "the now box does not read the checked now line");
+      check((await page.locator(".detail .box").filter({ has: page.locator(".box-head", { hasText: /^할 일$/ }) }).getByRole("checkbox").count()) === 3, "expected 3 to-dos");
+      const dim = page.getByTestId("worker-runs").locator(".row.is-dim");
+      check((await dim.count()) === 3, "expected 3 worker run rows, one per round, got " + (await dim.count()));
       const look = await dim.first().evaluate((row) => ({ opacity: getComputedStyle(row).opacity, state: getComputedStyle(row.querySelector("[data-testid=state]")).color }));
       check(look.opacity === "1", "the worker run row is faded (opacity " + look.opacity + ")");
       check((await page.getByTestId("comment").count()) === 2, "expected 2 comments");
@@ -1334,13 +1341,15 @@ const drivers = {
       ["goal detail", "#/goals/G2"],
       ["to-do detail", "#/items/T4"],
       ["card detail", "#/cards/k-101"],
+      ["card with no checked lines", "#/cards/k-102"],
+      ["worker run outside a card", "#/runs/r7"],
     ];
     for (const width of [390, 430]) {
       await page.setViewportSize({ width, height: 844 });
       for (const [where, hash] of screens) {
         await step("at " + width + ", " + where + ": every hit area is 44x44 and every text 13px or larger", async () => {
           await openApp(page, hash);
-          await page.locator("[data-testid=screen-title], .detail-title").first().waitFor();
+          await page.locator("[data-testid=screen-title], .detail-head").first().waitFor();
           const lines = await rowLines(page);
           check(lines.length === 0, "rows with more than two lines: " + lines.join("; "));
           return await phoneRules(page, where + " @" + width);
@@ -1747,6 +1756,107 @@ const drivers = {
       check(connections.length >= 2 && connections.length <= 5, connections.length + " tries in 5 s");
       check(connections.every((connection) => !connection.open), "a connection opened");
       return (await freshnessLine(page)) + ", " + connections.length + " tries in 5 s, 결정 필요 " + rows;
+    });
+  },
+
+  "work-cards": async (page, step) => {
+    const wide = page.viewportSize().width >= 900;
+    const home = () => page.getByTestId("screen-running");
+    const rowsOf = (label) => home().getByRole("list", { name: label, exact: true }).locator(":scope > li > a");
+    await step("open the home: 진행 중인 작업", async () => {
+      await openApp(page, "#/");
+      if (!wide) {
+        await page.getByRole("link", { name: /^진행 중인 작업/ }).click();
+        await settled(page);
+      }
+      await home().waitFor();
+      return (await title(page)) + " at " + new URL(page.url()).hash;
+    });
+    await step("the home order: one decisions line, stopped then running, waiting, the last 24 hours, then older", async () => {
+      const lists = await home().locator("ul.rows").evaluateAll((all) => all.map((list) => list.getAttribute("aria-label")));
+      check(JSON.stringify(lists) === JSON.stringify(["수신함", "진행 중인 작업", "대기", "24시간 안에 끝남", "이전에 끝남"]), "the home lists " + JSON.stringify(lists));
+      const decisions = (await page.getByTestId("home-decisions").getByRole("link").getAttribute("aria-label")) ?? "";
+      check(decisions === "결정 필요 4", "the decisions line reads " + decisions);
+      const first = (await rowsOf("진행 중인 작업").first().getAttribute("aria-label")) ?? "";
+      check(first.endsWith("중단됨 · 응답 없음"), "the first card is " + first);
+      const reason = (await rowsOf("진행 중인 작업").first().locator(".state").innerText()).trim();
+      check(reason === "중단됨 · 응답 없음", "the stopped card's state reads " + reason);
+      return lists.join(" → ") + "; " + decisions + "; first " + first;
+    });
+    await step("every count equals its list", async () => {
+      const found = [];
+      for (const id of ["waiting", "recent", "older"]) {
+        const section = page.getByTestId("section-" + id);
+        const shown = Number((await section.getByTestId("count").innerText()).trim());
+        const rows = await section.locator(":scope li[data-testid=row]").count();
+        check(shown === rows, id + " says " + shown + " and lists " + rows);
+        found.push(id + " " + rows);
+      }
+      const running = await rowsOf("진행 중인 작업").count();
+      const nav = await sidebarCount(page, "nav-running");
+      if (nav !== null) {
+        const red = Number((await page.getByTestId("nav-running").getByTestId("nav-stopped").innerText()).trim());
+        check(Number(nav) + red === running, "the sidebar says " + nav + " and red " + red + ", the list has " + running);
+        const done = Number(await sidebarCount(page, "nav-done"));
+        const finished = (await rowsOf("24시간 안에 끝남").count()) + (await rowsOf("이전에 끝남").count());
+        check(done === finished, "완료 says " + done + ", the home lists " + finished + " finished");
+      }
+      return found.join(", ") + "; running list " + running;
+    });
+    await step("one card per run: three rounds of one card stay one card, two jobs with one title stay two", async () => {
+      const release = await home().getByRole("link", { name: /릴리스 노트: 변경 목록 정리/ }).count();
+      check(release === 1, "the three-round card shows " + release + " times");
+      const rounds = await home().locator('a[href="#/runs/r9"], a[href="#/runs/r10"]').count();
+      check(rounds === 0, "earlier rounds' worker runs show as " + rounds + " cards");
+      const twins = await home().getByRole("link", { name: /가이드 초안 다듬기/ }).evaluateAll((links) => links.map((link) => link.getAttribute("href")));
+      check(twins.length === 2 && new Set(twins).size === 2, "the two jobs show as " + JSON.stringify(twins));
+      return "1 card for 3 rounds; 2 cards " + twins.join(", ");
+    });
+    await step("the now line comes from the checked line only, on a wide window", async () => {
+      const raw = ["grouping merged PRs", "editing", "payment card-form polish", "LINA-41", "guide-draft.md", "CHANGES.md"];
+      const text = await home().innerText();
+      const leaked = raw.filter((line) => text.includes(line));
+      check(leaked.length === 0, "raw text on the home: " + leaked.join(", "));
+      const now = await home().getByText("변경 목록을 기능별로 묶는 중", { exact: true }).count();
+      check(now === (wide ? 1 : 0), "the now line shows " + now + " times at " + page.viewportSize().width);
+      return wide ? "now line from plain.now" : "no now line on a phone";
+    });
+    await step("a card with no checked lines draws no title, and no raw text in its place", async () => {
+      const row = home().locator('li:has(> a[href="#/cards/k-102"])');
+      check((await row.locator(".title").count()) === 0, "the card draws a title");
+      const state = (await row.locator(".state").innerText()).trim();
+      check(state === "진행 중", "its state line reads " + state);
+      await row.getByRole("link").click();
+      await settled(page);
+      const detail = page.getByTestId("screen-card");
+      await detail.waitFor();
+      check((await detail.locator(".detail-title").count()) === 0, "the detail draws a title");
+      const kind = (await detail.getByTestId("kind").innerText()).trim();
+      check(kind === "코드", "the kind reads " + kind);
+      check((await detail.getByTestId("card-now").count()) === 0, "the detail shows a now line");
+      const text = await detail.innerText();
+      check(!/payment|card-form|editing/.test(text), "raw text in the detail: " + text.slice(0, 120));
+      return "row: " + state + "; detail: " + kind + ", no title, no now line";
+    });
+    await step("a card's detail: now, done so far, next, to-dos, worker runs by round (newest first, dimmed)", async () => {
+      await openApp(page, "#/cards/k-101");
+      const detail = page.getByTestId("screen-card");
+      const heads = await detail.locator(":scope > .box > .box-head").allInnerTexts();
+      check(JSON.stringify(heads) === JSON.stringify(["지금", "끝난 것", "다음", "할 일", "실행", "댓글"]), "the boxes read " + JSON.stringify(heads));
+      const rounds = await detail.getByTestId("round").locator(".round-head").allInnerTexts();
+      check(rounds.length === 3 && /^라운드 3 · \d\d:\d\d · 진행 중$/.test(rounds[0]) && /^라운드 2 · \d\d:\d\d–\d\d:\d\d$/.test(rounds[1]) && rounds[2].startsWith("라운드 1 · "), "the rounds read " + JSON.stringify(rounds));
+      const dim = await detail.getByTestId("round").locator("li.row").evaluateAll((rows) => rows.every((row) => row.classList.contains("is-dim")));
+      check(dim, "a worker run is not dimmed");
+      return heads.join(", ") + "; " + rounds.join(" | ");
+    });
+    await step("a stopped writer: one 요약 멈춤 line beside the freshness line", async () => {
+      await openApp(page, "#/running", "&writer=stopped");
+      const lines = await page.getByTestId("summaries-stopped").allInnerTexts();
+      check(lines.length === 1 && lines[0].trim() === "· 요약 멈춤", "the line reads " + JSON.stringify(lines));
+      const row = page.getByTestId("screen-running").locator('li:has(> a[href="#/cards/k-102"])');
+      check((await row.locator(".title").count()) === 0, "the card with no checked lines draws a title");
+      if (!wide) await phoneRules(page, "summaries stopped @390");
+      return lines[0].trim();
     });
   },
 

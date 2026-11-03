@@ -18,7 +18,7 @@ The owner answers decisions, marks goals and to-dos done, takes a done mark back
 - Done with open to-dos: ticking a goal with open to-dos asks once `열린 할 일 n개도 함께 완료할까요?` with `함께 완료` and `취소`; `함께 완료` sends `withOpen: true` and closes the goal and its open to-dos together; one undo reopens all of them.
 - Answer: a 결정 필요 row expands in place (see inbox). Choosing an answer button (the recommended one marked `추천`) or sending the answer field hides the row and shows `답함 · 되돌리기` for 5 s. The answer is sent only when the toast ends; `되돌리기` in the toast brings the row back and sends nothing. In the record the answer is an owner comment of kind `answer` on the goal or to-do, which marks its decision answered; for a card's question it is an owner comment on the card, and the question leaves the work inbox.
 - Retry: a stopped card in 진행 중인 작업 has `다시 시도`; it asks the card's to-do's agent to try again (a comment on the to-do; a card with no to-do gets a comment on the card), and the row reads `<agent>에게 요청함` until the next refresh.
-- Every write: the control is disabled while the request runs. A refusal shows one red line under the control: `열린 할 일 있음` (done), `10분 지남` (undo), `열린 결정 없음` (answer), otherwise the core's own line; the screen goes back to the record's state.
+- Every write: the control is disabled while the request runs. A refusal shows one red line under the control, mapped from the core's `detail` in `src/words.ts`: `열린 할 일 있음`, `10분 지나 되돌릴 수 없음`, `되돌릴 완료 표시 없음`, `열린 결정 없음`, `이미 닫힌 항목`, `글 없음`, `글은 2000자까지`, `쓰기가 너무 많음` (429), `찾을 수 없음`; any other line as the core gives it. The screen goes back to the record's state.
 
 ## Sub-features
 

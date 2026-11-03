@@ -684,13 +684,13 @@ describe("bell", () => {
     }
   });
 
-  test("a refused read mark puts the notice back as unread with the core's line", async () => {
+  test("a refused read mark puts the notice back as unread with its line", async () => {
     const source = new SpySource();
     source.readNotices = async () => ({ ok: false, status: 429, detail: "too many writes" });
     const view = await open("#/inbox", { wide: true, source });
     fireEvent.click(view.getByTestId("bell"));
     fireEvent.click(view.getByRole("button", { name: "모두 읽음" }));
-    await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("too many writes"));
+    await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("쓰기가 너무 많음"));
     expect(view.getByRole("button", { name: "알림 5" })).toBeTruthy();
   });
 });

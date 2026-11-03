@@ -111,7 +111,7 @@ export class Actions {
     this.noticeError = null;
     this.busyKeys.add("notices");
     this.notify();
-    const result = await this.store.write((source) => source.readNotices(keys === "all" ? { all: true } : { keys }));
+    const result = await this.store.write((source) => source.readNotices(keys === "all" ? { all: true } : { keys: [...keys] }));
     this.busyKeys.delete("notices");
     if (keys === "all") this.allRead = false;
     else for (const key of keys) this.readKeys.delete(key);

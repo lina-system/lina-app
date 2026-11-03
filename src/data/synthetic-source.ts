@@ -96,10 +96,10 @@ export class SyntheticSource implements Source {
 
   async comment(id: string, body: CommentRequest): Promise<WriteResult<ActionResult>> {
     const detail = this.scene.itemDetails[id];
-    if (!detail) return fail(404, "no such goal or to-do");
+    if (!detail) return fail(404, `no goal or to-do ${id}`);
     const text = body.text.trim();
-    if (!text || text.length > 2000) return fail(422, "comment text must be 1-2000 characters");
-    if (body.answer && (!detail.decision || detail.decision.answered)) return fail(409, "no open decision on this item");
+    if (!text || text.length > 2000) return fail(400, "text must be 1-2000 characters after trimming");
+    if (body.answer && (!detail.decision || detail.decision.answered)) return fail(409, `${id}에 주인이 정할 것이 없다`);
     const at = Math.floor(nowSeconds());
     const cid = `n${this.nextCid++}`;
     const kind = body.answer ? "answer" : "comment";
@@ -118,10 +118,10 @@ export class SyntheticSource implements Source {
 
   async done(id: string, body: DoneRequest): Promise<WriteResult<ActionResult>> {
     const detail = this.scene.itemDetails[id];
-    if (!detail) return fail(404, "no such goal or to-do");
-    if (detail.state === "done") return fail(409, "already done");
+    if (!detail) return fail(404, `no goal or to-do ${id}`);
+    if (detail.state === "done") return fail(409, `${id}는 열린 항목이 아니다`);
     const open = detail.kind === "goal" ? detail.children.filter((child) => child.state !== "done").map((child) => child.id) : [];
-    if (open.length && !body.withOpen) return fail(409, "the goal has open to-dos");
+    if (open.length && !body.withOpen) return fail(409, `${id}에 열린 할 일이 남아 있어 완료로 표시하지 않았다: ${open.join(", ")} — 함께 닫으려면 --with-open`);
     const at = Math.floor(nowSeconds());
     const ids = [id, ...open];
     const mark: DoneMark = {
@@ -147,10 +147,10 @@ export class SyntheticSource implements Source {
 
   async undo(id: string): Promise<WriteResult<ActionResult>> {
     const detail = this.scene.itemDetails[id];
-    if (!detail) return fail(404, "no such goal or to-do");
+    if (!detail) return fail(404, `no goal or to-do ${id}`);
     const mark = this.marks.get(id);
-    if (!mark) return fail(409, "the last record is not the owner's done mark");
-    if (nowSeconds() > mark.undoUntil) return fail(409, "ten minutes have passed");
+    if (!mark) return fail(409, `${id}의 마지막 기록이 주인의 완료 표시가 아니다`);
+    if (nowSeconds() > mark.undoUntil) return fail(409, `완료 표시 뒤 10분이 지나 되돌리지 않았다 (${Math.floor((nowSeconds() - mark.at) / 60)}분 전). 다시 열려면 work reopen`);
     for (const before of mark.before) this.patchItem(before.id, { state: before.state, reason: before.reason, stateSince: before.stateSince, closedAt: before.closedAt });
     for (const { index, row } of mark.mine) this.scene.board.inbox.mine.splice(index, 0, row);
     for (const { group, index, row } of mark.due) this.scene.board.due[group].splice(index, 0, row);
@@ -163,7 +163,7 @@ export class SyntheticSource implements Source {
 
   async retry(id: string): Promise<WriteResult<ActionResult>> {
     const detail = this.scene.itemDetails[id];
-    if (!detail) return fail(404, "no such goal or to-do");
+    if (!detail) return fail(404, `no goal or to-do ${id}`);
     const at = Math.floor(nowSeconds());
     const cid = `n${this.nextCid++}`;
     detail.comments.push({ cid, by: SYNTHETIC_OWNER.id, at, text: RETRY_TEXT, status: "open", kind: "comment", replies: [] });
@@ -187,7 +187,7 @@ export class SyntheticSource implements Source {
 
   async readNotices(body: NoticesReadRequest): Promise<WriteResult<NoticesReadResult>> {
     const keys = "keys" in body ? body.keys : null;
-    if (keys && !keys.length) return fail(422, "name the notices to mark, or all");
+    if (keys && !keys.length) return fail(400, "keys is a non-empty list of notice keys");
     for (const notice of this.scene.board.notices) if (!keys || keys.includes(notice.key)) notice.read = true;
     const unread = this.scene.board.notices.filter((notice) => !notice.read).length;
     this.scene.board.counts.unread = unread;

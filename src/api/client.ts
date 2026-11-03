@@ -22,22 +22,22 @@ export type ItemComment = Board["schemas"]["ItemComment"];
 export type ItemRun = Board["schemas"]["ItemRun"];
 export type ActionResult = Board["schemas"]["ActionResult"];
 
-/** Request bodies of the owner's writes, as the lina#149 shapes comment gives them. */
-export interface CommentRequest {
-  readonly text: string;
-  readonly answer?: boolean;
-}
-export interface DoneRequest {
-  readonly withOpen?: boolean;
-}
+/** The core's own one-line refusal (4xx): `{detail}`. */
+export type Refusal = Board["schemas"]["Refusal"];
+
+type JsonBody<T> = T extends { requestBody?: { content: { "application/json": infer Body } } } ? Body : never;
+
+/** Request bodies of the owner's writes, from the core's schema. */
+export type CommentRequest = JsonBody<BoardPaths["/work/items/{id}/comments"]["post"]>;
+export type DoneRequest = JsonBody<BoardPaths["/work/items/{id}/done"]["post"]>;
 /** work-client's AnswerRequest; `author` has a default (owner), so the app sends text only. */
 export interface AnswerRequest {
   readonly text: string;
 }
 export type AnswerResult = Work["schemas"]["AnswerResult"];
 export type NoticesReadResult = Board["schemas"]["ReadResult"];
-/** Exactly one of the two (lina#149): the notices chosen, or all of them. */
-export type NoticesReadRequest = { readonly keys: readonly string[] } | { readonly all: true };
+/** The core takes exactly one of the two: the notices chosen (at least one), or all of them. */
+export type NoticesReadRequest = JsonBody<BoardPaths["/notices/read"]["post"]> & ({ keys: string[]; all?: never } | { all: true; keys?: never });
 
 export type GoalList = Work["schemas"]["GoalList"];
 export type WorkGoal = Work["schemas"]["WorkGoal"];

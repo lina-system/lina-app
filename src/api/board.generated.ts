@@ -47,6 +47,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Mark notices read for the owner (kept by the core, the same on every device). */
         post: operations["readNotices"];
         delete?: never;
         options?: never;
@@ -80,6 +81,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Quick add: one line to a chosen agent (add 메모 --by <agent> --via app). */
         post: operations["addWorkItem"];
         delete?: never;
         options?: never;
@@ -147,6 +149,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** The owner comments, or answers the item's open decision (comment --via app). */
         post: operations["commentWorkItem"];
         delete?: never;
         options?: never;
@@ -163,6 +166,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** The owner marks a goal or to-do done (owner-done --via app). */
         post: operations["markWorkItemDone"];
         delete?: never;
         options?: never;
@@ -179,6 +183,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** A comment asking the owning agent to retry; nothing is re-run by the core. */
         post: operations["retryWorkItem"];
         delete?: never;
         options?: never;
@@ -195,6 +200,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Undo the owner's done mark within ten minutes (owner-undo --via app). */
         post: operations["undoWorkItemDone"];
         delete?: never;
         options?: never;
@@ -207,11 +213,13 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         ActionResult: {
+            /** @description The comment written (comments, answers, retries). */
             cid: string | null;
             id: string;
             ok: boolean;
             reason: string | null;
             state: components["schemas"]["WorkState"];
+            /** @description While the owner's done mark can be undone. */
             undoUntil: number | null;
         };
         Basis: {
@@ -242,7 +250,6 @@ export interface components {
             inbox: components["schemas"]["Count"];
             running: components["schemas"]["Count"];
             stopped: components["schemas"]["Count"];
-            /** @description from lina#149, replaced when it merges: unread notices. */
             unread: components["schemas"]["Count"];
         };
         DecideRow: {
@@ -455,7 +462,7 @@ export interface components {
             kind: "ask" | "review" | "todo";
             /** @description One line in the work record's locale. */
             line: string;
-            /** @description from lina#149, replaced when it merges: read marks are kept by the core per owner, keyed by key. */
+            /** @description The owner marked it read (kept by the core per owner, the same on every device). */
             read: boolean;
             target: string;
         };
@@ -507,6 +514,10 @@ export interface components {
             ok: boolean;
             unread: number;
         };
+        Refusal: {
+            /** @description One line. */
+            detail: string;
+        };
         RunCard: {
             agent: string | null;
             endedAt: number | null;
@@ -539,7 +550,17 @@ export interface components {
          */
         WorkState: "planned" | "in_progress" | "waiting" | "stopped" | "done";
     };
-    responses: never;
+    responses: {
+        /** @description Refused; nothing was written. */
+        Refused: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Refusal"];
+            };
+        };
+    };
     parameters: {
         IfNoneMatch: string;
     };
@@ -619,8 +640,28 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
-        responses: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    all?: boolean;
+                    keys?: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Done: the item's state after the write. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadResult"];
+                };
+            };
+            400: components["responses"]["Refused"];
+            429: components["responses"]["Refused"];
+            503: components["responses"]["Refused"];
+        };
     };
     getQuota: {
         parameters: {
@@ -659,8 +700,30 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
-        responses: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    agent: string;
+                    /** @description YYYY-MM-DD. */
+                    due?: string | null;
+                    /** @description 1-2000 characters after trimming. */
+                    text: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Done: the item's state after the write. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionResult"];
+                };
+            };
+            400: components["responses"]["Refused"];
+            429: components["responses"]["Refused"];
+        };
     };
     getWorkDue: {
         parameters: {
@@ -778,8 +841,31 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
-        responses: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description An answer to the open decision (else 409 when there is none). */
+                    answer?: boolean;
+                    /** @description 1-2000 characters after trimming. */
+                    text: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Done: the item's state after the write. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionResult"];
+                };
+            };
+            400: components["responses"]["Refused"];
+            404: components["responses"]["Refused"];
+            409: components["responses"]["Refused"];
+            429: components["responses"]["Refused"];
+        };
     };
     markWorkItemDone: {
         parameters: {
@@ -788,8 +874,29 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
-        responses: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description Close a goal's open to-dos with it (else 409 while any is open). */
+                    withOpen?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Done: the item's state after the write. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionResult"];
+                };
+            };
+            400: components["responses"]["Refused"];
+            404: components["responses"]["Refused"];
+            409: components["responses"]["Refused"];
+            429: components["responses"]["Refused"];
+        };
     };
     retryWorkItem: {
         parameters: {
@@ -799,7 +906,21 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
-        responses: never;
+        responses: {
+            /** @description Done: the item's state after the write. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionResult"];
+                };
+            };
+            400: components["responses"]["Refused"];
+            404: components["responses"]["Refused"];
+            409: components["responses"]["Refused"];
+            429: components["responses"]["Refused"];
+        };
     };
     undoWorkItemDone: {
         parameters: {
@@ -809,6 +930,20 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
-        responses: never;
+        responses: {
+            /** @description Done: the item's state after the write. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionResult"];
+                };
+            };
+            400: components["responses"]["Refused"];
+            404: components["responses"]["Refused"];
+            409: components["responses"]["Refused"];
+            429: components["responses"]["Refused"];
+        };
     };
 }

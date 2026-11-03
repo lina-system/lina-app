@@ -1,10 +1,7 @@
-# Copied from lina-system/lina docs/api/board-client.yaml at dev commit e497737507b9080b4a6c495a85169a3e034063d5.
-# The blocks marked "from lina#149" (the owner's write routes, ActionResult, ReadResult, Notice.read and
-# Counts.unread) are copied from the comment "Client API shapes the web app builds against" on lina-system/lina#149
-# as written there, because lina-system/lina#178 had not merged; they are replaced when it merges.
+# Copied unchanged from lina-system/lina docs/api/board-client.yaml at dev commit 237d8ce24f8e41ecc334ff48fc708a5f3b0d90c7.
 # Board endpoints the app reads beyond docs/api/work-client.yaml (lina#112): the owner's to-dos, decisions and due
 # groups from the work record, `lina worker` runs that are not kanban work cards, devices, quota and the inbox
-# notices; each agent's goals and to-dos (lina#166). Served by hermes_cli/web_routers/lina_board.py behind the dashboard auth gate (session token).
+# notices; each agent's goals and to-dos (lina#166); the owner's writes and read marks (lina#149). Served by hermes_cli/web_routers/lina_board.py behind the dashboard auth gate (session token).
 # tests/hermes_cli/test_lina_board_api.py validates served JSON against it, so a shape change here and in the code
 # land together. WorkState is the same enum as work-client.yaml.
 openapi: 3.0.3
@@ -142,20 +139,185 @@ paths:
           description: No such goal or to-do (an unknown id, an area, a memo or a dropped item).
         "503":
           description: The work record failed to read.
-  # from lina#149, replaced when it merges: the comment's owner writes and read marks, copied as written there.
-  /work/items/{id}/done:      # body {withOpen?: boolean}; a goal with open to-dos and no withOpen answers 409
-    post: {operationId: markWorkItemDone}
-  /work/items/{id}/undo:      # 409 when the last record is not the owner's mark or 10 minutes have passed
-    post: {operationId: undoWorkItemDone}
-  /work/items/{id}/comments:  # body {text: string, answer?: boolean}; answer=true needs an open decision (else 409)
-    post: {operationId: commentWorkItem}
-  /work/items/{id}/retry:     # a comment asking the owning agent to retry; nothing is re-run by the core
-    post: {operationId: retryWorkItem}
-  /work/add:                  # body {agent: string, text: string, due?: "YYYY-MM-DD"}; quick add to an agent
-    post: {operationId: addWorkItem}
-  /notices/read:              # body {keys?: [string], all?: boolean}; exactly one of the two
-    post: {operationId: readNotices}
+  /work/items/{id}/done:
+    post:
+      operationId: markWorkItemDone
+      summary: The owner marks a goal or to-do done (owner-done --via app).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                withOpen:
+                  type: boolean
+                  description: Close a goal's open to-dos with it (else 409 while any is open).
+      responses:
+        "200":
+          description: "Done: the item's state after the write."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResult"
+        "400":
+          $ref: "#/components/responses/Refused"
+        "404":
+          $ref: "#/components/responses/Refused"
+        "409":
+          $ref: "#/components/responses/Refused"
+        "429":
+          $ref: "#/components/responses/Refused"
+  /work/items/{id}/undo:
+    post:
+      operationId: undoWorkItemDone
+      summary: Undo the owner's done mark within ten minutes (owner-undo --via app).
+      responses:
+        "200":
+          description: "Done: the item's state after the write."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResult"
+        "400":
+          $ref: "#/components/responses/Refused"
+        "404":
+          $ref: "#/components/responses/Refused"
+        "409":
+          $ref: "#/components/responses/Refused"
+        "429":
+          $ref: "#/components/responses/Refused"
+  /work/items/{id}/comments:
+    post:
+      operationId: commentWorkItem
+      summary: The owner comments, or answers the item's open decision (comment --via app).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [text]
+              properties:
+                text:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                  description: 1-2000 characters after trimming.
+                answer:
+                  type: boolean
+                  description: An answer to the open decision (else 409 when there is none).
+      responses:
+        "200":
+          description: "Done: the item's state after the write."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResult"
+        "400":
+          $ref: "#/components/responses/Refused"
+        "404":
+          $ref: "#/components/responses/Refused"
+        "409":
+          $ref: "#/components/responses/Refused"
+        "429":
+          $ref: "#/components/responses/Refused"
+  /work/items/{id}/retry:
+    post:
+      operationId: retryWorkItem
+      summary: "A comment asking the owning agent to retry; nothing is re-run by the core."
+      responses:
+        "200":
+          description: "Done: the item's state after the write."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResult"
+        "400":
+          $ref: "#/components/responses/Refused"
+        "404":
+          $ref: "#/components/responses/Refused"
+        "409":
+          $ref: "#/components/responses/Refused"
+        "429":
+          $ref: "#/components/responses/Refused"
+  /work/add:
+    post:
+      operationId: addWorkItem
+      summary: "Quick add: one line to a chosen agent (add 메모 --by <agent> --via app)."
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [agent, text]
+              properties:
+                agent:
+                  type: string
+                text:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                  description: 1-2000 characters after trimming.
+                due:
+                  type: string
+                  nullable: true
+                  description: YYYY-MM-DD.
+      responses:
+        "200":
+          description: "Done: the item's state after the write."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResult"
+        "400":
+          $ref: "#/components/responses/Refused"
+        "429":
+          $ref: "#/components/responses/Refused"
+  /notices/read:
+    post:
+      operationId: readNotices
+      summary: Mark notices read for the owner (kept by the core, the same on every device).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                keys:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                all:
+                  type: boolean
+      responses:
+        "200":
+          description: "Done: the item's state after the write."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadResult"
+        "400":
+          $ref: "#/components/responses/Refused"
+        "429":
+          $ref: "#/components/responses/Refused"
+        "503":
+          $ref: "#/components/responses/Refused"
 components:
+  responses:
+    Refused:
+      description: Refused; nothing was written.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Refusal"
   parameters:
     IfNoneMatch:
       name: If-None-Match
@@ -205,7 +367,6 @@ components:
       properties:
         unread:
           $ref: "#/components/schemas/Count"
-          description: "from lina#149, replaced when it merges: unread notices."
         inbox:
           $ref: "#/components/schemas/Count"
         running:
@@ -362,9 +523,6 @@ components:
       type: object
       required: [key, target, at, kind, line, read]
       properties:
-        read:
-          type: boolean
-          description: "from lina#149, replaced when it merges: read marks are kept by the core per owner, keyed by key."
         key:
           type: string
           description: kind:target:time; a new key is a new notice.
@@ -379,6 +537,9 @@ components:
         line:
           type: string
           description: One line in the work record's locale.
+        read:
+          type: boolean
+          description: The owner marked it read (kept by the core per owner, the same on every device).
     Machine:
       type: object
       required: [name, state, why, cpu, memory, disk, temp, load, cores, running, cap, freeGb, metricsAt]
@@ -908,23 +1069,42 @@ components:
           allOf:
             - $ref: "#/components/schemas/OwnerDone"
           nullable: true
-    # from lina#149, replaced when it merges.
     ActionResult:
       type: object
       additionalProperties: false
       required: [ok, id, state, reason, cid, undoUntil]
       properties:
-        ok: {type: boolean}
-        id: {type: string}
-        state: {$ref: "#/components/schemas/WorkState"}
-        reason: {type: string, nullable: true}
-        cid: {type: string, nullable: true}
-        undoUntil: {type: integer, nullable: true}
-    # from lina#149, replaced when it merges.
+        ok:
+          type: boolean
+        id:
+          type: string
+        state:
+          $ref: "#/components/schemas/WorkState"
+        reason:
+          type: string
+          nullable: true
+        cid:
+          type: string
+          nullable: true
+          description: The comment written (comments, answers, retries).
+        undoUntil:
+          type: integer
+          nullable: true
+          description: While the owner's done mark can be undone.
     ReadResult:
       type: object
       additionalProperties: false
       required: [ok, unread]
       properties:
-        ok: {type: boolean}
-        unread: {type: integer, minimum: 0}
+        ok:
+          type: boolean
+        unread:
+          type: integer
+          minimum: 0
+    Refusal:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+          description: One line.

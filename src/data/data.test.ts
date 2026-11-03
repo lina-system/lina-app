@@ -170,7 +170,7 @@ test("the synthetic source adds the comment to its copy and the agent replies on
     const replied = await source.read("item", "T4");
     expect(replied.kind === "data" ? replied.data.comments.at(-1)?.replies : []).toMatchObject([{ by: "ag-2", result: "applied" }]);
     expect(await source.comment("T4", { text: "네", answer: true })).toMatchObject({ ok: false, status: 409 });
-    expect(await source.comment("T4", { text: "   " })).toMatchObject({ ok: false, status: 422 });
+    expect(await source.comment("T4", { text: "   " })).toMatchObject({ ok: false, status: 400, detail: "text must be 1-2000 characters after trimming" });
   } finally {
     vi.useRealTimers();
   }
@@ -199,7 +199,7 @@ test("the synthetic copy marks done, refuses a goal with open to-dos, and one un
   try {
     const source = new SyntheticSource();
     const scene = source.scene;
-    expect(await source.done("G1", {})).toMatchObject({ ok: false, status: 409 });
+    expect(await source.done("G1", {})).toMatchObject({ ok: false, status: 409, detail: "G1에 열린 할 일이 남아 있어 완료로 표시하지 않았다: T1, T2, T3 — 함께 닫으려면 --with-open" });
     const marked = await source.done("G1", { withOpen: true });
     expect(marked).toMatchObject({ ok: true, data: { state: "done", undoUntil: expect.any(Number) } });
     expect(["G1", "T1", "T2", "T3"].map((id) => scene.itemDetails[id].state)).toEqual(["done", "done", "done", "done"]);
@@ -213,10 +213,10 @@ test("the synthetic copy marks done, refuses a goal with open to-dos, and one un
 
     await source.done("T3", {});
     vi.advanceTimersByTime((UNDO_SECONDS + 1) * 1000);
-    expect(await source.undo("T3")).toMatchObject({ ok: false, status: 409, detail: "ten minutes have passed" });
+    expect(await source.undo("T3")).toMatchObject({ ok: false, status: 409, detail: expect.stringMatching(/^완료 표시 뒤 10분이 지나 되돌리지 않았다/) });
     await source.done("T9", {});
     await source.comment("T9", { text: "끝냈어요" });
-    expect(await source.undo("T9")).toMatchObject({ ok: false, status: 409, detail: "the last record is not the owner's done mark" });
+    expect(await source.undo("T9")).toMatchObject({ ok: false, status: 409, detail: "T9의 마지막 기록이 주인의 완료 표시가 아니다" });
   } finally {
     vi.useRealTimers();
   }

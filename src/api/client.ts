@@ -1,4 +1,5 @@
 import type { components as Board, paths as BoardPaths } from "./board.generated";
+import type { components as Talk, paths as TalkPaths } from "./talk.generated";
 import type { components as Work, paths as WorkPaths } from "./work.generated";
 
 export type WorkState = Board["schemas"]["WorkState"];
@@ -74,6 +75,15 @@ export function writePath(route: WriteRoute, id: string): string {
 }
 
 export const NOTICES_READ_PATH = `${BOARD_BASE}/notices/read`;
+
+/** One turn with the agent that owns a goal or to-do (talk-client.yaml); the reply streams as server-sent events. */
+export type TalkRequest = JsonBody<TalkPaths["/work/items/{item_id}/talk"]["post"]>;
+export type TalkEvent = Talk["schemas"]["TalkEvent"];
+export type TalkError = Talk["schemas"]["Error"];
+
+export function talkPath(itemId: string): string {
+  return `${BOARD_BASE}/work/items/${encodeURIComponent(itemId)}/talk`;
+}
 
 /** A question a work card asks is answered on the work API (work-client.yaml). */
 export function cardAnswerPath(cardId: string): string {

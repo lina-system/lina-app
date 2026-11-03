@@ -1,6 +1,6 @@
 # 진행 중인 작업
 
-진행 중인 작업 lists the work cards and outside worker runs that are running or stopped. Stopped ones come first in red and name the hand needed; running ones count up their time.
+진행 중인 작업 lists the work cards and outside worker runs that are running or stopped. Stopped ones come first, their state words in red naming the hand needed; running ones count up their time.
 
 ## Platforms
 
@@ -10,7 +10,7 @@
 
 ## Intended behavior
 
-- Stopped cards first, red, with a grey line like `중단됨 · 응답 없음 · 52분 전`; then running cards with `진행 중 · n분째` (or `n시간째`).
+- Stopped cards first. Red marks the problem, not the row: the title keeps the normal label colour, `중단됨 · <reason>` is red, and the time after it (`52분 전`) is grey; then running cards with `진행 중 · n분째` (or `n시간째`).
 - A card is a thin kind icon, the agent mark, a one-line title and one grey state line. On a wide window, a running card adds a second grey line with what it is doing now when the core gives one.
 - Waiting and done cards are not here.
 - Running times count up every second on the page, without a reload.
@@ -20,7 +20,7 @@
 
 ## Sub-features
 
-- `running-stopped` puts stopped cards on top in red
+- `running-stopped` puts stopped cards on top with their state words in red
 - `running-time` counts the running time up live
 - `running-now` shows the now line on a wide window
 
@@ -38,6 +38,7 @@ Preconditions:
 
 - **Open the screen.** Choose `진행 중인 작업`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive running`.
 - **Order.** Read the list `진행 중인 작업`. 3 links; the first name ends in `중단됨 · 응답 없음`, the others in `진행 중`; no `실패 화면 검토` card; the sidebar reads `2` with a red `1`.
+- **Stopped colours.** Read the stopped card's colours. The title matches a running card's title colour, `중단됨 · 응답 없음` is `rgb(255, 59, 48)` (light), and `52분 전` matches a running card's time colour.
 - **State lines.** Read each grey line. `중단됨 · 응답 없음 · n분 전`, then `진행 중 · n분째` or `n시간째`.
 - **Now line.** Look for `변경 목록을 기능별로 묶는 중`. Visible at 1280, absent at 390.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/running/running-1280.{png,aria.yml,json}` and `running-390.{png,aria.yml,json}`.

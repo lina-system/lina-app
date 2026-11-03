@@ -415,7 +415,7 @@ button:disabled {
   flex: none;
 }
 
-.is-stopped .title,
+/* Red marks the problem, not the row: only the state words of a stopped card are red. */
 .is-stopped .state {
   color: var(--red);
 }

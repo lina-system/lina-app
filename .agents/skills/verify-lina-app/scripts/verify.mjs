@@ -255,6 +255,26 @@ async function rowNames(list) {
   return list.getByRole("link").evaluateAll((links) => links.map((link) => link.getAttribute("aria-label") ?? link.textContent));
 }
 
+// Red marks the problem, not the row: a stopped card's title keeps the label colour, its state words are red,
+// and its time is the same grey as any card's time.
+async function stoppedCardColours(list) {
+  const rows = await list.locator("[data-testid=row]").evaluateAll((items) =>
+    items.map((item) => ({
+      stopped: item.classList.contains("is-stopped"),
+      title: getComputedStyle(item.querySelector(".title")).color,
+      state: getComputedStyle(item.querySelector("[data-testid=state]")).color,
+      time: item.querySelector(".time") ? getComputedStyle(item.querySelector(".time")).color : null,
+    })),
+  );
+  const stopped = rows.find((row) => row.stopped);
+  const running = rows.find((row) => !row.stopped);
+  check(stopped && running, "the list needs a stopped and a running card to compare");
+  check(stopped.title === running.title, "the stopped card's title is " + stopped.title + ", a running card's " + running.title);
+  check(stopped.state === "rgb(255, 59, 48)", "the stopped card's state words are " + stopped.state);
+  check(stopped.time === running.time, "the stopped card's time is " + stopped.time + ", a running card's " + running.time);
+  return "title " + stopped.title + ", state " + stopped.state + ", time " + stopped.time;
+}
+
 async function sidebarCount(page, testid) {
   const nav = page.getByTestId(testid);
   if (!(await nav.count())) return null;
@@ -346,6 +366,7 @@ const drivers = {
       check(lines.slice(1).every((line) => /^진행 중 · \d+(분|시간)째$/.test(line)), "running lines read " + lines.join(", "));
       return lines.join(", ");
     });
+    await step("a stopped card: label title, red state words, grey time", async () => stoppedCardColours(page.getByRole("list", { name: "진행 중인 작업" })));
     await step("the now line shows at 1280 only", async () => {
       const wide = page.viewportSize().width >= 900;
       const shown = await page.getByText("변경 목록을 기능별로 묶는 중").first().isVisible();
@@ -416,6 +437,7 @@ const drivers = {
       check(/^완료 · 오늘 \d+$/.test(doneLine.trim()), "done line reads " + doneLine);
       return heads.join(" → ") + " → " + doneLine.trim();
     });
+    await step("a stopped card in 진행 중: label title, red state words, grey time", async () => stoppedCardColours(page.getByTestId("section-running")));
     await step("the head draws its counts like the sidebar and the section headings: grey, stopped in red", async () => {
       const read = (locator) => locator.evaluateAll((nodes) => nodes.map((node) => ({ text: node.textContent.trim(), colour: getComputedStyle(node).color, pair: Boolean(node.closest(".count-pair")) })));
       const head = await read(page.getByTestId("agent-counts").locator(".count"));

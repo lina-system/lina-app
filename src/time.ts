@@ -32,6 +32,12 @@ export function until(seconds: number): string {
   return `${Math.max(1, Math.round(seconds / DAY))}일 후`;
 }
 
+/** A time of day, 24-hour: 14:05. */
+export function clock(epochSeconds: number): string {
+  const date = new Date(epochSeconds * 1000);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
 export function dayLabel(day: string): string {
   const [, month, date] = day.split("-").map(Number);
   return `${month}월 ${date}일`;

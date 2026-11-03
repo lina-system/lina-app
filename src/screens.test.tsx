@@ -154,7 +154,8 @@ describe("every count equals the length of the list it labels", () => {
       const view = await open(hash, { wide: true });
       const shown = count(view.getByTestId(nav).querySelector("[data-testid=nav-count]"));
       const red = count(view.getByTestId(nav).querySelector("[data-testid=nav-stopped]"));
-      const list = view.container.querySelector(".list-pane .list");
+      // The home lists the running and stopped cards first, in their own list; waiting and finished cards follow.
+      const list = nav === "nav-running" ? view.container.querySelector('.list-pane [aria-label="진행 중인 작업"]') : view.container.querySelector(".list-pane .list");
       expect(shown).toBeGreaterThan(0);
       expect(red).toBe(stoppedRows(list));
       expect(rowsIn(list) - stoppedRows(list)).toBe(shown);
@@ -335,8 +336,9 @@ describe("decisions", () => {
     for (const row of rows) {
       const view = await open(row.href, { wide: true });
       await waitFor(() => expect(view.getByTestId("decision").textContent).toContain(row.text));
+      // A card with no checked title has no title in its head, and its question names only its goal.
       const title = view.container.querySelector(".detail-title")?.textContent ?? "";
-      expect(row.context === title || row.context.endsWith(` › ${title}`)).toBe(true);
+      expect(title ? row.context === title || row.context.endsWith(` › ${title}`) : !row.context.includes(" › ")).toBe(true);
       if (row.href.startsWith("#/cards/")) expect(view.container.querySelector(".detail .box")?.getAttribute("data-testid")).toBe("decision");
       view.unmount();
     }
@@ -984,6 +986,119 @@ test("a core restarted with a new token: the page reads it once and resumes, wit
       expect(core.stream).toHaveLength(tries);
       expect(core.renewals).toBe(1);
       expect(rowsIn(view.getByTestId("screen-inbox"))).toBe(SCENE_COUNTS.inbox);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+/** The synthetic core with one more hand: the agent behind a card writes its checked lines, as lina#151's writer does. */
+class WritingSource extends SyntheticSource {
+  writeLines(cardId: string, lines: { title?: string | null; now?: string | null }) {
+    const summary = this.scene.cards.cards.find((card) => card.id === cardId);
+    for (const target of [summary, this.scene.cardDetails[cardId]]) if (target) target.plain = { ...target.plain, ...lines };
+    this.changed({ source: "kanban", kind: "plain_written", id: cardId });
+  }
+}
+
+describe("work cards", () => {
+  beforeEach(() => setWide(true));
+
+  test("the home reads: decisions in one line, stopped then running, waiting, the last 24 hours, then older", async () => {
+    const view = await open("#/running", { wide: true });
+    const screen = view.getByTestId("screen-running");
+    const lists = [...screen.querySelectorAll("ul.rows")].map((list) => list.getAttribute("aria-label"));
+    expect(lists).toEqual(["수신함", "진행 중인 작업", "대기", "24시간 안에 끝남", "이전에 끝남"]);
+    expect(view.getByTestId("home-decisions").textContent).toContain(String(SCENE_COUNTS.decisions));
+    const names = (label: string) => [...(screen.querySelector(`[aria-label="${label}"]`)?.querySelectorAll(":scope > li > a") ?? [])].map((link) => link.getAttribute("aria-label") ?? "");
+    expect(names("진행 중인 작업")[0]).toMatch(/중단됨 · 응답 없음$/);
+    expect(names("24시간 안에 끝남")).toHaveLength(2);
+    expect(names("이전에 끝남")).toHaveLength(1);
+    for (const id of ["waiting", "recent", "older"]) {
+      const section = view.getByTestId(`section-${id}`);
+      expect(rowsIn(section)).toBe(count(section.querySelector("[data-testid=count]")));
+    }
+    expect(names("24시간 안에 끝남").length + names("이전에 끝남").length).toBe(count(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")));
+  });
+
+  test("a card with no checked lines draws no title and no raw text; its detail shows its kind and state only", async () => {
+    const source = new SyntheticSource();
+    const raw = [...source.scene.cards.cards.map((card) => card.title), ...source.scene.board.cards.flatMap((run) => [run.title, run.now ?? ""]), ...source.scene.cards.cards.map((card) => card.now ?? "")].filter(Boolean);
+    for (const hash of ["#/running", "#/done", "#/inbox", "#/cards/k-102", "#/cards/k-101", "#/runs/r2", "#/agents/ag-2"]) {
+      const view = await open(hash, { wide: true, source: new SyntheticSource({ scene: source.scene }) });
+      const text = screenText(view.container);
+      for (const line of raw) expect(text).not.toContain(line);
+      view.unmount();
+    }
+    const view = await open("#/cards/k-102", { wide: true });
+    const detail = view.getByTestId("screen-card");
+    expect(detail.querySelector(".detail-title")).toBeNull();
+    expect(within(detail).getByTestId("kind").textContent).toBe("코드");
+    expect(within(detail).queryByTestId("card-now")).toBeNull();
+    const row = within(view.getByTestId("screen-running")).getAllByTestId("row").find((item) => item.querySelector("a")?.getAttribute("href") === "#/cards/k-102");
+    expect(row?.querySelector(".title")).toBeNull();
+    expect(row?.querySelector(".state")?.textContent).toBe("진행 중");
+  });
+
+  test("two jobs on one to-do with one generated title stay two cards; three rounds of one card stay one card", async () => {
+    const view = await open("#/done", { wide: true });
+    const twins = within(view.getByTestId("screen-done")).getAllByRole("link", { name: /가이드 초안 다듬기/ });
+    expect(new Set(twins.map((link) => link.getAttribute("href")))).toEqual(new Set(["#/runs/r7", "#/runs/r8"]));
+    view.unmount();
+    const home = await open("#/running", { wide: true });
+    expect(within(home.getByTestId("screen-running")).getAllByRole("link", { name: /릴리스 노트: 변경 목록 정리/ })).toHaveLength(1);
+    expect(home.container.querySelectorAll('a[href="#/runs/r9"], a[href="#/runs/r10"]')).toHaveLength(0);
+  });
+
+  test("a card's detail: now, done so far, next, its to-dos, then its worker runs by round, newest round first", async () => {
+    const view = await open("#/cards/k-101", { wide: true });
+    const detail = view.getByTestId("screen-card");
+    const boxes = [...detail.querySelectorAll(":scope > .box > .box-head")].map((head) => head.textContent);
+    expect(boxes).toEqual(["지금", "끝난 것", "다음", "할 일", "실행", "댓글"]);
+    expect(within(detail).getByTestId("card-now").textContent).toContain("변경 목록을 기능별로 묶는 중");
+    expect(within(within(detail).getByTestId("card-done-so-far")).getAllByTestId("row").map((row) => row.textContent)).toEqual(["모은 변경 확인"]);
+    expect(within(detail).getByTestId("card-next").textContent).toContain("변경 목록 모으기");
+    const rounds = within(detail).getAllByTestId("round");
+    expect(rounds.map((round) => round.querySelector(".round-head")?.textContent?.split(" · ")[0])).toEqual(["라운드 3", "라운드 2", "라운드 1"]);
+    expect(rounds[0].querySelector(".round-head")?.textContent).toMatch(/^라운드 3 · \d\d:\d\d · 진행 중$/);
+    expect(rounds[1].querySelector(".round-head")?.textContent).toMatch(/^라운드 2 · \d\d:\d\d–\d\d:\d\d$/);
+    expect(rounds.map((round) => round.querySelector("a")?.getAttribute("href"))).toEqual(["#/runs/r1", "#/runs/r10", "#/runs/r9"]);
+    expect(rounds.every((round) => round.querySelector(".row")?.classList.contains("is-dim"))).toBe(true);
+  });
+
+  test("a stopped writer: one 요약 멈춤 line, and the missing lines still show nothing", async () => {
+    const view = await open("#/running", { wide: true, source: new SyntheticSource({ writerStopped: true }) });
+    expect(view.getByTestId("summaries-stopped").textContent).toBe(" · 요약 멈춤");
+    expect(view.getAllByTestId("summaries-stopped")).toHaveLength(1);
+    view.unmount();
+    const ok = await open("#/running", { wide: true });
+    expect(ok.queryByTestId("summaries-stopped")).toBeNull();
+  });
+
+  test("a card's checked lines land in place from its kanban event: only its summary and detail are read", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new WritingSource();
+      const view = await open("#/running", { wide: true, source });
+      const row = () => within(view.getByTestId("screen-running")).getAllByTestId("row").find((item) => item.querySelector("a")?.getAttribute("href") === "#/cards/k-102");
+      const before = row();
+      expect(before?.querySelector(".title")).toBeNull();
+      // Let the reads the page started on its own (the first tail, the open screen's wants) finish first.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(STREAM_TICK_MS);
+      });
+      const read = vi.spyOn(source, "read");
+      source.writeLines("k-102", { title: "결제: 카드 입력 폼 다듬기", now: "보안 코드 칸을 맞추는 중" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(STREAM_TICK_MS * 2);
+      });
+      await waitFor(() => expect(row()?.querySelector(".title")?.textContent).toBe("결제: 카드 입력 폼 다듬기"));
+      expect(row()?.querySelector(".now")?.textContent).toBe("보안 코드 칸을 맞추는 중");
+      expect(row()).toBe(before);
+      const routes = new Set(read.mock.calls.map(([name, id]) => (id ? `${name}:${id}` : name)));
+      expect(routes.has("cards") && routes.has("card:k-102")).toBe(true);
+      expect([...routes].filter((route) => route.startsWith("card:"))).toEqual(["card:k-102"]);
+      expect(routes.has("board") || routes.has("items")).toBe(false);
     } finally {
       vi.useRealTimers();
     }

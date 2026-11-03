@@ -59,7 +59,10 @@ test("the scene holds what every screen needs", () => {
 
   const cards = scene.cards.cards;
   expect(cards.filter((card) => card.state === "in_progress")).toHaveLength(2);
-  expect(cards.filter((card) => card.state === "in_progress" && card.now)).toHaveLength(1);
+  // One running card has its checked now line; the other has no checked line at all (lina#151).
+  expect(cards.filter((card) => card.state === "in_progress" && card.plain.now)).toHaveLength(1);
+  expect(cards.filter((card) => card.plain.title === null && card.plain.now === null && card.plain.result === null).map((card) => card.id)).toEqual(["k-102"]);
+  expect(scene.cardDetails["k-101"].runs).toHaveLength(3);
   const stopped = cards.filter((card) => card.state === "stopped");
   expect(stopped.map((card) => card.reason)).toEqual(["unresponsive"]);
   expect(scene.cardDetails[stopped[0].id].runs.every((run) => typeof run.lastHeartbeatAt === "number")).toBe(true);
@@ -70,7 +73,13 @@ test("the scene holds what every screen needs", () => {
     expect(scene.cardDetails[card.id].workerRuns.length).toBeGreaterThan(0);
   }
   const owned = new Set(Object.values(scene.cardDetails).flatMap((detail) => detail.workerRuns.map((run) => run.id)));
-  expect(scene.board.cards.filter((run) => !owned.has(run.id))).toHaveLength(1);
+  const outside = scene.board.cards.filter((run) => !owned.has(run.id));
+  expect(outside.map((run) => run.id)).toEqual(["r6", "r7", "r8"]);
+  // Two jobs on one to-do with one generated title.
+  const twins = outside.filter((run) => run.plain.title === "가이드 초안 다듬기");
+  expect(twins.map((run) => run.todo)).toEqual(["T10", "T10"]);
+  expect(scene.board.writer.state).toBe("ok");
+  expect(generateScene(SYNTHETIC_SEED, { now: NOW, writerStopped: true }).board.writer.state).toBe("stopped");
 
   expect(scene.devices.machines.map((machine) => machine.state).sort()).toEqual(["down", "ok", "warn"]);
   expect(scene.quota.quota).toHaveLength(3);
@@ -111,7 +120,12 @@ test("the model's counts on the scene are the numbers doctor and the drivers exp
 test("names are invented and titles are Korean", () => {
   for (const agent of scene.items.agents) expect(agent.name).toMatch(/^[A-Z][a-z]{3,6}$/);
   for (const item of scene.items.items) expect(item.title).toMatch(/^[가-힣 ]+$/);
-  for (const card of scene.cards.cards) expect(card.title).toMatch(/^[가-힣 :]+$/);
+  // The raw card and run titles are what workers record; the checked titles the screens draw are Korean.
+  for (const card of scene.cards.cards) if (card.plain.title !== null) expect(card.plain.title).toMatch(/^[가-힣 :]+$/);
+  for (const run of scene.board.cards) {
+    if (run.plain.title !== null) expect(run.plain.title).toMatch(/^[가-힣 ]+$/);
+    expect(run.title).not.toBe(run.plain.title);
+  }
   for (const machine of scene.devices.machines) expect(machine.name).toMatch(/^[가-힣]+$/);
 });
 
@@ -123,7 +137,8 @@ test("the scene does not contradict itself", () => {
   const runs = new Map(scene.board.cards.map((run) => [run.id, run]));
   for (const detail of Object.values(scene.cardDetails)) {
     const running = detail.workerRuns.some((worker) => runs.get(worker.id)?.state === "in_progress");
-    if (running) expect(detail.todos.filter((todo) => todo.done)).toEqual([]);
+    // A running card has finished steps only from an earlier follow-up round.
+    if (running && detail.runs.length === 1) expect(detail.todos.filter((todo) => todo.done)).toEqual([]);
     expect(running).toBe(detail.state === "in_progress");
   }
   for (const item of scene.items.items.filter((candidate) => candidate.kind === "todo")) {

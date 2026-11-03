@@ -47,9 +47,9 @@ export function titleOf(route: Route, model: Model, store: Store): string {
     case "item":
       return store.get("item", route.id)?.title ?? model.items.get(route.id)?.title ?? (route.name === "goal" ? W.goals : W.todo);
     case "card":
-      return model.cards.get(route.id)?.title ?? store.get("card", route.id)?.title ?? W.cards;
+      return model.cards.get(route.id)?.title ?? store.get("card", route.id)?.plain.title ?? W.cards;
     case "run":
-      return model.runs.get(route.id)?.title ?? W.cards;
+      return model.runs.get(route.id)?.plain.title ?? W.cards;
   }
 }
 
@@ -171,6 +171,11 @@ export function Freshness() {
       <span class={line.tone} data-testid="freshness-line">
         {line.text}
       </span>
+      {!store.offline && model.summariesStopped ? (
+        <span class="is-orange" data-testid="summaries-stopped">
+          {`${SEP}${W.summariesStopped}`}
+        </span>
+      ) : null}
       {!store.offline && model.errors.length ? (
         <span class="is-orange" data-testid="read-failed">
           {`${SEP}${W.readFailed(model.errors.join(", "))}`}
@@ -334,7 +339,7 @@ function useScrollKeeping(panes: Panes, keys: Record<keyof Panes, string>, saved
 
 function WideShell({ route, stack, scroll }: { route: Route; stack: readonly string[]; scroll: Readonly<Record<string, number>> }) {
   const { model, store } = useApp();
-  const listRoute: Route = route.name === "home" ? { name: "inbox" } : isList(route) ? route : (lastListIn(stack) ?? defaultListFor(route));
+  const listRoute: Route = route.name === "home" ? { name: "running" } : isList(route) ? route : (lastListIn(stack) ?? defaultListFor(route));
   const detailRoute = isList(route) || route.name === "home" ? null : route;
   const listRef = useRef<HTMLElement>(null);
   const detailRef = useRef<HTMLElement>(null);

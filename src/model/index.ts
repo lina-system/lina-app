@@ -16,7 +16,7 @@ import type {
   WorkInbox,
   WorkState,
 } from "../api/client";
-import { CRUMB, SOURCE_WORD, W } from "../words";
+import { CRUMB, SOURCE_WORD, STATE_WORD, W } from "../words";
 import { href } from "../router";
 import { cardKind, type CardKind } from "./kind";
 
@@ -53,14 +53,18 @@ export interface Agent {
   readonly href: string;
 }
 
-/** One 작업: a work card or a worker run started outside any card. */
+/**
+ * One 작업: a work card or a worker run started outside any card. Its lines are the core's checked lines
+ * (`plain`, lina#151) only: a line not written yet, or one that failed its check, is null and shows nothing; the
+ * raw title or live state is never drawn in its place.
+ */
 export interface CardRow {
   readonly key: string;
   readonly kind: "card" | "run";
   readonly work: CardKind;
   readonly id: string;
   readonly href: string;
-  readonly title: string;
+  readonly title: string | null;
   readonly agent: string | null;
   readonly state: WorkState;
   readonly reason: string | null;
@@ -72,6 +76,8 @@ export interface CardRow {
   readonly endedAt: number | null;
   readonly totalSeconds: number | null;
   readonly now: string | null;
+  /** The checked result line of a finished card. */
+  readonly result: string | null;
   /** The work record to-do the card's runs take on: retry goes there; null for a card with none. */
   readonly todo: string | null;
 }
@@ -140,6 +146,19 @@ export interface Counts {
   readonly devices: { readonly all: number; readonly ok: number; readonly warn: number; readonly down: number };
 }
 
+/** The home (진행 중인 작업): what waits for the owner, then the stopped and running cards, then the rest by age. */
+export interface Home {
+  /** Open decisions, the same number as the inbox's 결정 필요; one line on the home, only when there are any. */
+  readonly decisions: number;
+  readonly waiting: Section<CardRow>;
+  /** Finished in the last 24 hours, newest first. */
+  readonly recent: Section<CardRow>;
+  readonly older: Section<CardRow>;
+}
+
+/** How long a finished card counts as recent on the home. */
+export const RECENT_SECONDS = 86_400;
+
 export interface Model {
   readonly ready: boolean;
   readonly agents: readonly Agent[];
@@ -148,6 +167,9 @@ export interface Model {
   readonly running: { readonly sections: readonly Section<CardRow>[]; readonly rows: readonly CardRow[] };
   readonly due: { readonly sections: readonly Section<DueRow>[]; readonly rows: readonly DueRow[] };
   readonly done: readonly CardRow[];
+  readonly home: Home;
+  /** The writer of the checked lines stopped: the screens say the summaries stopped. */
+  readonly summariesStopped: boolean;
   readonly goals: readonly GoalRow[];
   readonly cards: ReadonlyMap<string, CardRow>;
   readonly runs: ReadonlyMap<string, RunCard>;
@@ -190,10 +212,10 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
   return {
     key: `card:${card.id}`,
     kind: "card",
-    work: cardKind(card.title, (detail?.workerRuns ?? []).map((worker) => runCards.get(worker.id)).filter((run): run is RunCard => run !== undefined)),
+    work: cardKind(card.plain.title ?? "", (detail?.workerRuns ?? []).map((worker) => runCards.get(worker.id)).filter((run): run is RunCard => run !== undefined)),
     id: card.id,
     href: href({ name: "card", id: card.id }),
-    title: card.title,
+    title: card.plain.title,
     agent: card.agent,
     state: card.state,
     reason: card.reason,
@@ -201,7 +223,8 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
     stateAt: card.state === "stopped" ? (lastBeat ?? base) : card.state === "done" ? null : base,
     endedAt: card.state === "done" ? (ended ?? receivedAt) : null,
     totalSeconds: card.state === "done" ? card.elapsedSeconds : null,
-    now: card.now,
+    now: card.plain.now,
+    result: card.plain.result,
     todo: (detail?.workerRuns ?? []).map((worker) => runCards.get(worker.id)?.todo).find((todo): todo is string => Boolean(todo)) ?? null,
   };
 }
@@ -210,10 +233,10 @@ export function runRow(run: RunCard): CardRow {
   return {
     key: `run:${run.id}`,
     kind: "run",
-    work: cardKind(run.title, [run]),
+    work: cardKind(run.plain.title ?? "", [run]),
     id: run.id,
     href: href({ name: "run", id: run.id }),
-    title: run.title,
+    title: run.plain.title,
     agent: run.agent,
     state: run.state,
     reason: run.reason,
@@ -221,7 +244,8 @@ export function runRow(run: RunCard): CardRow {
     stateAt: run.state === "in_progress" || run.state === "done" ? null : (run.endedAt ?? run.startedAt),
     endedAt: run.state === "done" ? run.endedAt : null,
     totalSeconds: run.state === "done" && run.endedAt !== null && run.startedAt !== null ? run.endedAt - run.startedAt : null,
-    now: run.now,
+    now: run.plain.now,
+    result: run.plain.result,
     todo: run.todo,
   };
 }
@@ -259,9 +283,13 @@ export function buildModel(input: ModelInput, now: number): Model {
   const running = allCards.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt));
   const runningSections = [section("stopped", "", stopped), section("running", "", running)];
   const done = allCards.filter((card) => card.state === "done").sort(newestFirst((card) => card.endedAt));
+  const waiting = allCards.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt));
+  const recent = done.filter((card) => card.endedAt !== null && now - card.endedAt < RECENT_SECONDS);
 
   // Inbox: decisions (oldest first), finished runs waiting on the owner, then the owner's own to-dos.
   const goalTitleOfCard = (cardId: string) => input.goals?.goals.find((goal) => goal.workCards.some((card) => card.id === cardId))?.title;
+  // A card's question names the card by its checked title only, never the kanban card's own title.
+  const questionContext = (cardId: string) => [goalTitleOfCard(cardId), cardMap.get(cardId)?.title].filter(Boolean).join(CRUMB);
   const contextOf = (target: string) => {
     const item = itemMap.get(target);
     if (!item) return "";
@@ -284,13 +312,12 @@ export function buildModel(input: ModelInput, now: number): Model {
         target: { kind: "item", id: row.target },
       })),
     ...(workInbox?.questions ?? []).map((question): InboxRow => {
-      const goalTitle = goalTitleOfCard(question.cardId);
       return {
         type: "decide",
         key: `question:${question.cardId}:${question.commentId}`,
         href: href({ name: "card", id: question.cardId }),
         agent: question.agent,
-        context: goalTitle ? `${goalTitle}${CRUMB}${question.title}` : question.title,
+        context: questionContext(question.cardId),
         text: question.body,
         ask: true,
         at: question.askedAt,
@@ -387,6 +414,13 @@ export function buildModel(input: ModelInput, now: number): Model {
     running: { sections: runningSections, rows: runningRows },
     due: { sections: dueSections, rows: dueRows },
     done,
+    home: {
+      decisions: inboxSections[0].count,
+      waiting: section("waiting", STATE_WORD.waiting, waiting),
+      recent: section("recent", W.doneRecent, recent),
+      older: section("older", W.doneOlder, done.filter((card) => !recent.includes(card))),
+    },
+    summariesStopped: board?.writer.state === "stopped",
     goals,
     cards: cardMap,
     runs,

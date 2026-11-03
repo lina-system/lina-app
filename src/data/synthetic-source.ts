@@ -205,7 +205,7 @@ export class SyntheticSource implements Source {
   private pageToken = 1;
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; noRunning?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; noRunning?: boolean; writerStopped?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript } = {}) {
     this.talkRefusal = options.talk ?? null;
     this.script = options.live ?? "ok";
     this.streamDown = this.script === "down";
@@ -215,6 +215,7 @@ export class SyntheticSource implements Source {
         now: Math.floor(options.now ?? nowSeconds()),
         sourceError: options.sourceError,
         noRunning: options.noRunning,
+        writerStopped: options.writerStopped,
       });
   }
 

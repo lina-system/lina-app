@@ -71,6 +71,8 @@ const SCREENS: readonly { id: string; hash: string; query?: string; line?: strin
   { id: "goal-decision", hash: "#/goals/G3" },
   { id: "card-question", hash: "#/cards/k-102" },
   { id: "card-detail", hash: "#/cards/k-101" },
+  // The home with the writer of the checked lines stopped (lina#151); card-question above is the card with none.
+  { id: "summaries-stopped", hash: "#/running", query: "&writer=stopped" },
   { id: "run-detail", hash: "#/runs/r6" },
   { id: "status", hash: "#/status" },
   {
@@ -175,7 +177,8 @@ for (const screen of SCREENS) {
     if (screen.clock) await page.clock.install();
     await page.goto(`${APP}${screen.query ?? ""}${screen.hash}`);
     await expect(page.getByTestId("freshness-line")).toHaveText(screen.line ?? "실시간");
-    await expect(page.locator("[data-testid=screen-title], .detail-title").first()).toBeVisible();
+    // A card with no checked title has a detail head without a title (lina#151).
+    await expect(page.locator("[data-testid=screen-title], .detail-head").first()).toBeVisible();
     if (screen.open) await screen.open(page);
     const fits = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
     expect(fits).toBe(true);

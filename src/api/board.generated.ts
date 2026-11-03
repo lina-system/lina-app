@@ -237,6 +237,13 @@ export interface components {
             notices: components["schemas"]["Notice"][];
             quota: components["schemas"]["QuotaService"][];
             version: number;
+            /** @description The writer of the checked lines (lina#151). never = it has not run yet; stopped = its calls failed, or work was left to write and nothing succeeded for 30 minutes (the app says the summaries stopped). */
+            writer: {
+                lastSuccessAt: number | null;
+                /** @enum {string} */
+                state: "ok" | "stopped" | "never";
+                stoppedSince: number | null;
+            };
         };
         ChangeBatch: {
             /** @description Opaque; send it back as since= to resume after a reconnect. */
@@ -504,6 +511,12 @@ export interface components {
             id: string;
             name: string;
         };
+        /** @description Checked model-written lines (lina#151). A field that failed its check, or was never written, is null; the raw source text is never served in its place. */
+        PlainLines: {
+            now: string | null;
+            result: string | null;
+            title: string | null;
+        };
         QuotaAccount: {
             /** @description A hash of the OCX account id. */
             id: string;
@@ -555,6 +568,7 @@ export interface components {
             kind: string | null;
             /** @description What the run does now, from the runner's live state (at most 120 characters). */
             now: string | null;
+            plain: components["schemas"]["PlainLines"];
             /** @description planned: new, queued; waiting: review, decision; stopped: failed, unresponsive, result_missing, cancelled, rejected. */
             reason: string | null;
             startedAt: number | null;

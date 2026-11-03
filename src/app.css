@@ -422,6 +422,33 @@ button:disabled {
   flex: none;
 }
 
+/* A detail head's kind: the icon and its word, small and grey above the title. */
+.kind-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--label-2);
+  font-size: var(--text-small);
+}
+
+/* The home's decisions line and its card list are two groups, apart like any two sections. */
+.list > .rows + .rows {
+  margin-top: 20px;
+}
+
+/* A work card's worker runs, one block per follow-up round, newest first. */
+.round + .round,
+.round + .rows {
+  margin-top: 10px;
+}
+
+.round-head {
+  margin: 0 0 4px;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--label-2);
+}
+
 /* Red marks the problem, not the row: only the state words of a stopped card are red. */
 .is-stopped .state {
   color: var(--red);

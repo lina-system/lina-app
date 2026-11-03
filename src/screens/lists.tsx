@@ -142,23 +142,47 @@ function RetryControl({ card }: { card: CardRow }) {
       </span>
     );
   return (
-    <button type="button" class="text-button retry" aria-label={`${card.title}${SEP}${W.retry}`} onClick={() => void actions.retry(card)} data-testid="retry">
+    <button type="button" class="text-button retry" aria-label={[card.title, W.retry].filter(Boolean).join(SEP)} onClick={() => void actions.retry(card)} data-testid="retry">
       {W.retry}
     </button>
   );
 }
 
+/**
+ * The home: one line for the open decisions (only when there are any), the stopped and running cards (stopped on
+ * top), the cards waiting on review or an answer, then finished cards, the last 24 hours first and older ones after.
+ * Every number is its section's own row count, the same model the sidebar and the agent screens read.
+ */
 export function RunningScreen() {
   const { model } = useApp();
   const actions = useActions();
-  if (!model.running.rows.length) return <Empty />;
+  const { home } = model;
+  if (!home.decisions && !model.running.rows.length && !home.waiting.rows.length && !model.done.length) return <Empty />;
   return (
     <div class="list" data-testid="screen-running">
-      <ul class="rows" aria-label={W.running}>
-        {model.running.rows.map((card) => (
-          <CardRowView key={card.key} card={card} action={card.state === "stopped" ? <RetryControl card={card} /> : undefined} error={actions.error(`retry:${card.key}`)?.line} />
-        ))}
-      </ul>
+      {home.decisions ? (
+        <ul class="rows" aria-label={W.inbox}>
+          <li class="row" data-testid="home-decisions">
+            <Link href={href({ name: "inbox" })} label={`${W.decide} ${home.decisions}`}>
+              <span class="lines">
+                <span class="title one-line">{W.decide}</span>
+              </span>
+              <CountPair count={home.decisions} />
+              <Disclosure />
+            </Link>
+          </li>
+        </ul>
+      ) : null}
+      {model.running.rows.length ? (
+        <ul class="rows" aria-label={W.running}>
+          {model.running.rows.map((card) => (
+            <CardRowView key={card.key} card={card} action={card.state === "stopped" ? <RetryControl card={card} /> : undefined} error={actions.error(`retry:${card.key}`)?.line} />
+          ))}
+        </ul>
+      ) : null}
+      {[home.waiting, home.recent, home.older].map((section) => (
+        <ListSection key={section.id} section={section} render={(card) => <CardRowView key={card.key} card={card} />} />
+      ))}
     </div>
   );
 }

@@ -5,7 +5,7 @@ import type { Store } from "../data/store";
 import type { CardRow, Model, Section } from "../model";
 import { linkClick } from "../router";
 import { ago, duration, total } from "../time";
-import { SEP, stateLabel, W } from "../words";
+import { KIND_WORD, SEP, stateLabel, W } from "../words";
 import { ChevronIcon, CodeIcon, DeviceKindIcon, DocsIcon, ResearchIcon } from "./icons";
 import type { CardKind } from "../model/kind";
 import { useActions } from "./actions";
@@ -40,6 +40,18 @@ export function AgentMark({ id }: { id: string | null | undefined }) {
   return (
     <span class="mark" style={{ "--dot": `var(--agent-${agent.index % 6})` }} aria-hidden="true">
       {agent.letter}
+    </span>
+  );
+}
+
+/** A work card's kind: its icon, and the kind word beside it in a detail head. */
+export function KindMark({ work, word = false }: { work: CardKind; word?: boolean }) {
+  return (
+    <span class="kind-mark" data-testid="kind">
+      <span class="kind" data-kind={work}>
+        {KIND_ICON[work]()}
+      </span>
+      {word ? <span class="kind-name">{KIND_WORD[work]}</span> : null}
     </span>
   );
 }
@@ -92,14 +104,14 @@ export function CardRowView({ card, dim = false, kindIcon = true, action, error 
         {dim ? (
           <span class="lines">
             <span class="one-line">
-              <span class="title">{card.title}</span>
-              <span class="sub">{SEP}</span>
+              {card.title ? <span class="title">{card.title}</span> : null}
+              {card.title ? <span class="sub">{SEP}</span> : null}
               <StateTime state={card.state} reason={card.reason} time={time} />
             </span>
           </span>
         ) : (
           <span class="lines">
-            <span class="title one-line">{card.title}</span>
+            {card.title ? <span class="title one-line">{card.title}</span> : null}
             <StateTime state={card.state} reason={card.reason} time={time} />
             {wide && card.now && card.state === "in_progress" ? <span class="sub now one-line">{card.now}</span> : null}
           </span>

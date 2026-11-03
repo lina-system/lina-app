@@ -183,6 +183,12 @@ export interface components {
             commentId: number;
             title: string;
         };
+        /** @description Checked model-written lines (lina#151). A field that failed its check, or was never written, is null; the raw source text is never served in its place. */
+        PlainLines: {
+            now: string | null;
+            result: string | null;
+            title: string | null;
+        };
         /** @description One word after the state, when there is one: the column for planned; review or gate for waiting; the block kind, gate, budget or unresponsive for stopped. */
         Reason: string | null;
         Todo: {
@@ -205,6 +211,7 @@ export interface components {
             gates: components["schemas"]["GateResult"][];
             id: string;
             now: string | null;
+            plain: components["schemas"]["PlainLines"];
             reason: components["schemas"]["Reason"];
             runs: components["schemas"]["CardRun"][];
             state: components["schemas"]["WorkState"];
@@ -222,6 +229,7 @@ export interface components {
             id: string;
             /** @description The latest comment or heartbeat note, plain text. */
             now: string | null;
+            plain: components["schemas"]["PlainLines"];
             reason: components["schemas"]["Reason"];
             state: components["schemas"]["WorkState"];
             title: string;

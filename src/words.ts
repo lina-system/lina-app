@@ -157,7 +157,17 @@ export const W = {
   markDone: (title: string) => `${title} 완료로 표시`,
   progress: (done: number, total: number) => `${done}/${total}`,
   runningCount: (n: number) => `진행 중 ${n}`,
+
+  doneRecent: "24시간 안에 끝남",
+  doneOlder: "이전에 끝남",
+  doneSoFar: "끝난 것",
+  next: "다음",
+  round: (n: number) => `라운드 ${n}`,
+  summariesStopped: "요약 멈춤",
 };
+
+/** The kind word beside a work card's icon in its detail. */
+export const KIND_WORD = { code: "코드", docs: "문서", research: "조사", device: "기기" } as const;
 
 /** The one reason word after a machine's state, from the core's `why`. `down` is the state itself and shows none. */
 export const MACHINE_WHY: Readonly<Record<string, string>> = {

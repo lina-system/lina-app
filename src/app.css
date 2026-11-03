@@ -505,6 +505,22 @@ button:disabled {
   display: flex;
   align-items: center;
   cursor: pointer;
+  list-style: none;
+}
+
+.comment-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.comment-fold > summary::before {
+  content: "\203A";
+  display: inline-block;
+  width: 12px;
+  transition: transform var(--motion);
+}
+
+.comment-fold[open] > summary::before {
+  transform: rotate(90deg);
 }
 
 .comment-raw {

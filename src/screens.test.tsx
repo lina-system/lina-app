@@ -7,6 +7,7 @@ import type { ReadResult, Source } from "./data/source";
 import { Store } from "./data/store";
 import { SCENE_COUNTS } from "./fixtures/synthetic";
 import { buildModel } from "./model";
+import { containsText } from "./text-match";
 import { TOAST_MS } from "./ui/actions";
 import { BANNED_WORDS } from "./words";
 
@@ -425,7 +426,7 @@ class SpySource extends SyntheticSource {
 const TIMERS: Parameters<typeof vi.useFakeTimers>[0] = { toFake: ["Date", "setInterval", "clearInterval", "setTimeout", "clearTimeout"] };
 
 function decisionButton(view: ReturnType<typeof render>, text: string): HTMLElement {
-  return view.getByRole("button", { name: new RegExp(text.replace(/[?.]/g, "\\$&")) });
+  return view.getByRole("button", { name: containsText(text) });
 }
 
 describe("answers", () => {

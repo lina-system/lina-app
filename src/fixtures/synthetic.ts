@@ -383,30 +383,47 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     { name: machines[1], state: "warn", why: "disk", cpu: 35, memory: 58, disk: 91, temp: 55, load: 1.2, cores: 8, running: 1, cap: 4, freeGb: 18, metricsAt: now - 25 },
     { name: machines[2], state: "down", why: "unreachable", cpu: null, memory: null, disk: null, temp: null, load: null, cores: null, running: null, cap: 2, freeGb: null, metricsAt: now - 3 * HOUR },
   ];
-  const quotaWindow = (key: string, percent: number, resetIn: number, ratePerHour: number | null, warn: boolean) => ({ key, percent, resetAt: now + resetIn, ratePerHour, warn });
+  // A window warns when its rate reaches 100% before it resets, the core's rule for `warn`.
+  const quotaWindow = (key: string, percent: number, resetIn: number, ratePerHour: number | null) => ({
+    key,
+    percent,
+    resetAt: now + resetIn,
+    ratePerHour,
+    warn: ratePerHour !== null && percent + (ratePerHour * resetIn) / HOUR >= 100,
+  });
+  const quotaAccount = (id: string, number: number, plan: string, mainWindow: string, windows: ReturnType<typeof quotaWindow>[], paused = false) => ({
+    id,
+    number,
+    plan,
+    paused,
+    unavailable: false,
+    mainWindow,
+    warn: windows.some((window) => window.warn),
+    windows,
+  });
   const quotaList: BoardSnapshot["quota"] = options.sourceError
     ? []
     : [
         {
           service: SERVICE_NAMES[0],
           percent: 72,
-          ratePerHour: 9,
+          ratePerHour: 10,
           accounts: [
-            { id: "acct-a", number: 1, plan: "pro", paused: false, unavailable: false, mainWindow: "fiveHour", warn: true, windows: [quotaWindow("fiveHour", 72, 3 * HOUR, 9, true), quotaWindow("weekly", 40, 4 * DAY, 1, false)] },
-            { id: "acct-b", number: 2, plan: "pro", paused: false, unavailable: false, mainWindow: "fiveHour", warn: false, windows: [quotaWindow("fiveHour", 18, 2 * HOUR, 3, false)] },
+            quotaAccount("acct-a", 1, "pro", "fiveHour", [quotaWindow("fiveHour", 72, 3 * HOUR, 10), quotaWindow("weekly", 40, 4 * DAY, 0.5)]),
+            quotaAccount("acct-b", 2, "pro", "fiveHour", [quotaWindow("fiveHour", 18, 2 * HOUR, 3)]),
           ],
         },
         {
           service: SERVICE_NAMES[1],
           percent: 31,
-          ratePerHour: 2,
-          accounts: [{ id: "acct-c", number: 1, plan: "team", paused: false, unavailable: false, mainWindow: "weekly", warn: false, windows: [quotaWindow("weekly", 31, 4 * DAY, 2, false)] }],
+          ratePerHour: 1,
+          accounts: [quotaAccount("acct-c", 1, "team", "weekly", [quotaWindow("weekly", 31, 2 * DAY, 1)])],
         },
         {
           service: SERVICE_NAMES[2],
           percent: 5,
           ratePerHour: null,
-          accounts: [{ id: "acct-d", number: 1, plan: "basic", paused: true, unavailable: false, mainWindow: "monthly", warn: false, windows: [quotaWindow("monthly", 5, 12 * DAY, null, false)] }],
+          accounts: [quotaAccount("acct-d", 1, "basic", "monthly", [quotaWindow("monthly", 5, 12 * DAY, null)], true)],
         },
       ];
   const errors: BoardSnapshot["errors"] = options.sourceError ? [{ source: "quota", message: "quota source did not answer" }] : [];

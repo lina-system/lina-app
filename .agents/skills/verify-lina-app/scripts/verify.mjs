@@ -636,6 +636,20 @@ const drivers = {
       check(accounts.length === 2 && accounts.every((name) => /^계정 \d · \d+% · 시간당 \+\d+% · \d+(분|시간|일) 후( · 주의)?$/.test(name)), "Claude's accounts read " + accounts.join(" | "));
       return names.join(" | ") + "; Claude: " + accounts.join(" | ");
     });
+    await step("주의 follows the rule, resets read hours under a day and days over, no rate means no rate part", async () => {
+      const rows = await page.getByRole("list", { name: "쿼터", exact: true }).locator(":scope > li").evaluateAll((items) => items.map((item) => ({ name: item.querySelector("summary .title").textContent, sub: item.querySelector("summary .sub").textContent, warn: Boolean(item.querySelector("summary .warn-mark")) })));
+      const scene = await page.evaluate(() => ({ at: Date.now() / 1000, quota: window.__linaScene.quota.quota }));
+      for (const [index, service] of scene.quota.entries()) {
+        const reaches = service.accounts.some((account) => account.windows.some((w) => w.ratePerHour !== null && w.percent + (w.ratePerHour * (w.resetAt - scene.at)) / 3600 >= 100));
+        check(reaches === rows[index].warn, rows[index].name + " shows 주의=" + rows[index].warn + " but its rate reaches 100% before reset=" + reaches);
+        const reset = Math.min(...service.accounts.map((account) => (account.windows.find((w) => w.key === account.mainWindow) ?? account.windows[0]).resetAt)) - scene.at;
+        const word = rows[index].sub.split(" · ").at(-1);
+        check(reset < 86400 ? /^\d+시간 후$/.test(word) : /^\d+일 후$/.test(word), rows[index].name + " resets in " + Math.round(reset) + " s but reads " + word);
+        check(!/ · {2}| · $|^ · | ·  · /.test(rows[index].sub) && rows[index].sub.split(" · ").every(Boolean), rows[index].name + " has a gap: " + rows[index].sub);
+        if (service.ratePerHour === null) check(!rows[index].sub.includes("시간당"), rows[index].name + " has no rate but reads " + rows[index].sub);
+      }
+      return rows.map((row) => row.name + ": " + row.sub + (row.warn ? " · 주의" : "")).join(" | ");
+    });
   },
 
   // Every write control on the synthetic instance: what it changes on screen and in the page's copy of the record.

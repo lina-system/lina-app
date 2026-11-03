@@ -128,13 +128,12 @@ describe("machines and quota", () => {
     const services = [...list.querySelectorAll(":scope > [data-testid=row]")];
     expect(services.map((row) => row.querySelector("summary .title")?.textContent)).toEqual(["Claude", "ChatGPT", "가온셈"]);
     const labels = services.map((row) => row.querySelector("summary")?.getAttribute("aria-label") ?? "");
-    expect(labels[0]).toMatch(/^Claude · 72% · 시간당 \+9% · \d시간 후 · 주의$/);
-    expect(labels[1]).toMatch(/^ChatGPT · 31% · 시간당 \+2% · \d일 후$/);
-    expect(labels[2]).toMatch(/^가온셈 · 5% · \d+일 후$/);
+    expect(labels).toEqual(["Claude · 72% · 시간당 +10% · 2시간 후 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후", "가온셈 · 5% · 12일 후"]);
+    expect(services.map((row) => row.querySelector("summary .sub")?.textContent)).toEqual(["72% · 시간당 +10% · 2시간 후", "31% · 시간당 +1% · 2일 후", "5% · 12일 후"]);
     expect(services.map((row) => (row.querySelector("details") as HTMLDetailsElement).open)).toEqual([false, false, false]);
     expect(services.map((row) => row.querySelectorAll("[data-testid=account]").length)).toEqual([2, 1, 1]);
-    expect(services[0].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toMatch(/^계정 1 · 72% · 시간당 \+9% · \d시간 후 · 주의$/);
-    expect(services[2].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toMatch(/^계정 1 · 일시 정지 · 5% · \d+일 후$/);
+    expect(services[0].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 72% · 시간당 +10% · 3시간 후 · 주의");
+    expect(services[2].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 일시 정지 · 5% · 12일 후");
     expect(services[0].querySelector(".rate")?.getAttribute("title")).toBe("최근 5시간 평균");
     expect(services.filter((row) => row.querySelector("summary .warn-mark"))).toHaveLength(1);
   });

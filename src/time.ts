@@ -22,10 +22,10 @@ export function total(seconds: number): string {
   return rest ? `${hours}시간 ${rest}분` : `${hours}시간`;
 }
 
+/** A reset time: hours (rounded up) under a day, whole days at or over a day. */
 export function until(seconds: number): string {
-  if (seconds < HOUR) return `${Math.max(1, Math.ceil(seconds / MIN))}분 후`;
-  if (seconds < DAY) return `${Math.floor(seconds / HOUR)}시간 후`;
-  return `${Math.floor(seconds / DAY)}일 후`;
+  if (seconds < DAY) return `${Math.max(1, Math.ceil(seconds / HOUR))}시간 후`;
+  return `${Math.max(1, Math.round(seconds / DAY))}일 후`;
 }
 
 export function dayLabel(day: string): string {

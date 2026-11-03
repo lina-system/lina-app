@@ -11,16 +11,16 @@ The bell in the toolbar (the navigation bar on a phone) carries the core's unrea
 ## Intended behavior
 
 - The badge is the core's `counts.unread`, hidden at 0; the button is named `알림 n` (`알림` at 0).
-- The dialog `알림` opens with `안 읽음 n`, the same n as the badge, so the badge is told apart from 수신함's count. It lists every notice line; unread ones have a blue dot, read ones are dimmed. `모두 읽음` (disabled when nothing is unread) and `닫기` sit on top as accent text buttons; Escape or a click outside also closes it.
+- The dialog `알림` opens with `안 읽음 n`, the same n as the badge, so the badge is told apart from 수신함's count. It lists every notice line; unread ones have a blue dot and the label colour; read ones have no dot and their text is the secondary grey, at full opacity (nothing is faded). `모두 읽음` (disabled when nothing is unread) and `닫기` sit on top as accent text buttons; Escape or a click outside also closes it. On a phone it opens as a bottom sheet over a dimmed screen (see [Phone](./phone.md)).
 - Choosing a notice: on screen its item opens and the badge drops by one at once; in the record that notice is read (`{keys: [key]}`).
-- `모두 읽음`: on screen the badge goes and every line dims; in the record every notice is read (`{all: true}`).
+- `모두 읽음`: on screen the badge goes and every line turns grey; in the record every notice is read (`{all: true}`).
 - A refused read mark puts the lines back as they were and shows the core's line in red in the dialog.
 - Nothing is kept in `localStorage` or `sessionStorage`.
 
 ## Sub-features
 
 - `bell-count` shows the core's unread count
-- `bell-list` lists notices with read ones dimmed
+- `bell-list` lists notices with read ones in grey text
 - `bell-read-one` opens a notice and marks it read
 - `bell-read-all` marks every notice read
 
@@ -35,9 +35,9 @@ Preconditions:
 - `verify.mjs doctor` reports `"healthy": true` for this run.
 - The page is `/app/?source=synthetic`, the synthetic scene: 7 notices, 2 of them read; the drive opens it fresh for each width.
 
-- **Count and list.** Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive bell`. The bell is named `알림 5`; its dialog reads `안 읽음 5` and lists 7 lines, 5 of them not dimmed; `모두 읽음` is enabled; `닫기` and Escape close it.
-- **Read one.** Choose the first unread line. The address becomes that notice's item, the bell reads `알림 4`, the dialog `안 읽음 4` with 4 lines not dimmed, and the record's unread count is 4.
-- **Read all.** Open the bell and choose `모두 읽음`. The bell is named `알림` with no badge, the dialog reads `안 읽음 0`, all 7 lines are dimmed, every notice in the record is read, and web storage is empty.
+- **Count and list.** Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive bell`. The bell is named `알림 5`; its dialog reads `안 읽음 5` and lists 7 lines, 5 of them in the label colour with a blue dot; `모두 읽음` is enabled; `닫기` and Escape close it.
+- **Read one.** Choose the first unread line. The address becomes that notice's item, the bell reads `알림 4`, the dialog `안 읽음 4` with 4 lines in the label colour, and the record's unread count is 4.
+- **Read all.** Open the bell and choose `모두 읽음`. The bell is named `알림` with no badge, the dialog reads `안 읽음 0`, all 7 lines are grey, every notice in the record is read, and web storage is empty.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/bell/bell-1280.{png,aria.yml,json}` and `bell-390.{png,aria.yml,json}`.
 
 ## Gotchas

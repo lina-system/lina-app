@@ -4,7 +4,9 @@ import { startRefresh } from "./data/refresh";
 import { nowSeconds } from "./data/source";
 import { useClock, useStore, type Store, type Want } from "./data/store";
 import { buildModel, type Model } from "./model";
-import { back, defaultListFor, href, isList, linkClick, navigate, onSaveScroll, parse, useNav, type Route } from "./router";
+import { back, defaultListFor, href, isList, linkClick, navigate, onSaveScroll, onStackMotion, parse, useNav, type Route } from "./router";
+import { slideMotion } from "./stack-motion";
+import { bindSwipeBack, isStandalone } from "./swipe-back";
 import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RunningScreen, StatusScreen } from "./screens/lists";
 import { CardScreen, GoalScreen, ItemScreen, RunScreen } from "./screens/details";
 import { BackIcon, BellIcon, CalendarIcon, DeviceIcon, DoneIcon, GoalIcon, InboxIcon, PlusIcon, RunningIcon } from "./ui/icons";
@@ -218,6 +220,7 @@ export function Bell() {
           </span>
         ) : null}
       </button>
+      {open ? <div class="sheet-scrim" aria-hidden="true" onClick={() => setOpen(false)} /> : null}
       {open ? (
         <div class="popover" role="dialog" aria-label={W.bell} data-testid="notices">
           <div class="popover-bar">
@@ -328,14 +331,13 @@ function useScrollKeeping(panes: Panes, keys: Record<keyof Panes, string>, saved
   }, [keys.list, keys.detail, keys.main]);
 }
 
-function WideShell({ route, stack }: { route: Route; stack: readonly string[] }) {
+function WideShell({ route, stack, scroll }: { route: Route; stack: readonly string[]; scroll: Readonly<Record<string, number>> }) {
   const { model, store } = useApp();
   const listRoute: Route = route.name === "home" ? { name: "inbox" } : isList(route) ? route : (lastListIn(stack) ?? defaultListFor(route));
   const detailRoute = isList(route) || route.name === "home" ? null : route;
   const listRef = useRef<HTMLElement>(null);
   const detailRef = useRef<HTMLElement>(null);
-  const saved = (window.history.state?.scroll ?? {}) as Record<string, number>;
-  useScrollKeeping({ list: listRef, detail: detailRef }, { list: href(listRoute), detail: detailRoute ? href(detailRoute) : "", main: "" }, saved);
+  useScrollKeeping({ list: listRef, detail: detailRef }, { list: href(listRoute), detail: detailRoute ? href(detailRoute) : "", main: "" }, scroll);
   return (
     <div class="split" data-layout="wide">
       <aside class="sidebar">
@@ -369,20 +371,31 @@ function WideShell({ route, stack }: { route: Route; stack: readonly string[] })
   );
 }
 
-function PhoneShell({ route, stack }: { route: Route; stack: readonly string[] }) {
+function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly string[]; scroll: Readonly<Record<string, number>> }) {
   const { model, store } = useApp();
-  const mainRef = useRef<HTMLDivElement>(null);
-  const saved = (window.history.state?.scroll ?? {}) as Record<string, number>;
-  useScrollKeeping({ main: mainRef }, { list: "", detail: "", main: href(route) }, saved);
+  const mainRef = useRef<HTMLElement>(null);
+  // The scroll comes from the history entry the router read for this screen, not from whatever entry is current
+  // when the swap finally renders.
+  useScrollKeeping({ main: mainRef }, { list: "", detail: "", main: href(route) }, scroll);
   const parent = parentOf(route, stack);
   const isRoot = route.name === "home";
   const large = isRoot || isList(route);
   const goBack = () => {
     if (stack.length > 1) back();
-    else navigate(parent, { replace: true });
+    else navigate(parent, { replace: true, direction: "pop" });
   };
+  const current = useRef({ isRoot, goBack });
+  current.current = { isRoot, goBack };
+  useLayoutEffect(() => {
+    onStackMotion(slideMotion());
+    const unbind = bindSwipeBack({ standalone: () => isStandalone(), atRoot: () => current.current.isRoot, onBack: () => current.current.goBack() });
+    return () => {
+      onStackMotion(null);
+      unbind();
+    };
+  }, []);
   return (
-    <div class="stack" data-layout="phone" ref={mainRef}>
+    <div class="stack" data-layout="phone">
       <header class="navbar">
         {isRoot ? (
           <span />
@@ -396,7 +409,7 @@ function PhoneShell({ route, stack }: { route: Route; stack: readonly string[] }
           <Bell />
         </div>
       </header>
-      <main class="phone-main">
+      <main class="phone-main" ref={mainRef}>
         {large ? (
           <h1 class="large-title" data-testid="screen-title">
             {titleOf(route, model, store)}
@@ -430,7 +443,7 @@ export function App({ store }: { store: Store }) {
   return (
     <Ctx.Provider value={context}>
       <ActionsCtx.Provider value={actions}>
-        {wide ? <WideShell route={nav.route} stack={nav.state.stack} /> : <PhoneShell route={nav.route} stack={nav.state.stack} />}
+        {wide ? <WideShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} /> : <PhoneShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} />}
         <Toast />
       </ActionsCtx.Provider>
     </Ctx.Provider>

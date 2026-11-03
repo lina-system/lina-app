@@ -45,6 +45,15 @@
   --safe-left: env(safe-area-inset-left, 0px);
 }
 
+/* Phone: iOS text at its default Dynamic Type size (Body 17 pt, Footnote 13 pt); the large title keeps its size. */
+[data-layout="phone"],
+[data-layout="phone"] ~ .toast-slot {
+  --text-body: 17px;
+  --text-small: 13px;
+  --hit: 44px;
+  --stack-motion: 350ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --label: #ffffff;

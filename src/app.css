@@ -343,12 +343,15 @@ button:disabled {
 }
 
 /* The divider sits on the row's top edge and starts where the row's text starts (after the icon, avatar or check
-   box), like iOS: it is placed against the row, and left where the text is (its static position). */
-.row {
+   box), like iOS: it is placed against the row, and left where the text is (its static position). The phone menu's
+   rows take the same line from their label; the wide sidebar draws none. */
+.row,
+.stack .nav-row {
   position: relative;
 }
 
-.row + .row .lines::before {
+.row + .row .lines::before,
+.stack .nav-row + .nav-row .nav-label::before {
   content: "";
   position: absolute;
   top: 0;
@@ -757,6 +760,13 @@ button:disabled {
 }
 
 /* Writes: fields, text buttons and the one line a refused write leaves. */
+
+/* A hidden label is placed inside its own field's box (or the live dot's), never against the page, so it can
+   never make the page taller than the window. */
+.note,
+.talk-live {
+  position: relative;
+}
 
 .visually-hidden {
   position: absolute;
@@ -1243,11 +1253,6 @@ html:has(.stack) body {
   height: var(--row);
   padding: 0 12px;
   border-radius: 0;
-}
-
-.stack .nav-row + .nav-row a {
-  box-shadow: inset 40px var(--line) 0 -40px var(--separator);
-  border-top: var(--line) solid var(--separator);
 }
 
 .stack .version {

@@ -381,46 +381,176 @@ async function swipe(page, from, to) {
   );
 }
 
-// A divider is the ::before line of a row's text block (or, on the phone menu, the top border of the row's link).
-// getBoundingClientRect cannot see a pseudo-element, so the line is placed from its computed top and left against
-// its containing block. Every divider between two rows must lie on the lower row's top edge and start at its text.
+// Every horizontal line drawn on the page, whatever draws it: an element's top or bottom border, a line-like
+// box-shadow, or a ::before/::after with a border. getBoundingClientRect cannot see a pseudo-element, so an absolutely
+// placed one is located from its computed top and left against its containing block; a pseudo line that cannot be
+// placed is reported, never skipped. A line inside a list (between its first row's top and its last row's bottom) is a
+// divider: it must lie on a row's top edge and start at that row's text (the first text not hidden from assistive
+// technology, so after its icon, mark or check box).
 async function dividerOffsets(page) {
   return page.evaluate(() => {
-    const rowsOf = (row) => row.matches(".row, .nav-row");
+    const px = (value) => parseFloat(value) || 0;
+    const drawn = (element) => {
+      const box = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return box.width > 0 && box.height > 0 && style.visibility !== "hidden" && style.display !== "none" ? box : null;
+    };
+    const lines = [];
+    const unplaced = [];
+    const shadowLines = (shadow, box) => {
+      if (!shadow || shadow === "none") return [];
+      return shadow.split(/,(?![^(]*\))/).flatMap((one) => {
+        const inset = /\binset\b/.test(one);
+        const lengths = (one.replace(/rgba?\([^)]*\)|#[0-9a-f]+|\binset\b/gi, "").match(/-?[\d.]+px/g) || []).map(px);
+        const [x = 0, y = 0, blur = 0, spread = 0] = lengths;
+        if (blur !== 0 || y === 0) return [];
+        const top = inset ? (y > 0 ? box.top : box.bottom) : y > 0 ? box.bottom : box.top;
+        const left = box.left + (inset ? Math.max(0, x) - Math.min(0, spread) : x - spread);
+        return [{ y: top, x: left, by: "box-shadow" }];
+      });
+    };
+    const bordersOf = (style, box, by) => {
+      const found = [];
+      const side = (name) => px(style["border" + name + "Width"]) > 0 && style["border" + name + "Style"] !== "none";
+      if (side("Left") || side("Right")) return found;
+      if (side("Top")) found.push({ y: box.top, x: box.left, by: by + " border-top" });
+      if (side("Bottom")) found.push({ y: box.bottom - px(style.borderBottomWidth), x: box.left, by: by + " border-bottom" });
+      return found;
+    };
+    for (const element of document.body.querySelectorAll("*")) {
+      const box = drawn(element);
+      if (!box) continue;
+      const style = getComputedStyle(element);
+      for (const line of [...bordersOf(style, box, "element"), ...shadowLines(style.boxShadow, box)]) lines.push({ ...line, owner: element });
+      for (const pseudo of ["::before", "::after"]) {
+        const look = getComputedStyle(element, pseudo);
+        if (look.content === "none" || look.display === "none") continue;
+        const hasBorder = ["Top", "Bottom"].some((side) => px(look["border" + side + "Width"]) > 0 && look["border" + side + "Style"] !== "none");
+        const hasShadow = look.boxShadow && look.boxShadow !== "none";
+        if (!hasBorder && !hasShadow) continue;
+        if (look.position !== "absolute" && look.position !== "fixed") {
+          unplaced.push(element.className + pseudo);
+          continue;
+        }
+        let block = element;
+        while (block && getComputedStyle(block).position === "static") block = block.parentElement;
+        const frame = block ? block.getBoundingClientRect() : { top: 0, left: 0 };
+        const top = frame.top + (block ? block.clientTop : 0) + px(look.top);
+        const left = frame.left + (block ? block.clientLeft : 0) + px(look.left);
+        const pseudoBox = { top, left, bottom: top + px(look.height) + px(look.borderTopWidth) + px(look.borderBottomWidth), right: left + px(look.width) };
+        for (const line of [...bordersOf(look, pseudoBox, pseudo), ...shadowLines(look.boxShadow, pseudoBox)]) lines.push({ ...line, owner: element });
+      }
+    }
     const nameOf = (row) => {
       const control = [":scope > a", ":scope > button.row-button", ":scope > .row-body", ":scope > details > summary", "a", "button"].map((selector) => row.querySelector(selector)).find(Boolean) || row;
       const role = control.getAttribute("role") || { A: "link", BUTTON: "button", SUMMARY: "disclosure" }[control.tagName] || "row";
       return role + ' "' + (control.getAttribute("aria-label") || control.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40) + '"';
     };
+    const textLeft = (row) => {
+      const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (!node.textContent.trim() || node.parentElement.closest("[aria-hidden=true], svg")) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const rect = [...range.getClientRects()].find((one) => one.width > 0);
+        if (rect) return rect.left;
+      }
+      return null;
+    };
+    const lists = [...document.querySelectorAll("ul, ol, [role=list]")].map((list) => ({ list, rows: [...list.children].filter((row) => row.tagName === "LI" && drawn(row)) })).filter(({ rows }) => rows.length > 1);
     let measured = 0;
     const off = [];
-    for (const row of document.querySelectorAll(".row, .nav-row")) {
-      const before = row.previousElementSibling;
-      const box = row.getBoundingClientRect();
-      if (!before || !rowsOf(before) || box.height === 0) continue;
-      const lines = row.querySelector(".lines");
-      const line = lines ? getComputedStyle(lines, "::before") : null;
-      let y;
-      let x = null;
-      let text = null;
-      if (line && line.content !== "none" && line.display !== "none" && parseFloat(line.borderTopWidth) > 0) {
-        let block = lines;
-        while (block && getComputedStyle(block).position === "static") block = block.parentElement;
-        const frame = block.getBoundingClientRect();
-        y = frame.top + block.clientTop + parseFloat(line.top);
-        x = frame.left + block.clientLeft + parseFloat(line.left);
-        text = lines.getBoundingClientRect().left + parseFloat(getComputedStyle(lines).paddingLeft);
-      } else {
-        const edge = [row, ...row.children].find((element) => parseFloat(getComputedStyle(element).borderTopWidth) > 0 && getComputedStyle(element).borderTopStyle !== "none");
-        if (!edge) continue;
-        y = edge.getBoundingClientRect().top;
-      }
+    for (const line of lines) {
+      const home = lists.find(({ rows }) => line.y > rows[0].getBoundingClientRect().top + 1 && line.y < rows.at(-1).getBoundingClientRect().bottom - 1 && rows.some((row) => row.contains(line.owner) || line.owner.contains(row)));
+      if (!home) continue;
       measured += 1;
-      if (Math.abs(y - box.top) > 1) off.push(nameOf(row) + ": divider " + Math.round((y - box.top) * 10) / 10 + " px from the row's top");
-      if (x !== null && Math.abs(x - text) > 1) off.push(nameOf(row) + ": divider starts at " + Math.round(x) + ", text at " + Math.round(text));
+      const row = home.rows.find((candidate) => Math.abs(candidate.getBoundingClientRect().top - line.y) <= 1);
+      if (!row) {
+        const inside = home.rows.find((candidate) => line.y > candidate.getBoundingClientRect().top && line.y < candidate.getBoundingClientRect().bottom);
+        off.push((inside ? nameOf(inside) + ": divider (" + line.by + ") " + Math.round((line.y - inside.getBoundingClientRect().top) * 10) / 10 + " px below the row's top" : "a divider (" + line.by + ") at y " + Math.round(line.y) + " on no row's edge"));
+        continue;
+      }
+      const text = textLeft(row);
+      if (text !== null && Math.abs(line.x - text) > 1) off.push(nameOf(row) + ": divider (" + line.by + ") starts at x " + Math.round(line.x) + ", the row's text at x " + Math.round(text));
     }
+    for (const name of unplaced) off.push("a line drawn by " + name + " that the driver cannot place");
     return { measured, off };
   });
+}
+
+// The page itself never scrolls on a phone: its height is the window's, and focusing a field (by tap, click or Tab)
+// leaves window.scrollY at 0 and the nav bar where it was.
+async function pageHeight(page, where) {
+  const { height, window: tall } = await page.evaluate(() => ({ height: document.documentElement.scrollHeight, window: innerHeight }));
+  check(height === tall, where + ": the page is " + height + " px tall in a " + tall + " px window");
+  return where + " " + height + "/" + tall;
+}
+
+async function focusStill(page, where) {
+  const frames = () => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const place = () => page.evaluate(() => ({ y: scrollY, bar: document.querySelector(".navbar").getBoundingClientRect().top }));
+  const before = await place();
+  const fields = page.locator("input:visible, textarea:visible, [role=textbox]:visible");
+  const count = await fields.count();
+  const seen = [];
+  for (let index = 0; index < count; index += 1) {
+    const field = fields.nth(index);
+    const name = (await field.getAttribute("aria-label")) || (await field.getAttribute("placeholder")) || "field " + index;
+    for (const how of ["focus", "click", "Tab"]) {
+      await page.evaluate(() => document.activeElement && document.activeElement.blur());
+      if (how === "focus") await field.focus();
+      if (how === "click") await field.click();
+      if (how === "Tab") {
+        await field.evaluate((element) => {
+          const all = [...document.querySelectorAll("a[href], button:not([disabled]), input, textarea, summary, [tabindex]")].filter((candidate) => candidate.getClientRects().length);
+          const before = all[all.indexOf(element) - 1];
+          if (before) before.focus({ preventScroll: true });
+        });
+        await page.keyboard.press("Tab");
+        const reached = await field.evaluate((element) => document.activeElement === element);
+        check(reached, where + ": Tab did not reach " + name);
+      }
+      await frames();
+      const now = await place();
+      check(now.y === 0 && now.bar === before.bar, where + ": " + how + " on " + name + " moved the page to scrollY " + now.y + ", nav bar " + before.bar + " -> " + now.bar);
+      await pageHeight(page, where + " (" + name + " " + how + ")");
+    }
+    seen.push(name);
+  }
+  return where + ": " + (seen.length ? seen.join(", ") + " focused by focus, click and Tab; page still" : "no text field; page still");
+}
+
+const PHONE_SCREENS = ["#/", "#/inbox", "#/running", "#/due", "#/done", "#/agents/ag-2", "#/goals", "#/goals/G2", "#/goals/G3", "#/items/T2", "#/items/T4", "#/cards/k-101", "#/cards/k-102", "#/runs/r6", "#/status"];
+
+async function focusSteps(page, step) {
+  for (const height of [480, 844]) {
+    await page.setViewportSize({ width: 390, height });
+    await step("at 390x" + height + ", every phone screen is exactly as tall as the window", async () => {
+      const read = [];
+      for (const hash of PHONE_SCREENS) {
+        await openApp(page, hash);
+        await page.locator("[data-testid=screen-title], .detail-title").first().waitFor();
+        read.push(await pageHeight(page, hash));
+      }
+      return read.join(", ");
+    });
+    for (const [where, hash] of [["to-do", "#/items/T4"], ["goal", "#/goals/G2"]]) {
+      await step("at 390x" + height + ", " + where + ": focusing each text field leaves the page and the nav bar still", async () => {
+        await openApp(page, hash);
+        await page.getByTestId("talk").waitFor();
+        return await focusStill(page, where + " @390x" + height);
+      });
+    }
+    await step("at 390x" + height + ", the bell sheet: the page and the nav bar stay still", async () => {
+      await openApp(page, "#/inbox");
+      await page.getByRole("button", { name: "알림 5" }).click();
+      const sheet = page.getByRole("dialog", { name: "알림" });
+      await sheet.waitFor();
+      await sheet.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+      return (await focusStill(page, "bell @390x" + height)) + "; " + (await pageHeight(page, "bell"));
+    });
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
 }
 
 async function dividers(page, where) {
@@ -1214,6 +1344,10 @@ const drivers = {
     }
     await page.setViewportSize({ width: 390, height: 844 });
     await dividerSteps(page, step, 390);
+    await focusSteps(page, step);
+    await openApp(page, "#/inbox");
+    await page.getByRole("button", { name: "알림 5" }).click();
+    await page.getByRole("dialog", { name: "알림" }).waitFor();
     await step("Escape and a tap outside close the sheet", async () => {
       const sheet = page.getByRole("dialog", { name: "알림" });
       await page.keyboard.press("Escape");

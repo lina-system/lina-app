@@ -842,6 +842,11 @@ const drivers = {
       const unread = rows.find((row) => !row.read).colour;
       check(rows.filter((row) => row.read).every((row) => row.colour !== unread), "read notices are not dimmed");
       check(await dialog().getByRole("button", { name: "모두 읽음" }).isEnabled(), "모두 읽음 is disabled");
+      const header = (await dialog().getByTestId("unread-count").innerText()).trim();
+      const unreadLines = rows.filter((row) => !row.read).length;
+      check(header === "안 읽음 " + unreadLines && name === "알림 " + unreadLines, "badge " + name + ", header " + header + ", unread lines " + unreadLines);
+      await buttonLook(page, dialog().getByRole("button", { name: "모두 읽음" }));
+      await buttonLook(page, dialog().getByRole("button", { name: "닫기" }));
       await dialog().getByRole("button", { name: "닫기" }).click();
       check((await page.getByTestId("notices").count()) === 0, "닫기 did not close the dialog");
       await bell().click();
@@ -857,6 +862,11 @@ const drivers = {
       await page.waitForFunction((hash) => location.hash === hash, target, { timeout: 3_000 }).catch(() => check(false, "the notice did not open " + target));
       const name = await bell().getAttribute("aria-label");
       check(name === "알림 4", "after reading one the bell is named " + name);
+      await bell().click();
+      const header = (await dialog().getByTestId("unread-count").innerText()).trim();
+      const unreadLines = await dialog().locator("li:not(.is-read)").count();
+      check(header === "안 읽음 4" && unreadLines === 4, "after reading one: header " + header + ", unread lines " + unreadLines);
+      await dialog().getByRole("button", { name: "닫기" }).click();
       await page.waitForFunction(() => window.__linaScene.board.counts.unread === 4, null, { timeout: 3_000 }).catch(() => check(false, "the record's unread count is not 4"));
       return target + "; " + name;
     });
@@ -869,6 +879,8 @@ const drivers = {
       await page.waitForFunction(() => window.__linaScene.board.notices.every((notice) => notice.read) && window.__linaScene.board.counts.unread === 0, null, { timeout: 3_000 }).catch(() => check(false, "the record still has unread notices"));
       const dim = await dialog().locator("li.is-read").count();
       check(dim === 7, "dimmed lines " + dim);
+      const header = (await dialog().getByTestId("unread-count").innerText()).trim();
+      check(header === "안 읽음 0", "the header reads " + header);
       const stored = await page.evaluate(() => Object.keys(localStorage).length + Object.keys(sessionStorage).length);
       check(stored === 0, "the page keeps " + stored + " keys in web storage");
       return name + ", 7 dimmed, nothing in web storage";

@@ -208,6 +208,7 @@ describe("every count equals the length of the list it labels", () => {
     const notices = view.getByTestId("notices");
     expect(rowsIn(notices)).toBe(SCENE_COUNTS.notices);
     expect(notices.querySelectorAll("[data-testid=row]:not(.is-read)").length).toBe(bell);
+    expect(within(notices).getByTestId("unread-count").textContent).toBe(`안 읽음 ${bell}`);
     expect(bell).toBe(SCENE_COUNTS.unread);
   });
 });
@@ -631,12 +632,18 @@ describe("bell", () => {
     fireEvent.click(view.getByTestId("bell"));
     const dialog = view.getByRole("dialog", { name: "알림" });
     expect(dialog.querySelectorAll(".is-read")).toHaveLength(2);
+    expect(within(dialog).getByTestId("unread-count").textContent).toBe("안 읽음 5");
     const first = within(dialog).getAllByRole("link")[0];
     const target = first.getAttribute("href");
     fireEvent.click(first);
     expect(window.location.hash).toBe(target);
     expect(view.getByRole("button", { name: "알림 4" })).toBeTruthy();
     await waitFor(() => expect(source.scene.board.notices.filter((notice) => !notice.read)).toHaveLength(4));
+    fireEvent.click(view.getByTestId("bell"));
+    const again = view.getByRole("dialog", { name: "알림" });
+    expect(again.querySelectorAll("[data-testid=row]:not(.is-read)")).toHaveLength(4);
+    expect(within(again).getByTestId("unread-count").textContent).toBe("안 읽음 4");
+    fireEvent.click(view.getByRole("button", { name: "닫기" }));
     expect(reads).toEqual([{ keys: [source.scene.board.notices[0].key] }]);
     fireEvent.click(view.getByTestId("bell"));
     fireEvent.click(view.getByRole("button", { name: "모두 읽음" }));

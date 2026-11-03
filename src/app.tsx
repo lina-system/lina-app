@@ -221,12 +221,17 @@ export function Bell() {
       {open ? (
         <div class="popover" role="dialog" aria-label={W.bell} data-testid="notices">
           <div class="popover-bar">
-            <button type="button" class="text-button" disabled={!count || actions.busy("notices")} onClick={() => void actions.readNotices("all")} data-testid="read-all">
-              {W.readAll}
-            </button>
-            <button type="button" class="text-button is-plain" onClick={() => setOpen(false)} data-testid="close-notices">
-              {W.close}
-            </button>
+            <h2 class="popover-title" data-testid="unread-count">
+              {W.unread(count)}
+            </h2>
+            <div class="popover-tools">
+              <button type="button" class="text-button" disabled={!count || actions.busy("notices")} onClick={() => void actions.readNotices("all")} data-testid="read-all">
+                {W.readAll}
+              </button>
+              <button type="button" class="text-button is-plain" onClick={() => setOpen(false)} data-testid="close-notices">
+                {W.close}
+              </button>
+            </div>
           </div>
           <ul class="rows" aria-label={W.bell}>
             {model.notices.map((notice) => {

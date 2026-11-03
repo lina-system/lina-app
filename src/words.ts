@@ -135,6 +135,7 @@ export const W = {
 
   bell: "알림",
   readAll: "모두 읽음",
+  unread: (n: number) => `안 읽음 ${n}`,
   close: "닫기",
   quickAdd: "할 일 추가",
   markDone: (title: string) => `${title} 완료로 표시`,

@@ -1026,9 +1026,22 @@ button.check:hover:not([aria-disabled="true"]):not(.is-done) {
 
 .popover-bar {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   padding: 2px calc(var(--inset) - 8px) 4px;
   border-bottom: var(--line) solid var(--separator);
+}
+
+.popover-title {
+  padding-left: 8px;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.popover-tools {
+  display: flex;
+  gap: 2px;
 }
 
 .notice-dot {

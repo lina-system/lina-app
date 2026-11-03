@@ -308,7 +308,7 @@ export function AgentScreen({ id }: { id: string }) {
   return (
     <div class="list" data-testid="screen-agent">
       <p class="agent-counts" data-testid="agent-counts">
-        {[view.running, view.review, view.goals].map((section, index) => (
+        {[view.running, view.review, view.planned, view.goals].map((section, index) => (
           <span key={section.id} data-testid={`agent-count-${section.id}`}>
             {index ? SEP : ""}
             {section.title} <CountPair count={section.count} stopped={section.stopped} showZero />
@@ -320,10 +320,11 @@ export function AgentScreen({ id }: { id: string }) {
       </p>
       <ListSection section={view.running} render={(card) => <CardRowView key={card.key} card={card} />} />
       <ListSection section={view.review} render={(card) => <CardRowView key={card.key} card={card} />} />
+      <ListSection section={view.planned} render={(card) => <CardRowView key={card.key} card={card} />} />
       <ListSection section={view.goals} render={(goal) => <GoalLine key={goal.id} goal={goal} showAgent={false} />} />
       <ul class="rows" aria-label={W.done}>
         <li class="row" data-testid="done-today">
-          <Link href={href({ name: "done" })} label={W.doneToday(view.doneToday.count)}>
+          <Link href={href({ name: "done", agent: id })} label={W.doneToday(view.doneToday.count)}>
             <span class="lines">
               <span class="title">{W.doneToday(view.doneToday.count)}</span>
             </span>

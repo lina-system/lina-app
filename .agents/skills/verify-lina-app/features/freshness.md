@@ -10,7 +10,7 @@ The toolbar says how fresh the data is. A failed source shows one orange line wh
 
 ## Intended behavior
 
-- `실시간` while the change stream is open; grey `갱신 지연` while it is down (live.md); red `연결 끊김` when the core cannot be reached. Before the stream first opens, `갱신 n초 전` counts from the last read and turns `갱신 지연` after 30 s.
+- `실시간` while the change stream is open; grey `갱신 지연` while it is down, a stream that never opens included (live.md); red `연결 끊김` when the core cannot be reached. Only in the moment between the first read and the stream's first answer does the line read `갱신 n초 전`.
 - A source listed in the core's `errors[]`, or a route whose read failed, shows `읽기 실패: <source word>` in orange; other screens still draw.
 
 ## Sub-features

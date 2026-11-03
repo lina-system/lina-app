@@ -245,6 +245,8 @@ interface Round {
   readonly endedAt: number | null;
   /** The round's run still beats (the core's run_is_live). */
   readonly live: boolean;
+  /** The line the round left (its summary), drawn dimmed under its head; null when it left none. */
+  readonly line: string | null;
   readonly workers: readonly string[];
 }
 
@@ -266,7 +268,7 @@ export function workerRounds(detail: Pick<WorkCardDetail, "runs" | "workerRuns">
       .map((worker) => worker.id);
     for (const worker of workers) placed.add(worker);
     const content = workers.length > 0 || (start === null && Boolean(run.summary?.trim()));
-    return { round: { n: index + 1, startedAt: start, endedAt: run.endedAt, live: run.live, workers } satisfies Round, content };
+    return { round: { n: index + 1, startedAt: start, endedAt: run.endedAt, live: run.live, line: run.summary?.trim() || null, workers } satisfies Round, content };
   });
   return {
     rounds: rounds.filter(({ content }) => content).map(({ round }) => round).reverse(),
@@ -333,7 +335,7 @@ export function CardScreen({ id }: { id: string }) {
     <article class="detail" data-testid="screen-card">
       <CardHead work={row?.work ?? "code"} title={detail.plain.title}>
         <StateTime state={detail.state} reason={detail.reason} time={row ? [cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP) : ""} />
-        {detail.state === "in_progress" && detail.todoProgress.total > 0 ? <Progress done={detail.todoProgress.done} total={detail.todoProgress.total} /> : null}
+        {detail.state === "in_progress" && detail.todoProgress.total > 0 ? <Progress done={detail.todoProgress.done} total={detail.todoProgress.total} word /> : null}
       </CardHead>
       {questions.map((question) => (
         <DecisionBox key={question.commentId} text={question.body} agent={question.agent} ask at={question.askedAt} />
@@ -369,6 +371,8 @@ export function CardScreen({ id }: { id: string }) {
           {rounds.map((round) => (
             <section key={round.n} class={round.startedAt === null ? "round is-no-start" : "round"} data-testid="round">
               <h3 class="round-head">{roundHead(round, now)}</h3>
+              {/* The round's own line is its content; one that would show a path or a command reads 접힌 댓글. */}
+              {round.line ? <p class="round-line" data-testid="round-line">{foldReason(round.line) ? W.folded : round.line}</p> : null}
               {round.workers.length ? <WorkerRows ids={round.workers} model={model} /> : null}
             </section>
           ))}

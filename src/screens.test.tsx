@@ -1226,3 +1226,44 @@ describe("work cards, round 5", () => {
     expect(detail.container.querySelector(".detail-head .sub")?.textContent).toBe("완료 · 30분 전 · 20분 걸림");
   });
 });
+
+describe("work cards, round 6", () => {
+  beforeEach(() => setWide(true));
+
+  test("a card just created (예정) shows on its agent's screen after 검토 필요, with no time; never on the home", async () => {
+    const view = await open("#/agents/ag-3", { wide: true });
+    const section = view.getByTestId("section-planned");
+    expect(view.getByTestId("head-planned").textContent).toBe("예정1");
+    const row = section.querySelector('li:has(> a[href="#/cards/k-106"])') as HTMLElement;
+    expect(row.querySelector(".title")?.textContent).toBe("백업: 복구 연습 준비하기");
+    expect(row.querySelector(".state")?.textContent).toBe("예정");
+    expect(row.querySelector(".time")).toBeNull();
+    expect(view.getByTestId("agent-count-planned").textContent).toBe(" · 예정 1");
+    const order = [...view.getByTestId("screen-agent").querySelectorAll("[data-testid^=section-]")].map((element) => element.getAttribute("data-testid"));
+    expect(order.indexOf("section-planned")).toBeGreaterThan(Math.max(order.indexOf("section-running"), order.indexOf("section-review")));
+    expect(order.indexOf("section-planned")).toBeLessThan(order.indexOf("section-goals"));
+    view.unmount();
+    const home = await open("#/running", { wide: true });
+    expect(home.container.querySelector('a[href="#/cards/k-106"]')).toBeNull();
+  });
+
+  test("an agent's 완료 · 오늘 line opens 완료 filtered to that agent", async () => {
+    const view = await open("#/agents/ag-1", { wide: true });
+    expect(view.getByTestId("done-today").querySelector("a")?.getAttribute("href")).toBe("#/done?agent=ag-1");
+  });
+
+  test("a round with no start on record draws the line it left, dimmed, under its head", async () => {
+    const view = await open("#/cards/k-103", { wide: true });
+    const round = view.getAllByTestId("round")[1];
+    expect(round.querySelector(".round-head")?.textContent).toBe("라운드 1 · 시작 기록 없음");
+    expect(round.querySelector("[data-testid=round-line]")?.textContent).toBe("오류 문구 초안을 남김");
+  });
+
+  test("a running card's detail head reads its to-dos in words: 할 일 1/3", async () => {
+    const view = await open("#/cards/k-101", { wide: true });
+    expect(view.container.querySelector(".detail-head .progress-count")?.textContent).toBe("할 일 1/3");
+    view.unmount();
+    const home = await open("#/running", { wide: true });
+    expect(home.container.querySelector('li:has(> a[href="#/cards/k-101"]) .progress-count')?.textContent).toBe("1/3");
+  });
+});

@@ -45,14 +45,14 @@ export function AgentMark({ id }: { id: string | null | undefined }) {
 }
 
 /** A running card's to-dos as a thin bar and their count (▮▮▮▯▯ 3/5); the number is the text, the bar its picture. */
-export function Progress({ done, total }: { done: number; total: number }) {
+export function Progress({ done, total, word = false }: { done: number; total: number; word?: boolean }) {
   return (
     <span class="progress" data-testid="progress" aria-label={W.todoProgress(done, total)}>
       <span class="progress-bar" aria-hidden="true">
         <span class="progress-fill" style={{ width: `${Math.round((100 * Math.min(done, total)) / total)}%` }} />
       </span>
       <span class="progress-count" aria-hidden="true">
-        {W.progress(done, total)}
+        {word ? W.todoProgress(done, total) : W.progress(done, total)}
       </span>
     </span>
   );
@@ -83,6 +83,8 @@ export function StateText({ state, reason }: { state: WorkState; reason?: string
  * long ago it ended (완료 · 20분 전). How long a finished card took is in its detail (cardTook).
  */
 export function cardTime(card: CardRow, now: number): string {
+  // A planned card has not started: no time beside it at all.
+  if (card.state === "planned") return "";
   if (card.state === "in_progress" && card.startedAt !== null) return duration(now - card.startedAt);
   if (card.state === "done") return card.endedAt !== null ? ago(now - card.endedAt) : "";
   return card.stateAt !== null ? ago(now - card.stateAt) : "";

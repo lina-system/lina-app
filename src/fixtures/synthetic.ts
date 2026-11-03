@@ -208,10 +208,13 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     { id: "k-103", goal: "kg-2", agent: 1, title: "payment error-copy.json", state: "stopped", reason: "unresponsive", elapsed: 52 * MIN, now: null, plain: plain("결제: 오류 문구 바꾸기"), todos: [["T5", false]], runs: ["r3"], lastBeat: now - 52 * MIN },
     { id: "k-104", goal: "kg-2", agent: 1, title: "payment failure review", state: "waiting", reason: "review", elapsed: 3 * HOUR, now: null, plain: plain("결제: 실패 화면 검토", null, "실패 화면 세 곳의 문구와 버튼을 비교함"), todos: [["T6", false]], runs: ["r4"], lastBeat: now - 3 * HOUR },
     { id: "k-105", goal: "kg-3", agent: 2, title: "backup log audit", state: "done", reason: null, elapsed: 9 * MIN, now: null, plain: plain("백업: 지난 기록 살펴보기", null, "지난 한 달 백업이 모두 끝까지 돌았음"), todos: [["T7", true]], runs: ["r5"], lastBeat: now - 2 * HOUR },
+    // Just created in goal mode and not started: 예정 · ready, no run and no worker run yet.
+    { id: "k-106", goal: "kg-3", agent: 2, title: "backup restore drill prep", state: "planned", reason: "ready", elapsed: 5 * MIN, now: null, plain: plain("백업: 복구 연습 준비하기"), todos: [["T8", false]], runs: [], lastBeat: now - 5 * MIN },
   ] as const;
   // k-101's rounds: each one's own start and end; the worker run of a round started inside it. k-103's first two
   // rounds started before the kept history (start 0): the first left a line, the second only its end receipt.
   const rounds: Record<string, WorkCardDetail["runs"]> = {
+    "k-106": [],
     "k-103": [
       { id: 1, profile: null, status: "done", outcome: "completed", startedAt: 0, endedAt: now - 2 * HOUR, lastHeartbeatAt: now - 2 * HOUR, summary: "오류 문구 초안을 남김", live: false },
       { id: 2, profile: null, status: "done", outcome: "completed", startedAt: 0, endedAt: now - 90 * MIN, lastHeartbeatAt: now - 90 * MIN, summary: null, live: false },

@@ -776,6 +776,13 @@ const drivers = {
       check(lines.every((line) => /^완료 · \d+(분|시간|일) 전$/.test(line)), "done lines read " + lines.join(", "));
       return names.join(" | ") + " / " + lines.join(", ");
     });
+    await step("how long a finished card took is in its detail", async () => {
+      await page.getByRole("list", { name: "완료" }).getByRole("link").first().click();
+      await settled(page);
+      const head = (await page.locator(".detail-head .sub").first().innerText()).trim();
+      check(/^완료 · \d+(분|시간|일) 전 · \d+(분|시간)( \d+분)? 걸림$/.test(head), "the detail reads " + head);
+      return head;
+    });
   },
 
   async "agent-screen"(page, step) {
@@ -814,7 +821,7 @@ const drivers = {
     });
     await step("the header shows counts only; stopped cards get their own red number", async () => {
       const header = (await page.getByTestId("agent-counts").innerText()).trim();
-      for (const id of ["running", "review", "goals"]) {
+      for (const id of ["running", "review", "planned", "goals"]) {
         const head = page.getByTestId("agent-count-" + id);
         const grey = Number(await head.locator(".count").first().innerText());
         const red = (await head.getByTestId("stopped-count").count()) ? Number(await head.getByTestId("stopped-count").innerText()) : 0;
@@ -824,6 +831,32 @@ const drivers = {
         check(grey === rows - stopped && red === stopped, id + " head " + grey + "/" + red + " but rows " + rows + " with " + stopped + " stopped");
       }
       return header;
+    });
+    await step("its 완료 · 오늘 line opens 완료 filtered to this agent", async () => {
+      const target = await page.getByTestId("done-today").getByRole("link").getAttribute("href");
+      const id = new URL(page.url()).hash.split("/").pop();
+      check(target === "#/done?agent=" + id, "the done line opens " + target);
+      return target;
+    });
+    await step("a card just created (예정) shows on its agent's screen after 검토 필요, with no time, and not on the home", async () => {
+      await openApp(page, "#/agents/ag-3");
+      const heads = await page.locator(".list h2.section-head > span:first-child").allInnerTexts();
+      check(heads.includes("예정") && heads.indexOf("예정") === heads.length - 2 && heads.at(-1) === "목표", "sections " + heads.join(", "));
+      const row = page.getByTestId("section-planned").locator('li:has(> a[href="#/cards/k-106"])');
+      const state = (await row.locator(".state").innerText()).trim();
+      check(state === "예정" && (await row.locator(".time").count()) === 0, "the planned card reads " + state + " with " + (await row.locator(".time").count()) + " time");
+      const header = (await page.getByTestId("agent-counts").innerText()).replace(/\s+/g, " ").trim();
+      check(/예정 1( |$)/.test(header), "the header reads " + header);
+      // The latest-activity line sits under the counts, inset like them, and clear of the first section's head.
+      const lines = await page.getByTestId("screen-agent").evaluate((screen) => {
+        const box = (selector) => screen.querySelector(selector).getBoundingClientRect();
+        // The text starts: the counts line's first part and the latest line itself (both sit inside padded boxes).
+        return { counts: box("[data-testid=agent-counts] > span").left, latest: box("[data-testid=agent-latest]").left, latestBottom: box("[data-testid=agent-latest]").bottom, head: box(".section-head").top };
+      });
+      check(Math.abs(lines.latest - lines.counts) <= 1 && lines.latestBottom <= lines.head, "the latest line starts at " + lines.latest + " (counts " + lines.counts + ") and ends at " + lines.latestBottom + " under a head at " + lines.head);
+      await openApp(page, "#/running");
+      check((await page.locator('a[href="#/cards/k-106"]').count()) === 0, "the planned card is on the home");
+      return heads.join(" → ") + "; " + header;
     });
   },
 
@@ -1862,13 +1895,11 @@ const drivers = {
         }),
       );
       check(look.every((row) => row.dim && row.weight === "400" && row.grey && !row.state), "worker run rows read " + JSON.stringify(look));
-      const range = rounds[1].match(/(\d\d):(\d\d)–(\d\d):(\d\d)/);
-      const minutes = range ? (((Number(range[3]) * 60 + Number(range[4])) - (Number(range[1]) * 60 + Number(range[2])) + 1440) % 1440) : -1;
-      await detail.getByTestId("round").nth(1).getByRole("link").click();
-      await page.getByTestId("screen-run").waitFor();
-      const took = (await page.locator(".detail-head .sub").innerText()).trim();
-      check(took.endsWith(" · " + minutes + "분 걸림"), "round 2 spans " + minutes + " minutes, its run reads " + took);
-      return heads.join(", ") + "; " + rounds.join(" | ") + "; round 2's run: " + took;
+      // The round head carries the round's start and end; its single run row repeats neither, nor its own time.
+      const rowText = (await detail.getByTestId("round").nth(1).locator("li.row").innerText()).trim();
+      check(!/\d+(분|시간)/.test(rowText) && /^라운드 2 · \S+–\S+$/.test(rounds[1]), "round 2 reads " + rounds[1] + " and its run row " + rowText);
+      const took = rowText;
+      return heads.join(", ") + "; " + rounds.join(" | ") + "; round 2's run row: " + took;
     });
     await step("the stopped and running group has its heading and counts; finished cards say when they ended", async () => {
       await openApp(page, "#/running");
@@ -1902,7 +1933,11 @@ const drivers = {
       check(heads.length === 2 && /^라운드 3 · \S+ · 중단됨$/.test(heads[0]) && heads[1] === "라운드 1 · 시작 기록 없음", "the rounds read " + JSON.stringify(heads));
       const weight = await page.getByTestId("round").nth(1).locator(".round-head").evaluate((head) => getComputedStyle(head).fontWeight);
       check(weight === "400", "the no-start line has weight " + weight);
-      return heads.join(" | ");
+      const line = (await page.getByTestId("round").nth(1).getByTestId("round-line").innerText()).trim();
+      check(line === "오류 문구 초안을 남김", "the no-start round's line reads " + line);
+      const head = await page.locator(".detail-head .sub").first().evaluate((sub) => ({ state: getComputedStyle(sub.querySelector(".state")).color, time: getComputedStyle(sub.querySelector(".time")).color, grey: getComputedStyle(document.querySelector(".kind-mark")).color }));
+      check(head.state === "rgb(255, 59, 48)" && head.time === head.grey, "the stopped head reads state " + head.state + ", time " + head.time);
+      return heads.join(" | ") + "; " + line + "; head state red, time grey";
     });
     await step("완료's agent filter is the address and survives a reload; each count is its list; latest activity agrees", async () => {
       await openApp(page, "#/done");
@@ -1935,7 +1970,7 @@ const drivers = {
       const bars = await page.getByTestId("screen-running").getByTestId("progress").evaluateAll((items) => items.map((item) => item.getAttribute("aria-label")));
       check(JSON.stringify(bars) === JSON.stringify(wide ? ["할 일 1/3", "할 일 0/1"] : []), "the home's bars read " + JSON.stringify(bars));
       await openApp(page, "#/cards/k-101");
-      const head = await page.locator(".detail-head [data-testid=progress]").getAttribute("aria-label");
+      const head = (await page.locator(".detail-head [data-testid=progress] .progress-count").innerText()).trim();
       check(head === "할 일 1/3", "the detail head's bar reads " + head);
       return (wide ? bars.join(", ") : "no bar on the phone home") + "; detail " + head;
     });

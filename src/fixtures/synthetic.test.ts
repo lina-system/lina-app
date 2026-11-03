@@ -76,8 +76,10 @@ test("the scene holds what every screen needs", () => {
   expect(cards.filter((card) => card.state === "done")).toHaveLength(1);
   for (const card of cards) {
     expect(scene.cardDetails[card.id].todos.length).toBeGreaterThan(0);
-    expect(scene.cardDetails[card.id].workerRuns.length).toBeGreaterThan(0);
+    // A card just created (예정) has no run and no worker run yet; every other card has one.
+    expect(scene.cardDetails[card.id].workerRuns.length > 0).toBe(card.state !== "planned");
   }
+  expect(cards.filter((card) => card.state === "planned").map((card) => [card.id, card.reason])).toEqual([["k-106", "ready"]]);
   const owned = new Set(Object.values(scene.cardDetails).flatMap((detail) => detail.workerRuns.map((run) => run.id)));
   const outside = scene.board.cards.filter((run) => !owned.has(run.id));
   expect(outside.map((run) => run.id)).toEqual(["r6", "r7", "r8"]);

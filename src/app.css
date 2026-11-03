@@ -452,7 +452,7 @@ button:disabled {
 
 .list > .agent-latest {
   display: block;
-  margin: 0 16px 8px;
+  margin: 0 var(--inset, 16px) 8px;
 }
 
 .filter .choice[aria-pressed="true"] {
@@ -469,6 +469,12 @@ button:disabled {
 .agent-latest-line {
   color: var(--label-2);
   font-size: var(--text-small);
+}
+
+/* On the agent screen the latest activity sits under the counts, inset like them, before the first section. */
+.agent-latest-line {
+  margin: 0;
+  padding: 0 var(--inset) 14px;
 }
 
 .agent-latest-line:empty {
@@ -530,6 +536,18 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+/* Red marks the problem everywhere: a stopped card's state words in its detail head too; its time stays grey. */
+.detail-head .state[data-state="stopped"] {
+  color: var(--red);
+}
+
+/* The line a round left, under its head: dimmed like its worker runs. */
+.round-line {
+  margin: 0 0 4px;
+  color: var(--label-2);
+  font-size: var(--text-small);
+}
+
 /* A round whose start is not on record: one dim line. */
 .round.is-no-start .round-head {
   font-weight: 400;
@@ -586,7 +604,7 @@ button:disabled {
 }
 
 .agent-counts {
-  padding: 4px var(--inset) 14px;
+  padding: 4px var(--inset) 4px;
   font-size: var(--text-small);
   color: var(--label-2);
 }
@@ -1396,6 +1414,10 @@ html:has(.stack) body {
 }
 
 .stack .agent-counts {
+  padding: 0 calc(var(--inset) + 12px) 4px;
+}
+
+.stack .agent-latest-line {
   padding: 0 calc(var(--inset) + 12px) 12px;
 }
 

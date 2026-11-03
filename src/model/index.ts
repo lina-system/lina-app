@@ -134,6 +134,8 @@ export interface AgentView {
   readonly latest: number | null;
   readonly running: Section<CardRow>;
   readonly review: Section<CardRow>;
+  /** Cards just created and not started (예정), newest first; only here, never on the home. */
+  readonly planned: Section<CardRow>;
   readonly goals: Section<GoalRow>;
   readonly doneToday: Section<CardRow>;
 }
@@ -484,6 +486,7 @@ export function agentView(model: Model, agentId: string): AgentView | null {
   const stoppedCards = mine.filter((card) => card.state === "stopped").sort(newestFirst((card) => card.stateAt));
   const running = [...stoppedCards, ...mine.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt))];
   const review = mine.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt));
+  const planned = mine.filter((card) => card.state === "planned").sort(newestFirst((card) => card.stateAt));
   const goals = model.goals.filter((goal) => goal.agent === agentId);
   const doneToday = model.done.filter((card) => card.agent === agentId && card.endedAt !== null && localDay(card.endedAt) === model.today);
   return {
@@ -491,6 +494,7 @@ export function agentView(model: Model, agentId: string): AgentView | null {
     latest: latestActivity(mine),
     running: section("running", W.agentRunning, running),
     review: section("review", W.agentReview, review),
+    planned: section("planned", STATE_WORD.planned, planned),
     goals: section("goals", W.agentGoals, goals),
     doneToday: section("done", W.done, doneToday),
   };

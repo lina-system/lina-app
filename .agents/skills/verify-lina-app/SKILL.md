@@ -28,7 +28,7 @@ Two runs with different `VERIFY_RUN_ID`s run side by side; each has its own buil
 node .agents/skills/verify-lina-app/scripts/verify.mjs doctor
 ```
 
-Read-only. It prints JSON with `"healthy"`, `problems` and `notes`, and exits `1` when unhealthy. It checks that the recorded process is alive, `/app/` answers `200`, the page's version equals `package.json`'s, and the sidebar and bell show the scene's counts (수신함 `7`, 진행 중인 작업 `2` with a red `1`, 마감일 `5`, 완료 `1`, 목표 `5`, `알림 7`, `기기 3 · 정상 1 · 경고 1 · 꺼짐 1`), which is how it tells this run's fixture instance from any other page. A note says when the checkout has moved past the build's revision; relaunch to drive the current code. Run doctor before the first drive, after any failed drive, and whenever anything looks off.
+Read-only. It prints JSON with `"healthy"`, `problems` and `notes`, and exits `1` when unhealthy. It checks that the recorded process is alive, `/app/` answers `200`, the page's version equals `package.json`'s, and the sidebar and bell show the scene's counts (수신함 `7`, 진행 중인 작업 `2` with a red `1`, 마감일 `5`, 완료 `1`, 목표 `5`, `알림 5`, `기기 3 · 정상 1 · 경고 1 · 꺼짐 1`), which is how it tells this run's fixture instance from any other page. A note says when the checkout has moved past the build's revision; relaunch to drive the current code. Run doctor before the first drive, after any failed drive, and whenever anything looks off.
 
 ## Drive
 
@@ -39,7 +39,7 @@ node .agents/skills/verify-lina-app/scripts/verify.mjs drive --all
 node .agents/skills/verify-lina-app/scripts/verify.mjs map
 ```
 
-`drive` runs the recipe of each named feature at 1280 and 390 wide in headless Chromium. Feature ids are the file names in [`features/`](features/README.md); each file's `Driving it with verify.mjs` section lists the steps and the result each one must show. Drivers find elements by role and accessible name (`getByRole("list", { name: "결정 필요" })`, `getByRole("checkbox", { name: "<title> 완료로 표시" })`, `getByRole("button", { name: "알림 7" })`, rows named by agent, sentence and state) and then by `data-testid` (`freshness-line`, `nav-inbox`, `device-line`, `screen-title`, `back`). It prints `ok` or `DEFECT` per feature and width, exits `1` on any defect, and after the drive lists map drift.
+`drive` runs the recipe of each named feature at 1280 and 390 wide in headless Chromium. Feature ids are the file names in [`features/`](features/README.md); each file's `Driving it with verify.mjs` section lists the steps and the result each one must show. Drivers find elements by role and accessible name (`getByRole("list", { name: "결정 필요" })`, `getByRole("checkbox", { name: "<title> 완료로 표시" })`, `getByRole("button", { name: "알림 5" })`, rows named by agent, sentence and state) and then by `data-testid` (`freshness-line`, `nav-inbox`, `device-line`, `screen-title`, `back`). It prints `ok` or `DEFECT` per feature and width, exits `1` on any defect, and after the drive lists map drift.
 
 `map` checks the map alone: every feature file is listed in the index, has a driver, and has the seven sections in order, and every driver has a file. It exits `1` on drift.
 

@@ -2,7 +2,8 @@ import { expect, test, vi } from "vitest";
 import { bootstrapOptions, HttpSource } from "./http-source";
 import { startRefresh, type RefreshHost } from "./refresh";
 import { chooseSource } from "./select";
-import { SyntheticSource } from "./synthetic-source";
+import { Store } from "./store";
+import { SYNTHETIC_REPLY_AFTER, SyntheticSource, UNDO_SECONDS } from "./synthetic-source";
 
 test("reads each route on its schema's server url with the session token and the last ETag", async () => {
   const calls: { url: string; headers: Record<string, string> }[] = [];
@@ -83,4 +84,166 @@ test("refreshes every 10 s while visible, pauses while hidden and reads once on 
   } finally {
     vi.useRealTimers();
   }
+});
+
+test("machines and quota are read on the same refresh, at most once a minute", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  try {
+    const reads: string[] = [];
+    const inner = new SyntheticSource();
+    const source = new Proxy(inner, {
+      get(target, key, receiver) {
+        if (key !== "read") return Reflect.get(target, key, receiver);
+        return (name: Parameters<SyntheticSource["read"]>[0], id?: string) => {
+          reads.push(name);
+          return target.read(name, id);
+        };
+      },
+    });
+    const store = new Store(source);
+    const slow = () => reads.filter((name) => name === "devices" || name === "quota").length;
+    await store.refresh();
+    expect(slow()).toBe(2);
+    for (let tick = 1; tick <= 5; tick += 1) {
+      vi.advanceTimersByTime(10_000);
+      await store.refresh();
+    }
+    expect(slow()).toBe(2);
+    expect(reads.filter((name) => name === "board")).toHaveLength(6);
+    vi.advanceTimersByTime(10_000);
+    await store.refresh();
+    expect(slow()).toBe(4);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+function recordingFetch(answer: (url: string) => Response) {
+  const calls: { url: string; method: string; headers: Record<string, string>; body: unknown }[] = [];
+  const fetchImpl = (async (url: string, init?: RequestInit) => {
+    calls.push({ url, method: init?.method ?? "GET", headers: { ...(init?.headers as Record<string, string>) }, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+    return answer(url);
+  }) as typeof fetch;
+  return { calls, fetchImpl };
+}
+
+const ACTION = { ok: true, id: "T4", state: "in_progress", reason: null, cid: "c9", undoUntil: null };
+
+test("a comment posts its text as JSON to the item's comments route with the session token", async () => {
+  const { calls, fetchImpl } = recordingFetch(() => new Response(JSON.stringify(ACTION), { status: 200 }));
+  const source = new HttpSource({ fetch: fetchImpl, token: "token-a", basePath: "/core" });
+  expect(await source.comment("T 4", { text: "한 줄" })).toEqual({ ok: true, data: ACTION });
+  expect(calls).toEqual([
+    {
+      url: "/core/api/lina/work/items/T%204/comments",
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json", "X-Hermes-Session-Token": "token-a" },
+      body: { text: "한 줄" },
+    },
+  ]);
+});
+
+test("a refused write answers the core's status and detail; no answer reads status 0", async () => {
+  const refused = new HttpSource({ fetch: recordingFetch(() => new Response(JSON.stringify({ detail: "no open decision" }), { status: 409 })).fetchImpl });
+  expect(await refused.comment("T4", { text: "네", answer: true })).toEqual({ ok: false, status: 409, detail: "no open decision" });
+  const broken = new HttpSource({ fetch: recordingFetch(() => new Response("oops", { status: 500 })).fetchImpl });
+  expect(await broken.comment("T4", { text: "네" })).toEqual({ ok: false, status: 500, detail: null });
+  const offline = new HttpSource({ fetch: (async () => Promise.reject(new TypeError("network"))) as typeof fetch });
+  expect(await offline.comment("T4", { text: "네" })).toEqual({ ok: false, status: 0, detail: null });
+});
+
+test("the synthetic source adds the comment to its copy and the agent replies on a read after a few seconds", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  try {
+    const source = new SyntheticSource();
+    await source.read("item", "T4");
+    expect((await source.read("item", "T4")).kind).toBe("unchanged");
+    const result = await source.comment("T4", { text: "  한 줄 더  " });
+    expect(result).toMatchObject({ ok: true, data: { id: "T4", cid: expect.any(String) } });
+    const after = await source.read("item", "T4");
+    expect(after.kind).toBe("data");
+    const added = after.kind === "data" ? after.data.comments.at(-1) : undefined;
+    expect(added).toMatchObject({ by: "owner", text: "한 줄 더", status: "open", kind: "comment", replies: [] });
+    vi.advanceTimersByTime((SYNTHETIC_REPLY_AFTER - 1) * 1000);
+    expect((await source.read("item", "T4")).kind).toBe("unchanged");
+    vi.advanceTimersByTime(1000);
+    const replied = await source.read("item", "T4");
+    expect(replied.kind === "data" ? replied.data.comments.at(-1)?.replies : []).toMatchObject([{ by: "ag-2", result: "applied" }]);
+    expect(await source.comment("T4", { text: "네", answer: true })).toMatchObject({ ok: false, status: 409 });
+    expect(await source.comment("T4", { text: "   " })).toMatchObject({ ok: false, status: 400, detail: "text must be 1-2000 characters after trimming" });
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("done, undo, retry and a card answer post to their routes with their bodies", async () => {
+  const { calls, fetchImpl } = recordingFetch(() => new Response(JSON.stringify(ACTION), { status: 200 }));
+  const source = new HttpSource({ fetch: fetchImpl, token: "token-a" });
+  await source.done("G1", { withOpen: true });
+  await source.done("T3", {});
+  await source.undo("G1");
+  await source.retry("T5");
+  await source.answerCard("k-102", { text: "네" });
+  expect(calls.map((call) => [call.method, call.url, call.body])).toEqual([
+    ["POST", "/api/lina/work/items/G1/done", { withOpen: true }],
+    ["POST", "/api/lina/work/items/T3/done", {}],
+    ["POST", "/api/lina/work/items/G1/undo", {}],
+    ["POST", "/api/lina/work/items/T5/retry", {}],
+    ["POST", "/api/plugins/kanban/work/inbox/k-102/answer", { text: "네" }],
+  ]);
+  expect(calls.every((call) => call.headers["X-Hermes-Session-Token"] === "token-a" && call.headers["Content-Type"] === "application/json")).toBe(true);
+});
+
+test("the synthetic copy marks done, refuses a goal with open to-dos, and one undo within ten minutes reopens all", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  try {
+    const source = new SyntheticSource();
+    const scene = source.scene;
+    expect(await source.done("G1", {})).toMatchObject({ ok: false, status: 409, detail: "G1에 열린 할 일이 남아 있어 완료로 표시하지 않았다: T1, T2, T3 — 함께 닫으려면 --with-open" });
+    const marked = await source.done("G1", { withOpen: true });
+    expect(marked).toMatchObject({ ok: true, data: { state: "done", undoUntil: expect.any(Number) } });
+    expect(["G1", "T1", "T2", "T3"].map((id) => scene.itemDetails[id].state)).toEqual(["done", "done", "done", "done"]);
+    expect(scene.itemDetails.G1.ownerDone?.with).toEqual(["T1", "T2", "T3"]);
+    expect(scene.items.items.find((item) => item.id === "G1")?.todos).toEqual({ done: 3, total: 3 });
+    expect(scene.board.inbox.mine.map((row) => row.id)).toEqual(["T9"]);
+    expect(await source.undo("G1")).toMatchObject({ ok: true, data: { state: "in_progress" } });
+    expect(["G1", "T1", "T2", "T3"].map((id) => scene.itemDetails[id].state)).toEqual(["in_progress", "in_progress", "waiting", "planned"]);
+    expect(scene.board.inbox.mine.map((row) => row.id)).toEqual(["T3", "T9"]);
+    expect(await source.undo("G1")).toMatchObject({ ok: false, status: 409 });
+
+    await source.done("T3", {});
+    vi.advanceTimersByTime((UNDO_SECONDS + 1) * 1000);
+    expect(await source.undo("T3")).toMatchObject({ ok: false, status: 409, detail: expect.stringMatching(/^완료 표시 뒤 10분이 지나 되돌리지 않았다/) });
+    await source.done("T9", {});
+    await source.comment("T9", { text: "끝냈어요" });
+    expect(await source.undo("T9")).toMatchObject({ ok: false, status: 409, detail: "T9의 마지막 기록이 주인의 완료 표시가 아니다" });
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("a card answer leaves a comment on the card and takes its question out of the work inbox", async () => {
+  const source = new SyntheticSource();
+  expect(await source.answerCard("k-102", { text: "네, 여섯 자리까지요" })).toMatchObject({ ok: true, data: { cardId: "k-102" } });
+  expect(source.scene.cardDetails["k-102"].comments.at(-1)).toMatchObject({ author: "owner", body: "네, 여섯 자리까지요" });
+  expect(source.scene.inbox.questions).toEqual([]);
+  expect(await source.retry("T5")).toMatchObject({ ok: true });
+  expect(source.scene.itemDetails.T5.comments.at(-1)).toMatchObject({ by: "owner", text: "다시 시도해 주세요." });
+  expect(source.scene.itemDetails.T5.state).toBe("stopped");
+});
+
+test("read marks post the chosen keys or all, and the synthetic copy answers the unread count", async () => {
+  const { calls, fetchImpl } = recordingFetch(() => new Response(JSON.stringify({ ok: true, unread: 3 }), { status: 200 }));
+  const http = new HttpSource({ fetch: fetchImpl, token: "token-a" });
+  expect(await http.readNotices({ keys: ["ask:T2:1"] })).toEqual({ ok: true, data: { ok: true, unread: 3 } });
+  await http.readNotices({ all: true });
+  expect(calls.map((call) => [call.url, call.body])).toEqual([
+    ["/api/lina/notices/read", { keys: ["ask:T2:1"] }],
+    ["/api/lina/notices/read", { all: true }],
+  ]);
+  const source = new SyntheticSource();
+  const key = source.scene.board.notices.find((notice) => !notice.read)?.key ?? "";
+  expect(await source.readNotices({ keys: [key] })).toEqual({ ok: true, data: { ok: true, unread: 4 } });
+  expect(source.scene.board.counts.unread).toBe(4);
+  expect(await source.readNotices({ all: true })).toEqual({ ok: true, data: { ok: true, unread: 0 } });
 });

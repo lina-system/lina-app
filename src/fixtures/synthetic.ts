@@ -24,8 +24,10 @@ export const SYNTHETIC_SEED = 0x5eed;
 
 const AGENT_NAMES = ["Mirel", "Tavo", "Quenna", "Orli", "Pesk"] as const;
 const MACHINE_NAMES = ["솔방울", "징검돌", "모래톱", "물레방아"] as const;
-const SERVICE_NAMES = ["가온셈", "나린셈"] as const;
+// Two services the app has display names for and one it shows as the core gives it.
+const SERVICE_NAMES = ["anthropic", "openai", "가온셈"] as const;
 const OWNER = { id: "owner", name: "나" } as const;
+export const SYNTHETIC_OWNER = OWNER;
 
 type Rng = () => number;
 
@@ -52,6 +54,8 @@ function shuffle<T>(rng: Rng, values: readonly T[]): T[] {
 export interface SceneOptions {
   readonly now: number;
   readonly sourceError?: boolean;
+  /** No card or worker run is running, so 진행 중인 작업 holds only the stopped card (`&running=none`). */
+  readonly noRunning?: boolean;
 }
 
 export interface Scene {
@@ -258,8 +262,8 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
   const goalWorkCards: Record<string, string[]> = { G1: ["kg-1", "k-101"], G2: ["kg-2", "k-102", "k-103", "k-104"], G3: ["kg-3", "k-105"], G4: ["kg-4"], G5: [] };
   const todoWorkCards: Record<string, string[]> = { T1: ["k-101"], T3: ["k-101"], T4: ["k-102"], T5: ["k-103"], T6: ["k-104"], T7: ["k-105"] };
 
-  const decisions: Record<string, { text: string; kind: "ask" | "act"; ago: number }> = {
-    T2: { text: "배포를 금요일 오후에 해도 될까요?", kind: "ask", ago: 3 * DAY },
+  const decisions: Record<string, { text: string; kind: "ask" | "act"; ago: number; choices?: string[]; recommended?: string }> = {
+    T2: { text: "배포를 금요일 오후에 해도 될까요?", kind: "ask", ago: 3 * DAY, choices: ["금요일 오후", "월요일 오전"], recommended: "금요일 오후" },
     G3: { text: "복구 연습에 쓸 두 시간을 비워 주세요.", kind: "act", ago: 2 * DAY },
     T12: { text: "자주 쓰는 검색어 열 개를 알려 주세요.", kind: "act", ago: 1 * DAY },
   };
@@ -340,7 +344,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       links: [],
       workCards: todoWorkCards[todo.id] ?? [],
       decision: decision
-        ? { text: decision.text, kind: decision.kind, choices: [], recommended: null, cid: null, at: now - decision.ago, answered: false }
+        ? { text: decision.text, kind: decision.kind, choices: decision.choices ?? [], recommended: decision.recommended ?? null, cid: null, at: now - decision.ago, answered: false }
         : null,
       ownerDone: null,
     };
@@ -381,33 +385,56 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     { name: machines[1], state: "warn", why: "disk", cpu: 35, memory: 58, disk: 91, temp: 55, load: 1.2, cores: 8, running: 1, cap: 4, freeGb: 18, metricsAt: now - 25 },
     { name: machines[2], state: "down", why: "unreachable", cpu: null, memory: null, disk: null, temp: null, load: null, cores: null, running: null, cap: 2, freeGb: null, metricsAt: now - 3 * HOUR },
   ];
+  // A window warns when its rate reaches 100% before it resets, the core's rule for `warn`.
+  const quotaWindow = (key: string, percent: number, resetIn: number, ratePerHour: number | null) => ({
+    key,
+    percent,
+    resetAt: now + resetIn,
+    ratePerHour,
+    warn: ratePerHour !== null && percent + (ratePerHour * resetIn) / HOUR >= 100,
+  });
+  const quotaAccount = (id: string, number: number, plan: string, mainWindow: string, windows: ReturnType<typeof quotaWindow>[], paused = false) => ({
+    id,
+    number,
+    plan,
+    paused,
+    unavailable: false,
+    mainWindow,
+    warn: windows.some((window) => window.warn),
+    windows,
+  });
   const quotaList: BoardSnapshot["quota"] = options.sourceError
     ? []
     : [
         {
           service: SERVICE_NAMES[0],
           percent: 72,
-          ratePerHour: 9,
+          ratePerHour: 10,
           accounts: [
-            { id: "acct-a", number: 1, plan: "pro", paused: false, unavailable: false, mainWindow: "fiveHour", warn: true, windows: [{ key: "fiveHour", percent: 72, resetAt: now + 3 * HOUR, ratePerHour: 9, warn: true }] },
+            quotaAccount("acct-a", 1, "pro", "fiveHour", [quotaWindow("fiveHour", 72, 3 * HOUR, 10), quotaWindow("weekly", 40, 4 * DAY, 0.5)]),
+            quotaAccount("acct-b", 2, "pro", "fiveHour", [quotaWindow("fiveHour", 18, 2 * HOUR, 3)]),
           ],
         },
         {
           service: SERVICE_NAMES[1],
           percent: 31,
-          ratePerHour: 2,
-          accounts: [
-            { id: "acct-b", number: 1, plan: "team", paused: false, unavailable: false, mainWindow: "weekly", warn: false, windows: [{ key: "weekly", percent: 31, resetAt: now + 4 * DAY, ratePerHour: 2, warn: false }] },
-          ],
+          ratePerHour: 1,
+          accounts: [quotaAccount("acct-c", 1, "team", "weekly", [quotaWindow("weekly", 31, 2 * DAY, 1)])],
+        },
+        {
+          service: SERVICE_NAMES[2],
+          percent: 5,
+          ratePerHour: null,
+          accounts: [quotaAccount("acct-d", 1, "basic", "monthly", [quotaWindow("monthly", 5, 12 * DAY, null)], true)],
         },
       ];
   const errors: BoardSnapshot["errors"] = options.sourceError ? [{ source: "quota", message: "quota source did not answer" }] : [];
 
   const notices: BoardSnapshot["notices"] = [
-    ...decide.map((row) => ({ key: `ask:${row.target}:${row.at}`, target: row.target, at: row.at, kind: "ask" as const, line: `${row.title}: ${row.kind === "ask" ? "질문" : "요청"}` })),
-    { key: `ask:${question.cardId}:${question.askedAt}`, target: question.cardId, at: question.askedAt, kind: "ask", line: `${question.title}: 질문` },
-    { key: `review:r6:${now - 5 * HOUR}`, target: "r6", at: now - 5 * HOUR, kind: "review", line: "색인 구조 다시 비교: 검토 필요" },
-    ...mineRows.map((row) => ({ key: `todo:${row.id}:${now - DAY}`, target: row.id, at: now - DAY, kind: "todo" as const, line: `${row.title}: 내 할 일` })),
+    ...decide.map((row) => ({ key: `ask:${row.target}:${row.at}`, target: row.target, at: row.at, kind: "ask" as const, line: `${row.title}: ${row.kind === "ask" ? "질문" : "요청"}`, read: false })),
+    { key: `ask:${question.cardId}:${question.askedAt}`, target: question.cardId, at: question.askedAt, kind: "ask", line: `${question.title}: 질문`, read: false },
+    { key: `review:r6:${now - 5 * HOUR}`, target: "r6", at: now - 5 * HOUR, kind: "review", line: "색인 구조 다시 비교: 검토 필요", read: true },
+    ...mineRows.map((row) => ({ key: `todo:${row.id}:${now - DAY}`, target: row.id, at: now - DAY, kind: "todo" as const, line: `${row.title}: 내 할 일`, read: row.id === "T9" })),
   ];
 
   const board: BoardSnapshot = {
@@ -421,6 +448,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       due: due.overdue.length + due.today.length + due.week.length + due.later.length,
       done: 1,
       agents: { [agentId(0)]: 1, [agentId(1)]: 1, [agentId(2)]: 0 },
+      unread: notices.filter((notice) => !notice.read).length,
     },
     cards: runCards,
     inbox: { decide, review: ["r6"], mine: mineRows },
@@ -429,6 +457,16 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     machines: machineList,
     quota: quotaList,
   };
+
+  if (options.noRunning) {
+    const running = new Set([...cardList.cards.filter((card) => card.state === "in_progress").map((card) => card.id), ...runCards.filter((run) => run.state === "in_progress").map((run) => run.id)]);
+    cardList.cards = cardList.cards.filter((card) => !running.has(card.id));
+    for (const id of running) delete cardDetails[id];
+    for (const goal of goalCards) goal.workCards = goal.workCards.filter((card) => !running.has(card.id));
+    board.cards = board.cards.filter((run) => !running.has(run.id));
+    board.counts.running = 0;
+    for (const agent of Object.keys(board.counts.agents ?? {})) if (board.counts.agents) board.counts.agents[agent] = 0;
+  }
 
   return {
     now,
@@ -460,4 +498,5 @@ export const SCENE_COUNTS = {
   machinesWarn: 1,
   machinesDown: 1,
   notices: 7,
+  unread: 5,
 } as const;

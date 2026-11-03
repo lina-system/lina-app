@@ -7,6 +7,12 @@ export function stripAnsi(text) {
   return text.replace(ANSI, "");
 }
 
+// The address is looked up as text, never built into a pattern: "127.0.0.1:<port>" not followed by a digit.
 export function previewReady(logText, port) {
-  return new RegExp(`127\\.0\\.0\\.1:${port}(?!\\d)`).test(stripAnsi(logText));
+  const text = stripAnsi(logText);
+  const address = `127.0.0.1:${port}`;
+  for (let at = text.indexOf(address); at >= 0; at = text.indexOf(address, at + 1)) {
+    if (!/\d/.test(text.charAt(at + address.length))) return true;
+  }
+  return false;
 }

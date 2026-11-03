@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-// Renaming a field the home screen reads (ItemSummary.title, in the lina#166 block of board-client.yaml) must
+// Renaming a field the home screen reads (ItemSummary.title in board-client.yaml) must
 // fail the app build, so a schema change in the core cannot slip past the screens.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const schemaPath = path.join(root, "openapi", "board-client.yaml");
@@ -17,9 +17,9 @@ const end = originalSchema.indexOf("\n    ItemList:\n", start);
 if (start < 0 || end < 0) throw new Error("schema is missing the ItemSummary schema the app reads");
 const block = originalSchema.slice(start, end);
 const required = "parent, title, agent";
-const field = "        title: {type: string}";
+const field = "        title:\n          type: string\n";
 if (!block.includes(required) || !block.includes(field)) throw new Error("ItemSummary is missing the title field the app reads");
-const renamedBlock = block.replace(required, "parent, heading, agent").replace(field, "        heading: {type: string}");
+const renamedBlock = block.replace(required, "parent, heading, agent").replace(field, "        heading:\n          type: string\n");
 const renamedSchema = originalSchema.slice(0, start) + renamedBlock + originalSchema.slice(end);
 
 let output = "";

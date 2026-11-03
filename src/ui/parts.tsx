@@ -8,6 +8,7 @@ import { ago, duration, total } from "../time";
 import { SEP, stateLabel, W } from "../words";
 import { ChevronIcon, CodeIcon, DeviceKindIcon, DocsIcon, ResearchIcon } from "./icons";
 import type { CardKind } from "../model/kind";
+import { useActions } from "./actions";
 
 const KIND_ICON: Record<CardKind, () => JSX.Element> = { code: CodeIcon, docs: DocsIcon, research: ResearchIcon, device: DeviceKindIcon };
 
@@ -79,12 +80,12 @@ export function StateTime({ state, reason, time }: { state: WorkState; reason?: 
   );
 }
 
-export function CardRowView({ card, dim = false, kindIcon = true }: { card: CardRow; dim?: boolean; kindIcon?: boolean }) {
+export function CardRowView({ card, dim = false, kindIcon = true, action, error }: { card: CardRow; dim?: boolean; kindIcon?: boolean; action?: ComponentChildren; error?: string }) {
   const { model, now, wide, selected } = useApp();
   const time = cardTime(card, now);
   const label = [agentName(model, card.agent), card.title, stateLabel(card.state, card.reason)].filter(Boolean).join(SEP);
   return (
-    <li class={`row card-row${card.state === "stopped" ? " is-stopped" : ""}${dim ? " is-dim" : ""}`} data-testid="row">
+    <li class={`row card-row${card.state === "stopped" ? " is-stopped" : ""}${dim ? " is-dim" : ""}${action ? " has-action" : ""}`} data-testid="row">
       <Link href={card.href} label={label} current={selected === card.href}>
         {kindIcon ? <span class="kind" data-kind={card.work}>{KIND_ICON[card.work]()}</span> : null}
         <AgentMark id={card.agent} />
@@ -104,6 +105,8 @@ export function CardRowView({ card, dim = false, kindIcon = true }: { card: Card
           </span>
         )}
       </Link>
+      {action}
+      <ErrorLine line={error} />
     </li>
   );
 }
@@ -170,6 +173,47 @@ export function CheckBox({ title, done }: { title: string; done: boolean }) {
       aria-disabled="true"
       aria-label={W.markDone(title)}
     />
+  );
+}
+
+/**
+ * The round check box of a goal or to-do (Things style). Unchecked: a tap marks it done at once. Checked by the
+ * owner within the undo window: a tap takes it back. Otherwise it only shows the state. `onOpenTodos` runs instead
+ * of marking when a goal still has open to-dos, so the page can ask first.
+ */
+export function DoneCheck({ id, title, done, undoUntil, withOpen = [], openTodos = 0, onOpenTodos }: { id: string; title: string; done: boolean; undoUntil?: number | null; withOpen?: readonly string[]; openTodos?: number; onOpenTodos?: () => void }) {
+  const actions = useActions();
+  const { now } = useApp();
+  const shown = actions.isDone(id, done);
+  const until = actions.undoUntil(id, undoUntil);
+  const canUndo = shown && until !== null && now < until;
+  const inert = shown && !canUndo;
+  const click = () => {
+    if (actions.busy(`done:${id}`) || inert) return;
+    if (shown) void actions.undoDone(id, withOpen);
+    else if (openTodos > 0 && onOpenTodos) onOpenTodos();
+    else void actions.markDone(id);
+  };
+  return (
+    <button
+      type="button"
+      class={`check${shown ? " is-done" : ""}`}
+      role="checkbox"
+      aria-checked={shown}
+      aria-disabled={inert || actions.busy(`done:${id}`) ? "true" : undefined}
+      aria-label={shown ? W.isDone(title) : W.markDone(title)}
+      onClick={click}
+      data-testid="done-check"
+    />
+  );
+}
+
+export function ErrorLine({ line }: { line: string | undefined }) {
+  if (!line) return null;
+  return (
+    <p class="write-error" role="alert" data-testid="write-error">
+      {line}
+    </p>
   );
 }
 

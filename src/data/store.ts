@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import type { RouteName, Routes } from "../api/client";
 import type { ModelInput } from "../model";
-import { nowSeconds, type Source } from "./source";
+import { nowSeconds, type Source, type WriteResult } from "./source";
 
 type Status = "pending" | "ok" | "missing" | "failed";
 
@@ -13,7 +13,10 @@ interface Entry {
 
 export type Want = readonly (readonly [RouteName, string?])[];
 
-const LIST_ROUTES: readonly RouteName[] = ["board", "items", "goals", "cards", "inbox", "devices", "quota"];
+const LIST_ROUTES: readonly RouteName[] = ["board", "items", "goals", "cards", "inbox"];
+/** Machines and quota change slowly: read on the same refresh trigger, at most once a minute. */
+const SLOW_ROUTES: readonly RouteName[] = ["devices", "quota"];
+export const SLOW_REFRESH_S = 60;
 
 /**
  * The last answer of every route the screens read. A read that returns 304 keeps the same objects, so the
@@ -21,11 +24,14 @@ const LIST_ROUTES: readonly RouteName[] = ["board", "items", "goals", "cards", "
  */
 export class Store {
   version = 0;
+  /** Finished refreshes; a line that lasts "until the next refresh" remembers the count it was drawn at. */
+  refreshes = 0;
   lastOk: number | null = null;
   offline = false;
   private readonly entries = new Map<string, Entry>();
   private readonly listeners = new Set<() => void>();
   private wanted: Want = [];
+  private slowReadAt: number | null = null;
 
   constructor(readonly source: Source) {}
 
@@ -78,14 +84,39 @@ export class Store {
 
   /** One read of every list route, every work card's detail and whatever the open screen wants. */
   async refresh(): Promise<void> {
-    const firstWave = await Promise.all(LIST_ROUTES.map((name) => this.load(name)));
+    const now = nowSeconds();
+    const slow = this.slowReadAt === null || now - this.slowReadAt >= SLOW_REFRESH_S - 1 ? SLOW_ROUTES : [];
+    if (slow.length) this.slowReadAt = now;
+    const firstWave = await Promise.all([...LIST_ROUTES, ...slow].map((name) => this.load(name)));
     const cardIds = (this.get("cards")?.cards ?? []).map((card) => card.id);
     const secondWave = await Promise.all([
       ...cardIds.map((id) => this.load("card", id)),
       ...this.wanted.filter(([name, id]) => !(name === "card" && id && cardIds.includes(id))).map(([name, id]) => this.load(name, id)),
     ]);
+    this.refreshes += 1;
     if ([...firstWave, ...secondWave].some(Boolean) || this.version === 0) this.changed();
     else for (const listener of this.listeners) listener();
+  }
+
+  /**
+   * One of the owner's writes. After the core takes it, one read brings the record's own state back, so the
+   * screen shows what the record says rather than what the tap assumed; `refresh: false` leaves that to the
+   * next refresh.
+   */
+  async write<T>(send: (source: Source) => Promise<WriteResult<T>>, options: { refresh?: boolean } = {}): Promise<WriteResult<T>> {
+    const result = await send(this.source);
+    if (result.ok && options.refresh !== false) await this.refresh();
+    return result;
+  }
+
+  /** Reads routes not read yet without changing what the open screen wants (an expanded row's record). */
+  ensure(routes: Want): void {
+    const missing = routes.filter(([name, id]) => !this.entries.has(this.key(name, id)));
+    if (!missing.length) return;
+    for (const [name, id] of missing) this.entries.set(this.key(name, id), { status: "pending" });
+    void Promise.all(missing.map(([name, id]) => this.load(name, id))).then((changes) => {
+      if (changes.some(Boolean)) this.changed();
+    });
   }
 
   want(routes: Want): void {

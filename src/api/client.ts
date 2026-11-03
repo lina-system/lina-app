@@ -10,6 +10,7 @@ export type ItemRow = Board["schemas"]["ItemRow"];
 export type Notice = Board["schemas"]["Notice"];
 export type Machine = Board["schemas"]["Machine"];
 export type QuotaService = Board["schemas"]["QuotaService"];
+export type QuotaAccount = Board["schemas"]["QuotaAccount"];
 export type SourceError = Board["schemas"]["SourceError"];
 export type DevicesView = Board["schemas"]["DevicesView"];
 export type QuotaView = Board["schemas"]["QuotaView"];
@@ -19,6 +20,24 @@ export type ItemSummary = Board["schemas"]["ItemSummary"];
 export type ItemDetail = Board["schemas"]["ItemDetail"];
 export type ItemComment = Board["schemas"]["ItemComment"];
 export type ItemRun = Board["schemas"]["ItemRun"];
+export type ActionResult = Board["schemas"]["ActionResult"];
+
+/** The core's own one-line refusal (4xx): `{detail}`. */
+export type Refusal = Board["schemas"]["Refusal"];
+
+type JsonBody<T> = T extends { requestBody?: { content: { "application/json": infer Body } } } ? Body : never;
+
+/** Request bodies of the owner's writes, from the core's schema. */
+export type CommentRequest = JsonBody<BoardPaths["/work/items/{id}/comments"]["post"]>;
+export type DoneRequest = JsonBody<BoardPaths["/work/items/{id}/done"]["post"]>;
+/** work-client's AnswerRequest; `author` has a default (owner), so the app sends text only. */
+export interface AnswerRequest {
+  readonly text: string;
+}
+export type AnswerResult = Work["schemas"]["AnswerResult"];
+export type NoticesReadResult = Board["schemas"]["ReadResult"];
+/** The core takes exactly one of the two: the notices chosen (at least one), or all of them. */
+export type NoticesReadRequest = JsonBody<BoardPaths["/notices/read"]["post"]> & ({ keys: string[]; all?: never } | { all: true; keys?: never });
 
 export type GoalList = Work["schemas"]["GoalList"];
 export type WorkGoal = Work["schemas"]["WorkGoal"];
@@ -46,6 +65,20 @@ export type RouteName = keyof Routes;
 
 export const BOARD_BASE = "/api/lina";
 export const WORK_BASE = "/api/plugins/kanban";
+
+/** The owner's write routes (lina#149); each answers ActionResult or 4xx {detail}. */
+export type WriteRoute = "comments" | "done" | "undo" | "retry";
+
+export function writePath(route: WriteRoute, id: string): string {
+  return `${BOARD_BASE}/work/items/${encodeURIComponent(id)}/${route}`;
+}
+
+export const NOTICES_READ_PATH = `${BOARD_BASE}/notices/read`;
+
+/** A question a work card asks is answered on the work API (work-client.yaml). */
+export function cardAnswerPath(cardId: string): string {
+  return `${WORK_BASE}/work/inbox/${encodeURIComponent(cardId)}/answer`;
+}
 
 export function routePath(name: RouteName, id?: string): string {
   const enc = id === undefined ? "" : encodeURIComponent(id);

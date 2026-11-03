@@ -473,8 +473,10 @@ button:disabled {
   stroke-width: 2.5;
 }
 
-.dial-track {
-  stroke: var(--fill);
+/* A filled disc, so a goal's progress never reads as an empty check box beside one. */
+.dial .dial-track {
+  fill: var(--fill);
+  stroke: none;
 }
 
 .dial-fill {
@@ -508,7 +510,8 @@ button:disabled {
   color: var(--orange);
 }
 
-.quota-row .row-body {
+.quota-row .row-body,
+.account-row {
   flex-wrap: wrap;
 }
 
@@ -526,8 +529,87 @@ button:disabled {
   background: var(--accent);
 }
 
-.quota-row.is-warn .meter-fill {
+.meter-fill.is-high {
   background: var(--red);
+}
+
+.mini-meters {
+  display: flex;
+  gap: 14px;
+  margin-top: 3px;
+  font-size: var(--text-small);
+  color: var(--label-2);
+}
+
+.mini-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mini-meter .meter {
+  flex: none;
+  width: 44px;
+  height: 3px;
+}
+
+.mini-none {
+  color: var(--label-2);
+}
+
+.quota-fold > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--row);
+  padding: 6px var(--inset);
+  cursor: pointer;
+  list-style: none;
+}
+
+/* Hover only where there is a pointer: a tap on a phone must not leave the row grey. */
+@media (hover: hover) {
+  .quota-fold > summary:hover {
+    background: var(--fill);
+  }
+}
+
+.stack .quota-fold > summary {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.stack .accounts {
+  padding-left: 26px;
+  padding-right: 12px;
+}
+
+.quota-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.quota-fold .disclosure {
+  transition: transform var(--motion);
+}
+
+.quota-fold[open] .disclosure {
+  transform: rotate(90deg);
+}
+
+.accounts {
+  display: grid;
+  padding: 0 var(--inset) 8px calc(var(--inset) + 14px);
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.account-row + .account-row {
+  border-top: var(--line) solid var(--separator);
 }
 
 .warn-mark {
@@ -657,6 +739,265 @@ button:disabled {
   border-left: 2px solid var(--separator);
 }
 
+.resolved > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.resolved > summary::-webkit-details-marker {
+  display: none;
+}
+
+.resolved[open] > summary {
+  margin-bottom: 4px;
+}
+
+/* Writes: fields, text buttons and the one line a refused write leaves. */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.comment-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.note.is-inline {
+  flex: 1;
+  min-width: 0;
+}
+
+.note.is-inline input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: var(--line) solid var(--separator);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--label);
+  font: inherit;
+  font-size: var(--text-body);
+}
+
+.note.is-inline input::placeholder {
+  color: var(--label-2);
+}
+
+.text-button {
+  flex: none;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.text-button:hover:not(:disabled) {
+  background: var(--fill);
+}
+
+.text-button:disabled {
+  color: var(--label-2);
+}
+
+/* On a phone every text button and answer is at least 44 pt tall, like a system control. */
+.stack .text-button,
+.stack .choice,
+.stack ~ .toast-slot .toast-undo {
+  min-height: 44px;
+}
+
+.stack .text-button,
+.stack ~ .toast-slot .toast-undo {
+  padding: 0 10px;
+}
+
+.write-error {
+  margin-top: 6px;
+  font-size: var(--text-small);
+  color: var(--red);
+}
+
+.row > .write-error {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 0 var(--inset) 8px calc(var(--inset) + 30px);
+}
+
+button.check {
+  cursor: pointer;
+  transition: background-color var(--motion), border-color var(--motion);
+}
+
+button.check[aria-disabled="true"] {
+  cursor: default;
+}
+
+button.check:hover:not([aria-disabled="true"]):not(.is-done) {
+  border-color: var(--accent);
+}
+
+.check-row {
+  flex-wrap: wrap;
+}
+
+.is-checked .title {
+  text-decoration: line-through;
+  color: var(--label-2);
+}
+
+/* A decision row: the whole row is a disclosure button; its panel opens under it. */
+
+.row > .row-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--row);
+  padding: 6px var(--inset);
+  text-align: left;
+  transition: background-color var(--motion);
+}
+
+@media (hover: hover) {
+  .row > .row-button:hover {
+    background: var(--fill);
+  }
+}
+
+.decision-panel {
+  display: grid;
+  gap: 8px;
+  padding: 0 var(--inset) 12px calc(var(--inset) + 30px);
+}
+
+.decision-panel .crumb {
+  color: var(--accent);
+}
+
+.decision-panel .comment-form {
+  margin-top: 0;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  background: var(--fill);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+@media (hover: hover) {
+  .choice:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+}
+
+.tag {
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* A card row with a control after its link (다시 시도). */
+
+.row.has-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.row.has-action > a {
+  flex: 1;
+  min-width: 0;
+}
+
+.row.has-action > .retry,
+.row.has-action > .requested {
+  margin-right: calc(var(--inset) - 8px);
+}
+
+.requested {
+  padding-right: 8px;
+}
+
+.head-undo {
+  margin-left: auto;
+}
+
+.confirm {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--fill);
+}
+
+.confirm-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.text-button.is-plain:not(:disabled) {
+  color: var(--accent);
+  font-weight: 400;
+}
+
+/* The toast: one line at the bottom centre, above the phone's bottom bar. */
+
+.toast-slot {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(24px + var(--safe-bottom));
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.stack ~ .toast-slot {
+  bottom: calc(56px + var(--safe-bottom) + var(--keyboard-inset, 0px));
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: rgba(30, 30, 32, 0.94);
+  color: #ffffff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  pointer-events: auto;
+  animation: pop var(--motion);
+}
+
+.toast-undo {
+  color: #64d2ff;
+  font-weight: 600;
+}
+
 /* Bell. */
 
 .bell {
@@ -681,6 +1022,45 @@ button:disabled {
 
 .notice-row > a {
   min-height: var(--row-dense);
+}
+
+.popover-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px calc(var(--inset) - 8px) 4px;
+  border-bottom: var(--line) solid var(--separator);
+}
+
+.popover-title {
+  padding-left: 8px;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.popover-tools {
+  display: flex;
+  gap: 2px;
+}
+
+.notice-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.notice-dot.is-unread {
+  background: var(--accent);
+}
+
+.notice-row.is-read .title {
+  color: var(--label-2);
+}
+
+.notice-error {
+  padding: 0 var(--inset) 6px;
 }
 
 

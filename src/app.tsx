@@ -9,6 +9,7 @@ import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RunningSc
 import { CardScreen, GoalScreen, ItemScreen, RunScreen } from "./screens/details";
 import { BackIcon, BellIcon, CalendarIcon, DeviceIcon, DoneIcon, GoalIcon, InboxIcon, PlusIcon, RunningIcon } from "./ui/icons";
 import { AgentMark, CountPair, Ctx, Disclosure, useApp, type AppContext } from "./ui/parts";
+import { ActionsCtx, useActions, useActionsFor } from "./ui/actions";
 import { APP_VERSION } from "./version";
 import { SEP, W } from "./words";
 
@@ -183,8 +184,14 @@ function noticeHref(model: Model, target: string): string {
   return href({ name: item?.kind === "goal" ? "goal" : "item", id: target });
 }
 
+/**
+ * The bell: the badge is the core's unread count, the dialog lists the notices with read ones dimmed. Choosing a
+ * notice opens its item and marks it read on the core; 모두 읽음 marks them all. Read marks live on the core only,
+ * so every device shows the same number after its next refresh.
+ */
 export function Bell() {
   const { model } = useApp();
+  const actions = useActions();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -199,10 +206,11 @@ export function Bell() {
       document.removeEventListener("keydown", close);
     };
   }, [open]);
-  const count = model.counts.notices;
+  const marking = model.notices.filter((notice) => !notice.read && actions.isRead(notice.key, false)).length;
+  const count = Math.max(0, model.counts.unread - marking);
   return (
     <div class="bell" ref={ref}>
-      <button type="button" class="tool" aria-label={count ? `${W.bell} ${count}` : W.bell} aria-expanded={open} aria-haspopup="true" onClick={() => setOpen(!open)} data-testid="bell">
+      <button type="button" class="tool" aria-label={count ? `${W.bell} ${count}` : W.bell} aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(!open)} data-testid="bell">
         <BellIcon />
         {count ? (
           <span class="badge" data-testid="bell-count">
@@ -211,21 +219,61 @@ export function Bell() {
         ) : null}
       </button>
       {open ? (
-        <div class="popover" data-testid="notices">
+        <div class="popover" role="dialog" aria-label={W.bell} data-testid="notices">
+          <div class="popover-bar">
+            <h2 class="popover-title" data-testid="unread-count">
+              {W.unread(count)}
+            </h2>
+            <div class="popover-tools">
+              <button type="button" class="text-button" disabled={!count || actions.busy("notices")} onClick={() => void actions.readNotices("all")} data-testid="read-all">
+                {W.readAll}
+              </button>
+              <button type="button" class="text-button is-plain" onClick={() => setOpen(false)} data-testid="close-notices">
+                {W.close}
+              </button>
+            </div>
+          </div>
           <ul class="rows" aria-label={W.bell}>
-            {model.notices.map((notice) => (
-              <li key={notice.key} class="row notice-row" data-testid="row">
-                <a href={noticeHref(model, notice.target)} onClick={(event) => {
-                  setOpen(false);
-                  linkClick(event);
-                }}>
-                  <span class="lines">
-                    <span class="title">{notice.line}</span>
-                  </span>
-                </a>
-              </li>
-            ))}
+            {model.notices.map((notice) => {
+              const read = actions.isRead(notice.key, notice.read);
+              return (
+                <li key={notice.key} class={`row notice-row${read ? " is-read" : ""}`} data-testid="row" data-read={read ? "true" : "false"}>
+                  <a
+                    href={noticeHref(model, notice.target)}
+                    onClick={(event) => {
+                      setOpen(false);
+                      if (!read) void actions.readNotices([notice.key]);
+                      linkClick(event);
+                    }}
+                  >
+                    <span class={read ? "notice-dot" : "notice-dot is-unread"} aria-hidden="true" />
+                    <span class="lines">
+                      <span class="title">{notice.line}</span>
+                    </span>
+                  </a>
+                </li>
+              );
+            })}
           </ul>
+          {actions.noticesError ? <p class="write-error notice-error" role="alert" data-testid="write-error">{actions.noticesError}</p> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** The one toast: what was just done and 되돌리기, for five seconds. */
+export function Toast() {
+  const actions = useActions();
+  const toast = actions.toast;
+  return (
+    <div class="toast-slot" aria-live="polite">
+      {toast ? (
+        <div class="toast" role="status" data-testid="toast" key={toast.id}>
+          <span>{toast.text}</span>
+          <button type="button" class="toast-undo" onClick={() => actions.undoToast()}>
+            {W.undo}
+          </button>
         </div>
       ) : null}
     </div>
@@ -372,7 +420,8 @@ export function App({ store }: { store: Store }) {
   const wide = useWide();
   const nav = useNav();
   const minute = Math.floor(now / 60);
-  const model = useMemo(() => buildModel(store.input(), now), [version, minute]);
+  const actions = useActionsFor(store);
+  const model = useMemo(() => buildModel({ ...store.input(), pending: actions.pending() }, now), [version, minute, actions.version]);
 
   useEffect(() => startRefresh(() => void store.refresh()), [store]);
   useEffect(() => store.want(wantsFor(nav.route, store)), [nav.hash, version]);
@@ -380,7 +429,10 @@ export function App({ store }: { store: Store }) {
   const context: AppContext = { model, store, now, wide, selected: isList(nav.route) ? null : nav.hash };
   return (
     <Ctx.Provider value={context}>
-      {wide ? <WideShell route={nav.route} stack={nav.state.stack} /> : <PhoneShell route={nav.route} stack={nav.state.stack} />}
+      <ActionsCtx.Provider value={actions}>
+        {wide ? <WideShell route={nav.route} stack={nav.state.stack} /> : <PhoneShell route={nav.route} stack={nav.state.stack} />}
+        <Toast />
+      </ActionsCtx.Provider>
     </Ctx.Provider>
   );
 }

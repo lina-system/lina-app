@@ -16,12 +16,29 @@ const SCREENS: readonly { id: string; hash: string; query?: string; wideOnly?: b
   { id: "goal-detail", hash: "#/goals/G2" },
   { id: "goal-done", hash: "#/goals/G4" },
   { id: "item-detail", hash: "#/items/T4" },
+  {
+    id: "item-comment",
+    hash: "#/items/T4",
+    open: async (page) => {
+      await page.getByRole("textbox", { name: "댓글 달기" }).fill("휴대폰 가로 화면도 봐 주세요");
+      await page.getByRole("button", { name: "보내기", exact: true }).click();
+      await expect(page.getByTestId("comment-pending")).toHaveText(/에게 보냄 · 방금$/);
+    },
+  },
   { id: "item-decision", hash: "#/items/T2" },
   { id: "goal-decision", hash: "#/goals/G3" },
   { id: "card-question", hash: "#/cards/k-102" },
   { id: "card-detail", hash: "#/cards/k-101" },
   { id: "run-detail", hash: "#/runs/r6" },
   { id: "status", hash: "#/status" },
+  {
+    id: "status-accounts",
+    hash: "#/status",
+    open: async (page) => {
+      await page.getByRole("list", { name: "쿼터" }).locator("summary").first().click();
+      await expect(page.getByTestId("account").first()).toBeVisible();
+    },
+  },
   {
     id: "safe-area",
     hash: "#/cards/k-101",
@@ -35,6 +52,61 @@ const SCREENS: readonly { id: string; hash: string; query?: string; wideOnly?: b
     },
   },
   { id: "read-failed", hash: "#/inbox", query: "&error=quota" },
+  {
+    id: "decision-open",
+    hash: "#/inbox",
+    open: async (page) => {
+      const rows = page.getByRole("list", { name: "결정 필요" }).locator(".row-button");
+      await rows.nth(0).click();
+      await rows.nth(1).click();
+      await expect(page.getByRole("button", { name: /추천$/ })).toBeVisible();
+      await expect(page.getByTestId("waiting-on")).toBeVisible();
+    },
+  },
+  {
+    id: "answered-toast",
+    hash: "#/inbox",
+    open: async (page) => {
+      await page.getByRole("list", { name: "결정 필요" }).locator(".row-button").first().click();
+      await page.getByRole("button", { name: /추천$/ }).click();
+      await expect(page.getByTestId("toast")).toHaveText(/^답함/);
+    },
+  },
+  {
+    id: "done-toast",
+    hash: "#/goals/G2",
+    open: async (page) => {
+      await page.getByRole("checkbox", { name: "결제 실패 화면 검토 완료로 표시" }).click();
+      await expect(page.getByRole("checkbox", { name: "결제 실패 화면 검토 완료됨" })).toBeVisible();
+      await expect(page.getByTestId("toast")).toHaveText(/^완료로 표시함/);
+    },
+  },
+  {
+    id: "goal-with-open",
+    hash: "#/goals/G1",
+    open: async (page) => {
+      await page.getByRole("checkbox", { name: "릴리스 노트 정리 완료로 표시" }).click();
+      await expect(page.getByTestId("with-open")).toBeVisible();
+    },
+  },
+  { id: "running-stopped-only", hash: "#/running", query: "&running=none" },
+  {
+    id: "done-held",
+    hash: "#/inbox",
+    open: async (page) => {
+      await page.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" }).click();
+      await page.waitForFunction(() => (window as unknown as { __linaScene: { itemDetails: Record<string, { state: string }> } }).__linaScene.itemDetails.T3.state === "done");
+      await expect(page.getByRole("checkbox", { name: "공지 문구 확인 완료됨" })).toBeVisible();
+    },
+  },
+  {
+    id: "retry-requested",
+    hash: "#/running",
+    open: async (page) => {
+      await page.getByTestId("retry").click();
+      await expect(page.getByTestId("retry-requested")).toBeVisible();
+    },
+  },
   {
     id: "bell",
     hash: "#/inbox",

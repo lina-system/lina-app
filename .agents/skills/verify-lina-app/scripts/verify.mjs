@@ -31,7 +31,7 @@ const viteBin = path.join(repo, "node_modules", "vite", "bin", "vite.js");
 // The synthetic scene (src/fixtures/synthetic.ts, SCENE_COUNTS). Doctor compares the sidebar and the bell
 // against it, so a page showing anything else is not this run's instance.
 const APP_PATH = "/app/?source=synthetic";
-const FIXTURE = { inbox: "7", running: "2", stopped: "1", due: "5", done: "1", goals: "5", bell: "알림 7", devices: "기기 3 · 정상 1 · 경고 1 · 꺼짐 1" };
+const FIXTURE = { inbox: "7", running: "2", stopped: "1", due: "5", done: "1", goals: "5", bell: "알림 5", devices: "기기 3 · 정상 1 · 경고 1 · 꺼짐 1" };
 const WIDTHS = [1280, 390];
 const H2S = [
   "Platforms",
@@ -242,7 +242,9 @@ async function text(locator) {
 }
 
 // The app lives under /app/ on the core's origin; the drive always draws the synthetic scene.
+// Always a fresh load: going to the address the page already shows only moves the hash and keeps the scene.
 async function openApp(page, hash, query = "") {
+  if (page.url() !== "about:blank") await page.goto("about:blank");
   await page.goto(APP_PATH + query + hash);
   await page.getByTestId("freshness-line").filter({ hasText: /^갱신 \d+초 전$/ }).waitFor({ timeout: 10_000 });
 }
@@ -276,6 +278,22 @@ async function stoppedCardColours(list) {
   return "title " + stopped.title + ", state " + stopped.state + ", time " + stopped.time;
 }
 
+async function decisionNames(list) {
+  await list.first().waitFor({ timeout: 10_000 });
+  return list.locator(":scope > li > .row-button").evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label")));
+}
+
+const ACCENT = "rgb(0, 122, 255)";
+
+// A text button reads as a button: accent text when enabled, secondary grey only when disabled, 44 px tall on a phone.
+async function buttonLook(page, locator) {
+  const look = await locator.evaluate((button) => ({ text: button.textContent.trim(), colour: getComputedStyle(button).color, disabled: button.disabled, height: button.getBoundingClientRect().height }));
+  if (look.disabled) check(look.colour !== ACCENT, look.text + " is disabled but drawn in the accent colour");
+  else check(look.colour === ACCENT, look.text + " is enabled but drawn " + look.colour);
+  if (page.viewportSize().width < 900) check(look.height >= 44, look.text + " is " + look.height + " px tall on a phone");
+  return look.text + "=" + look.colour + (look.disabled ? " (disabled)" : "") + ", " + Math.round(look.height) + " px";
+}
+
 async function sidebarCount(page, testid) {
   const nav = page.getByTestId(testid);
   if (!(await nav.count())) return null;
@@ -289,7 +307,7 @@ const drivers = {
       return await title(page);
     });
     await step("read the three groups in order", async () => {
-      const decide = await rowNames(page.getByRole("list", { name: "결정 필요" }));
+      const decide = await decisionNames(page.getByRole("list", { name: "결정 필요" }));
       const review = await rowNames(page.getByRole("list", { name: "검토 필요" }));
       const mine = await rowNames(page.getByRole("list", { name: "내 할 일" }));
       check(decide.length === 4 && review.length === 1 && mine.length === 2, "groups have " + decide.length + "/" + review.length + "/" + mine.length + " rows, expected 4/1/2");
@@ -307,8 +325,11 @@ const drivers = {
       return days.join(", ");
     });
     await step("each decision opens the record it is aimed at, which shows the decision", async () => {
-      const rows = await page.getByRole("list", { name: "결정 필요" }).getByRole("link").evaluateAll((links) =>
-        links.map((link) => ({ href: link.getAttribute("href"), text: link.querySelector(".title").textContent.trim(), context: link.querySelector(".context").textContent.trim(), kind: link.querySelector(".kind-word").textContent.trim() })),
+      const list = page.getByRole("list", { name: "결정 필요" });
+      const buttons = list.locator(":scope > li > .row-button");
+      for (let index = 0; index < (await buttons.count()); index += 1) await buttons.nth(index).click();
+      const rows = await list.locator(":scope > li").evaluateAll((items) =>
+        items.map((item) => ({ href: item.querySelector(".decision-panel a").getAttribute("href"), text: item.querySelector(".row-button .title").textContent.trim(), context: item.querySelector(".decision-panel a").textContent.trim(), kind: item.querySelector(".kind-word").textContent.trim() })),
       );
       const seen = { item: 0, card: 0 };
       for (const row of rows) {
@@ -334,8 +355,13 @@ const drivers = {
       await openApp(page, "#/inbox");
       return rows.length + " decisions: " + seen.item + " on goals or to-dos, " + seen.card + " on a card";
     });
-    await step("open the first decision", async () => {
-      await page.getByRole("list", { name: "결정 필요" }).getByRole("link").first().click();
+    await step("a decision expands in place, and its line opens the record", async () => {
+      const first = page.getByRole("list", { name: "결정 필요" }).locator(":scope > li").first();
+      await first.locator(".row-button").click();
+      check((await first.locator(".row-button").getAttribute("aria-expanded")) === "true", "the row did not expand");
+      check(/#\/inbox$/.test(page.url()), "expanding the row navigated to " + page.url());
+      await first.getByRole("button", { name: /추천$/ }).waitFor({ timeout: 5_000 }).catch(() => check(false, "the first decision shows no recommended answer"));
+      await first.locator(".decision-panel a").click();
       await page.locator(".detail-title").waitFor();
       check(/#\/items\//.test(page.url()), "the row opened " + page.url());
       return (await page.locator(".detail-title").innerText()) + " at " + new URL(page.url()).hash;
@@ -368,6 +394,17 @@ const drivers = {
       return lines.join(", ");
     });
     await step("a stopped card: label title, red state words, grey time", async () => stoppedCardColours(page.getByRole("list", { name: "진행 중인 작업" })));
+    await step("with no running card the stopped one is still listed, with 다시 시도", async () => {
+      await openApp(page, "#/running", "&running=none");
+      const list = page.getByRole("list", { name: "진행 중인 작업", exact: true });
+      await list.waitFor({ timeout: 5_000 }).catch(() => check(false, "the screen shows its empty state with a stopped card"));
+      const names = await rowNames(list);
+      check(names.length === 1 && names[0].endsWith("중단됨 · 응답 없음"), "the list reads " + names.join(" | "));
+      const retry = await buttonLook(page, page.getByRole("button", { name: /다시 시도$/ }));
+      check((await page.getByText("없음", { exact: true }).count()) === 0, "the empty state shows beside the stopped card");
+      await openApp(page, "#/running");
+      return names[0] + "; " + retry;
+    });
     await step("the now line shows at 1280 only", async () => {
       const wide = page.viewportSize().width >= 900;
       const shown = await page.getByText("변경 목록을 기능별로 묶는 중").first().isVisible();
@@ -488,11 +525,14 @@ const drivers = {
       for (const head of ["완료 조건", "내 말", "할 일", "작업"]) check(heads.some((text) => text.includes(head)), "no " + head + " box: " + heads.join(", "));
       const fold = await page.locator("details.fold").evaluate((element) => element.open);
       check(fold === false, "the owner's words are not folded");
-      const boxes = page.getByRole("checkbox", { name: /완료로 표시$/ });
-      check((await boxes.count()) === 3, "expected 3 check boxes");
-      check((await boxes.first().getAttribute("aria-disabled")) === "true", "check boxes are not inert");
+      const boxes = page.locator(".detail").getByRole("list", { name: "할 일" }).getByRole("checkbox", { name: /완료로 표시$/ });
+      check((await boxes.count()) === 3, "expected 3 to-do check boxes");
+      const all = await page.locator(".detail").getByRole("checkbox").count();
+      check(all === 4 && (await page.locator(".detail-head").getByRole("checkbox", { name: "결제 화면 개편 완료로 표시" }).count()) === 1, "expected the goal's head box plus 3, got " + all);
+      check((await boxes.first().getAttribute("aria-disabled")) === null, "an open to-do's check box is inert");
       const cards = await rowNames(page.getByRole("list", { name: "작업" }));
       check(cards.length === 3, "expected 3 work cards, got " + cards.length);
+      check(await page.getByRole("textbox", { name: "댓글 달기" }).isVisible(), "the goal page has no comment field");
       return heads.join(", ") + "; cards " + cards.join(" | ");
     });
     await step("a done goal shows the evidence that closed it", async () => {
@@ -510,18 +550,59 @@ const drivers = {
       return new URL(page.url()).hash;
     });
     await step("read the check box, done condition, state, runs and thread", async () => {
-      const box = page.getByRole("checkbox", { name: "카드 입력 폼 다듬기 완료로 표시" });
-      check((await box.getAttribute("aria-disabled")) === "true", "the check box is not inert");
+      const box = page.locator(".detail-head").getByRole("checkbox", { name: "카드 입력 폼 다듬기 완료로 표시" });
+      check((await box.getAttribute("aria-disabled")) === null, "the open to-do's check box is inert");
       const heads = await page.locator(".detail .box-head").allInnerTexts();
       check(JSON.stringify(heads) === JSON.stringify(["완료 조건", "실행", "댓글"]), "boxes " + heads.join(", "));
+      const resolved = page.getByTestId("resolved");
+      check((await resolved.count()) === 1 && !(await resolved.evaluate((fold) => fold.open)), "the resolved thread is not folded");
+      const fold = (await resolved.locator("summary").innerText()).trim();
+      check(/^해결됨 · \S+/.test(fold), "the resolved thread reads " + fold);
       const runs = await page.getByRole("list", { name: "실행" }).innerText();
       check(/카드 입력 폼 다듬기\s*·\s*진행 중/.test(runs), "run line reads " + runs);
       const comments = await page.getByTestId("comment").count();
       const replies = await page.getByTestId("reply").count();
       check(comments === 2 && replies === 2, "thread has " + comments + " comments and " + replies + " replies");
       const byline = await page.getByTestId("reply").first().locator(".sub").innerText();
-      check(/^.+ · \d+(분|시간|일) 전/.test(byline), "reply byline reads " + byline);
+      check(/^.+ · 1시간 전$/.test(byline), "an 80-minute-old reply reads " + byline + ", expected <author> · 1시간 전");
+      const resolvedReply = (await page.getByTestId("resolved").getByTestId("reply").locator(".sub").textContent()).trim();
+      check(/^\S+ · 55분 전 · 반영함$/.test(resolvedReply), "a 55-minute-old reply reads " + resolvedReply + ", expected <author> · 55분 전 · 반영함");
       return heads.join(", ") + "; " + comments + " comments, " + replies + " replies";
+    });
+    await step("send a comment: it shows at once with its pending line and lands in the record", async () => {
+      const field = page.getByRole("textbox", { name: "댓글 달기" });
+      const send = page.getByRole("button", { name: "보내기", exact: true });
+      check(await send.isDisabled(), "보내기 is enabled on an empty field");
+      const empty = await buttonLook(page, send);
+      await field.fill("휴대폰 가로 화면도 봐 주세요");
+      const ready = await buttonLook(page, send);
+      check(ready.includes(ACCENT), "보내기 does not turn accent once the field has text: " + ready);
+      await send.click();
+      const pending = page.getByTestId("comment-pending");
+      await pending.waitFor({ timeout: 2_000 });
+      const line = (await pending.innerText()).trim();
+      check(/^\S+에게 보냄 · 방금$/.test(line), "the pending line reads " + line + " (button " + empty + " → " + ready + ")");
+      check((await field.inputValue()) === "", "the field still holds the sent text");
+      await page.waitForFunction(() => window.__linaScene.itemDetails.T4.comments.some((comment) => comment.text === "휴대폰 가로 화면도 봐 주세요" && comment.by === "owner"), null, { timeout: 5_000 }).catch(() => check(false, "the synthetic record has no such comment"));
+      return line;
+    });
+    await step("the agent's reply arrives on a later refresh and the pending line goes", async () => {
+      await page.getByTestId("comment-pending").waitFor({ state: "detached", timeout: 25_000 }).catch(() => check(false, "the pending line stayed after the reply was due"));
+      const reply = (await page.getByTestId("reply").last().locator(".sub").innerText()).trim();
+      check(/^\S+ · 방금 · 반영함$/.test(reply), "a reply seconds old reads " + reply + ", expected <author> · 방금 · 반영함");
+      return reply;
+    });
+    await step("from 수신함, a decision's line opens 배포 순서 정하기 with its decision box", async () => {
+      await openApp(page, "#/inbox");
+      const row = page.getByRole("list", { name: "결정 필요" }).locator(":scope > li").filter({ has: page.getByRole("button", { name: /배포를 금요일 오후에 해도 될까요/ }) });
+      await row.locator(".row-button").click();
+      await row.locator(".decision-panel a").click();
+      await page.waitForFunction(() => location.hash === "#/items/T2", null, { timeout: 3_000 }).catch(() => check(false, "the decision opened " + page.url()));
+      const title = (await page.locator(".detail-title").first().innerText()).trim();
+      check(title === "배포 순서 정하기", "the to-do opened is " + title);
+      const box = (await page.getByTestId("decision").innerText()).replace(/\s+/g, " ");
+      check(box.includes("배포를 금요일 오후에 해도 될까요?") && box.includes("질문") && /\d+일 전/.test(box), "the decision box reads " + box);
+      return "#/items/T2 " + title + ": " + box;
     });
   },
 
@@ -569,17 +650,254 @@ const drivers = {
     await step("read the machines", async () => {
       const names = await page.getByRole("list", { name: "기기" }).locator(".row-body").evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
       check(names.length === 3, "expected 3 machines");
-      for (const word of ["정상", "경고", "꺼짐"]) check(names.some((name) => name.includes(word)), "no machine reads " + word);
+      const meters = "CPU (\\d+%|—) · 메모리 (\\d+%|—) · 디스크 (\\d+%|—) · 작업 (\\d+|—)/\\d+$";
+      check(names.some((name) => new RegExp(" · 정상 · " + meters).test(name)), "no 정상 machine with its meters: " + names.join(" | "));
+      check(names.some((name) => new RegExp(" · 경고 · 디스크 · " + meters).test(name)), "no 경고 machine with its reason word: " + names.join(" | "));
+      check(names.some((name) => / · 꺼짐 · 연결 끊김 · CPU — · 메모리 — · 디스크 — · 작업 —\/\d+$/.test(name)), "no 꺼짐 machine reading 연결 끊김 and — meters: " + names.join(" | "));
+      const colours = await page.getByRole("list", { name: "기기" }).locator(".machine-state").evaluateAll((words) => words.map((word) => word.textContent + "=" + getComputedStyle(word).color));
+      check(colours.includes("경고=rgb(255, 149, 0)") && colours.includes("꺼짐=rgb(255, 59, 48)"), "state colours " + colours.join(", "));
+      const bars = await page.getByRole("list", { name: "기기" }).locator(".mini-meter .meter").count();
+      check(bars === 6, "expected 6 thin bars on the two machines that report, got " + bars);
       const loads = await page.getByRole("list", { name: "기기" }).locator(".trail").allInnerTexts();
-      check(loads.every((text) => /^작업 \d+\/\d+$/.test(text)), "loads read " + loads.join(", "));
+      check(loads.every((text) => /^작업 (\d+|—)\/\d+$/.test(text)), "loads read " + loads.join(", "));
       return names.join(" | ");
     });
-    await step("read the quota", async () => {
-      const names = await page.getByRole("list", { name: "쿼터" }).locator(".row-body").evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
-      check(names.length === 2, "expected 2 services");
+    await step("read the quota and unfold a service", async () => {
+      const list = page.getByRole("list", { name: "쿼터" });
+      const names = await list.locator("summary").evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
+      check(names.length === 3, "expected 3 services, got " + names.length);
+      check(names[0].startsWith("Claude · ") && names[1].startsWith("ChatGPT · ") && names[2].startsWith("가온셈 · "), "service names " + names.join(" | "));
       check(names.filter((name) => name.endsWith("주의")).length === 1, "expected one service with 주의");
-      check(names.every((name) => /\d+% · 시간당 \+\d+% · \d+(분|시간|일) 후 초기화/.test(name)), "quota lines " + names.join(" | "));
-      return names.join(" | ");
+      check(names.every((name) => /^\S+ · \d+%( · 시간당 \+\d+%)? · \d+(분|시간|일) 후( · 주의)?$/.test(name)), "quota lines " + names.join(" | "));
+      const title = await list.locator(".rate").first().getAttribute("title");
+      check(title === "최근 5시간 평균", "the rate's title is " + title);
+      const warn = await list.locator("summary .warn-mark").evaluate((mark) => getComputedStyle(mark).color);
+      check(warn === "rgb(255, 59, 48)", "주의 is drawn " + warn);
+      check(!(await list.getByTestId("account").first().isVisible()), "accounts are not folded");
+      await list.locator("summary").first().click();
+      const accounts = await list.getByTestId("account").evaluateAll((rows) => rows.filter((row) => row.checkVisibility()).map((row) => row.getAttribute("aria-label")));
+      check(accounts.length === 2 && accounts.every((name) => /^계정 \d · \d+% · 시간당 \+\d+% · \d+(분|시간|일) 후( · 주의)?$/.test(name)), "Claude's accounts read " + accounts.join(" | "));
+      return names.join(" | ") + "; Claude: " + accounts.join(" | ");
+    });
+    await step("주의 follows the rule, resets read hours under a day and days over, no rate means no rate part", async () => {
+      const rows = await page.getByRole("list", { name: "쿼터", exact: true }).locator(":scope > li").evaluateAll((items) => items.map((item) => ({ name: item.querySelector("summary .title").textContent, sub: item.querySelector("summary .sub").textContent, warn: Boolean(item.querySelector("summary .warn-mark")) })));
+      const scene = await page.evaluate(() => ({ at: Date.now() / 1000, quota: window.__linaScene.quota.quota }));
+      for (const [index, service] of scene.quota.entries()) {
+        const reaches = service.accounts.some((account) => account.windows.some((w) => w.ratePerHour !== null && w.percent + (w.ratePerHour * (w.resetAt - scene.at)) / 3600 >= 100));
+        check(reaches === rows[index].warn, rows[index].name + " shows 주의=" + rows[index].warn + " but its rate reaches 100% before reset=" + reaches);
+        const reset = Math.min(...service.accounts.map((account) => (account.windows.find((w) => w.key === account.mainWindow) ?? account.windows[0]).resetAt)) - scene.at;
+        const word = rows[index].sub.split(" · ").at(-1);
+        check(reset < 86400 ? /^\d+시간 후$/.test(word) : /^\d+일 후$/.test(word), rows[index].name + " resets in " + Math.round(reset) + " s but reads " + word);
+        check(!/ · {2}| · $|^ · | ·  · /.test(rows[index].sub) && rows[index].sub.split(" · ").every(Boolean), rows[index].name + " has a gap: " + rows[index].sub);
+        if (service.ratePerHour === null) check(!rows[index].sub.includes("시간당"), rows[index].name + " has no rate but reads " + rows[index].sub);
+      }
+      return rows.map((row) => row.name + ": " + row.sub + (row.warn ? " · 주의" : "")).join(" | ");
+    });
+  },
+
+  // Every write control on the synthetic instance: what it changes on screen and in the page's copy of the record.
+  async actions(page, step) {
+    const scene = (pick) => page.evaluate(pick);
+    const toastGone = () => page.getByTestId("toast").waitFor({ state: "detached", timeout: 8_000 }).catch(() => check(false, "the toast stayed past five seconds"));
+    const wide = page.viewportSize().width >= 900;
+    const headCount = async (id) => Number((await page.getByTestId("head-" + id).locator("[data-testid=count]").innerText()).trim());
+    await step("a ticked 내 할 일 row stays struck and checked for the toast, then leaves", async () => {
+      await openApp(page, "#/inbox");
+      const mine = page.getByRole("list", { name: "내 할 일" });
+      await mine.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" }).click();
+      await page.waitForFunction(() => window.__linaScene.itemDetails.T3.state === "done" && !window.__linaScene.board.inbox.mine.some((row) => row.id === "T3"), null, { timeout: 3_000 }).catch(() => check(false, "the record is not done"));
+      const box = mine.getByRole("checkbox", { name: "공지 문구 확인 완료됨" });
+      check((await box.count()) === 1, "the ticked row left the list before its toast ended");
+      check((await box.getAttribute("aria-checked")) === "true", "the held row is not checked");
+      const strike = await box.locator("xpath=..").locator(".title").evaluate((title) => getComputedStyle(title).textDecorationLine);
+      check(strike === "line-through", "the held row is not struck through");
+      check((await headCount("mine")) === 2, "내 할 일 counts " + (await headCount("mine")) + " while the row is shown");
+      if (wide) check((await sidebarCount(page, "nav-inbox")) === "7", "the sidebar counts " + (await sidebarCount(page, "nav-inbox")));
+      await toastGone();
+      await mine.getByRole("checkbox", { name: /^공지 문구 확인/ }).waitFor({ state: "detached", timeout: 2_000 }).catch(() => check(false, "the row stayed after the toast"));
+      check((await headCount("mine")) === 1, "내 할 일 counts " + (await headCount("mine")) + " after the row left");
+      if (wide) check((await sidebarCount(page, "nav-inbox")) === "6", "the sidebar counts " + (await sidebarCount(page, "nav-inbox")) + " after the row left");
+      return "held struck for the toast, then gone; 내 할 일 2 → 1";
+    });
+    await step("되돌리기 on a held row puts it back unchecked", async () => {
+      await openApp(page, "#/inbox");
+      const mine = page.getByRole("list", { name: "내 할 일" });
+      await mine.getByRole("checkbox", { name: "저장소 접근 권한 주기 완료로 표시" }).click();
+      await page.waitForFunction(() => window.__linaScene.itemDetails.T9.state === "done", null, { timeout: 3_000 }).catch(() => check(false, "the record is not done"));
+      const undo = page.getByTestId("toast").getByRole("button", { name: "되돌리기" });
+      const look = await undo.evaluate((button) => getComputedStyle(button).color + ", " + Math.round(button.getBoundingClientRect().height) + " px");
+      if (!wide) check(Number(look.split(", ")[1].split(" ")[0]) >= 44, "the toast's 되돌리기 is " + look + " on a phone");
+      await undo.click();
+      await page.waitForFunction(() => window.__linaScene.itemDetails.T9.state === "planned", null, { timeout: 3_000 }).catch(() => check(false, "undo did not reopen the record"));
+      await mine.getByRole("checkbox", { name: "저장소 접근 권한 주기 완료로 표시" }).waitFor({ timeout: 3_000 });
+      check((await headCount("mine")) === 2, "내 할 일 counts " + (await headCount("mine")) + " after undo");
+      return "back unchecked, 내 할 일 2; toast button " + look;
+    });
+    await step("a row hidden for its answer's toast is out of every count; undo puts it back", async () => {
+      await openApp(page, "#/inbox");
+      const list = page.getByRole("list", { name: "결정 필요" });
+      await list.getByRole("button", { name: /배포를 금요일 오후에 해도 될까요/ }).click();
+      const pick = page.getByRole("button", { name: "금요일 오후 · 추천" });
+      await pick.waitFor({ timeout: 3_000 });
+      await pick.click();
+      const during = { decide: await headCount("decide"), rows: (await decisionNames(list)).length, sidebar: wide ? await sidebarCount(page, "nav-inbox") : "6" };
+      check(during.decide === 3 && during.rows === 3 && during.sidebar === "6", "during the toast: " + JSON.stringify(during));
+      await page.getByTestId("toast").getByRole("button", { name: "되돌리기" }).click();
+      const after = { decide: await headCount("decide"), rows: (await decisionNames(list)).length, sidebar: wide ? await sidebarCount(page, "nav-inbox") : "7" };
+      check(after.decide === 4 && after.rows === 4 && after.sidebar === "7", "after undo: " + JSON.stringify(after));
+      return "during " + JSON.stringify(during) + ", after undo " + JSON.stringify(after);
+    });
+    await step("done, then 되돌리기 in the toast", async () => {
+      await openApp(page, "#/goals/G2");
+      const todos = page.locator(".detail").getByRole("list", { name: "할 일" });
+      await todos.getByRole("checkbox", { name: "결제 실패 화면 검토 완료로 표시" }).click();
+      const done = todos.getByRole("checkbox", { name: "결제 실패 화면 검토 완료됨" });
+      await done.waitFor({ timeout: 1_000 });
+      check((await done.getAttribute("aria-checked")) === "true", "the box is not checked");
+      const strike = await done.locator("xpath=..").locator(".title").evaluate((title) => getComputedStyle(title).textDecorationLine);
+      check(strike === "line-through", "the row is not struck through: " + strike);
+      check((await page.getByTestId("toast").innerText()).startsWith("완료로 표시함"), "no 완료로 표시함 toast");
+      await page.waitForFunction(() => window.__linaScene.itemDetails.T6.state === "done", null, { timeout: 3_000 }).catch(() => check(false, "the record is not done"));
+      await page.getByTestId("toast").getByRole("button", { name: "되돌리기" }).click();
+      await todos.getByRole("checkbox", { name: "결제 실패 화면 검토 완료로 표시" }).waitFor({ timeout: 3_000 });
+      await page.waitForFunction(() => window.__linaScene.itemDetails.T6.state === "waiting", null, { timeout: 3_000 }).catch(() => check(false, "undo did not reopen the record"));
+      return "struck, toast, record done; undo: record " + (await scene(() => window.__linaScene.itemDetails.T6.state));
+    });
+    await step("after the toast the to-do page offers 되돌리기", async () => {
+      await openApp(page, "#/items/T3");
+      const head = page.locator(".detail-head");
+      await head.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" }).click();
+      check((await head.getByRole("button", { name: "되돌리기" }).count()) === 0, "the page shows 되돌리기 beside the toast");
+      await toastGone();
+      const undo = head.getByRole("button", { name: "되돌리기" });
+      await undo.waitFor({ timeout: 2_000 }).catch(() => check(false, "no 되돌리기 on the page after the toast"));
+      const until = await scene(() => window.__linaScene.itemDetails.T3.ownerDone?.undoUntil - window.__linaScene.itemDetails.T3.ownerDone?.at);
+      check(until === 600, "the undo window is " + until + " s");
+      await undo.click();
+      await head.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" }).waitFor({ timeout: 3_000 });
+      const state = await scene(() => window.__linaScene.itemDetails.T3.state);
+      check(state === "planned", "undo left the record " + state);
+      return "되돌리기 after the toast; record " + state;
+    });
+    await step("a goal with open to-dos asks once, then one undo reopens all", async () => {
+      await openApp(page, "#/goals/G1");
+      const detail = page.locator(".detail");
+      await detail.locator(".detail-head").getByRole("checkbox", { name: "릴리스 노트 정리 완료로 표시" }).click();
+      const ask = (await page.getByTestId("with-open").innerText()).trim();
+      check(ask.startsWith("열린 할 일 3개도 함께 완료할까요?"), "the question reads " + ask);
+      check((await scene(() => window.__linaScene.itemDetails.G1.state)) === "in_progress", "asking already wrote");
+      await buttonLook(page, page.getByRole("button", { name: "함께 완료" }));
+      await buttonLook(page, page.getByRole("button", { name: "취소" }));
+      await page.getByRole("button", { name: "함께 완료" }).click();
+      await page.waitForFunction(() => ["G1", "T1", "T2", "T3"].every((id) => window.__linaScene.itemDetails[id].state === "done"), null, { timeout: 3_000 }).catch(() => check(false, "the goal and its to-dos are not all done"));
+      const checked = await detail.getByRole("checkbox", { checked: true }).count();
+      check(checked === 4, "checked boxes " + checked);
+      await page.getByTestId("toast").getByRole("button", { name: "되돌리기" }).click();
+      await page.waitForFunction(() => JSON.stringify(["G1", "T1", "T2", "T3"].map((id) => window.__linaScene.itemDetails[id].state)) === JSON.stringify(["in_progress", "in_progress", "waiting", "planned"]), null, { timeout: 3_000 }).catch(() => check(false, "undo did not reopen all"));
+      return ask + " → 함께 완료 → 4 checked → 되돌리기 → all reopened";
+    });
+    await step("an answer with choices: the row leaves, and the answer goes after the toast", async () => {
+      await openApp(page, "#/inbox");
+      const list = page.getByRole("list", { name: "결정 필요" });
+      await list.getByRole("button", { name: /배포를 금요일 오후에 해도 될까요/ }).click();
+      const pick = page.getByRole("button", { name: "금요일 오후 · 추천" });
+      await pick.waitFor({ timeout: 3_000 });
+      await pick.click();
+      check((await list.getByRole("button", { name: /배포를 금요일/ }).count()) === 0, "the row is still listed");
+      check((await page.getByTestId("toast").innerText()).startsWith("답함"), "no 답함 toast");
+      const early = await scene(() => window.__linaScene.itemDetails.T2.comments.filter((comment) => comment.kind === "answer").length);
+      check(early === 0, "the answer was sent before the toast ended");
+      await toastGone();
+      await page.waitForFunction(() => window.__linaScene.itemDetails.T2.comments.some((comment) => comment.kind === "answer" && comment.text === "금요일 오후"), null, { timeout: 3_000 }).catch(() => check(false, "the answer did not reach the record"));
+      check((await list.getByRole("button", { name: /배포를 금요일/ }).count()) === 0, "the row came back");
+      return "row gone, answer 금요일 오후 recorded after the toast";
+    });
+    await step("a free-text answer and a card's question", async () => {
+      await openApp(page, "#/inbox");
+      const list = page.getByRole("list", { name: "결정 필요" });
+      await list.getByRole("button", { name: /자주 쓰는 검색어 열 개를/ }).click();
+      await page.getByRole("textbox", { name: "답 달기" }).fill("결제, 환불, 배송");
+      await page.getByRole("button", { name: "보내기", exact: true }).click();
+      await toastGone();
+      await page.waitForFunction(() => window.__linaScene.itemDetails.T12.comments.some((comment) => comment.kind === "answer" && comment.text === "결제, 환불, 배송"), null, { timeout: 3_000 }).catch(() => check(false, "the free-text answer did not reach the record"));
+      await list.getByRole("button", { name: /카드 번호는 앞 여섯 자리까지/ }).click();
+      await page.getByRole("textbox", { name: "답 달기" }).fill("앞 네 자리만요");
+      await page.getByRole("button", { name: "보내기", exact: true }).click();
+      await toastGone();
+      await page.waitForFunction(() => window.__linaScene.cardDetails["k-102"].comments.some((comment) => comment.body === "앞 네 자리만요") && window.__linaScene.inbox.questions.length === 0, null, { timeout: 3_000 }).catch(() => check(false, "the card answer did not reach the card"));
+      const left = await decisionNames(list);
+      check(left.length === 2, "decisions left " + left.join(" | "));
+      return "T12 and the card answered; left: " + left.join(" | ");
+    });
+    await step("다시 시도 on a stopped card", async () => {
+      await openApp(page, "#/running");
+      await page.getByRole("button", { name: /다시 시도$/ }).click();
+      const line = page.getByTestId("retry-requested");
+      await line.waitFor({ timeout: 2_000 });
+      const text = (await line.innerText()).trim();
+      check(/^\S+에게 요청함$/.test(text), "the row reads " + text);
+      await page.waitForFunction(() => window.__linaScene.itemDetails.T5.comments.some((comment) => comment.text === "다시 시도해 주세요."), null, { timeout: 3_000 }).catch(() => check(false, "the retry did not reach the to-do"));
+      await line.waitFor({ state: "detached", timeout: 15_000 }).catch(() => check(false, "요청함 stayed past the next refresh"));
+      return text + ", then 다시 시도 again after the refresh";
+    });
+  },
+
+  async bell(page, step) {
+    const bell = () => page.getByRole("button", { name: /^알림/ });
+    const dialog = () => page.getByRole("dialog", { name: "알림" });
+    await step("the badge is the unread count; the dialog dims read notices", async () => {
+      await openApp(page, "#/inbox");
+      const name = await bell().getAttribute("aria-label");
+      check(name === "알림 5", "bell is named " + name);
+      await bell().click();
+      const rows = await dialog().getByRole("list", { name: "알림" }).locator(":scope > li").evaluateAll((items) => items.map((item) => ({ read: item.classList.contains("is-read"), colour: getComputedStyle(item.querySelector(".title")).color })));
+      check(rows.length === 7, "the bell lists " + rows.length + " notices");
+      check(rows.filter((row) => row.read).length === 2, "read notices " + rows.filter((row) => row.read).length);
+      const unread = rows.find((row) => !row.read).colour;
+      check(rows.filter((row) => row.read).every((row) => row.colour !== unread), "read notices are not dimmed");
+      check(await dialog().getByRole("button", { name: "모두 읽음" }).isEnabled(), "모두 읽음 is disabled");
+      const header = (await dialog().getByTestId("unread-count").innerText()).trim();
+      const unreadLines = rows.filter((row) => !row.read).length;
+      check(header === "안 읽음 " + unreadLines && name === "알림 " + unreadLines, "badge " + name + ", header " + header + ", unread lines " + unreadLines);
+      await buttonLook(page, dialog().getByRole("button", { name: "모두 읽음" }));
+      await buttonLook(page, dialog().getByRole("button", { name: "닫기" }));
+      await dialog().getByRole("button", { name: "닫기" }).click();
+      check((await page.getByTestId("notices").count()) === 0, "닫기 did not close the dialog");
+      await bell().click();
+      await page.keyboard.press("Escape");
+      await page.getByTestId("notices").waitFor({ state: "hidden", timeout: 2_000 }).catch(() => check(false, "Escape did not close the notices"));
+      return name + ", 7 lines, 2 dimmed";
+    });
+    await step("choosing a notice opens its item and marks it read on the core", async () => {
+      await bell().click();
+      const first = dialog().locator("li:not(.is-read) a").first();
+      const target = await first.getAttribute("href");
+      await first.click();
+      await page.waitForFunction((hash) => location.hash === hash, target, { timeout: 3_000 }).catch(() => check(false, "the notice did not open " + target));
+      const name = await bell().getAttribute("aria-label");
+      check(name === "알림 4", "after reading one the bell is named " + name);
+      await bell().click();
+      const header = (await dialog().getByTestId("unread-count").innerText()).trim();
+      const unreadLines = await dialog().locator("li:not(.is-read)").count();
+      check(header === "안 읽음 4" && unreadLines === 4, "after reading one: header " + header + ", unread lines " + unreadLines);
+      await dialog().getByRole("button", { name: "닫기" }).click();
+      await page.waitForFunction(() => window.__linaScene.board.counts.unread === 4, null, { timeout: 3_000 }).catch(() => check(false, "the record's unread count is not 4"));
+      return target + "; " + name;
+    });
+    await step("모두 읽음 marks every notice read", async () => {
+      await bell().click();
+      await dialog().getByRole("button", { name: "모두 읽음" }).click();
+      const name = await bell().getAttribute("aria-label");
+      check(name === "알림", "after 모두 읽음 the bell is named " + name);
+      check((await page.getByTestId("bell-count").count()) === 0, "the badge is still drawn");
+      await page.waitForFunction(() => window.__linaScene.board.notices.every((notice) => notice.read) && window.__linaScene.board.counts.unread === 0, null, { timeout: 3_000 }).catch(() => check(false, "the record still has unread notices"));
+      const dim = await dialog().locator("li.is-read").count();
+      check(dim === 7, "dimmed lines " + dim);
+      const header = (await dialog().getByTestId("unread-count").innerText()).trim();
+      check(header === "안 읽음 0", "the header reads " + header);
+      const stored = await page.evaluate(() => Object.keys(localStorage).length + Object.keys(sessionStorage).length);
+      check(stored === 0, "the page keeps " + stored + " keys in web storage");
+      return name + ", 7 dimmed, nothing in web storage";
     });
   },
 
@@ -591,22 +909,11 @@ const drivers = {
       await page.waitForFunction((before) => document.querySelector("[data-testid=freshness-line]")?.textContent !== before, first, { timeout: 5_000 });
       return first + " → " + (await page.getByTestId("freshness-line").innerText());
     });
-    await step("the bell counts the notices and opens them", async () => {
-      const bell = page.getByRole("button", { name: /^알림/ });
-      const name = await bell.getAttribute("aria-label");
-      check(name === "알림 7", "bell is named " + name);
-      await bell.click();
-      const lines = await page.getByRole("list", { name: "알림" }).getByRole("link").count();
-      check(lines === 7, "the bell lists " + lines + " notices");
-      await page.keyboard.press("Escape");
-      await page.getByTestId("notices").waitFor({ state: "hidden", timeout: 2_000 }).catch(() => check(false, "Escape did not close the notices"));
-      return name + ", " + lines + " lines";
-    });
     await step("a failed source reads 읽기 실패 and the rest still draws", async () => {
       await openApp(page, "#/inbox", "&error=quota");
       const failed = (await page.getByTestId("read-failed").innerText()).trim();
       check(failed === "· 읽기 실패: 쿼터", "failure reads " + failed);
-      const rows = await page.getByRole("list", { name: "결정 필요" }).getByRole("link").count();
+      const rows = (await decisionNames(page.getByRole("list", { name: "결정 필요" }))).length;
       check(rows === 4, "the inbox drew " + rows + " decisions");
       return failed;
     });

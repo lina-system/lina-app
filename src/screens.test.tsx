@@ -2,10 +2,13 @@ import { act, fireEvent, render, waitFor, within } from "@testing-library/preact
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { RouteName } from "./api/client";
 import { App } from "./app";
-import { SyntheticSource } from "./data/synthetic-source";
+import { SYNTHETIC_REPLY_AFTER, SyntheticSource } from "./data/synthetic-source";
 import type { ReadResult, Source } from "./data/source";
 import { Store } from "./data/store";
 import { SCENE_COUNTS } from "./fixtures/synthetic";
+import { buildModel } from "./model";
+import { containsText } from "./text-match";
+import { TOAST_MS } from "./ui/actions";
 import { BANNED_WORDS } from "./words";
 
 const SCREENS = [
@@ -62,6 +65,8 @@ afterEach(() => {
 // The shared term table, written out here so a change to src/words.ts cannot widen it unnoticed.
 const STATES = ["예정", "진행 중", "대기", "중단됨", "완료"];
 const REASONS = ["결정 필요", "피드백", "검토 필요", "보류", "진행 대기", "응답 없음", "실패", "결과 누락"];
+// Latin words the term table allows on screen: the app name, CPU and the services' display names.
+const LATIN_WORDS = ["LINA", "CPU", "Claude", "ChatGPT", "Gemini", "Grok"];
 const STATE_LINE = new RegExp(`^(?:${STATES.join("|")})(?: · (?:${REASONS.join("|")}))?$`);
 
 describe.each([
@@ -87,7 +92,7 @@ describe.each([
     expect(text).not.toMatch(/\b\d+\s*(?:h|m|s|min)\b|\d+시간(?![째 전후])/);
     for (const word of BANNED_WORDS) expect(text).not.toContain(word);
     const names = new Set(new SyntheticSource().scene.items.agents.map((agent) => agent.name));
-    const latin = (text.match(/[A-Za-z]{2,}/g) ?? []).filter((word) => !names.has(word) && word !== "LINA");
+    const latin = (text.match(/[A-Za-z]{2,}/g) ?? []).filter((word) => !names.has(word) && !LATIN_WORDS.includes(word));
     expect(latin).toEqual([]);
   });
 });
@@ -103,6 +108,37 @@ function stoppedRows(root: Element | null): number {
 function rowsIn(root: Element | null): number {
   return root ? root.querySelectorAll("[data-testid=row]").length : 0;
 }
+
+describe("machines and quota", () => {
+  test("each machine row reads name, state, the one reason word, three meters and its load", async () => {
+    const view = await open("#/status", { wide: true });
+    const rows = [...view.getByRole("list", { name: "기기" }).querySelectorAll(".row-body")].map((row) => row.getAttribute("aria-label"));
+    expect(rows).toHaveLength(3);
+    expect(rows.some((label) => /^\S+ · 정상 · CPU \d+% · 메모리 \d+% · 디스크 \d+% · 작업 \d+\/\d+$/.test(label ?? ""))).toBe(true);
+    expect(rows.some((label) => /^\S+ · 경고 · 디스크 · CPU \d+% · 메모리 \d+% · 디스크 \d+% · 작업 \d+\/\d+$/.test(label ?? ""))).toBe(true);
+    expect(rows.some((label) => /^\S+ · 꺼짐 · 연결 끊김 · CPU — · 메모리 — · 디스크 — · 작업 —\/\d+$/.test(label ?? ""))).toBe(true);
+    const down = view.container.querySelector(".machine-row.is-down") as HTMLElement;
+    expect(down.querySelectorAll(".mini-none")).toHaveLength(3);
+    expect(down.querySelectorAll(".meter")).toHaveLength(0);
+    expect(view.container.querySelectorAll(".machine-row.is-ok .meter")).toHaveLength(3);
+  });
+
+  test("one quota row per service with its accounts folded under it, known services by their display names", async () => {
+    const view = await open("#/status", { wide: true });
+    const list = view.getByRole("list", { name: "쿼터" });
+    const services = [...list.querySelectorAll(":scope > [data-testid=row]")];
+    expect(services.map((row) => row.querySelector("summary .title")?.textContent)).toEqual(["Claude", "ChatGPT", "가온셈"]);
+    const labels = services.map((row) => row.querySelector("summary")?.getAttribute("aria-label") ?? "");
+    expect(labels).toEqual(["Claude · 72% · 시간당 +10% · 2시간 후 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후", "가온셈 · 5% · 12일 후"]);
+    expect(services.map((row) => row.querySelector("summary .sub")?.textContent)).toEqual(["72% · 시간당 +10% · 2시간 후", "31% · 시간당 +1% · 2일 후", "5% · 12일 후"]);
+    expect(services.map((row) => (row.querySelector("details") as HTMLDetailsElement).open)).toEqual([false, false, false]);
+    expect(services.map((row) => row.querySelectorAll("[data-testid=account]").length)).toEqual([2, 1, 1]);
+    expect(services[0].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 72% · 시간당 +10% · 3시간 후 · 주의");
+    expect(services[2].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 일시 정지 · 5% · 12일 후");
+    expect(services[0].querySelector(".rate")?.getAttribute("title")).toBe("최근 5시간 평균");
+    expect(services.filter((row) => row.querySelector("summary .warn-mark"))).toHaveLength(1);
+  });
+});
 
 describe("every count equals the length of the list it labels", () => {
   test("sidebar rows and their screens", async () => {
@@ -157,7 +193,7 @@ describe("every count equals the length of the list it labels", () => {
     }
   });
 
-  test("the device line counts machine rows and the bell counts notices", async () => {
+  test("the device line counts machine rows and the bell counts unread notices", async () => {
     const view = await open("#/status", { wide: true });
     const line = view.getByTestId("device-line").textContent ?? "";
     expect(line).toBe("기기 3 · 정상 1 · 경고 1 · 꺼짐 1");
@@ -170,20 +206,26 @@ describe("every count equals the length of the list it labels", () => {
     expect(machines.querySelectorAll(".machine-row.is-down").length).toBe(down);
     const bell = count(view.getByTestId("bell-count"));
     fireEvent.click(view.getByTestId("bell"));
-    expect(rowsIn(view.getByTestId("notices"))).toBe(bell);
-    expect(bell).toBe(SCENE_COUNTS.notices);
+    const notices = view.getByTestId("notices");
+    expect(rowsIn(notices)).toBe(SCENE_COUNTS.notices);
+    expect(notices.querySelectorAll("[data-testid=row]:not(.is-read)").length).toBe(bell);
+    expect(within(notices).getByTestId("unread-count").textContent).toBe(`안 읽음 ${bell}`);
+    expect(bell).toBe(SCENE_COUNTS.unread);
   });
 });
 
-class FailingSource implements Source {
+/** The synthetic scene with some reads failing; its writes are the synthetic source's own. */
+class FailingSource extends SyntheticSource {
   constructor(
-    private readonly inner: Source,
     private readonly failing: (name: RouteName) => "offline" | "failed" | null,
-  ) {}
-  async read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<import("./api/client").Routes[N]>> {
+    options: ConstructorParameters<typeof SyntheticSource>[0] = {},
+  ) {
+    super(options);
+  }
+  override async read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<import("./api/client").Routes[N]>> {
     const failure = this.failing(name);
     if (failure) return { kind: "failed", offline: failure === "offline", at: Date.now() / 1000 };
-    return this.inner.read(name, id);
+    return super.read(name, id);
   }
 }
 
@@ -191,8 +233,7 @@ describe("freshness", () => {
   beforeEach(() => setWide(true));
 
   test("a failed route shows its error line and the rest still draws", async () => {
-    const inner = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
-    const view = await open("#/inbox", { wide: true, source: new FailingSource(inner, (name) => (name === "devices" ? "failed" : null)) });
+    const view = await open("#/inbox", { wide: true, source: new FailingSource((name) => (name === "devices" ? "failed" : null)) });
     await waitFor(() => expect(view.getByTestId("read-failed").textContent).toBe(" · 읽기 실패: 기기"));
     expect(rowsIn(view.getByTestId("screen-inbox"))).toBe(SCENE_COUNTS.inbox);
   });
@@ -205,7 +246,7 @@ describe("freshness", () => {
   test("an unreachable core reads 연결 끊김", async () => {
     setWide(true);
     window.history.replaceState(null, "", "/app/#/inbox");
-    const view = render(<App store={new Store(new FailingSource(new SyntheticSource(), () => "offline"))} />);
+    const view = render(<App store={new Store(new FailingSource(() => "offline"))} />);
     await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("연결 끊김"));
   });
 
@@ -213,8 +254,7 @@ describe("freshness", () => {
     vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
     try {
       let answer = true;
-      const inner = new SyntheticSource();
-      const view = await open("#/inbox", { wide: true, source: new FailingSource(inner, () => (answer ? null : "failed")) });
+      const view = await open("#/inbox", { wide: true, source: new FailingSource(() => (answer ? null : "failed")) });
       answer = false;
       await act(async () => {
         vi.advanceTimersByTime(31_000);
@@ -265,10 +305,12 @@ describe("wide split view", () => {
 describe("decisions", () => {
   test("each 결정 필요 row opens the record it is aimed at, and that record shows the decision", async () => {
     const inbox = await open("#/inbox", { wide: true });
-    const rows = [...inbox.getByRole("list", { name: "결정 필요" }).querySelectorAll("a")].map((link) => ({
-      href: link.getAttribute("href") ?? "",
-      text: link.querySelector(".title")?.textContent ?? "",
-      context: link.querySelector(".context")?.textContent ?? "",
+    const list = inbox.getByRole("list", { name: "결정 필요" });
+    for (const button of list.querySelectorAll(":scope > li > .row-button")) fireEvent.click(button);
+    const rows = [...list.querySelectorAll(":scope > li")].map((row) => ({
+      href: row.querySelector(".decision-panel a")?.getAttribute("href") ?? "",
+      text: row.querySelector(".row-button .title")?.textContent ?? "",
+      context: row.querySelector(".decision-panel a")?.textContent ?? "",
     }));
     inbox.unmount();
     expect(rows.filter((row) => /^#\/(items|goals)\//.test(row.href)).length).toBeGreaterThanOrEqual(1);
@@ -292,5 +334,447 @@ describe("counts", () => {
     expect(counts.length).toBeGreaterThan(0);
     for (const element of counts) expect(element.closest(".count-pair")).not.toBeNull();
     expect(view.getByTestId("agent-counts").querySelectorAll(".count-pair .is-stopped-count")).toHaveLength(1);
+  });
+});
+
+class RefusingSource extends SyntheticSource {
+  sent: string[] = [];
+  override async comment(id: string, body: { text: string }) {
+    this.sent.push(`${id}:${body.text}`);
+    return { ok: false as const, status: 409, detail: "no open decision" };
+  }
+}
+
+describe("comments", () => {
+  test("a sent comment shows at once with its pending line, then the record's copy, then the agent's reply", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    try {
+      const source = new SyntheticSource();
+      const agent = source.scene.items.agents.find((person) => person.id === source.scene.itemDetails.T4.agent)?.name;
+      const view = await open("#/items/T4", { wide: true, source });
+      const field = view.getByRole("textbox", { name: "댓글 달기" }) as HTMLInputElement;
+      const send = view.getByRole("button", { name: "보내기" }) as HTMLButtonElement;
+      expect(send.disabled).toBe(true);
+      field.value = "가로 폭도 봐 주세요";
+      fireEvent.input(field);
+      expect(send.disabled).toBe(false);
+      fireEvent.submit(field.form as HTMLFormElement);
+      expect(view.getByTestId("comment-pending").textContent).toBe(`${agent}에게 보냄 · 방금`);
+      expect((view.getByRole("button", { name: "보내기" }) as HTMLButtonElement).disabled).toBe(true);
+      expect(field.value).toBe("");
+      await waitFor(() => expect(source.scene.itemDetails.T4.comments.at(-1)?.text).toBe("가로 폭도 봐 주세요"));
+      await waitFor(() => expect(view.getAllByTestId("comment-pending")).toHaveLength(1));
+      expect(SYNTHETIC_REPLY_AFTER).toBeLessThan(10);
+      await act(async () => {
+        vi.advanceTimersByTime(10_000);
+      });
+      await waitFor(() => expect(view.queryByTestId("comment-pending")).toBeNull());
+      expect(view.getAllByTestId("reply").at(-1)?.querySelector(".sub")?.textContent).toMatch(/ · 반영함$/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a refused comment comes back into the field with the core's line under it", async () => {
+    const source = new RefusingSource();
+    const view = await open("#/items/T4", { wide: true, source });
+    const field = view.getByRole("textbox", { name: "댓글 달기" }) as HTMLInputElement;
+    field.value = "다시";
+    fireEvent.input(field);
+    fireEvent.submit(field.form as HTMLFormElement);
+    await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("no open decision"));
+    expect(source.sent).toEqual(["T4:다시"]);
+    expect(field.value).toBe("다시");
+    expect(view.queryByTestId("comment-pending")).toBeNull();
+    expect(view.getAllByTestId("comment")).toHaveLength(2);
+  });
+
+  test("a resolved thread folds to one line with its first words", async () => {
+    const view = await open("#/items/T4", { wide: true });
+    const resolved = view.getByTestId("resolved") as HTMLDetailsElement;
+    expect(resolved.open).toBe(false);
+    expect(resolved.querySelector("summary")?.textContent).toBe("해결됨 · 오류가 나면 입력한 값은…");
+  });
+});
+
+/** The synthetic source with every write recorded; `refuse` makes chosen writes answer 409. */
+class SpySource extends SyntheticSource {
+  calls: string[] = [];
+  refuse = new Set<string>();
+  private async spy<T>(name: string, args: unknown[], run: () => Promise<T>): Promise<T> {
+    this.calls.push(`${name} ${JSON.stringify(args)}`);
+    if (this.refuse.has(name)) return { ok: false, status: 409, detail: "refused" } as T;
+    return run();
+  }
+  override comment(...args: Parameters<SyntheticSource["comment"]>) {
+    return this.spy("comment", args, () => super.comment(...args));
+  }
+  override done(...args: Parameters<SyntheticSource["done"]>) {
+    return this.spy("done", args, () => super.done(...args));
+  }
+  override undo(...args: Parameters<SyntheticSource["undo"]>) {
+    return this.spy("undo", args, () => super.undo(...args));
+  }
+  override retry(...args: Parameters<SyntheticSource["retry"]>) {
+    return this.spy("retry", args, () => super.retry(...args));
+  }
+  override answerCard(...args: Parameters<SyntheticSource["answerCard"]>) {
+    return this.spy("answerCard", args, () => super.answerCard(...args));
+  }
+}
+
+const TIMERS: Parameters<typeof vi.useFakeTimers>[0] = { toFake: ["Date", "setInterval", "clearInterval", "setTimeout", "clearTimeout"] };
+
+function decisionButton(view: ReturnType<typeof render>, text: string): HTMLElement {
+  return view.getByRole("button", { name: containsText(text) });
+}
+
+describe("answers", () => {
+  test("a choice hides the row at once and is sent only when the toast ends", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SpySource();
+      const view = await open("#/inbox", { wide: true, source });
+      const row = decisionButton(view, "배포를 금요일 오후에 해도 될까요");
+      fireEvent.click(row);
+      expect(row.getAttribute("aria-expanded")).toBe("true");
+      await waitFor(() => expect(view.getByRole("button", { name: "금요일 오후 · 추천" })).toBeTruthy());
+      expect(view.getByRole("button", { name: "월요일 오전" })).toBeTruthy();
+      fireEvent.click(view.getByRole("button", { name: "금요일 오후 · 추천" }));
+      expect(view.getByTestId("toast").textContent).toBe("답함되돌리기");
+      expect(view.queryByRole("button", { name: /배포를 금요일/ })).toBeNull();
+      await act(async () => {
+        vi.advanceTimersByTime(TOAST_MS - 100);
+      });
+      expect(source.calls).toEqual([]);
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      await waitFor(() => expect(source.calls).toEqual(['comment ["T2",{"text":"금요일 오후","answer":true}]']));
+      expect(view.queryByTestId("toast")).toBeNull();
+      expect(view.queryByRole("button", { name: /배포를 금요일/ })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("되돌리기 in the toast brings the row back and sends nothing", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SpySource();
+      const view = await open("#/inbox", { wide: true, source });
+      fireEvent.click(decisionButton(view, "자주 쓰는 검색어 열 개를"));
+      const field = view.getByRole("textbox", { name: "답 달기" }) as HTMLInputElement;
+      field.value = "결제, 환불, 배송";
+      fireEvent.input(field);
+      fireEvent.submit(field.form as HTMLFormElement);
+      expect(view.queryByRole("button", { name: /자주 쓰는 검색어/ })).toBeNull();
+      fireEvent.click(view.getByRole("button", { name: "되돌리기" }));
+      expect(view.getByRole("button", { name: /자주 쓰는 검색어/ })).toBeTruthy();
+      await act(async () => {
+        vi.advanceTimersByTime(TOAST_MS * 2);
+      });
+      expect(source.calls).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a card question is answered on the work card route; a refused answer returns with its line", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SpySource();
+      const view = await open("#/inbox", { wide: true, source });
+      fireEvent.click(decisionButton(view, "카드 번호는 앞 여섯 자리까지"));
+      const field = view.getByRole("textbox", { name: "답 달기" }) as HTMLInputElement;
+      field.value = "네";
+      fireEvent.input(field);
+      fireEvent.submit(field.form as HTMLFormElement);
+      await act(async () => {
+        vi.advanceTimersByTime(TOAST_MS);
+      });
+      await waitFor(() => expect(source.calls).toEqual(['answerCard ["k-102",{"text":"네"}]']));
+      await waitFor(() => expect(view.queryByRole("button", { name: /카드 번호는/ })).toBeNull());
+
+      source.refuse.add("comment");
+      fireEvent.click(decisionButton(view, "복구 연습에 쓸 두 시간을"));
+      const act2 = view.getByRole("textbox", { name: "답 달기" }) as HTMLInputElement;
+      act2.value = "목요일 오후";
+      fireEvent.input(act2);
+      fireEvent.submit(act2.form as HTMLFormElement);
+      await act(async () => {
+        vi.advanceTimersByTime(TOAST_MS);
+      });
+      await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("열린 결정 없음"));
+      expect((view.getByRole("textbox", { name: "답 달기" }) as HTMLInputElement).value).toBe("목요일 오후");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("done marks", () => {
+  test("a tap strikes the row and sends done at once; 되돌리기 in the toast calls undo", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SpySource();
+      const view = await open("#/goals/G2", { wide: true, source });
+      const box = view.getByRole("checkbox", { name: "결제 실패 화면 검토 완료로 표시" });
+      expect(box.getAttribute("aria-checked")).toBe("false");
+      fireEvent.click(box);
+      expect(source.calls).toEqual(['done ["T6",{}]']);
+      const done = view.getByRole("checkbox", { name: "결제 실패 화면 검토 완료됨" });
+      expect(done.getAttribute("aria-checked")).toBe("true");
+      expect(done.closest("li")?.classList.contains("is-checked")).toBe(true);
+      expect(view.getByTestId("toast").textContent).toBe("완료로 표시함되돌리기");
+      await waitFor(() => expect(source.scene.itemDetails.T6.state).toBe("done"));
+      fireEvent.click(view.getByRole("button", { name: "되돌리기" }));
+      await waitFor(() => expect(source.calls).toEqual(['done ["T6",{}]', 'undo ["T6"]']));
+      await waitFor(() => expect(view.getByRole("checkbox", { name: "결제 실패 화면 검토 완료로 표시" }).getAttribute("aria-checked")).toBe("false"));
+      expect(source.scene.itemDetails.T6.state).toBe("waiting");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("after the toast the to-do page offers 되돌리기 until the undo window closes", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SpySource();
+      const page = await open("#/items/T3", { wide: true, source });
+      const view = within(page.getByTestId("detail-pane"));
+      fireEvent.click(view.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" }));
+      await waitFor(() => expect(source.scene.itemDetails.T3.state).toBe("done"));
+      expect(page.container.querySelector(".head-undo")).toBeNull();
+      await act(async () => {
+        vi.advanceTimersByTime(TOAST_MS);
+      });
+      await waitFor(() => expect(page.container.querySelector(".head-undo")?.textContent).toBe("되돌리기"));
+      await act(async () => {
+        vi.advanceTimersByTime(600_000);
+      });
+      expect(page.container.querySelector(".head-undo")).toBeNull();
+      expect(view.getByRole("checkbox", { name: "공지 문구 확인 완료됨" }).getAttribute("aria-disabled")).toBe("true");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a goal with open to-dos asks once, then sends withOpen; one undo reopens all", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SpySource();
+      const page = await open("#/goals/G1", { wide: true, source });
+      const view = within(page.getByTestId("detail-pane"));
+      fireEvent.click(view.getByRole("checkbox", { name: "릴리스 노트 정리 완료로 표시" }));
+      expect(source.calls).toEqual([]);
+      expect(view.getByTestId("with-open").textContent).toContain("열린 할 일 3개도 함께 완료할까요?");
+      fireEvent.click(view.getByRole("button", { name: "취소" }));
+      expect(view.queryByTestId("with-open")).toBeNull();
+      fireEvent.click(view.getByRole("checkbox", { name: "릴리스 노트 정리 완료로 표시" }));
+      fireEvent.click(view.getByRole("button", { name: "함께 완료" }));
+      expect(source.calls).toEqual(['done ["G1",{"withOpen":true}]']);
+      expect(view.getAllByRole("checkbox", { checked: true })).toHaveLength(4);
+      await waitFor(() => expect(source.scene.itemDetails.T3.state).toBe("done"));
+      fireEvent.click(within(page.getByTestId("toast")).getByRole("button", { name: "되돌리기" }));
+      await waitFor(() => expect(source.calls.at(-1)).toBe('undo ["G1"]'));
+      await waitFor(() => expect(view.queryAllByRole("checkbox", { checked: true })).toHaveLength(0));
+      expect(["G1", "T1", "T2", "T3"].map((id) => source.scene.itemDetails[id].state)).toEqual(["in_progress", "in_progress", "waiting", "planned"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a refused done reverts the row and shows the known line under it", async () => {
+    const source = new SpySource();
+    source.refuse.add("done");
+    const view = await open("#/inbox", { wide: true, source });
+    fireEvent.click(view.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" }));
+    await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("열린 할 일 있음"));
+    expect(view.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" }).getAttribute("aria-checked")).toBe("false");
+    expect(view.queryByTestId("toast")).toBeNull();
+  });
+});
+
+describe("retry", () => {
+  test("다시 시도 on a stopped card asks its to-do's agent and says so until the next refresh", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SpySource();
+      const view = await open("#/running", { wide: true, source });
+      const buttons = view.getAllByRole("button", { name: /다시 시도$/ });
+      expect(buttons).toHaveLength(1);
+      fireEvent.click(buttons[0]);
+      await waitFor(() => expect(source.calls).toEqual(['retry ["T5"]']));
+      await waitFor(() => expect(view.getByTestId("retry-requested").textContent).toMatch(/^\S+에게 요청함$/));
+      await act(async () => {
+        vi.advanceTimersByTime(10_000);
+      });
+      await waitFor(() => expect(view.queryByTestId("retry-requested")).toBeNull());
+      expect(view.getAllByRole("button", { name: /다시 시도$/ })).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("bell", () => {
+  test("choosing a notice opens its item and marks it read on the core; 모두 읽음 marks all", async () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const source = new SpySource();
+    const reads: unknown[] = [];
+    const readNotices = source.readNotices.bind(source);
+    source.readNotices = async (body) => {
+      reads.push(body);
+      return readNotices(body);
+    };
+    const view = await open("#/inbox", { wide: true, source });
+    expect(view.getByRole("button", { name: "알림 5" })).toBeTruthy();
+    fireEvent.click(view.getByTestId("bell"));
+    const dialog = view.getByRole("dialog", { name: "알림" });
+    expect(dialog.querySelectorAll(".is-read")).toHaveLength(2);
+    expect(within(dialog).getByTestId("unread-count").textContent).toBe("안 읽음 5");
+    const first = within(dialog).getAllByRole("link")[0];
+    const target = first.getAttribute("href");
+    fireEvent.click(first);
+    expect(window.location.hash).toBe(target);
+    expect(view.getByRole("button", { name: "알림 4" })).toBeTruthy();
+    await waitFor(() => expect(source.scene.board.notices.filter((notice) => !notice.read)).toHaveLength(4));
+    fireEvent.click(view.getByTestId("bell"));
+    const again = view.getByRole("dialog", { name: "알림" });
+    expect(again.querySelectorAll("[data-testid=row]:not(.is-read)")).toHaveLength(4);
+    expect(within(again).getByTestId("unread-count").textContent).toBe("안 읽음 4");
+    fireEvent.click(view.getByRole("button", { name: "닫기" }));
+    expect(reads).toEqual([{ keys: [source.scene.board.notices[0].key] }]);
+    fireEvent.click(view.getByTestId("bell"));
+    fireEvent.click(view.getByRole("button", { name: "모두 읽음" }));
+    expect(view.getByRole("button", { name: "알림" })).toBeTruthy();
+    expect(view.queryByTestId("bell-count")).toBeNull();
+    await waitFor(() => expect(source.scene.board.counts.unread).toBe(0));
+    expect(reads.at(-1)).toEqual({ all: true });
+    expect(view.getByRole("dialog", { name: "알림" }).querySelectorAll("[data-testid=row]:not(.is-read)")).toHaveLength(0);
+    fireEvent.click(view.getByRole("button", { name: "닫기" }));
+    expect(view.queryByTestId("notices")).toBeNull();
+    expect(setItem).not.toHaveBeenCalled();
+    setItem.mockRestore();
+  });
+
+  test("a read on one device is the count on the other after its next refresh, both ways", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const core = new SyntheticSource();
+      const desktopStore = new Store(new SyntheticSource({ scene: core.scene }));
+      await desktopStore.refresh();
+      expect(buildModelCount(desktopStore)).toBe(5);
+      const phone = await open("#/inbox", { wide: false, source: core });
+      expect(phone.getByRole("button", { name: "알림 5" })).toBeTruthy();
+      const key = core.scene.board.notices.find((notice) => !notice.read)?.key ?? "";
+      expect(await desktopStore.write((source) => source.readNotices({ keys: [key] }))).toMatchObject({ ok: true });
+      expect(buildModelCount(desktopStore)).toBe(4);
+      await act(async () => {
+        vi.advanceTimersByTime(10_000);
+      });
+      await waitFor(() => expect(phone.getByRole("button", { name: "알림 4" })).toBeTruthy());
+      fireEvent.click(phone.getByTestId("bell"));
+      fireEvent.click(phone.getByRole("button", { name: "모두 읽음" }));
+      await waitFor(() => expect(core.scene.board.counts.unread).toBe(0));
+      await desktopStore.refresh();
+      expect(buildModelCount(desktopStore)).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a refused read mark puts the notice back as unread with its line", async () => {
+    const source = new SpySource();
+    source.readNotices = async () => ({ ok: false, status: 429, detail: "too many writes" });
+    const view = await open("#/inbox", { wide: true, source });
+    fireEvent.click(view.getByTestId("bell"));
+    fireEvent.click(view.getByRole("button", { name: "모두 읽음" }));
+    await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("쓰기가 너무 많음"));
+    expect(view.getByRole("button", { name: "알림 5" })).toBeTruthy();
+  });
+});
+
+function buildModelCount(store: Store): number {
+  return buildModel(store.input(), Date.now() / 1000).counts.unread;
+}
+
+function inboxCounts(view: ReturnType<typeof render>) {
+  const sidebar = Number(view.getByTestId("nav-inbox").querySelector("[data-testid=nav-count]")?.textContent ?? "0");
+  const heads: Record<string, number> = {};
+  for (const id of ["decide", "mine"]) heads[id] = Number(view.queryByTestId(`head-${id}`)?.querySelector("[data-testid=count]")?.textContent ?? "0");
+  const rows = view.container.querySelectorAll(".list-pane [data-testid=screen-inbox] [data-testid=row]").length;
+  return { sidebar, decide: heads.decide, mine: heads.mine, rows };
+}
+
+describe("lists while a write is in flight", () => {
+  test("a ticked 내 할 일 row stays, struck and checked, for the toast; then it leaves and every count follows", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SpySource();
+      const view = await open("#/inbox", { wide: true, source });
+      fireEvent.click(view.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" }));
+      await waitFor(() => expect(source.scene.itemDetails.T3.state).toBe("done"));
+      await waitFor(() => expect(source.scene.board.inbox.mine.map((row) => row.id)).toEqual(["T9"]));
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+      const box = view.getByRole("checkbox", { name: "공지 문구 확인 완료됨" });
+      expect(box.getAttribute("aria-checked")).toBe("true");
+      expect(box.closest("li")?.classList.contains("is-checked")).toBe(true);
+      expect(inboxCounts(view)).toEqual({ sidebar: 7, decide: 4, mine: 2, rows: 7 });
+      await act(async () => {
+        vi.advanceTimersByTime(TOAST_MS);
+      });
+      expect(view.queryByRole("checkbox", { name: /^공지 문구 확인/ })).toBeNull();
+      expect(inboxCounts(view)).toEqual({ sidebar: 6, decide: 4, mine: 1, rows: 6 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("되돌리기 on a held row puts it back unchecked", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SpySource();
+      const view = await open("#/inbox", { wide: true, source });
+      fireEvent.click(view.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" }));
+      await waitFor(() => expect(source.scene.itemDetails.T3.state).toBe("done"));
+      fireEvent.click(within(view.getByTestId("toast")).getByRole("button", { name: "되돌리기" }));
+      await waitFor(() => expect(source.scene.itemDetails.T3.state).toBe("planned"));
+      await act(async () => {
+        vi.advanceTimersByTime(TOAST_MS * 2);
+      });
+      expect(view.getByRole("checkbox", { name: "공지 문구 확인 완료로 표시" }).getAttribute("aria-checked")).toBe("false");
+      expect(inboxCounts(view)).toEqual({ sidebar: 7, decide: 4, mine: 2, rows: 7 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a row hidden for its answer's toast is out of every count, and undo puts it back", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const view = await open("#/inbox", { wide: true, source: new SpySource() });
+      fireEvent.click(decisionButton(view, "배포를 금요일 오후에 해도 될까요"));
+      await waitFor(() => expect(view.getByRole("button", { name: "금요일 오후 · 추천" })).toBeTruthy());
+      fireEvent.click(view.getByRole("button", { name: "금요일 오후 · 추천" }));
+      expect(inboxCounts(view)).toEqual({ sidebar: 6, decide: 3, mine: 2, rows: 6 });
+      fireEvent.click(within(view.getByTestId("toast")).getByRole("button", { name: "되돌리기" }));
+      expect(inboxCounts(view)).toEqual({ sidebar: 7, decide: 4, mine: 2, rows: 7 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("with no running card, 진행 중인 작업 still lists the stopped one with 다시 시도", async () => {
+    const view = await open("#/running", { wide: true, source: new SyntheticSource({ noRunning: true }) });
+    expect(view.queryByText("없음")).toBeNull();
+    const rows = view.getByRole("list", { name: "진행 중인 작업" }).querySelectorAll("[data-testid=row]");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].classList.contains("is-stopped")).toBe(true);
+    expect(view.getByRole("button", { name: /다시 시도$/ })).toBeTruthy();
+    expect(view.getByTestId("nav-running").querySelector("[data-testid=nav-stopped]")?.textContent).toBe("1");
   });
 });

@@ -7,7 +7,7 @@ This directory is the maintained source for verifying what people see and do in 
 - Dependencies are installed with `npm ci` and Chromium is available to Playwright (`npx playwright install chromium`).
 - Each run has its own id: `export VERIFY_RUN_ID=<short-id>`. The run directory is `verify-runs/$VERIFY_RUN_ID/` in the repository root.
 - Launch a disposable instance with `node .agents/skills/verify-lina-app/scripts/verify.mjs launch`. It builds the client into the run directory and serves it on a free port on `127.0.0.1`.
-- The instance serves the app under `/app/`, like the core does. Drives load `/app/?source=synthetic`, which draws the synthetic scene (`src/fixtures/synthetic.ts`) instead of reading a core: 3 agents with invented names, 수신함 `7`, 진행 중인 작업 `2` with a red `1`, 마감일 `5`, 완료 `1`, 목표 `5`, 알림 `7`, `기기 3 · 정상 1 · 경고 1 · 꺼짐 1`. `&error=quota` adds a failed quota source.
+- The instance serves the app under `/app/`, like the core does. Drives load `/app/?source=synthetic`, which draws the synthetic scene (`src/fixtures/synthetic.ts`) instead of reading a core: 3 agents with invented names, 수신함 `7`, 진행 중인 작업 `2` with a red `1`, 마감일 `5`, 완료 `1`, 목표 `5`, 알림 `5` (7 notices, 2 of them read), `기기 3 · 정상 1 · 경고 1 · 꺼짐 1`. `&error=quota` adds a failed quota source; `&running=none` takes the running cards out, leaving the stopped one.
 - Run `verify.mjs doctor` and require `"healthy": true` before the first drive.
 - Never drive an instance this run did not start, and never point the app at the owner's live core.
 
@@ -17,7 +17,7 @@ This directory is the maintained source for verifying what people see and do in 
 - Prefer ARIA roles and accessible names, then `data-testid`, over CSS selectors or DOM position.
 - Treat every command and quoted string as literal.
 - Every feature is driven at 1280 and 390 wide, the widths CI captures.
-- The app keeps no user data yet, so a drive needs no data restore. When a feature starts writing, its file says how to restore the fixture.
+- Writes on the synthetic instance change only the page's own copy of the scene; a page load starts the scene again, so a drive restores the fixture by reloading. Drivers read that copy through `window.__linaScene` to check what a write did to the record.
 
 ## Proof and skip reporting
 
@@ -29,8 +29,8 @@ This directory is the maintained source for verifying what people see and do in 
 
 ## Never press
 
-- On these screens the app has no write controls yet: nothing a drive can press changes data, so on a disposable instance there is nothing to avoid.
-- On a live core (a read-only pass after a deploy), never press `완료 표시`, `되돌리기`, `보내기` or `모두 읽음` once those controls exist. They write to the owner's record, and a read-only pass must leave it as it found it.
+- On a disposable instance (`?source=synthetic`) every control may be pressed: writes go to the page's copy of the scene and a reload undoes them.
+- On a live core (a read-only pass after a deploy), never press `완료 표시` (a check box), `되돌리기`, `보내기`, `다시 시도` or `모두 읽음`, and never choose a notice in the bell or an answer button. They write to the owner's record, and a read-only pass must leave it as it found it.
 
 ## Feature entry contract
 
@@ -62,6 +62,8 @@ Keep implementation details out of the map. Name only user paths, stable handles
 - [할 일 detail](./item-detail.md) covers a to-do with its runs and comment thread.
 - [작업 detail](./card-detail.md) covers a work card or a worker run outside any card.
 - [기기·쿼터](./status.md) covers machines and quota.
-- [Freshness and the bell](./freshness.md) covers the toolbar's freshness line, read failures and notices.
+- [Owner actions](./actions.md) covers done, undo, done with open to-dos, answers and retry.
+- [Freshness](./freshness.md) covers the toolbar's freshness line and read failures.
+- [알림](./bell.md) covers the bell, its notices and their read marks.
 - [Navigation](./phone-nav.md) covers the phone navigation stack, the wide split view and back.
 - [Install on the Home Screen](./install.md) covers the web app manifest, the icons and the service worker.

@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/ho
 import { startLive } from "./data/live";
 import { nowSeconds } from "./data/source";
 import { useClock, useStore, type Store, type Want } from "./data/store";
-import { buildModel, type Model } from "./model";
+import { buildModel, runRow, type Model } from "./model";
 import { back, defaultListFor, href, isList, linkClick, navigate, onSaveScroll, onStackMotion, parse, useNav, type Route } from "./router";
 import { slideMotion } from "./stack-motion";
 import { bindSwipeBack, isStandalone } from "./swipe-back";
@@ -47,9 +47,11 @@ export function titleOf(route: Route, model: Model, store: Store): string {
     case "item":
       return store.get("item", route.id)?.title ?? model.items.get(route.id)?.title ?? (route.name === "goal" ? W.goals : W.todo);
     case "card":
-      return model.cards.get(route.id)?.title ?? store.get("card", route.id)?.plain.title ?? W.cards;
-    case "run":
-      return model.runs.get(route.id)?.plain.title ?? W.cards;
+      return model.cards.get(route.id)?.name ?? W.cards;
+    case "run": {
+      const run = model.runs.get(route.id);
+      return run ? runRow(run).name : W.cards;
+    }
   }
 }
 

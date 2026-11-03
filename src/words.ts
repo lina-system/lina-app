@@ -161,7 +161,6 @@ export const W = {
   doneRecent: "24시간 안에 끝남",
   doneOlder: "이전에 끝남",
   doneSoFar: "끝난 것",
-  next: "다음",
   round: (n: number) => `라운드 ${n}`,
   summariesStopped: "요약 멈춤",
   folded: "접힌 댓글",
@@ -169,10 +168,15 @@ export const W = {
   latest: (time: string) => `최근 활동 ${time}`,
   allAgents: "전체",
   todoProgress: (done: number, total: number) => `할 일 ${done}/${total}`,
+  took: (time: string) => `${time} 걸림`,
+  yesterday: "어제",
 };
 
 /** The kind word beside a work card's icon in its detail. */
 export const KIND_WORD = { code: "코드", docs: "문서", research: "조사", device: "기기" } as const;
+
+/** What a card is called when the core has no checked title for it: its kind of work, never its raw title. */
+export const KIND_TITLE = { code: "코드 작업", docs: "문서 작업", research: "조사", device: "기기 작업" } as const;
 
 /** The one reason word after a machine's state, from the core's `why`. `down` is the state itself and shows none. */
 export const MACHINE_WHY: Readonly<Record<string, string>> = {

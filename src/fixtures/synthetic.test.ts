@@ -63,6 +63,12 @@ test("the scene holds what every screen needs", () => {
   expect(cards.filter((card) => card.state === "in_progress" && card.plain.now)).toHaveLength(1);
   expect(cards.filter((card) => card.plain.title === null && card.plain.now === null && card.plain.result === null).map((card) => card.id)).toEqual(["k-102"]);
   expect(scene.cardDetails["k-101"].runs).toHaveLength(3);
+  // A round with its worker run spans exactly that run, so the round's times and the run's duration agree.
+  for (const [round, runId] of scene.cardDetails["k-101"].runs.map((each, index) => [each, ["r9", "r10", "r1"][index]] as const)) {
+    const run = scene.board.cards.find((candidate) => candidate.id === runId);
+    expect(run?.startedAt).toBe(round.startedAt);
+    expect(run?.endedAt).toBe(round.endedAt);
+  }
   const stopped = cards.filter((card) => card.state === "stopped");
   expect(stopped.map((card) => card.reason)).toEqual(["unresponsive"]);
   expect(scene.cardDetails[stopped[0].id].runs.every((run) => typeof run.lastHeartbeatAt === "number")).toBe(true);

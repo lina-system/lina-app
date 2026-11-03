@@ -1021,7 +1021,7 @@ describe("work cards", () => {
     expect(names("24시간 안에 끝남").length + names("이전에 끝남").length).toBe(count(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")));
   });
 
-  test("a card with no checked lines draws no title and no raw text; its detail shows its kind and state only", async () => {
+  test("a card with no checked lines is named by its kind of work in grey, never by raw text, on the home, its detail and its agent", async () => {
     const source = new SyntheticSource();
     const raw = [...source.scene.cards.cards.map((card) => card.title), ...source.scene.board.cards.flatMap((run) => [run.title, run.now ?? ""]), ...source.scene.cards.cards.map((card) => card.now ?? "")].filter(Boolean);
     for (const hash of ["#/running", "#/done", "#/inbox", "#/cards/k-102", "#/cards/k-101", "#/runs/r2", "#/agents/ag-2"]) {
@@ -1032,12 +1032,21 @@ describe("work cards", () => {
     }
     const view = await open("#/cards/k-102", { wide: true });
     const detail = view.getByTestId("screen-card");
-    expect(detail.querySelector(".detail-title")).toBeNull();
+    const head = detail.querySelector(".detail-title");
+    expect(head?.textContent).toBe("코드 작업");
+    expect(head?.classList.contains("is-kind")).toBe(true);
     expect(within(detail).getByTestId("kind").textContent).toBe("코드");
     expect(within(detail).queryByTestId("card-now")).toBeNull();
     const row = within(view.getByTestId("screen-running")).getAllByTestId("row").find((item) => item.querySelector("a")?.getAttribute("href") === "#/cards/k-102");
-    expect(row?.querySelector(".title")).toBeNull();
+    expect(row?.querySelector(".title")?.textContent).toBe("코드 작업");
+    expect(row?.querySelector(".title")?.classList.contains("is-kind")).toBe(true);
+    expect(row?.querySelector("a")?.getAttribute("aria-label")).toMatch(/ · 코드 작업 · 진행 중/);
     expect(row?.querySelector(".state")?.textContent).toBe("진행 중");
+    view.unmount();
+    const agent = await open("#/agents/ag-2", { wide: true });
+    const agentRow = agent.container.querySelector('.list-pane li:has(> a[href="#/cards/k-102"]) .title');
+    expect(agentRow?.textContent).toBe("코드 작업");
+    expect(agentRow?.classList.contains("is-kind")).toBe(true);
   });
 
   test("two jobs on one to-do with one generated title stay two cards; three rounds of one card stay one card", async () => {
@@ -1050,20 +1059,25 @@ describe("work cards", () => {
     expect(home.container.querySelectorAll('a[href="#/runs/r9"], a[href="#/runs/r10"]')).toHaveLength(0);
   });
 
-  test("a card's detail: now, done so far, next, its to-dos, then its worker runs by round, newest round first", async () => {
+  test("a card's detail: now, its to-dos, then its worker runs by round; no box repeats the to-do list", async () => {
     const view = await open("#/cards/k-101", { wide: true });
     const detail = view.getByTestId("screen-card");
     const boxes = [...detail.querySelectorAll(":scope > .box > .box-head")].map((head) => head.textContent);
-    expect(boxes).toEqual(["지금", "끝난 것", "다음", "할 일", "실행", "댓글"]);
+    expect(boxes).toEqual(["지금", "할 일", "실행", "댓글"]);
     expect(within(detail).getByTestId("card-now").textContent).toContain("변경 목록을 기능별로 묶는 중");
-    expect(within(within(detail).getByTestId("card-done-so-far")).getAllByTestId("row").map((row) => row.textContent)).toEqual(["모은 변경 확인"]);
-    expect(within(detail).getByTestId("card-next").textContent).toContain("변경 목록 모으기");
+    expect(within(detail).queryByTestId("card-done-so-far")).toBeNull();
+    expect(within(detail).queryByTestId("card-next")).toBeNull();
     const rounds = within(detail).getAllByTestId("round");
     expect(rounds.map((round) => round.querySelector(".round-head")?.textContent?.split(" · ")[0])).toEqual(["라운드 3", "라운드 2", "라운드 1"]);
     expect(rounds[0].querySelector(".round-head")?.textContent).toMatch(/^라운드 3 · \d\d:\d\d · 진행 중$/);
     expect(rounds[1].querySelector(".round-head")?.textContent).toMatch(/^라운드 2 · \d\d:\d\d–\d\d:\d\d$/);
     expect(rounds.map((round) => round.querySelector("a")?.getAttribute("href"))).toEqual(["#/runs/r1", "#/runs/r10", "#/runs/r9"]);
     expect(rounds.every((round) => round.querySelector(".row")?.classList.contains("is-dim"))).toBe(true);
+    // A round's single run does not repeat the state and time its round head carries.
+    expect(rounds.map((round) => round.querySelector(".row .state"))).toEqual([null, null, null]);
+    view.unmount();
+    const waiting = await open("#/cards/k-104", { wide: true });
+    expect(waiting.getByTestId("card-done-so-far").textContent).toBe("끝난 것실패 화면 세 곳의 문구와 버튼을 비교함");
   });
 
   test("a stopped writer: one 요약 멈춤 line, and the missing lines still show nothing", async () => {
@@ -1082,7 +1096,7 @@ describe("work cards", () => {
       const view = await open("#/running", { wide: true, source });
       const row = () => within(view.getByTestId("screen-running")).getAllByTestId("row").find((item) => item.querySelector("a")?.getAttribute("href") === "#/cards/k-102");
       const before = row();
-      expect(before?.querySelector(".title")).toBeNull();
+      expect(before?.querySelector(".title")?.textContent).toBe("코드 작업");
       // Let the reads the page started on its own (the first tail, the open screen's wants) finish first.
       await act(async () => {
         await vi.advanceTimersByTimeAsync(STREAM_TICK_MS);
@@ -1178,8 +1192,37 @@ describe("work cards, round 4", () => {
   test("a round with no start on record shows one dim line when it holds content; an end receipt alone shows nothing", async () => {
     const view = await open("#/cards/k-103", { wide: true });
     const heads = view.getAllByTestId("round").map((round) => round.querySelector(".round-head")?.textContent);
-    expect(heads).toEqual([expect.stringMatching(/^라운드 3 · /), "라운드 1 · 시작 기록 없음"]);
+    // Round 3 has no end and its run no longer beats: the head says 중단됨, not 진행 중.
+    expect(heads).toEqual([expect.stringMatching(/^라운드 3 · \S+ · 중단됨$/), "라운드 1 · 시작 기록 없음"]);
     expect(view.getAllByTestId("round")[1].classList.contains("is-no-start")).toBe(true);
     expect(view.getAllByTestId("round")[1].querySelector("li")).toBeNull();
+  });
+});
+
+describe("work cards, round 5", () => {
+  beforeEach(() => setWide(true));
+
+  test("the stopped and running group has its heading and counts like every other group", async () => {
+    const view = await open("#/running", { wide: true });
+    const head = view.getByTestId("head-active");
+    expect(head.querySelector("span")?.textContent).toBe("진행 중");
+    expect(count(head.querySelector("[data-testid=count]"))).toBe(SCENE_COUNTS.running);
+    expect(count(head.querySelector("[data-testid=stopped-count]"))).toBe(SCENE_COUNTS.stopped);
+    const section = view.getByTestId("section-active");
+    expect(rowsIn(section) - stoppedRows(section)).toBe(SCENE_COUNTS.running);
+    expect(within(section).getByRole("list").getAttribute("aria-label")).toBe("진행 중인 작업");
+  });
+
+  test("a finished card says when it ended on the home and the agent screen; how long it took is in its detail", async () => {
+    const view = await open("#/running", { wide: true });
+    const times = (id: string) => [...view.getByTestId(`section-${id}`).querySelectorAll(".sub")].map((line) => line.textContent);
+    expect(times("recent")).toEqual(["완료 · 30분 전", "완료 · 2시간 전"]);
+    expect(times("older")).toEqual(["완료 · 2일 전"]);
+    view.unmount();
+    const agent = await open("#/done?agent=ag-1", { wide: true });
+    expect([...agent.getByTestId("screen-done").querySelectorAll(".sub")].map((line) => line.textContent)).toEqual(["완료 · 30분 전", "완료 · 2일 전"]);
+    agent.unmount();
+    const detail = await open("#/runs/r7", { wide: true });
+    expect(detail.container.querySelector(".detail-head .sub")?.textContent).toBe("완료 · 30분 전 · 20분 걸림");
   });
 });

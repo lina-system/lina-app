@@ -422,6 +422,12 @@ button:disabled {
   flex: none;
 }
 
+/* A card with no checked title is named by its kind of work, in grey: what it is, never its raw title. */
+.title.is-kind,
+.detail-title.is-kind {
+  color: var(--label-2);
+}
+
 /* A detail head's kind: the icon and its word, small and grey above the title. */
 .kind-mark {
   display: inline-flex;
@@ -441,7 +447,12 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 12px;
+  margin: 12px 16px;
+}
+
+.list > .agent-latest {
+  display: block;
+  margin: 0 16px 8px;
 }
 
 .filter .choice[aria-pressed="true"] {
@@ -532,9 +543,11 @@ button:disabled {
   min-height: var(--row-dense);
 }
 
+/* A worker run inside a card reads dimmed: secondary label colour, regular weight. */
 .is-dim .title {
   font-size: var(--text-small);
-  color: var(--label);
+  font-weight: 400;
+  color: var(--label-2);
 }
 
 .is-dim .mark {

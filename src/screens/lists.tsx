@@ -142,7 +142,7 @@ function RetryControl({ card }: { card: CardRow }) {
       </span>
     );
   return (
-    <button type="button" class="text-button retry" aria-label={[card.title, W.retry].filter(Boolean).join(SEP)} onClick={() => void actions.retry(card)} data-testid="retry">
+    <button type="button" class="text-button retry" aria-label={[card.name, W.retry].join(SEP)} onClick={() => void actions.retry(card)} data-testid="retry">
       {W.retry}
     </button>
   );
@@ -173,13 +173,11 @@ export function RunningScreen() {
           </li>
         </ul>
       ) : null}
-      {model.running.rows.length ? (
-        <ul class="rows" aria-label={W.running}>
-          {model.running.rows.map((card) => (
-            <CardRowView key={card.key} card={card} action={card.state === "stopped" ? <RetryControl card={card} /> : undefined} error={actions.error(`retry:${card.key}`)?.line} />
-          ))}
-        </ul>
-      ) : null}
+      <ListSection
+        section={home.active}
+        label={W.running}
+        render={(card) => <CardRowView key={card.key} card={card} action={card.state === "stopped" ? <RetryControl card={card} /> : undefined} error={actions.error(`retry:${card.key}`)?.line} />}
+      />
       {[home.waiting, home.recent, home.older].map((section) => (
         <ListSection key={section.id} section={section} render={(card) => <CardRowView key={card.key} card={card} />} />
       ))}

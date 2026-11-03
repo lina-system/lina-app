@@ -218,9 +218,10 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       { id: 3, profile: null, status: "blocked", outcome: null, startedAt: now - HOUR, endedAt: null, lastHeartbeatAt: now - 52 * MIN, summary: null, live: false },
     ],
     "k-101": [
-      { id: 1, profile: null, status: "done", outcome: "completed", startedAt: now - 3 * HOUR - MIN, endedAt: now - 2 * HOUR - 38 * MIN, lastHeartbeatAt: now - 2 * HOUR - 38 * MIN, summary: null, live: false },
-      { id: 2, profile: null, status: "done", outcome: "completed", startedAt: now - HOUR - MIN, endedAt: now - 38 * MIN, lastHeartbeatAt: now - 38 * MIN, summary: null, live: false },
-      { id: 3, profile: null, status: "running", outcome: null, startedAt: now - 13 * MIN, endedAt: null, lastHeartbeatAt: now - 20, summary: null, live: true },
+      // Each round spans exactly its worker run (r9, r10, r1), so a round's times and its run's duration agree.
+      { id: 1, profile: null, status: "done", outcome: "completed", startedAt: now - 3 * HOUR, endedAt: now - 2 * HOUR - 40 * MIN, lastHeartbeatAt: now - 2 * HOUR - 40 * MIN, summary: null, live: false },
+      { id: 2, profile: null, status: "done", outcome: "completed", startedAt: now - HOUR, endedAt: now - 40 * MIN, lastHeartbeatAt: now - 40 * MIN, summary: null, live: false },
+      { id: 3, profile: null, status: "running", outcome: null, startedAt: now - 12 * MIN, endedAt: null, lastHeartbeatAt: now - 20, summary: null, live: true },
     ],
   };
 

@@ -290,7 +290,8 @@ async function stoppedCardColours(list) {
     items.map((item) => ({
       stopped: item.classList.contains("is-stopped"),
       // A card without a checked title draws none (work-cards.md); it has no title colour to compare.
-      title: item.querySelector(".title") ? getComputedStyle(item.querySelector(".title")).color : null,
+      // A card named by its kind (no checked title) is grey on purpose: only real titles carry the label colour.
+      title: item.querySelector(".title:not(.is-kind)") ? getComputedStyle(item.querySelector(".title:not(.is-kind)")).color : null,
       state: getComputedStyle(item.querySelector("[data-testid=state]")).color,
       time: item.querySelector(".time") ? getComputedStyle(item.querySelector(".time")).color : null,
     })),
@@ -771,7 +772,8 @@ const drivers = {
       // Three finished cards: two jobs with one generated title stay two (work-cards.md).
       check(names.length === 3 && names.every((name) => name.endsWith("완료")), "done list " + names.join(" | "));
       check(names.filter((name) => name.includes("가이드 초안 다듬기")).length === 2, "the two jobs with one title read " + names.join(" | "));
-      check(lines.every((line) => /^완료 · \d+분$/.test(line)), "done lines read " + lines.join(", "));
+      // A finished card says when it ended; how long it took is in its detail.
+      check(lines.every((line) => /^완료 · \d+(분|시간|일) 전$/.test(line)), "done lines read " + lines.join(", "));
       return names.join(" | ") + " / " + lines.join(", ");
     });
   },
@@ -1023,13 +1025,14 @@ const drivers = {
       const state = await page.locator(".detail-head .sub").innerText();
       check(/^진행 중 · \d+분째$/.test(state), "state reads " + state);
       const heads = await page.locator(".detail .box-head").allInnerTexts();
-      check(JSON.stringify(heads) === JSON.stringify(["지금", "끝난 것", "다음", "할 일", "실행", "댓글"]), "boxes " + heads.join(", "));
+      check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "실행", "댓글"]), "boxes " + heads.join(", "));
       check((await page.getByTestId("card-now").innerText()).includes("변경 목록을 기능별로 묶는 중"), "the now box does not read the checked now line");
       check((await page.locator(".detail .box").filter({ has: page.locator(".box-head", { hasText: /^할 일$/ }) }).getByRole("checkbox").count()) === 3, "expected 3 to-dos");
       const dim = page.getByTestId("worker-runs").locator(".row.is-dim");
       check((await dim.count()) === 3, "expected 3 worker run rows, one per round, got " + (await dim.count()));
-      const look = await dim.first().evaluate((row) => ({ opacity: getComputedStyle(row).opacity, state: getComputedStyle(row.querySelector("[data-testid=state]")).color }));
-      check(look.opacity === "1", "the worker run row is faded (opacity " + look.opacity + ")");
+      // Dimmed by colour and weight, not by fading the row; a round's single run carries no state of its own.
+      const look = await dim.first().evaluate((row) => ({ opacity: getComputedStyle(row).opacity, weight: getComputedStyle(row.querySelector(".title")).fontWeight, state: row.querySelector("[data-testid=state]") !== null }));
+      check(look.opacity === "1" && look.weight === "400" && !look.state, "the worker run row reads " + JSON.stringify(look));
       check((await page.getByTestId("comment").count()) === 2, "expected 2 comments");
       return state + "; " + heads.join(", ");
     });
@@ -1824,33 +1827,61 @@ const drivers = {
       check(now === (wide ? 1 : 0), "the now line shows " + now + " times at " + page.viewportSize().width);
       return wide ? "now line from plain.now" : "no now line on a phone";
     });
-    await step("a card with no checked lines draws no title, and no raw text in its place", async () => {
+    await step("a card with no checked lines is named by its kind of work in grey, never by raw text", async () => {
       const row = home().locator('li:has(> a[href="#/cards/k-102"])');
-      check((await row.locator(".title").count()) === 0, "the card draws a title");
+      const kindTitle = row.locator(".title.is-kind");
+      check((await kindTitle.innerText()).trim() === "코드 작업", "the card is named " + (await row.locator(".title").allInnerTexts()).join(""));
+      const grey = await kindTitle.evaluate((title) => getComputedStyle(title).color === getComputedStyle(title.closest(".row").querySelector(".sub")).color);
+      check(grey, "the kind name is not grey like the state line");
       const state = (await row.locator(".state").innerText()).trim();
       check(state === "진행 중", "its state line reads " + state);
       await row.getByRole("link").click();
       await settled(page);
       const detail = page.getByTestId("screen-card");
       await detail.waitFor();
-      check((await detail.locator(".detail-title").count()) === 0, "the detail draws a title");
+      const head = (await detail.locator(".detail-title.is-kind").innerText()).trim();
+      check(head === "코드 작업", "the detail is named " + head);
       const kind = (await detail.getByTestId("kind").innerText()).trim();
       check(kind === "코드", "the kind reads " + kind);
       check((await detail.getByTestId("card-now").count()) === 0, "the detail shows a now line");
       const text = await detail.innerText();
       check(!/payment|card-form|editing/.test(text), "raw text in the detail: " + text.slice(0, 120));
-      return "row: " + state + "; detail: " + kind + ", no title, no now line";
+      return "row: 코드 작업 · " + state + "; detail: " + kind + ", " + head + ", no now line";
     });
-    await step("a card's detail: now, done so far, next, to-dos, worker runs by round (newest first, dimmed)", async () => {
+    await step("a card's detail: now, to-dos, worker runs by round (newest first, dimmed); no box repeats the to-dos", async () => {
       await openApp(page, "#/cards/k-101");
       const detail = page.getByTestId("screen-card");
       const heads = await detail.locator(":scope > .box > .box-head").allInnerTexts();
-      check(JSON.stringify(heads) === JSON.stringify(["지금", "끝난 것", "다음", "할 일", "실행", "댓글"]), "the boxes read " + JSON.stringify(heads));
+      check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "실행", "댓글"]), "the boxes read " + JSON.stringify(heads));
       const rounds = await detail.getByTestId("round").locator(".round-head").allInnerTexts();
       check(rounds.length === 3 && /^라운드 3 · \d\d:\d\d · 진행 중$/.test(rounds[0]) && /^라운드 2 · \d\d:\d\d–\d\d:\d\d$/.test(rounds[1]) && rounds[2].startsWith("라운드 1 · "), "the rounds read " + JSON.stringify(rounds));
-      const dim = await detail.getByTestId("round").locator("li.row").evaluateAll((rows) => rows.every((row) => row.classList.contains("is-dim")));
-      check(dim, "a worker run is not dimmed");
-      return heads.join(", ") + "; " + rounds.join(" | ");
+      const look = await detail.getByTestId("round").locator("li.row").evaluateAll((rows) =>
+        rows.map((row) => {
+          const title = getComputedStyle(row.querySelector(".title"));
+          return { dim: row.classList.contains("is-dim"), weight: title.fontWeight, grey: title.color === getComputedStyle(row.closest(".detail").querySelector(".round-head")).color, state: row.querySelector(".state") !== null };
+        }),
+      );
+      check(look.every((row) => row.dim && row.weight === "400" && row.grey && !row.state), "worker run rows read " + JSON.stringify(look));
+      const range = rounds[1].match(/(\d\d):(\d\d)–(\d\d):(\d\d)/);
+      const minutes = range ? (((Number(range[3]) * 60 + Number(range[4])) - (Number(range[1]) * 60 + Number(range[2])) + 1440) % 1440) : -1;
+      await detail.getByTestId("round").nth(1).getByRole("link").click();
+      await page.getByTestId("screen-run").waitFor();
+      const took = (await page.locator(".detail-head .sub").innerText()).trim();
+      check(took.endsWith(" · " + minutes + "분 걸림"), "round 2 spans " + minutes + " minutes, its run reads " + took);
+      return heads.join(", ") + "; " + rounds.join(" | ") + "; round 2's run: " + took;
+    });
+    await step("the stopped and running group has its heading and counts; finished cards say when they ended", async () => {
+      await openApp(page, "#/running");
+      const head = page.getByTestId("head-active");
+      const words = (await head.locator("span").first().innerText()).trim();
+      const grey = (await head.getByTestId("count").innerText()).trim();
+      const red = (await head.getByTestId("stopped-count").innerText()).trim();
+      check(words === "진행 중" && grey === "2" && red === "1", "the group heads " + words + " " + grey + " red " + red);
+      const recent = await page.getByTestId("section-recent").locator(".sub").allInnerTexts();
+      const older = await page.getByTestId("section-older").locator(".sub").allInnerTexts();
+      check(recent.every((line) => /^완료 · \d+(분|시간) 전$/.test(line)), "the last 24 hours read " + recent.join(", "));
+      check(older.every((line) => /^완료 · \d+일 전$/.test(line)), "older cards read " + older.join(", "));
+      return words + " " + grey + " / " + red + "; " + recent.join(", ") + "; " + older.join(", ");
     });
     await step("a comment with a path, a hash or a cut-off fragment is one folded entry; it opens on demand", async () => {
       await openApp(page, "#/cards/k-103");
@@ -1868,13 +1899,16 @@ const drivers = {
     });
     await step("a round with no start on record is one dim line when it holds content; an end alone shows nothing", async () => {
       const heads = await page.getByTestId("round").locator(".round-head").allInnerTexts();
-      check(heads.length === 2 && heads[0].startsWith("라운드 3 · ") && heads[1] === "라운드 1 · 시작 기록 없음", "the rounds read " + JSON.stringify(heads));
+      check(heads.length === 2 && /^라운드 3 · \S+ · 중단됨$/.test(heads[0]) && heads[1] === "라운드 1 · 시작 기록 없음", "the rounds read " + JSON.stringify(heads));
       const weight = await page.getByTestId("round").nth(1).locator(".round-head").evaluate((head) => getComputedStyle(head).fontWeight);
       check(weight === "400", "the no-start line has weight " + weight);
       return heads.join(" | ");
     });
     await step("완료's agent filter is the address and survives a reload; each count is its list; latest activity agrees", async () => {
       await openApp(page, "#/done");
+      // The filter lines up with the rows below it.
+      const edges = await page.getByTestId("screen-done").evaluate((screen) => ({ filter: screen.querySelector("[data-testid=done-filter]").getBoundingClientRect().left, row: screen.querySelector("li.row .lines").getBoundingClientRect().left, list: screen.getBoundingClientRect().left }));
+      check(edges.filter - edges.list >= 12, "the filter starts " + (edges.filter - edges.list) + " px from the pane's edge");
       const choice = page.getByTestId("done-filter").getByRole("button").nth(1);
       const name = (await choice.getAttribute("aria-label")) ?? "";
       await choice.click();
@@ -1910,7 +1944,7 @@ const drivers = {
       const lines = await page.getByTestId("summaries-stopped").allInnerTexts();
       check(lines.length === 1 && lines[0].trim() === "· 요약 멈춤", "the line reads " + JSON.stringify(lines));
       const row = page.getByTestId("screen-running").locator('li:has(> a[href="#/cards/k-102"])');
-      check((await row.locator(".title").count()) === 0, "the card with no checked lines draws a title");
+      check((await row.locator(".title.is-kind").innerText()).trim() === "코드 작업", "the card with no checked lines is not named by its kind");
       if (!wide) await phoneRules(page, "summaries stopped @390");
       return lines[0].trim();
     });

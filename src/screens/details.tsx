@@ -1,13 +1,13 @@
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, WorkCardDetail } from "../api/client";
-import { goalCards, runRow, type Model } from "../model";
+import { cardName, goalCards, runRow, type Model } from "../model";
 import { foldReason } from "../model/fold";
 import type { CardKind } from "../model/kind";
 import { href } from "../router";
-import { ago, clock } from "../time";
+import { ago, clockAt } from "../time";
 import { useActions } from "../ui/actions";
-import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, useApp } from "../ui/parts";
+import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, useApp } from "../ui/parts";
 import { SEP, STATE_WORD, stateLabel, W } from "../words";
 import { Comments } from "./comments";
 import { Talk } from "./talk";
@@ -225,14 +225,14 @@ export function ItemScreen({ id }: { id: string }) {
 export const GoalScreen = ItemScreen;
 
 /**
- * A work card's head: its kind icon and word, its checked title (nothing when the core has none) and its state
- * line. The raw card title is never drawn.
+ * A work card's head: its kind icon and word, its name (the checked title, or its kind of work in grey when the core
+ * has none) and its state line. The raw card title is never drawn.
  */
 function CardHead({ work, title, children }: { work: CardKind; title: string | null; children: ComponentChildren }) {
   return (
     <header class="detail-head">
       <KindMark work={work} word />
-      {title ? <h1 class="detail-title">{title}</h1> : null}
+      <h1 class={title ? "detail-title" : "detail-title is-kind"}>{cardName(title, work)}</h1>
       {children}
     </header>
   );
@@ -243,6 +243,8 @@ interface Round {
   /** Null when the round's start fell out of the kept history ('시작 기록 없음'). */
   readonly startedAt: number | null;
   readonly endedAt: number | null;
+  /** The round's run still beats (the core's run_is_live). */
+  readonly live: boolean;
   readonly workers: readonly string[];
 }
 
@@ -264,7 +266,7 @@ export function workerRounds(detail: Pick<WorkCardDetail, "runs" | "workerRuns">
       .map((worker) => worker.id);
     for (const worker of workers) placed.add(worker);
     const content = workers.length > 0 || (start === null && Boolean(run.summary?.trim()));
-    return { round: { n: index + 1, startedAt: start, endedAt: run.endedAt, workers } satisfies Round, content };
+    return { round: { n: index + 1, startedAt: start, endedAt: run.endedAt, live: run.live, workers } satisfies Round, content };
   });
   return {
     rounds: rounds.filter(({ content }) => content).map(({ round }) => round).reverse(),
@@ -272,10 +274,13 @@ export function workerRounds(detail: Pick<WorkCardDetail, "runs" | "workerRuns">
   };
 }
 
-function roundHead(round: Round): string {
+/** A round's head: its number and its own start and end, each with its day when that is not today (어제 23:41). */
+export function roundHead(round: Round, now: number): string {
   if (round.startedAt === null) return [W.round(round.n), W.noStart].join(SEP);
-  const span = round.endedAt === null ? clock(round.startedAt) : `${clock(round.startedAt)}–${clock(round.endedAt)}`;
-  return [W.round(round.n), span, round.endedAt === null ? STATE_WORD.in_progress : ""].filter(Boolean).join(SEP);
+  const span = round.endedAt === null ? clockAt(round.startedAt, now) : `${clockAt(round.startedAt, now)}–${clockAt(round.endedAt, now)}`;
+  // A round with no end is running only while its run beats; otherwise it stopped, and the head says so.
+  const state = round.endedAt !== null ? "" : round.live ? STATE_WORD.in_progress : STATE_WORD.stopped;
+  return [W.round(round.n), span, state].filter(Boolean).join(SEP);
 }
 
 /**
@@ -305,12 +310,13 @@ function CardComment({ comment }: { comment: WorkCardDetail["comments"][number] 
   );
 }
 
+/** A round's worker runs, dimmed; a round's single run does not repeat the state and time its round head carries. */
 function WorkerRows({ ids, model }: { ids: readonly string[]; model: Model }) {
   return (
     <ul class="rows" aria-label={W.workerRuns}>
       {ids.map((workerId) => {
         const run = model.runs.get(workerId);
-        return run ? <CardRowView key={workerId} card={runRow(run)} dim kindIcon={false} /> : null;
+        return run ? <CardRowView key={workerId} card={runRow(run)} dim bare={ids.length === 1} kindIcon={false} /> : null;
       })}
     </ul>
   );
@@ -322,13 +328,11 @@ export function CardScreen({ id }: { id: string }) {
   if (!detail) return store.status("card", id) === "missing" ? <Missing /> : <Loading />;
   const row = model.cards.get(id);
   const questions = (store.get("inbox")?.questions ?? []).filter((question) => question.cardId === id);
-  const finished = detail.todos.filter((todo) => todo.done);
-  const next = detail.state === "done" ? undefined : detail.todos.find((todo) => !todo.done);
   const { rounds, outside } = workerRounds(detail);
   return (
     <article class="detail" data-testid="screen-card">
       <CardHead work={row?.work ?? "code"} title={detail.plain.title}>
-        <StateTime state={detail.state} reason={detail.reason} time={row ? cardTime(row, now) : ""} />
+        <StateTime state={detail.state} reason={detail.reason} time={row ? [cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP) : ""} />
         {detail.state === "in_progress" && detail.todoProgress.total > 0 ? <Progress done={detail.todoProgress.done} total={detail.todoProgress.total} /> : null}
       </CardHead>
       {questions.map((question) => (
@@ -339,26 +343,11 @@ export function CardScreen({ id }: { id: string }) {
           <p class="box-text">{detail.plain.now}</p>
         </Box>
       ) : null}
-      {detail.plain.result || finished.length ? (
+      {/* A box shows only when it adds something: the checked to-dos and the first open one are the list below, so
+          끝난 것 carries only the result line and 다음 never repeats a to-do. */}
+      {detail.plain.result ? (
         <Box title={W.doneSoFar} testid="card-done-so-far">
-          {detail.plain.result ? <p class="box-text">{detail.plain.result}</p> : null}
-          {finished.length ? (
-            <ul class="rows checklist" aria-label={W.doneSoFar}>
-              {finished.map((todo) => (
-                <li key={todo.id} class="row check-row" data-testid="row">
-                  <CheckBox title={todo.title} done />
-                  <span class="lines">
-                    <span class="title one-line">{todo.title}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </Box>
-      ) : null}
-      {next ? (
-        <Box title={W.next} testid="card-next">
-          <p class="box-text">{next.title}</p>
+          <p class="box-text">{detail.plain.result}</p>
         </Box>
       ) : null}
       {detail.todos.length ? (
@@ -379,7 +368,7 @@ export function CardScreen({ id }: { id: string }) {
         <Box title={W.workerRuns} testid="worker-runs">
           {rounds.map((round) => (
             <section key={round.n} class={round.startedAt === null ? "round is-no-start" : "round"} data-testid="round">
-              <h3 class="round-head">{roundHead(round)}</h3>
+              <h3 class="round-head">{roundHead(round, now)}</h3>
               {round.workers.length ? <WorkerRows ids={round.workers} model={model} /> : null}
             </section>
           ))}
@@ -410,7 +399,7 @@ export function RunScreen({ id }: { id: string }) {
   return (
     <article class="detail" data-testid="screen-run">
       <CardHead work={row.work} title={run.plain.title}>
-        <StateTime state={run.state} reason={run.reason} time={cardTime(row, now)} />
+        <StateTime state={run.state} reason={run.reason} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} />
       </CardHead>
       {run.plain.now && run.state === "in_progress" ? (
         <Box title={W.now}>

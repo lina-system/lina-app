@@ -16,7 +16,7 @@ import type {
   WorkInbox,
   WorkState,
 } from "../api/client";
-import { CRUMB, SOURCE_WORD, STATE_WORD, W } from "../words";
+import { CRUMB, KIND_TITLE, SOURCE_WORD, STATE_WORD, W } from "../words";
 import { href } from "../router";
 import { cardKind, type CardKind } from "./kind";
 
@@ -65,6 +65,8 @@ export interface CardRow {
   readonly id: string;
   readonly href: string;
   readonly title: string | null;
+  /** What the card is called everywhere: its checked title, or its kind word when it has none (cardName). */
+  readonly name: string;
   readonly agent: string | null;
   readonly state: WorkState;
   readonly reason: string | null;
@@ -154,6 +156,8 @@ export interface Counts {
 export interface Home {
   /** Open decisions, the same number as the inbox's 결정 필요; one line on the home, only when there are any. */
   readonly decisions: number;
+  /** The stopped and running cards, stopped on top: the running number and the red stopped number, as the sidebar. */
+  readonly active: Section<CardRow>;
   readonly waiting: Section<CardRow>;
   /** Finished in the last 24 hours, newest first. */
   readonly recent: Section<CardRow>;
@@ -208,18 +212,25 @@ function maxOf(values: (number | null | undefined)[]): number | null {
   return present.length ? Math.max(...present) : null;
 }
 
+/** The one naming rule: the checked title, or the kind of work (코드 작업, 문서 작업, 조사, 기기 작업) in its place. */
+export function cardName(title: string | null, work: CardKind): string {
+  return title ?? KIND_TITLE[work];
+}
+
 function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, receivedAt: number, runCards: ReadonlyMap<string, RunCard>): CardRow {
   const runs = detail?.runs ?? [];
   const lastBeat = maxOf(runs.map((run) => run.lastHeartbeatAt));
   const ended = maxOf(runs.map((run) => run.endedAt));
   const base = receivedAt - card.elapsedSeconds;
+  const work = cardKind(card.plain.title ?? "", (detail?.workerRuns ?? []).map((worker) => runCards.get(worker.id)).filter((run): run is RunCard => run !== undefined));
   return {
     key: `card:${card.id}`,
     kind: "card",
-    work: cardKind(card.plain.title ?? "", (detail?.workerRuns ?? []).map((worker) => runCards.get(worker.id)).filter((run): run is RunCard => run !== undefined)),
+    work,
     id: card.id,
     href: href({ name: "card", id: card.id }),
     title: card.plain.title,
+    name: cardName(card.plain.title, work),
     agent: card.agent,
     state: card.state,
     reason: card.reason,
@@ -235,13 +246,15 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
 }
 
 export function runRow(run: RunCard): CardRow {
+  const work = cardKind(run.plain.title ?? "", [run]);
   return {
     key: `run:${run.id}`,
     kind: "run",
-    work: cardKind(run.plain.title ?? "", [run]),
+    work,
     id: run.id,
     href: href({ name: "run", id: run.id }),
     title: run.plain.title,
+    name: cardName(run.plain.title, work),
     agent: run.agent,
     state: run.state,
     reason: run.reason,
@@ -294,8 +307,8 @@ export function buildModel(input: ModelInput, now: number): Model {
 
   // Inbox: decisions (oldest first), finished runs waiting on the owner, then the owner's own to-dos.
   const goalTitleOfCard = (cardId: string) => input.goals?.goals.find((goal) => goal.workCards.some((card) => card.id === cardId))?.title;
-  // A card's question names the card by its checked title only, never the kanban card's own title.
-  const questionContext = (cardId: string) => [goalTitleOfCard(cardId), cardMap.get(cardId)?.title].filter(Boolean).join(CRUMB);
+  // A card's question names the card by its name (checked title or kind word), never the kanban card's own title.
+  const questionContext = (cardId: string) => [goalTitleOfCard(cardId), cardMap.get(cardId)?.name].filter(Boolean).join(CRUMB);
   const contextOf = (target: string) => {
     const item = itemMap.get(target);
     if (!item) return "";
@@ -422,6 +435,7 @@ export function buildModel(input: ModelInput, now: number): Model {
     done,
     home: {
       decisions: inboxSections[0].count,
+      active: section("active", W.agentRunning, runningRows),
       waiting: section("waiting", STATE_WORD.waiting, waiting),
       recent: section("recent", W.doneRecent, recent),
       older: section("older", W.doneOlder, done.filter((card) => !recent.includes(card))),

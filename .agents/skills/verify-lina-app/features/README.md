@@ -30,7 +30,7 @@ This directory is the maintained source for verifying what people see and do in 
 ## Never press
 
 - On a disposable instance (`?source=synthetic`) every control may be pressed: writes go to the page's copy of the scene and a reload undoes them.
-- On a live core (a read-only pass after a deploy), never press `완료 표시` (a check box), `되돌리기`, `보내기`, `다시 시도` or `모두 읽음`, and never choose a notice in the bell or an answer button. They write to the owner's record, and a read-only pass must leave it as it found it.
+- On a live core (a read-only pass after a deploy), never press `완료 표시` (a check box), `되돌리기`, `보내기` (in `댓글` or `대화`), `다시 시도` or `모두 읽음`, and never choose a notice in the bell or an answer button. They write to the owner's record, and a read-only pass must leave it as it found it.
 
 ## Feature entry contract
 
@@ -60,6 +60,7 @@ Keep implementation details out of the map. Name only user paths, stable handles
 - [에이전트 screen](./agent-screen.md) covers one agent's running, review, goals and done line.
 - [목표](./goals.md) covers the goal list and goal detail.
 - [할 일 detail](./item-detail.md) covers a to-do with its runs and comment thread.
+- [대화](./talk.md) covers talking with the agent that owns a goal or to-do, from its page.
 - [작업 detail](./card-detail.md) covers a work card or a worker run outside any card.
 - [기기·쿼터](./status.md) covers machines and quota.
 - [Owner actions](./actions.md) covers done, undo, done with open to-dos, answers and retry.

@@ -9,6 +9,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const SCHEMAS = [
   { source: path.join(root, "openapi", "board-client.yaml"), output: path.join(root, "src", "api", "board.generated.ts") },
   { source: path.join(root, "openapi", "work-client.yaml"), output: path.join(root, "src", "api", "work.generated.ts") },
+  { source: path.join(root, "openapi", "talk-client.yaml"), output: path.join(root, "src", "api", "talk.generated.ts") },
 ];
 
 const cli = path.join(root, "node_modules", "openapi-typescript", "bin", "cli.js");

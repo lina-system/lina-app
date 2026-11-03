@@ -12,7 +12,7 @@ A to-do opens on its own page: its check box, done condition, state and time, th
 
 - The head shows the round check box (named `<title> 완료로 표시`, `<title> 완료됨` once checked) with `state · time`, and `되돌리기` while the owner's own done mark can be taken back (ten minutes, after the toast). Ticking it is in actions.md.
 - A pending decision on the to-do (or on a goal, on its goal page) shows on top as a `결정 필요` box: the sentence, then agent, kind word (`질문` or `요청`) and age.
-- `완료 조건`, then `실행` with one line per run (`title · state`), then `댓글`.
+- `완료 조건`, then `실행` with one line per run (`title · state`), then `댓글`, then `대화` (talk.md).
 - Each comment shows its sentence, then author and time; replies sit under it with their author, time and result word (`반영함`, `답변 필요`, `반영 안 함`). Never only a count.
 - Times read `방금` under a minute, `n분 전` under an hour, `n시간 전` from 60 minutes and `n일 전` from a day: a reply 55 minutes old reads `<author> · 55분 전`, one 80 minutes old `<author> · 1시간 전`.
 - A resolved thread folds to one line `해결됨 · <first words>`; choosing it opens the thread.
@@ -41,7 +41,7 @@ Preconditions:
 - The page is `/app/?source=synthetic`, the synthetic scene; the drive opens it fresh for each width.
 
 - **Open a to-do.** On `결제 화면 개편`, choose `카드 입력 폼 다듬기`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive item-detail`.
-- **Read it.** The check box `카드 입력 폼 다듬기 완료로 표시` is not `aria-disabled`; boxes `완료 조건`, `실행`, `댓글`; the run line reads `카드 입력 폼 다듬기 · 진행 중`; 2 comments and 2 replies; the open reply reads `<author> · 1시간 전`, the one in the resolved thread `<author> · 55분 전 · 반영함`.
+- **Read it.** The check box `카드 입력 폼 다듬기 완료로 표시` is not `aria-disabled`; boxes `완료 조건`, `실행`, `댓글`, `대화`; the run line reads `카드 입력 폼 다듬기 · 진행 중`; 2 comments and 2 replies; the open reply reads `<author> · 1시간 전`, the one in the resolved thread `<author> · 55분 전 · 반영함`.
 - **Resolved thread.** One `해결됨 · …` line, closed.
 - **Button.** `보내기` is grey while the field is empty and accent once it has text; on a phone it is at least 44 px tall.
 - **Comment.** Type `휴대폰 가로 화면도 봐 주세요` into `댓글 달기` and choose `보내기`. At once `<agent>에게 보냄 · 방금` shows and the field is empty; the synthetic record holds the owner's comment. Within 25 s the reply line `<agent> · 방금 · 반영함` shows and the pending line is gone.
@@ -56,4 +56,4 @@ Preconditions:
 ## Not goals
 
 - No editing or deleting a comment.
-- No conversation with the agent beyond the thread (lina-app#9).
+- Talking with the agent is its own box, `대화` (talk.md).

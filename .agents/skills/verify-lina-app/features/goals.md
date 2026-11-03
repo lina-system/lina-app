@@ -11,7 +11,7 @@
 ## Intended behavior
 
 - The list shows one line per goal: progress dial (a round check box instead once all its to-dos are closed), agent mark, name, done condition and `진행 중 n` when to-dos run.
-- The detail shows the title, state and time, a `결정 필요` box on top when a decision is pending on the goal, `완료 조건`, the owner's words folded under `내 말`, `할 일` as checklist rows with round check boxes, a check box in the head for the goal itself, `작업` with each card's state and time, `완료 근거` when the goal is done, and `댓글` with the goal's thread and the same `댓글 달기` field and `보내기` as a to-do (see item-detail).
+- The detail shows the title, state and time, a `결정 필요` box on top when a decision is pending on the goal, `완료 조건`, the owner's words folded under `내 말`, `할 일` as checklist rows with round check boxes, a check box in the head for the goal itself, `작업` with each card's state and time, `완료 근거` when the goal is done, and `댓글` with the goal's thread and the same `댓글 달기` field and `보내기` as a to-do (see item-detail), then `대화` (talk.md).
 - Only boxes with something in them are drawn; `댓글` is always drawn for its field.
 - Opening a work card from `작업` shows its to-dos and its dimmed worker runs (see card-detail).
 

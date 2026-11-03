@@ -6,13 +6,15 @@ type Props = {
   onValue: (value: string) => void;
   /** Shows the label inside the empty field instead of before it; the field keeps it as its accessible name. */
   inline?: boolean;
+  /** Enter sends, outside a form: an Enter that ends a Hangul composition only commits the syllable. */
+  onEnter?: () => void;
 };
 
 function isImeEvent(event: KeyboardEvent): boolean {
   return event.isComposing || event.keyCode === 229;
 }
 
-export function KoreanInput({ label, value, onValue, inline = false }: Props) {
+export function KoreanInput({ label, value, onValue, inline = false, onEnter }: Props) {
   const ref = useRef<HTMLInputElement>(null);
   const composing = useRef(false);
 
@@ -38,7 +40,7 @@ export function KoreanInput({ label, value, onValue, inline = false }: Props) {
         lang="ko"
         name="lina-note"
         inputMode="text"
-        enterKeyHint="done"
+        enterKeyHint={onEnter ? "send" : "done"}
         autoCapitalize="none"
         autoCorrect="on"
         spellcheck
@@ -56,7 +58,11 @@ export function KoreanInput({ label, value, onValue, inline = false }: Props) {
           commit(event.currentTarget);
         }}
         onKeyDown={(event) => {
-          if (isImeEvent(event)) return;
+          if (isImeEvent(event) || composing.current) return;
+          if (event.key !== "Enter" || !onEnter) return;
+          event.preventDefault();
+          commit(event.currentTarget);
+          onEnter();
         }}
         onFocus={(event) => {
           const element = event.currentTarget;

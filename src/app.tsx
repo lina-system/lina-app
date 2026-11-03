@@ -1,9 +1,9 @@
 import type { ComponentChildren, RefObject } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
-import { startRefresh } from "./data/refresh";
+import { startLive } from "./data/live";
 import { nowSeconds } from "./data/source";
 import { useClock, useStore, type Store, type Want } from "./data/store";
-import { buildModel, type Model } from "./model";
+import { buildModel, runRow, type Model } from "./model";
 import { back, defaultListFor, href, isList, linkClick, navigate, onSaveScroll, onStackMotion, parse, useNav, type Route } from "./router";
 import { slideMotion } from "./stack-motion";
 import { bindSwipeBack, isStandalone } from "./swipe-back";
@@ -47,9 +47,11 @@ export function titleOf(route: Route, model: Model, store: Store): string {
     case "item":
       return store.get("item", route.id)?.title ?? model.items.get(route.id)?.title ?? (route.name === "goal" ? W.goals : W.todo);
     case "card":
-      return model.cards.get(route.id)?.title ?? store.get("card", route.id)?.title ?? W.cards;
-    case "run":
-      return model.runs.get(route.id)?.title ?? W.cards;
+      return model.cards.get(route.id)?.name ?? W.cards;
+    case "run": {
+      const run = model.runs.get(route.id);
+      return run ? runRow(run).name : W.cards;
+    }
   }
 }
 
@@ -79,7 +81,7 @@ function Screen({ route }: { route: Route }) {
     case "due":
       return <DueScreen />;
     case "done":
-      return <DoneScreen />;
+      return <DoneScreen agent={route.agent} />;
     case "goals":
       return <GoalsScreen />;
     case "status":
@@ -161,15 +163,21 @@ export function Sidebar({ current }: { current?: Route }) {
 export function Freshness() {
   const { model, store, now } = useApp();
   let line: { text: string; tone: string };
-  if (store.offline) line = { text: W.offline, tone: "is-red" };
-  else if (store.lastOk === null) line = { text: W.loading, tone: "" };
-  else if (now - store.lastOk > 30) line = { text: W.stale, tone: "" };
+  if (store.offline || store.denied) line = { text: W.offline, tone: "is-red" };
+  else if (store.lastOk === null || store.version === 0) line = { text: W.loading, tone: "" };
+  else if (store.live === "open" && !store.boardFailed) line = { text: W.live, tone: "" };
+  else if (store.live === "down" || now - store.lastOk > 30) line = { text: W.stale, tone: "" };
   else line = { text: W.fresh(Math.max(0, Math.floor(now - store.lastOk))), tone: "" };
   return (
     <span class="freshness" data-testid="freshness">
       <span class={line.tone} data-testid="freshness-line">
         {line.text}
       </span>
+      {!store.offline && model.summariesStopped ? (
+        <span class="is-orange" data-testid="summaries-stopped">
+          {`${SEP}${W.summariesStopped}`}
+        </span>
+      ) : null}
       {!store.offline && model.errors.length ? (
         <span class="is-orange" data-testid="read-failed">
           {`${SEP}${W.readFailed(model.errors.join(", "))}`}
@@ -333,7 +341,7 @@ function useScrollKeeping(panes: Panes, keys: Record<keyof Panes, string>, saved
 
 function WideShell({ route, stack, scroll }: { route: Route; stack: readonly string[]; scroll: Readonly<Record<string, number>> }) {
   const { model, store } = useApp();
-  const listRoute: Route = route.name === "home" ? { name: "inbox" } : isList(route) ? route : (lastListIn(stack) ?? defaultListFor(route));
+  const listRoute: Route = route.name === "home" ? { name: "running" } : isList(route) ? route : (lastListIn(stack) ?? defaultListFor(route));
   const detailRoute = isList(route) || route.name === "home" ? null : route;
   const listRef = useRef<HTMLElement>(null);
   const detailRef = useRef<HTMLElement>(null);
@@ -436,7 +444,7 @@ export function App({ store }: { store: Store }) {
   const actions = useActionsFor(store);
   const model = useMemo(() => buildModel({ ...store.input(), pending: actions.pending() }, now), [version, minute, actions.version]);
 
-  useEffect(() => startRefresh(() => void store.refresh()), [store]);
+  useEffect(() => startLive(store), [store]);
   useEffect(() => store.want(wantsFor(nav.route, store)), [nav.hash, version]);
 
   const context: AppContext = { model, store, now, wide, selected: isList(nav.route) ? null : nav.hash };

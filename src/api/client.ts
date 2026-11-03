@@ -22,6 +22,11 @@ export type ItemDetail = Board["schemas"]["ItemDetail"];
 export type ItemComment = Board["schemas"]["ItemComment"];
 export type ItemRun = Board["schemas"]["ItemRun"];
 export type ActionResult = Board["schemas"]["ActionResult"];
+/** The change stream (lina#150): what changed, by source and id, with no body; the screens refetch the snapshot. */
+export type ChangeEvent = Board["schemas"]["ChangeEvent"];
+export type ChangeBatch = Board["schemas"]["ChangeBatch"];
+export type ChangeResync = Board["schemas"]["ChangeResync"];
+export type ChangeMessage = Board["schemas"]["ChangeMessage"];
 
 /** The core's own one-line refusal (4xx): `{detail}`. */
 export type Refusal = Board["schemas"]["Refusal"];
@@ -75,6 +80,9 @@ export function writePath(route: WriteRoute, id: string): string {
 }
 
 export const NOTICES_READ_PATH = `${BOARD_BASE}/notices/read`;
+
+/** The change stream's WebSocket; the credential goes as `?token=`, like the dashboard's other sockets. */
+export const EVENTS_PATH = `${BOARD_BASE}/events`;
 
 /** One turn with the agent that owns a goal or to-do (talk-client.yaml); the reply streams as server-sent events. */
 export type TalkRequest = JsonBody<TalkPaths["/work/items/{item_id}/talk"]["post"]>;

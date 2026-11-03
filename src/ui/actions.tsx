@@ -93,7 +93,8 @@ export class Actions {
 
   requested(key: string): boolean {
     const at = this.requestedAt.get(key);
-    return at !== undefined && (at < 0 || at === this.store.refreshes);
+    // The stream brings the record's copy back within a second, so the line holds as long as a toast does.
+    return at !== undefined && (at < 0 || Date.now() - at < TOAST_MS);
   }
 
   /** A notice is read when the core says so, or while this device's read mark is on its way. */
@@ -241,7 +242,7 @@ export class Actions {
     this.errors.delete(`retry:${card.key}`);
     this.notify();
     const result = await this.store.write<unknown>((source) => (card.todo ? source.retry(card.todo) : source.answerCard(card.id, { text: W.retryText })), { refresh: false });
-    if (result.ok) this.requestedAt.set(card.key, this.store.refreshes);
+    if (result.ok) this.requestedAt.set(card.key, Date.now());
     else {
       this.requestedAt.delete(card.key);
       this.errors.set(`retry:${card.key}`, { line: writeError("retry", result) });

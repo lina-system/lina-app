@@ -1,12 +1,21 @@
 import { act, cleanup, render } from "@testing-library/preact";
 import { h } from "preact";
 import { afterEach, describe, expect, test } from "vitest";
-import { back, directionOf, navigate, onSaveScroll, onStackMotion, useNav, type Direction } from "./router";
+import { back, directionOf, href, navigate, onSaveScroll, onStackMotion, parse, useNav, type Direction } from "./router";
 
 // Preact runs a passive effect's cleanup after paint; unmounting inside act flushes it before the test ends, so no
 // timer outlives the test environment (and no old listener sees the next test's history).
 afterEach(async () => {
   await act(async () => cleanup());
+});
+
+describe("the 완료 filter lives in the address", () => {
+  test("#/done?agent=<id> reads back as the same filter and writes the same address", () => {
+    expect(parse("#/done?agent=ag-1")).toEqual({ name: "done", agent: "ag-1" });
+    expect(href({ name: "done", agent: "ag-1" })).toBe("#/done?agent=ag-1");
+    expect(parse("#/done")).toEqual({ name: "done" });
+    expect(href({ name: "done" })).toBe("#/done");
+  });
 });
 
 describe("stack direction", () => {
@@ -116,12 +125,18 @@ describe("the motion learns the direction before the screen swaps", () => {
       await done;
     });
     expect(queued).toHaveLength(2);
+    // Every swap completes, the late one too: a promise left pending holds its View Transition until it times out.
+    // act renders when its callback returns, so each swap's promise is awaited after it.
+    let newer: Promise<void> = Promise.resolve();
+    let late: Promise<void> = Promise.resolve();
     await act(async () => {
-      void queued[1]();
+      newer = queued[1]();
     });
+    await newer;
     await act(async () => {
-      void queued[0]();
+      late = queued[0]();
     });
+    await late;
     expect(view.getByTestId("shown").textContent).toBe("#/");
     expect(scrolls.at(-1)).toBe(120);
   });

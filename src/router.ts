@@ -3,7 +3,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 export type ListName = "inbox" | "running" | "due" | "done" | "goals" | "status";
 export type Route =
   | { readonly name: "home" }
-  | { readonly name: ListName }
+  | { readonly name: Exclude<ListName, "done"> }
+  /** 완료, optionally filtered to one agent: the filter lives in the address (`#/done?agent=<id>`), never in storage. */
+  | { readonly name: "done"; readonly agent?: string }
   | { readonly name: "agent" | "goal" | "item" | "card" | "run"; readonly id: string };
 
 const LISTS: readonly ListName[] = ["inbox", "running", "due", "done", "goals", "status"];
@@ -11,8 +13,13 @@ const PATHS: Record<string, Route["name"]> = { agents: "agent", goals: "goal", i
 const SEGMENT: Record<string, string> = { agent: "agents", goal: "goals", item: "items", card: "cards", run: "runs" };
 
 export function parse(hash: string): Route {
-  const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
+  const [path, query = ""] = hash.replace(/^#\/?/, "").split("?");
+  const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
   if (parts.length === 0) return { name: "home" };
+  if (parts.length === 1 && parts[0] === "done") {
+    const agent = new URLSearchParams(query).get("agent");
+    return agent ? { name: "done", agent } : { name: "done" };
+  }
   if (parts.length === 1 && (LISTS as readonly string[]).includes(parts[0])) return { name: parts[0] as ListName };
   const name = PATHS[parts[0]];
   if (parts.length === 2 && name && name !== "home") return { name, id: parts[1] } as Route;
@@ -22,6 +29,7 @@ export function parse(hash: string): Route {
 export function href(route: Route): string {
   if (route.name === "home") return "#/";
   if ("id" in route) return `#/${SEGMENT[route.name]}/${encodeURIComponent(route.id)}`;
+  if (route.name === "done" && route.agent) return `#/done?${new URLSearchParams({ agent: route.agent })}`;
   return `#/${route.name}`;
 }
 
@@ -115,9 +123,11 @@ export function useNav(): { route: Route; state: NavState; hash: string } {
   const read = () => ({ route: parse(currentHash()), state: readState(), hash: currentHash() });
   const [nav, setNav] = useState(read);
   const shown = useRef(nav);
+  const committed = useRef(nav);
   const settle = useRef<(() => void) | null>(null);
   // Children's layout effects (the scroll restore) run first, so the swap is done, scroll included, before paint.
   useLayoutEffect(() => {
+    committed.current = nav;
     settle.current?.();
     settle.current = null;
   }, [nav]);
@@ -132,6 +142,12 @@ export function useNav(): { route: Route; state: NavState; hash: string } {
         way,
         () =>
           new Promise<void>((resolve) => {
+            // A late swap of an overtaken transition finds the latest screen already drawn: setting the same state
+            // renders nothing and runs no layout effect, so it would never resolve and the transition would hang.
+            if (committed.current === shown.current) {
+              resolve();
+              return;
+            }
             settle.current?.();
             settle.current = resolve;
             // Always the latest screen: a transition skipped by a newer one still runs its swap, possibly after

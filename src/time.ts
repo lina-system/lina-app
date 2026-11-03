@@ -32,6 +32,21 @@ export function until(seconds: number): string {
   return `${Math.max(1, Math.round(seconds / DAY))}일 후`;
 }
 
+/** A time of day, 24-hour: 14:05. */
+export function clock(epochSeconds: number): string {
+  const date = new Date(epochSeconds * 1000);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+/** A time of day with its day when that is not `now`'s: 14:05 today, 어제 23:41, then 11월 2일 09:10. */
+export function clockAt(epochSeconds: number, now: number): string {
+  const key = (seconds: number) => new Date(seconds * 1000).toDateString();
+  if (key(epochSeconds) === key(now)) return clock(epochSeconds);
+  if (key(epochSeconds) === key(now - 86_400)) return `${W.yesterday} ${clock(epochSeconds)}`;
+  const date = new Date(epochSeconds * 1000);
+  return `${date.getMonth() + 1}월 ${date.getDate()}일 ${clock(epochSeconds)}`;
+}
+
 export function dayLabel(day: string): string {
   const [, month, date] = day.split("-").map(Number);
   return `${month}월 ${date}일`;

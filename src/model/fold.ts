@@ -1,0 +1,22 @@
+/**
+ * Whether a comment's sentence can show as it is. A comment that would show a path, a command, a hash, an issue
+ * number, an address or a cut-off fragment shows as one folded entry instead (the dashboard's rule for comment
+ * rewrites, carried over as a rule: the same kinds of text the core refuses in its checked lines, lina#151).
+ */
+export type FoldReason = "path" | "command" | "hash" | "issue" | "address" | "fragment";
+
+const RULES: readonly (readonly [FoldReason, RegExp])[] = [
+  ["address", /https?:|www\./i],
+  ["issue", /(?<![0-9A-Za-z])(?:[\w.-]+\/[\w.-]+)?#\d+/],
+  ["hash", /\b[0-9a-f]{7,40}\b/],
+  ["path", /[\w-]\.[A-Za-z][A-Za-z0-9]{0,4}\b|[\w.-]+\/[\w.-]+|(?:^|[\s(])(?:~|\.{1,2})?\/[\w.-]|\\[\w.-]/],
+  ["command", /`|(?:^|\s)--?[A-Za-z]|(?:^|\s)\$\s|\s(?:\||&&|>>?|<)\s/],
+  ["fragment", /(?:…|\.\.\.)\s*$/],
+];
+
+export function foldReason(text: string): FoldReason | null {
+  const body = text.trim();
+  if (!body) return "fragment";
+  for (const [reason, rule] of RULES) if (rule.test(body)) return reason;
+  return null;
+}

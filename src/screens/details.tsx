@@ -1,12 +1,14 @@
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import type { ItemDetail, ItemSummary } from "../api/client";
-import { goalCards, runRow } from "../model";
+import type { ItemDetail, ItemSummary, WorkCardDetail } from "../api/client";
+import { cardName, goalCards, runRow, type Model } from "../model";
+import { foldReason } from "../model/fold";
+import type { CardKind } from "../model/kind";
 import { href } from "../router";
-import { ago } from "../time";
+import { ago, clockAt } from "../time";
 import { useActions } from "../ui/actions";
-import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, Link, sinceText, StateText, StateTime, cardTime, useApp } from "../ui/parts";
-import { SEP, stateLabel, W } from "../words";
+import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, useApp } from "../ui/parts";
+import { SEP, STATE_WORD, stateLabel, W } from "../words";
 import { Comments } from "./comments";
 import { Talk } from "./talk";
 
@@ -222,23 +224,132 @@ export function ItemScreen({ id }: { id: string }) {
 
 export const GoalScreen = ItemScreen;
 
+/**
+ * A work card's head: its kind icon and word, its name (the checked title, or its kind of work in grey when the core
+ * has none) and its state line. The raw card title is never drawn.
+ */
+function CardHead({ work, title, children }: { work: CardKind; title: string | null; children: ComponentChildren }) {
+  return (
+    <header class="detail-head">
+      <KindMark work={work} word />
+      <h1 class={title ? "detail-title" : "detail-title is-kind"}>{cardName(title, work)}</h1>
+      {children}
+    </header>
+  );
+}
+
+interface Round {
+  readonly n: number;
+  /** Null when the round's start fell out of the kept history ('시작 기록 없음'). */
+  readonly startedAt: number | null;
+  readonly endedAt: number | null;
+  /** The round's run still beats (the core's run_is_live). */
+  readonly live: boolean;
+  /** The line the round left (its summary), drawn dimmed under its head; null when it left none. */
+  readonly line: string | null;
+  readonly workers: readonly string[];
+}
+
+/**
+ * The card's worker runs by follow-up round, newest round first: a worker run belongs to the round whose own start
+ * and end hold its first sighting (a round with no start on record holds what was first seen before its end). The
+ * one place the rounds' boundaries are decided. A round shows only when it holds content: a worker run, or for a
+ * round with no start a line it said (its summary); a run that never started or a kept end alone draws nothing.
+ * Worker runs outside every round follow, without a round head.
+ */
+export function workerRounds(detail: Pick<WorkCardDetail, "runs" | "workerRuns">): { rounds: Round[]; outside: string[] } {
+  const startOf = (run: WorkCardDetail["runs"][number]) => (run.startedAt > 0 ? run.startedAt : null);
+  const ordered = [...detail.runs].sort((a, b) => (startOf(a) ?? a.endedAt ?? 0) - (startOf(b) ?? b.endedAt ?? 0));
+  const placed = new Set<string>();
+  const rounds = ordered.map((run, index) => {
+    const start = startOf(run);
+    const workers = detail.workerRuns
+      .filter((worker) => !placed.has(worker.id) && (start === null || worker.firstSeenAt >= start) && (run.endedAt === null || worker.firstSeenAt <= run.endedAt))
+      .map((worker) => worker.id);
+    for (const worker of workers) placed.add(worker);
+    const content = workers.length > 0 || (start === null && Boolean(run.summary?.trim()));
+    return { round: { n: index + 1, startedAt: start, endedAt: run.endedAt, live: run.live, line: run.summary?.trim() || null, workers } satisfies Round, content };
+  });
+  return {
+    rounds: rounds.filter(({ content }) => content).map(({ round }) => round).reverse(),
+    outside: detail.workerRuns.map((worker) => worker.id).filter((worker) => !placed.has(worker)),
+  };
+}
+
+/** A round's head: its number and its own start and end, each with its day when that is not today (어제 23:41). */
+export function roundHead(round: Round, now: number): string {
+  if (round.startedAt === null) return [W.round(round.n), W.noStart].join(SEP);
+  const span = round.endedAt === null ? clockAt(round.startedAt, now) : `${clockAt(round.startedAt, now)}–${clockAt(round.endedAt, now)}`;
+  // A round with no end is running only while its run beats; otherwise it stopped, and the head says so.
+  const state = round.endedAt !== null ? "" : round.live ? STATE_WORD.in_progress : STATE_WORD.stopped;
+  return [W.round(round.n), span, state].filter(Boolean).join(SEP);
+}
+
+/**
+ * One comment on a work card: its sentence with author and time. A comment that would show a path, a command, a
+ * hash, an issue number, an address or a cut-off fragment is one folded entry (접힌 댓글) instead; its text opens
+ * only on demand.
+ */
+function CardComment({ comment }: { comment: WorkCardDetail["comments"][number] }) {
+  const { model, now } = useApp();
+  const meta = [agentName(model, comment.author), ago(now - comment.createdAt)].filter(Boolean).join(SEP);
+  const reason = foldReason(comment.body);
+  const [open, setOpen] = useState(false);
+  if (!reason)
+    return (
+      <li class="comment" data-testid="comment">
+        <p class="comment-text">{comment.body}</p>
+        <span class="sub">{meta}</span>
+      </li>
+    );
+  return (
+    <li class="comment is-folded" data-testid="comment" data-folded={reason}>
+      <details class="comment-fold" onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}>
+        <summary class="sub">{[W.folded, meta].join(SEP)}</summary>
+        {open ? <p class="comment-raw">{comment.body}</p> : null}
+      </details>
+    </li>
+  );
+}
+
+/** A round's worker runs, dimmed; a round's single run does not repeat the state and time its round head carries. */
+function WorkerRows({ ids, model }: { ids: readonly string[]; model: Model }) {
+  return (
+    <ul class="rows" aria-label={W.workerRuns}>
+      {ids.map((workerId) => {
+        const run = model.runs.get(workerId);
+        return run ? <CardRowView key={workerId} card={runRow(run)} dim bare={ids.length === 1} kindIcon={false} /> : null;
+      })}
+    </ul>
+  );
+}
+
 export function CardScreen({ id }: { id: string }) {
   const { model, store, now } = useApp();
   const detail = store.get("card", id);
   if (!detail) return store.status("card", id) === "missing" ? <Missing /> : <Loading />;
   const row = model.cards.get(id);
   const questions = (store.get("inbox")?.questions ?? []).filter((question) => question.cardId === id);
+  const { rounds, outside } = workerRounds(detail);
   return (
     <article class="detail" data-testid="screen-card">
-      <Header title={detail.title}>
-        <StateTime state={detail.state} reason={detail.reason} time={row ? cardTime(row, now) : ""} />
-      </Header>
+      <CardHead work={row?.work ?? "code"} title={detail.plain.title}>
+        <StateTime state={detail.state} reason={detail.reason} time={row ? [cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP) : ""} />
+        {detail.state === "in_progress" && detail.todoProgress.total > 0 ? <Progress done={detail.todoProgress.done} total={detail.todoProgress.total} word /> : null}
+      </CardHead>
       {questions.map((question) => (
         <DecisionBox key={question.commentId} text={question.body} agent={question.agent} ask at={question.askedAt} />
       ))}
-      {detail.now && detail.state === "in_progress" ? (
-        <Box title={W.now}>
-          <p class="box-text">{detail.now}</p>
+      {detail.plain.now && detail.state === "in_progress" ? (
+        <Box title={W.now} testid="card-now">
+          <p class="box-text">{detail.plain.now}</p>
+        </Box>
+      ) : null}
+      {/* A box shows only when it adds something: the checked to-dos and the first open one are the list below, so
+          끝난 것 carries only the result line and 다음 never repeats a to-do. */}
+      {detail.plain.result ? (
+        <Box title={W.doneSoFar} testid="card-done-so-far">
+          <p class="box-text">{detail.plain.result}</p>
         </Box>
       ) : null}
       {detail.todos.length ? (
@@ -256,24 +367,23 @@ export function CardScreen({ id }: { id: string }) {
         </Box>
       ) : null}
       {detail.workerRuns.length ? (
-        <Box title={W.workerRuns}>
-          <ul class="rows" aria-label={W.workerRuns}>
-            {detail.workerRuns.map((worker) => {
-              const run = model.runs.get(worker.id);
-              if (!run) return null;
-              return <CardRowView key={worker.id} card={runRow(run)} dim />;
-            })}
-          </ul>
+        <Box title={W.workerRuns} testid="worker-runs">
+          {rounds.map((round) => (
+            <section key={round.n} class={round.startedAt === null ? "round is-no-start" : "round"} data-testid="round">
+              <h3 class="round-head">{roundHead(round, now)}</h3>
+              {/* The round's own line is its content; one that would show a path or a command reads 접힌 댓글. */}
+              {round.line ? <p class="round-line" data-testid="round-line">{foldReason(round.line) ? W.folded : round.line}</p> : null}
+              {round.workers.length ? <WorkerRows ids={round.workers} model={model} /> : null}
+            </section>
+          ))}
+          {outside.length ? <WorkerRows ids={outside} model={model} /> : null}
         </Box>
       ) : null}
       {detail.comments.length ? (
         <Box title={W.comments}>
           <ul class="thread" aria-label={W.comments}>
             {detail.comments.map((comment) => (
-              <li key={comment.id} class="comment" data-testid="comment">
-                <p class="comment-text">{comment.body}</p>
-                <span class="sub">{[agentName(model, comment.author), ago(now - comment.createdAt)].filter(Boolean).join(SEP)}</span>
-              </li>
+              <CardComment key={comment.id} comment={comment} />
             ))}
           </ul>
         </Box>
@@ -292,12 +402,17 @@ export function RunScreen({ id }: { id: string }) {
   const card = owner ? model.cards.get(owner) : undefined;
   return (
     <article class="detail" data-testid="screen-run">
-      <Header title={run.title}>
-        <StateTime state={run.state} reason={run.reason} time={cardTime(row, now)} />
-      </Header>
-      {run.now && run.state === "in_progress" ? (
+      <CardHead work={row.work} title={run.plain.title}>
+        <StateTime state={run.state} reason={run.reason} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} />
+      </CardHead>
+      {run.plain.now && run.state === "in_progress" ? (
         <Box title={W.now}>
-          <p class="box-text">{run.now}</p>
+          <p class="box-text">{run.plain.now}</p>
+        </Box>
+      ) : null}
+      {run.plain.result ? (
+        <Box title={W.doneSoFar}>
+          <p class="box-text">{run.plain.result}</p>
         </Box>
       ) : null}
       {todo ? (

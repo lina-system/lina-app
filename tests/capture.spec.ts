@@ -13,9 +13,11 @@ async function talk(page: Page, message: string): Promise<void> {
 }
 
 // `clock`: the page's timers run only when the capture says, so a streaming reply is caught between two frames.
-const SCREENS: readonly { id: string; hash: string; query?: string; wideOnly?: boolean; phoneOnly?: boolean; clock?: boolean; open?: (page: Page) => Promise<void> }[] = [
+// `line`: the freshness line the screen is ready at (실시간 once the change stream is open).
+const SCREENS: readonly { id: string; hash: string; query?: string; line?: string; wideOnly?: boolean; phoneOnly?: boolean; clock?: boolean; open?: (page: Page) => Promise<void> }[] = [
   { id: "menu", hash: "#/", phoneOnly: true },
   { id: "inbox", hash: "#/inbox" },
+  { id: "live-stale", hash: "#/inbox", query: "&live=down", line: "갱신 지연" },
   { id: "running", hash: "#/running" },
   { id: "due", hash: "#/due" },
   { id: "done", hash: "#/done" },
@@ -69,6 +71,13 @@ const SCREENS: readonly { id: string; hash: string; query?: string; wideOnly?: b
   { id: "goal-decision", hash: "#/goals/G3" },
   { id: "card-question", hash: "#/cards/k-102" },
   { id: "card-detail", hash: "#/cards/k-101" },
+  // The home with the writer of the checked lines stopped (lina#151); card-question above is the card with none.
+  { id: "summaries-stopped", hash: "#/running", query: "&writer=stopped" },
+  // 완료 filtered to one agent in its address, and a card whose comments fold.
+  { id: "done-filtered", hash: "#/done?agent=ag-1" },
+  { id: "card-comment-folded", hash: "#/cards/k-103" },
+  // An agent with a card just created: 예정 after 검토 필요, no time beside it.
+  { id: "agent-planned", hash: "#/agents/ag-3" },
   { id: "run-detail", hash: "#/runs/r6" },
   { id: "status", hash: "#/status" },
   {
@@ -172,8 +181,9 @@ for (const screen of SCREENS) {
     test.skip(Boolean(screen.wideOnly && phone) || Boolean(screen.phoneOnly && !phone), "not drawn at this width");
     if (screen.clock) await page.clock.install();
     await page.goto(`${APP}${screen.query ?? ""}${screen.hash}`);
-    await expect(page.getByTestId("freshness-line")).toHaveText(/^갱신 \d+초 전$/);
-    await expect(page.locator("[data-testid=screen-title], .detail-title").first()).toBeVisible();
+    await expect(page.getByTestId("freshness-line")).toHaveText(screen.line ?? "실시간");
+    // A card with no checked title has a detail head without a title (lina#151).
+    await expect(page.locator("[data-testid=screen-title], .detail-head").first()).toBeVisible();
     if (screen.open) await screen.open(page);
     const fits = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
     expect(fits).toBe(true);

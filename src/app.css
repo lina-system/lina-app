@@ -422,6 +422,150 @@ button:disabled {
   flex: none;
 }
 
+/* A card with no checked title is named by its kind of work, in grey: what it is, never its raw title. */
+.title.is-kind,
+.detail-title.is-kind {
+  color: var(--label-2);
+}
+
+/* A detail head's kind: the icon and its word, small and grey above the title. */
+.kind-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--label-2);
+  font-size: var(--text-small);
+}
+
+/* The home's decisions line and its card list are two groups, apart like any two sections. */
+.list > .rows + .rows {
+  margin-top: 20px;
+}
+
+/* 완료's agent filter: one choice per agent, the count beside its name. */
+.filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 16px;
+}
+
+.list > .agent-latest {
+  display: block;
+  margin: 0 var(--inset, 16px) 8px;
+}
+
+.filter .choice[aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.filter .count {
+  color: inherit;
+  opacity: 0.7;
+}
+
+.agent-latest,
+.agent-latest-line {
+  color: var(--label-2);
+  font-size: var(--text-small);
+}
+
+/* On the agent screen the latest activity sits under the counts, inset like them, before the first section. */
+.agent-latest-line {
+  margin: 0;
+  padding: 0 var(--inset) 14px;
+}
+
+.agent-latest-line:empty {
+  display: none;
+}
+
+/* A running card's to-dos: a thin bar and the count, after the lines on a wide window and in the detail head. */
+.progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  color: var(--label-2);
+  font-size: var(--text-small);
+}
+
+.progress-bar {
+  width: 48px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--fill);
+  overflow: hidden;
+}
+
+.progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+/* A comment that would show a path, a command or a fragment: one folded line, its text only on demand. */
+.comment-fold > summary {
+  min-height: var(--hit, 28px);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+
+.comment-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.comment-fold > summary::before {
+  content: "\203A";
+  display: inline-block;
+  width: 12px;
+  transition: transform var(--motion);
+}
+
+.comment-fold[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.comment-raw {
+  margin: 4px 0 0;
+  color: var(--label-2);
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+
+/* Red marks the problem everywhere: a stopped card's state words in its detail head too; its time stays grey. */
+.detail-head .state[data-state="stopped"] {
+  color: var(--red);
+}
+
+/* The line a round left, under its head: dimmed like its worker runs. */
+.round-line {
+  margin: 0 0 4px;
+  color: var(--label-2);
+  font-size: var(--text-small);
+}
+
+/* A round whose start is not on record: one dim line. */
+.round.is-no-start .round-head {
+  font-weight: 400;
+}
+
+/* A work card's worker runs, one block per follow-up round, newest first. */
+.round + .round,
+.round + .rows {
+  margin-top: 10px;
+}
+
+.round-head {
+  margin: 0 0 4px;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--label-2);
+}
+
 /* Red marks the problem, not the row: only the state words of a stopped card are red. */
 .is-stopped .state {
   color: var(--red);
@@ -433,9 +577,11 @@ button:disabled {
   min-height: var(--row-dense);
 }
 
+/* A worker run inside a card reads dimmed: secondary label colour, regular weight. */
 .is-dim .title {
   font-size: var(--text-small);
-  color: var(--label);
+  font-weight: 400;
+  color: var(--label-2);
 }
 
 .is-dim .mark {
@@ -458,7 +604,7 @@ button:disabled {
 }
 
 .agent-counts {
-  padding: 4px var(--inset) 14px;
+  padding: 4px var(--inset) 4px;
   font-size: var(--text-small);
   color: var(--label-2);
 }
@@ -1268,6 +1414,10 @@ html:has(.stack) body {
 }
 
 .stack .agent-counts {
+  padding: 0 calc(var(--inset) + 12px) 4px;
+}
+
+.stack .agent-latest-line {
   padding: 0 calc(var(--inset) + 12px) 12px;
 }
 

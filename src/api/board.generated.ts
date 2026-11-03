@@ -237,6 +237,41 @@ export interface components {
             notices: components["schemas"]["Notice"][];
             quota: components["schemas"]["QuotaService"][];
             version: number;
+            /** @description The writer of the checked lines (lina#151). never = it has not run yet; stopped = its calls failed, or work was left to write and nothing succeeded for 30 minutes (the app says the summaries stopped). */
+            writer: {
+                lastSuccessAt: number | null;
+                /** @enum {string} */
+                state: "ok" | "stopped" | "never";
+                stoppedSince: number | null;
+            };
+        };
+        ChangeBatch: {
+            /** @description Opaque; send it back as since= to resume after a reconnect. */
+            cursor: string;
+            events: components["schemas"]["ChangeEvent"][];
+        };
+        /** @description One change; no item body (refetch the snapshot it touches). */
+        ChangeEvent: {
+            at: number | null;
+            /** @description The item, run or card the event is about. */
+            id: string;
+            /** @description The store's own event kind (work event kind, worker receipt kind, kanban task event kind). */
+            kind: string;
+            /**
+             * @description work = the work record's event table; worker = a `lina worker` run state change (hub receipts); kanban = a kanban task event.
+             * @enum {string}
+             */
+            source: "work" | "worker" | "kanban";
+        };
+        /** @description A message of the change stream (lina#150). GET /api/lina/events is a WebSocket, not a JSON route (OpenAPI cannot describe it as a path): upgrade with the dashboard credential (?token=, as the other dashboard sockets) and optional since=<cursor>. Without since the first message is a ChangeBatch with the tail cursor and no events; with a kept since it is the missed events; otherwise one ChangeResync. Then a ChangeBatch whenever something changed, at most every 300 ms, and one ChangeResync when a store that was down when the cursor was taken reads again. */
+        ChangeMessage: components["schemas"]["ChangeBatch"] | components["schemas"]["ChangeResync"];
+        ChangeResync: {
+            cursor: string;
+            /**
+             * @description The since cursor was unreadable or older than the kept history, or a store that could not be read when the cursor was taken reads again (what it wrote meanwhile is not known); refetch every snapshot.
+             * @enum {boolean}
+             */
+            resync: true;
         };
         /** @description The length of the list it labels; null when its source failed to read. */
         Count: number | null;
@@ -476,6 +511,12 @@ export interface components {
             id: string;
             name: string;
         };
+        /** @description Checked model-written lines (lina#151). A field that failed its check, or was never written, is null; the raw source text is never served in its place. */
+        PlainLines: {
+            now: string | null;
+            result: string | null;
+            title: string | null;
+        };
         QuotaAccount: {
             /** @description A hash of the OCX account id. */
             id: string;
@@ -527,6 +568,7 @@ export interface components {
             kind: string | null;
             /** @description What the run does now, from the runner's live state (at most 120 characters). */
             now: string | null;
+            plain: components["schemas"]["PlainLines"];
             /** @description planned: new, queued; waiting: review, decision; stopped: failed, unresponsive, result_missing, cancelled, rejected. */
             reason: string | null;
             startedAt: number | null;

@@ -5,7 +5,7 @@ import type { Store } from "../data/store";
 import type { CardRow, Model, Section } from "../model";
 import { linkClick } from "../router";
 import { ago, duration, total } from "../time";
-import { SEP, stateLabel, W } from "../words";
+import { KIND_WORD, SEP, stateLabel, W } from "../words";
 import { ChevronIcon, CodeIcon, DeviceKindIcon, DocsIcon, ResearchIcon } from "./icons";
 import type { CardKind } from "../model/kind";
 import { useActions } from "./actions";
@@ -44,6 +44,32 @@ export function AgentMark({ id }: { id: string | null | undefined }) {
   );
 }
 
+/** A running card's to-dos as a thin bar and their count (▮▮▮▯▯ 3/5); the number is the text, the bar its picture. */
+export function Progress({ done, total, word = false }: { done: number; total: number; word?: boolean }) {
+  return (
+    <span class="progress" data-testid="progress" aria-label={W.todoProgress(done, total)}>
+      <span class="progress-bar" aria-hidden="true">
+        <span class="progress-fill" style={{ width: `${Math.round((100 * Math.min(done, total)) / total)}%` }} />
+      </span>
+      <span class="progress-count" aria-hidden="true">
+        {word ? W.todoProgress(done, total) : W.progress(done, total)}
+      </span>
+    </span>
+  );
+}
+
+/** A work card's kind: its icon, and the kind word beside it in a detail head. */
+export function KindMark({ work, word = false }: { work: CardKind; word?: boolean }) {
+  return (
+    <span class="kind-mark" data-testid="kind">
+      <span class="kind" data-kind={work}>
+        {KIND_ICON[work]()}
+      </span>
+      {word ? <span class="kind-name">{KIND_WORD[work]}</span> : null}
+    </span>
+  );
+}
+
 export function StateText({ state, reason }: { state: WorkState; reason?: string | null }) {
   return (
     <span class="state" data-state={state} data-testid="state">
@@ -52,10 +78,21 @@ export function StateText({ state, reason }: { state: WorkState; reason?: string
   );
 }
 
+/**
+ * A card's time on a list: a running card counts up (n분째); every other card says how long ago, a finished one how
+ * long ago it ended (완료 · 20분 전). How long a finished card took is in its detail (cardTook).
+ */
 export function cardTime(card: CardRow, now: number): string {
+  // A planned card has not started: no time beside it at all.
+  if (card.state === "planned") return "";
   if (card.state === "in_progress" && card.startedAt !== null) return duration(now - card.startedAt);
-  if (card.state === "done") return card.totalSeconds !== null ? total(card.totalSeconds) : "";
+  if (card.state === "done") return card.endedAt !== null ? ago(now - card.endedAt) : "";
   return card.stateAt !== null ? ago(now - card.stateAt) : "";
+}
+
+/** How long a finished card took (20분 걸림), for its detail. */
+export function cardTook(card: CardRow): string {
+  return card.state === "done" && card.totalSeconds !== null ? W.took(total(card.totalSeconds)) : "";
 }
 
 export function sinceText(state: WorkState, since: number | null, now: number): string {
@@ -80,10 +117,13 @@ export function StateTime({ state, reason, time }: { state: WorkState; reason?: 
   );
 }
 
-export function CardRowView({ card, dim = false, kindIcon = true, action, error }: { card: CardRow; dim?: boolean; kindIcon?: boolean; action?: ComponentChildren; error?: string }) {
+export function CardRowView({ card, dim = false, bare = false, kindIcon = true, action, error }: { card: CardRow; dim?: boolean; bare?: boolean; kindIcon?: boolean; action?: ComponentChildren; error?: string }) {
   const { model, now, wide, selected } = useApp();
   const time = cardTime(card, now);
-  const label = [agentName(model, card.agent), card.title, stateLabel(card.state, card.reason)].filter(Boolean).join(SEP);
+  const progress = wide && card.state === "in_progress" && card.progress ? card.progress : null;
+  const label = [agentName(model, card.agent), card.name, stateLabel(card.state, card.reason), progress ? W.todoProgress(progress.done, progress.total) : ""].filter(Boolean).join(SEP);
+  // No checked title: the kind word stands in its place, grey, so the row still says what it is.
+  const titleClass = card.title ? "title" : "title is-kind";
   return (
     <li class={`row card-row${card.state === "stopped" ? " is-stopped" : ""}${dim ? " is-dim" : ""}${action ? " has-action" : ""}`} data-testid="row">
       <Link href={card.href} label={label} current={selected === card.href}>
@@ -92,18 +132,19 @@ export function CardRowView({ card, dim = false, kindIcon = true, action, error 
         {dim ? (
           <span class="lines">
             <span class="one-line">
-              <span class="title">{card.title}</span>
-              <span class="sub">{SEP}</span>
-              <StateTime state={card.state} reason={card.reason} time={time} />
+              <span class={titleClass}>{card.name}</span>
+              {bare ? null : <span class="sub">{SEP}</span>}
+              {bare ? null : <StateTime state={card.state} reason={card.reason} time={time} />}
             </span>
           </span>
         ) : (
           <span class="lines">
-            <span class="title one-line">{card.title}</span>
+            <span class={`${titleClass} one-line`}>{card.name}</span>
             <StateTime state={card.state} reason={card.reason} time={time} />
             {wide && card.now && card.state === "in_progress" ? <span class="sub now one-line">{card.now}</span> : null}
           </span>
         )}
+        {progress ? <Progress done={progress.done} total={progress.total} /> : null}
       </Link>
       {action}
       <ErrorLine line={error} />
@@ -144,7 +185,7 @@ export function SectionHead({ section }: { section: Section<unknown> }) {
 }
 
 export function ListSection<T>({ section, render, label }: { section: Section<T>; render: (row: T) => ComponentChildren; label?: string }) {
-  if (!section.count) return null;
+  if (!section.count && !section.stopped) return null;
   return (
     <section class="list-section" data-testid={`section-${section.id}`}>
       <SectionHead section={section} />

@@ -13,6 +13,9 @@ interface Entry {
 
 export type Want = readonly (readonly [RouteName, string?])[];
 
+/** The change stream: not opened yet, open (the screens are current), or down (they may be stale). */
+export type LiveState = "connecting" | "open" | "down";
+
 const LIST_ROUTES: readonly RouteName[] = ["board", "items", "goals", "cards", "inbox"];
 /** Machines and quota change slowly: read on the same refresh trigger, at most once a minute. */
 const SLOW_ROUTES: readonly RouteName[] = ["devices", "quota"];
@@ -28,12 +31,22 @@ export class Store {
   refreshes = 0;
   lastOk: number | null = null;
   offline = false;
+  live: LiveState = "connecting";
+  /** The board's last read failed while the core answered: the stream alone does not make the screens current. */
+  boardFailed = false;
+  /** The core refused the page's credential again after one renewal: nothing will read until something changes. */
+  denied = false;
+  private renewing: Promise<boolean> | null = null;
+  private renewedInStreak = false;
   private readonly entries = new Map<string, Entry>();
   private readonly listeners = new Set<() => void>();
   private wanted: Want = [];
   private slowReadAt: number | null = null;
+  private shown: ModelInput;
 
-  constructor(readonly source: Source) {}
+  constructor(readonly source: Source) {
+    this.shown = this.read();
+  }
 
   private key(name: RouteName, id?: string): string {
     return id === undefined ? name : `${name}:${id}`;
@@ -56,8 +69,11 @@ export class Store {
     const key = this.key(name, id);
     const before = this.entries.get(key);
     const result = await this.source.read(name, id);
+    if (result.kind === "data" || result.kind === "unchanged") this.setDenied(false);
+    else if (result.kind === "failed" && result.denied) void this.credentialRefused();
     if (name === "board") {
       this.offline = result.kind === "failed" && result.offline;
+      this.boardFailed = result.kind === "failed";
       if (result.kind === "data" || result.kind === "unchanged") this.lastOk = result.at;
     }
     switch (result.kind) {
@@ -79,11 +95,120 @@ export class Store {
 
   private changed(): void {
     this.version += 1;
+    this.shown = this.read();
+    this.notify();
+  }
+
+  /** Redraw without a data change: the stream's state moved. */
+  notify(): void {
     for (const listener of this.listeners) listener();
   }
 
+  /**
+   * The core refused the page's credential (a 401 or 403 on a read, or the stream turned away at the upgrade). The
+   * first refusal of a streak reads the credential again and, when it got one, reads every snapshot with it; the
+   * answer says whether to connect again now. A refusal after that renewal marks the store denied (연결 끊김) and asks
+   * nothing more. A page signed in by cookie renews nothing: its sign-in path handles a 401. Concurrent refusals share
+   * one renewal.
+   */
+  credentialRefused(): Promise<boolean> {
+    if (this.renewing) return this.renewing;
+    if (this.renewedInStreak) {
+      this.setDenied(true);
+      return Promise.resolve(false);
+    }
+    this.renewing = this.source
+      .renewCredential()
+      .then((renewal) => {
+        if (renewal === "gated" || renewal === "unreachable") return false;
+        this.renewedInStreak = true;
+        if (renewal === "none") {
+          this.setDenied(true);
+          return false;
+        }
+        void this.refresh();
+        return true;
+      })
+      .finally(() => {
+        this.renewing = null;
+      });
+    return this.renewing;
+  }
+
+  /**
+   * The streak ends when the stream opens, or when the person comes back (the tab shown, online again), which may
+   * renew once more. A read that answers only clears the red line: a stream refused while reads pass must not renew
+   * on every try.
+   */
+  credentialTaken(): void {
+    this.renewedInStreak = false;
+    this.setDenied(false);
+  }
+
+  private setDenied(denied: boolean): void {
+    if (this.denied === denied) return;
+    this.denied = denied;
+    this.notify();
+  }
+
+  setLive(state: LiveState): void {
+    if (this.live === state) return;
+    this.live = state;
+    this.notify();
+  }
+
+  /**
+   * Refreshes and invalidations run one at a time, in the order they were asked for: an older read never lands over
+   * a newer one, and two reads of one route never race.
+   */
+  private reading: Promise<void> = Promise.resolve();
+
+  private queue(run: () => Promise<void>): Promise<void> {
+    this.reading = this.reading.then(run, run);
+    return this.reading;
+  }
+
+  /**
+   * Reads again only the routes a change touched: list routes always, a detail only when a screen has read it. A
+   * changed card list also reads the details of cards it did not list before. Unchanged routes answer 304 and keep
+   * their objects, so rows, selection and scroll stay.
+   */
+  invalidate(routes: Want): Promise<void> {
+    const run = async () => {
+      const keys = new Map<string, readonly [RouteName, string?]>();
+      for (const [name, id] of routes) {
+        const key = this.key(name, id);
+        if (id === undefined || this.entries.has(key)) keys.set(key, [name, id]);
+      }
+      if (!keys.size) return;
+      const changes = await Promise.all([...keys.values()].map(([name, id]) => this.load(name, id)));
+      if (keys.has("cards")) {
+        const added = (this.get("cards")?.cards ?? []).map((card) => card.id).filter((id) => !this.entries.has(this.key("card", id)));
+        changes.push(...(await Promise.all(added.map((id) => this.load("card", id)))));
+      }
+      if (changes.some(Boolean)) this.changed();
+      else this.notify();
+    };
+    return this.queue(run);
+  }
+
+  /** Loaded card details that list a worker run, for a worker event about it. */
+  cardsWithRun(runId: string): string[] {
+    const ids: string[] = [];
+    for (const [key, entry] of this.entries) {
+      if (!key.startsWith("card:")) continue;
+      const detail = entry.data as Routes["card"] | undefined;
+      if (detail?.workerRuns.some((run) => run.id === runId)) ids.push(key.slice("card:".length));
+    }
+    return ids;
+  }
+
   /** One read of every list route, every work card's detail and whatever the open screen wants. */
-  async refresh(): Promise<void> {
+  refresh(): Promise<void> {
+    return this.queue(() => this.readAll());
+  }
+
+  private async readAll(): Promise<void> {
     const now = nowSeconds();
     const slow = this.slowReadAt === null || now - this.slowReadAt >= SLOW_REFRESH_S - 1 ? SLOW_ROUTES : [];
     if (slow.length) this.slowReadAt = now;
@@ -95,7 +220,7 @@ export class Store {
     ]);
     this.refreshes += 1;
     if ([...firstWave, ...secondWave].some(Boolean) || this.version === 0) this.changed();
-    else for (const listener of this.listeners) listener();
+    else this.notify();
   }
 
   /**
@@ -128,7 +253,15 @@ export class Store {
     });
   }
 
+  /**
+   * What the screens draw: the routes as of the last change. A redraw for another reason (the stream opening, a
+   * refresh with nothing new) in the middle of a refresh does not draw a half-read store.
+   */
   input(): ModelInput {
+    return this.shown;
+  }
+
+  private read(): ModelInput {
     const cardDetails: Record<string, Routes["card"]> = {};
     for (const card of this.get("cards")?.cards ?? []) {
       const detail = this.get("card", card.id);

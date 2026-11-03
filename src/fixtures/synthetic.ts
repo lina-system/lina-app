@@ -56,6 +56,8 @@ export interface SceneOptions {
   readonly sourceError?: boolean;
   /** No card or worker run is running, so 진행 중인 작업 holds only the stopped card (`&running=none`). */
   readonly noRunning?: boolean;
+  /** The writer of the checked lines has stopped (`&writer=stopped`): the screens say the summaries stopped. */
+  readonly writerStopped?: boolean;
 }
 
 export interface Scene {
@@ -179,29 +181,57 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     });
   });
 
-  // Worker runs: r1-r5 were started by work cards; r6 runs outside any card and waits on the owner.
+  // The core's checked lines (lina#151); null where a line is not written yet or failed its check.
+  const plain = (title: string | null, nowLine: string | null = null, result: string | null = null): RunCard["plain"] => ({ title, now: nowLine, result });
+  const NO_LINES = plain(null);
+
+  // Worker runs: r1-r5, r9 and r10 were started by work cards (r9, r1 and r10 are k-101's three rounds); r6, r7 and
+  // r8 run outside any card. r7 and r8 are two jobs on one to-do that got one generated title: two cards. The raw
+  // titles and live lines are what a worker records (file names, English topics); the screens never draw them.
   const runCards: RunCard[] = [
-    { id: "r1", title: "변경 목록 모으기", state: "in_progress", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[0], startedAt: now - 12 * MIN, endedAt: null, now: "병합된 변경을 기능별로 묶는 중" },
-    { id: "r2", title: "카드 입력 폼 다듬기", state: "in_progress", reason: null, agent: agentId(1), kind: "ulw", todo: "T4", host: machines[1], startedAt: now - 2 * HOUR, endedAt: null, now: null },
-    { id: "r3", title: "오류 문구 바꾸기", state: "stopped", reason: "unresponsive", agent: agentId(1), kind: "ulw", todo: "T5", host: machines[2], startedAt: now - 3 * HOUR, endedAt: null, now: null },
-    { id: "r4", title: "결제 실패 화면 검토", state: "waiting", reason: "review", agent: agentId(1), kind: "research", todo: "T6", host: machines[0], startedAt: now - 4 * HOUR, endedAt: now - 3 * HOUR, now: null },
-    { id: "r5", title: "백업 기록 살펴보기", state: "done", reason: null, agent: agentId(2), kind: "ulw", todo: "T7", host: machines[1], startedAt: now - 2 * HOUR - 9 * MIN, endedAt: now - 2 * HOUR, now: null },
-    { id: "r6", title: "색인 구조 다시 비교", state: "waiting", reason: "review", agent: agentId(1), kind: "research", todo: "T11", host: machines[0], startedAt: now - 6 * HOUR, endedAt: now - 5 * HOUR, now: null },
+    { id: "r1", title: "release-notes: collect merged PRs (round 3)", state: "in_progress", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[0], startedAt: now - 12 * MIN, endedAt: null, now: "grouping merged PRs by feature in CHANGES.md", plain: plain("변경 목록 모으기", "병합된 변경을 기능별로 묶는 중") },
+    { id: "r2", title: "card-form.tsx polish", state: "in_progress", reason: null, agent: agentId(1), kind: "ulw", todo: "T4", host: machines[1], startedAt: now - 2 * HOUR, endedAt: null, now: "editing src/payment/card-form.tsx", plain: NO_LINES },
+    { id: "r3", title: "error-copy.json rewrite", state: "stopped", reason: "unresponsive", agent: agentId(1), kind: "ulw", todo: "T5", host: machines[2], startedAt: now - 58 * MIN, endedAt: null, now: null, plain: plain("오류 문구 바꾸기") },
+    { id: "r4", title: "payment failure screen review", state: "waiting", reason: "review", agent: agentId(1), kind: "research", todo: "T6", host: machines[0], startedAt: now - 4 * HOUR, endedAt: now - 3 * HOUR, now: null, plain: plain("결제 실패 화면 검토", null, "실패 화면 세 곳의 문구와 버튼을 비교함") },
+    { id: "r5", title: "backup log audit", state: "done", reason: null, agent: agentId(2), kind: "ulw", todo: "T7", host: machines[1], startedAt: now - 2 * HOUR - 9 * MIN, endedAt: now - 2 * HOUR, now: null, plain: plain("백업 기록 살펴보기", null, "지난 한 달 백업이 모두 끝까지 돌았음") },
+    { id: "r6", title: "index-structure benchmark v2", state: "waiting", reason: "review", agent: agentId(1), kind: "research", todo: "T11", host: machines[0], startedAt: now - 6 * HOUR, endedAt: now - 5 * HOUR, now: null, plain: plain("색인 구조 다시 비교", null, "새 색인이 느린 질의에서 두 배 빠름") },
+    { id: "r7", title: "guide-draft.md pass", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T10", host: machines[1], startedAt: now - 50 * MIN, endedAt: now - 30 * MIN, now: null, plain: plain("가이드 초안 다듬기", null, "용어 표를 맨 앞으로 옮김") },
+    { id: "r8", title: "guide-draft.md pass", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T10", host: machines[0], startedAt: now - 2 * DAY - 40 * MIN, endedAt: now - 2 * DAY, now: null, plain: plain("가이드 초안 다듬기", null, "첫 화면 설명을 세 문장으로 줄임") },
+    { id: "r9", title: "release-notes: collect merged PRs (round 1)", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[0], startedAt: now - 3 * HOUR, endedAt: now - 2 * HOUR - 40 * MIN, now: null, plain: plain("변경 목록 모으기", null, "병합된 변경 41개를 모음") },
+    { id: "r10", title: "release-notes: collect merged PRs (round 2)", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[1], startedAt: now - HOUR, endedAt: now - 40 * MIN, now: null, plain: plain("변경 목록 모으기", null, "문서만 바뀐 변경을 따로 묶음") },
   ];
 
+  // k-101 is in its third follow-up round (one card); k-102's checked lines are all missing (nothing drawn for them).
   const cardSeeds = [
-    { id: "k-101", goal: "kg-1", agent: 0, title: "릴리스 노트: 변경 목록 정리", state: "in_progress", reason: null, elapsed: 12 * MIN, now: "변경 목록을 기능별로 묶는 중", todos: [["T1", false], ["T3", false]], runs: ["r1"], lastBeat: now - 20 },
-    { id: "k-102", goal: "kg-2", agent: 1, title: "결제: 카드 입력 폼 다듬기", state: "in_progress", reason: null, elapsed: 2 * HOUR, now: null, todos: [["T4", false]], runs: ["r2"], lastBeat: now - 40 },
-    { id: "k-103", goal: "kg-2", agent: 1, title: "결제: 오류 문구 바꾸기", state: "stopped", reason: "unresponsive", elapsed: 52 * MIN, now: null, todos: [["T5", false]], runs: ["r3"], lastBeat: now - 52 * MIN },
-    { id: "k-104", goal: "kg-2", agent: 1, title: "결제: 실패 화면 검토", state: "waiting", reason: "review", elapsed: 3 * HOUR, now: null, todos: [["T6", false]], runs: ["r4"], lastBeat: now - 3 * HOUR },
-    { id: "k-105", goal: "kg-3", agent: 2, title: "백업: 지난 기록 살펴보기", state: "done", reason: null, elapsed: 9 * MIN, now: null, todos: [["T7", true]], runs: ["r5"], lastBeat: now - 2 * HOUR },
+    { id: "k-101", goal: "kg-1", agent: 0, title: "LINA-41 release notes / CHANGES.md", state: "in_progress", reason: null, elapsed: 12 * MIN, now: "grouping merged PRs by feature", plain: plain("릴리스 노트: 변경 목록 정리", "변경 목록을 기능별로 묶는 중"), todos: [["모은 변경 확인", true], ["T1", false], ["T3", false]], runs: ["r9", "r10", "r1"], lastBeat: now - 20 },
+    { id: "k-102", goal: "kg-2", agent: 1, title: "payment card-form polish", state: "in_progress", reason: null, elapsed: 2 * HOUR, now: "editing card-form.tsx", plain: NO_LINES, todos: [["T4", false]], runs: ["r2"], lastBeat: now - 40 },
+    { id: "k-103", goal: "kg-2", agent: 1, title: "payment error-copy.json", state: "stopped", reason: "unresponsive", elapsed: 52 * MIN, now: null, plain: plain("결제: 오류 문구 바꾸기"), todos: [["T5", false]], runs: ["r3"], lastBeat: now - 52 * MIN },
+    { id: "k-104", goal: "kg-2", agent: 1, title: "payment failure review", state: "waiting", reason: "review", elapsed: 3 * HOUR, now: null, plain: plain("결제: 실패 화면 검토", null, "실패 화면 세 곳의 문구와 버튼을 비교함"), todos: [["T6", false]], runs: ["r4"], lastBeat: now - 3 * HOUR },
+    { id: "k-105", goal: "kg-3", agent: 2, title: "backup log audit", state: "done", reason: null, elapsed: 9 * MIN, now: null, plain: plain("백업: 지난 기록 살펴보기", null, "지난 한 달 백업이 모두 끝까지 돌았음"), todos: [["T7", true]], runs: ["r5"], lastBeat: now - 2 * HOUR },
+    // Just created in goal mode and not started: 예정 · ready, no run and no worker run yet.
+    { id: "k-106", goal: "kg-3", agent: 2, title: "backup restore drill prep", state: "planned", reason: "ready", elapsed: 5 * MIN, now: null, plain: plain("백업: 복구 연습 준비하기"), todos: [["T8", false]], runs: [], lastBeat: now - 5 * MIN },
   ] as const;
+  // k-101's rounds: each one's own start and end; the worker run of a round started inside it. k-103's first two
+  // rounds started before the kept history (start 0): the first left a line, the second only its end receipt.
+  const rounds: Record<string, WorkCardDetail["runs"]> = {
+    "k-106": [],
+    "k-103": [
+      { id: 1, profile: null, status: "done", outcome: "completed", startedAt: 0, endedAt: now - 2 * HOUR, lastHeartbeatAt: now - 2 * HOUR, summary: "오류 문구 초안을 남김", live: false },
+      { id: 2, profile: null, status: "done", outcome: "completed", startedAt: 0, endedAt: now - 90 * MIN, lastHeartbeatAt: now - 90 * MIN, summary: null, live: false },
+      { id: 3, profile: null, status: "blocked", outcome: null, startedAt: now - HOUR, endedAt: null, lastHeartbeatAt: now - 52 * MIN, summary: null, live: false },
+    ],
+    "k-101": [
+      // Each round spans exactly its worker run (r9, r10, r1), so a round's times and its run's duration agree.
+      { id: 1, profile: null, status: "done", outcome: "completed", startedAt: now - 3 * HOUR, endedAt: now - 2 * HOUR - 40 * MIN, lastHeartbeatAt: now - 2 * HOUR - 40 * MIN, summary: null, live: false },
+      { id: 2, profile: null, status: "done", outcome: "completed", startedAt: now - HOUR, endedAt: now - 40 * MIN, lastHeartbeatAt: now - 40 * MIN, summary: null, live: false },
+      { id: 3, profile: null, status: "running", outcome: null, startedAt: now - 12 * MIN, endedAt: null, lastHeartbeatAt: now - 20, summary: null, live: true },
+    ],
+  };
 
   const todoTitle = (id: string) => todoSeeds.find((todo) => todo.id === id)?.title ?? "";
   const cardDetails: Record<string, WorkCardDetail> = {};
   for (const card of cardSeeds) {
     const done = card.todos.filter(([, isDone]) => isDone).length;
-    const run = runCards.find((candidate) => candidate.id === card.runs[0]);
     cardDetails[card.id] = {
       id: card.id,
       title: card.title,
@@ -211,17 +241,27 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       elapsedSeconds: card.elapsed,
       todoProgress: { done, total: card.todos.length },
       now: card.now,
-      todos: card.todos.map(([id, isDone], index) => ({ id: `check-${index + 1}`, title: todoTitle(id), kind: "check", done: isDone })),
-      workerRuns: card.runs.map((id) => ({ id, kind: "lina-worker", firstSeenAt: run?.startedAt ?? now, lastSeenAt: run?.endedAt ?? card.lastBeat })),
+      plain: card.plain,
+      todos: card.todos.map(([id, isDone], index) => ({ id: `check-${index + 1}`, title: todoTitle(id) || id, kind: "check", done: isDone })),
+      workerRuns: card.runs.map((id) => {
+        const run = runCards.find((candidate) => candidate.id === id);
+        return { id, kind: "lina-worker", firstSeenAt: run?.startedAt ?? now, lastSeenAt: run?.endedAt ?? card.lastBeat };
+      }),
       gates: [],
       comments:
-        card.id === "k-101"
+        card.id === "k-103"
+          ? [
+              { id: 3, author: agentId(1), body: "오류 문구 초안을 공유했어요.", createdAt: now - 70 * MIN },
+              { id: 4, author: agentId(1), body: "copy/errors.json 키 12개를 바꿈 (3f2a1c9)", createdAt: now - 60 * MIN },
+              { id: 5, author: agentId(1), body: "결제 실패 문구를 새 문체로 바꾸는 중인데 카드사별로…", createdAt: now - 55 * MIN },
+            ]
+          : card.id === "k-101"
           ? [
               { id: 1, author: agentId(0), body: "지난 릴리스 이후 병합된 변경부터 모읍니다.", createdAt: now - 11 * MIN },
               { id: 2, author: OWNER.id, body: "문서만 바뀐 변경은 따로 묶어 주세요.", createdAt: now - 6 * MIN },
             ]
           : [],
-      runs: [
+      runs: rounds[card.id] ?? [
         {
           id: 1,
           profile: null,
@@ -308,7 +348,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
   const itemRuns = (todoId: string): ItemDetail["runs"] =>
     runCards
       .filter((run) => run.todo === todoId)
-      .map((run) => ({ id: run.id, title: run.title, state: run.state, reason: run.reason, startedAt: run.startedAt === null ? null : Math.round(run.startedAt), endedAt: run.endedAt === null ? null : Math.round(run.endedAt) }));
+      .map((run) => ({ id: run.id, title: run.plain.title ?? todoTitle(todoId), state: run.state, reason: run.reason, startedAt: run.startedAt === null ? null : Math.round(run.startedAt), endedAt: run.endedAt === null ? null : Math.round(run.endedAt) }));
 
   const itemDetails: Record<string, ItemDetail> = {};
   for (const goal of goalItems) {
@@ -354,7 +394,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     return { ...item, runCount: detail.runs.length, commentCount: detail.comments.length };
   });
 
-  const question = { cardId: "k-102", title: "결제: 카드 입력 폼 다듬기", agent: agentId(1), commentId: 7, body: "카드 번호는 앞 여섯 자리까지 보여 줄까요?", askedAt: now - 1 * DAY - 4 * HOUR };
+  const question = { cardId: "k-102", title: "payment card-form polish", agent: agentId(1), commentId: 7, body: "카드 번호는 앞 여섯 자리까지 보여 줄까요?", askedAt: now - 1 * DAY - 4 * HOUR };
 
   const decide = Object.entries(decisions).map(([target, decision]) => ({
     target,
@@ -437,6 +477,10 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     ...mineRows.map((row) => ({ key: `todo:${row.id}:${now - DAY}`, target: row.id, at: now - DAY, kind: "todo" as const, line: `${row.title}: 내 할 일`, read: row.id === "T9" })),
   ];
 
+  const writer: BoardSnapshot["writer"] = options.writerStopped
+    ? { state: "stopped", lastSuccessAt: now - 2 * HOUR, stoppedSince: now - 40 * MIN }
+    : { state: "ok", lastSuccessAt: now - MIN, stoppedSince: null };
+
   const board: BoardSnapshot = {
     version: 1,
     at: now,
@@ -446,7 +490,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       running: 2,
       stopped: 1,
       due: due.overdue.length + due.today.length + due.week.length + due.later.length,
-      done: 1,
+      done: 3,
       agents: { [agentId(0)]: 1, [agentId(1)]: 1, [agentId(2)]: 0 },
       unread: notices.filter((notice) => !notice.read).length,
     },
@@ -456,6 +500,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     notices,
     machines: machineList,
     quota: quotaList,
+    writer,
   };
 
   if (options.noRunning) {
@@ -492,7 +537,7 @@ export const SCENE_COUNTS = {
   running: 2,
   stopped: 1,
   due: 5,
-  done: 1,
+  done: 3,
   machines: 3,
   machinesOk: 1,
   machinesWarn: 1,

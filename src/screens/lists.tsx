@@ -1,8 +1,8 @@
 import type { ComponentChildren } from "preact";
 import type { Machine, QuotaAccount, QuotaService } from "../api/client";
 import type { CardRow, DueRow, GoalRow, InboxRow } from "../model";
-import { agentView } from "../model";
-import { href } from "../router";
+import { agentView, doneFor } from "../model";
+import { href, navigate } from "../router";
 import { ago, dayLabel, until } from "../time";
 import { useEffect, useState } from "preact/hooks";
 import { KoreanInput } from "../korean-input";
@@ -142,23 +142,45 @@ function RetryControl({ card }: { card: CardRow }) {
       </span>
     );
   return (
-    <button type="button" class="text-button retry" aria-label={`${card.title}${SEP}${W.retry}`} onClick={() => void actions.retry(card)} data-testid="retry">
+    <button type="button" class="text-button retry" aria-label={[card.name, W.retry].join(SEP)} onClick={() => void actions.retry(card)} data-testid="retry">
       {W.retry}
     </button>
   );
 }
 
+/**
+ * The home: one line for the open decisions (only when there are any), the stopped and running cards (stopped on
+ * top), the cards waiting on review or an answer, then finished cards, the last 24 hours first and older ones after.
+ * Every number is its section's own row count, the same model the sidebar and the agent screens read.
+ */
 export function RunningScreen() {
   const { model } = useApp();
   const actions = useActions();
-  if (!model.running.rows.length) return <Empty />;
+  const { home } = model;
+  if (!home.decisions && !model.running.rows.length && !home.waiting.rows.length && !model.done.length) return <Empty />;
   return (
     <div class="list" data-testid="screen-running">
-      <ul class="rows" aria-label={W.running}>
-        {model.running.rows.map((card) => (
-          <CardRowView key={card.key} card={card} action={card.state === "stopped" ? <RetryControl card={card} /> : undefined} error={actions.error(`retry:${card.key}`)?.line} />
-        ))}
-      </ul>
+      {home.decisions ? (
+        <ul class="rows" aria-label={W.inbox}>
+          <li class="row" data-testid="home-decisions">
+            <Link href={href({ name: "inbox" })} label={`${W.decide} ${home.decisions}`}>
+              <span class="lines">
+                <span class="title one-line">{W.decide}</span>
+              </span>
+              <CountPair count={home.decisions} />
+              <Disclosure />
+            </Link>
+          </li>
+        </ul>
+      ) : null}
+      <ListSection
+        section={home.active}
+        label={W.running}
+        render={(card) => <CardRowView key={card.key} card={card} action={card.state === "stopped" ? <RetryControl card={card} /> : undefined} error={actions.error(`retry:${card.key}`)?.line} />}
+      />
+      {[home.waiting, home.recent, home.older].map((section) => (
+        <ListSection key={section.id} section={section} render={(card) => <CardRowView key={card.key} card={card} />} />
+      ))}
     </div>
   );
 }
@@ -190,16 +212,51 @@ export function DueScreen() {
   );
 }
 
-export function DoneScreen() {
+/** An agent's latest activity, read from agentView: the agent screen and the filtered 완료 draw this same line. */
+function LatestLine({ agentId, testid }: { agentId: string; testid: string }) {
+  const { model, now } = useApp();
+  const latest = agentView(model, agentId)?.latest ?? null;
+  if (latest === null) return null;
+  return (
+    <span class="agent-latest" data-testid={testid}>
+      {W.latest(ago(now - latest))}
+    </span>
+  );
+}
+
+/**
+ * 완료, for every agent or one. The filter is the address (`#/done?agent=<id>`), so it survives a reload and every
+ * live update; each choice's count is the length of the list it shows.
+ */
+export function DoneScreen({ agent }: { agent?: string }) {
   const { model } = useApp();
   if (!model.counts.done) return <Empty />;
+  const shown = doneFor(model, agent);
+  const choose = (id?: string) => navigate(id ? { name: "done", agent: id } : { name: "done" }, { replace: true, direction: "none" });
+  const choices = [{ id: undefined as string | undefined, name: W.allAgents }, ...model.agents.map((each) => ({ id: each.id as string | undefined, name: each.name }))];
   return (
     <div class="list" data-testid="screen-done">
-      <ul class="rows" aria-label={W.done}>
-        {model.done.map((card) => (
-          <CardRowView key={card.key} card={card} />
-        ))}
-      </ul>
+      <div class="filter" role="group" aria-label={W.agents} data-testid="done-filter">
+        {choices.map((choice) => {
+          const count = doneFor(model, choice.id).length;
+          return (
+            <button key={choice.id ?? "all"} type="button" class="choice" aria-pressed={choice.id === agent} aria-label={`${choice.name} ${count}`} onClick={() => choose(choice.id)}>
+              {choice.name}
+              <span class="count">{count}</span>
+            </button>
+          );
+        })}
+      </div>
+      {agent ? <LatestLine agentId={agent} testid="done-latest" /> : null}
+      {shown.length ? (
+        <ul class="rows" aria-label={W.done}>
+          {shown.map((card) => (
+            <CardRowView key={card.key} card={card} />
+          ))}
+        </ul>
+      ) : (
+        <Empty />
+      )}
     </div>
   );
 }
@@ -251,19 +308,23 @@ export function AgentScreen({ id }: { id: string }) {
   return (
     <div class="list" data-testid="screen-agent">
       <p class="agent-counts" data-testid="agent-counts">
-        {[view.running, view.review, view.goals].map((section, index) => (
+        {[view.running, view.review, view.planned, view.goals].map((section, index) => (
           <span key={section.id} data-testid={`agent-count-${section.id}`}>
             {index ? SEP : ""}
             {section.title} <CountPair count={section.count} stopped={section.stopped} showZero />
           </span>
         ))}
       </p>
+      <p class="agent-latest-line">
+        <LatestLine agentId={id} testid="agent-latest" />
+      </p>
       <ListSection section={view.running} render={(card) => <CardRowView key={card.key} card={card} />} />
       <ListSection section={view.review} render={(card) => <CardRowView key={card.key} card={card} />} />
+      <ListSection section={view.planned} render={(card) => <CardRowView key={card.key} card={card} />} />
       <ListSection section={view.goals} render={(goal) => <GoalLine key={goal.id} goal={goal} showAgent={false} />} />
       <ul class="rows" aria-label={W.done}>
         <li class="row" data-testid="done-today">
-          <Link href={href({ name: "done" })} label={W.doneToday(view.doneToday.count)}>
+          <Link href={href({ name: "done", agent: id })} label={W.doneToday(view.doneToday.count)}>
             <span class="lines">
               <span class="title">{W.doneToday(view.doneToday.count)}</span>
             </span>

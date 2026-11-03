@@ -12,13 +12,13 @@
 
 - Stopped cards first, whenever there are any: with no running card the stopped ones are still listed; the empty state shows only when there are neither.
 - Stopped cards first. Red marks the problem, not the row: the title keeps the normal label colour, `중단됨 · <reason>` is red, and the time after it (`52분 전`) is grey; then running cards with `진행 중 · n분째` (or `n시간째`).
-- A card is a thin kind icon, the agent mark, a one-line title and one grey state line. On a wide window, a running card adds a second grey line with what it is doing now when the core gives one.
-- Waiting and done cards are not here.
+- A card is a thin kind icon, the agent mark, a one-line title and one grey state line. On a wide window, a running card adds a second grey line with what it is doing now when the core gives its checked now line. Titles and now lines are the core's checked lines only (work-cards.md).
+- Waiting and finished cards are not in this list; they follow it on the same screen, in their own sections (work-cards.md).
 - Running times count up every second on the page, without a reload.
 - On a phone nothing but the large title sits above the list.
 - The sidebar shows the running cards as a grey number and the stopped cards as their own small red number beside it (`2` grey, `1` red); the two are never summed into one count.
 - Each card's kind icon (code, docs, research, device) tells the kind of work apart.
-- A stopped card has `다시 시도` after it; choosing it asks the agent (see actions.md) and the row reads `<agent>에게 요청함` until the next refresh.
+- A stopped card has `다시 시도` after it; choosing it asks the agent (see actions.md) and the row reads `<agent>에게 요청함` for five seconds.
 
 ## Sub-features
 

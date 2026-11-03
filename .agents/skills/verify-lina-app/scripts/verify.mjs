@@ -553,7 +553,7 @@ const drivers = {
       const box = page.locator(".detail-head").getByRole("checkbox", { name: "카드 입력 폼 다듬기 완료로 표시" });
       check((await box.getAttribute("aria-disabled")) === null, "the open to-do's check box is inert");
       const heads = await page.locator(".detail .box-head").allInnerTexts();
-      check(JSON.stringify(heads) === JSON.stringify(["완료 조건", "실행", "댓글"]), "boxes " + heads.join(", "));
+      check(JSON.stringify(heads) === JSON.stringify(["완료 조건", "실행", "댓글", "대화"]), "boxes " + heads.join(", "));
       const resolved = page.getByTestId("resolved");
       check((await resolved.count()) === 1 && !(await resolved.evaluate((fold) => fold.open)), "the resolved thread is not folded");
       const fold = (await resolved.locator("summary").innerText()).trim();
@@ -571,7 +571,7 @@ const drivers = {
     });
     await step("send a comment: it shows at once with its pending line and lands in the record", async () => {
       const field = page.getByRole("textbox", { name: "댓글 달기" });
-      const send = page.getByRole("button", { name: "보내기", exact: true });
+      const send = page.getByTestId("comments").getByRole("button", { name: "보내기", exact: true });
       check(await send.isDisabled(), "보내기 is enabled on an empty field");
       const empty = await buttonLook(page, send);
       await field.fill("휴대폰 가로 화면도 봐 주세요");
@@ -604,6 +604,93 @@ const drivers = {
       check(box.includes("배포를 금요일 오후에 해도 될까요?") && box.includes("질문") && /\d+일 전/.test(box), "the decision box reads " + box);
       return "#/items/T2 " + title + ": " + box;
     });
+  },
+
+  async talk(page, step) {
+    const box = page.getByTestId("talk");
+    const field = box.getByRole("textbox", { name: "메시지" });
+    const send = box.getByRole("button", { name: "보내기", exact: true });
+    let comments = 0;
+    await step("open a to-do from its goal: 대화 sits under 댓글", async () => {
+      await openApp(page, "#/goals/G2");
+      await page.getByRole("list", { name: "할 일" }).getByRole("link", { name: /^카드 입력 폼 다듬기/ }).click();
+      await page.getByTestId("screen-item").waitFor();
+      const heads = await page.locator(".detail .box-head").allInnerTexts();
+      check(JSON.stringify(heads.slice(-2)) === JSON.stringify(["댓글", "대화"]), "boxes " + heads.join(", "));
+      check((await box.getByTestId("talk-mine").count()) === 0, "the conversation shows turns before any was sent on this page");
+      comments = await page.evaluate(() => window.__linaScene.itemDetails.T4.comments.length);
+      check(await send.isDisabled(), "보내기 is enabled on an empty field");
+      return heads.join(", ") + "; " + (await buttonLook(page, send));
+    });
+    await step("type and press Enter: the message sits on the right and the reply streams on the left with a live mark", async () => {
+      await field.fill("입력 폼 간격 봐 주세요");
+      const ready = await buttonLook(page, send);
+      if (page.viewportSize().width < 900) {
+        const height = (await field.boundingBox()).height;
+        check(height >= 44, "the field is " + height + " px tall on a phone");
+      }
+      await field.press("Enter");
+      await box.getByTestId("talk-live").waitFor({ state: "attached", timeout: 3_000 }).catch(() => check(false, "no live mark while the reply streams"));
+      const mine = await box.getByTestId("talk-mine").locator(".talk-bubble").boundingBox();
+      const reply = box.getByTestId("talk-reply");
+      await reply.filter({ hasText: /확인했어요/ }).waitFor({ timeout: 3_000 }).catch(() => check(false, "no words of the reply while it streams"));
+      const partial = (await reply.locator(".talk-bubble").innerText()).trim();
+      const theirs = await reply.locator(".talk-bubble").boundingBox();
+      const area = await box.boundingBox();
+      check(mine.x + mine.width > area.x + area.width - 24 && mine.x > theirs.x, "the owner's message is not on the right");
+      check((await reply.locator(".mark").count()) === 1, "the reply has no agent mark");
+      check((await field.inputValue()) === "", "the field still holds the sent text");
+      check(await send.isDisabled(), "보내기 is enabled while the reply streams");
+      return "mid-stream: " + partial + " (" + ready + ")";
+    });
+    await step("the reply ends: the live mark goes and one line says the agent keeps the exchange", async () => {
+      const carried = box.getByTestId("talk-carried");
+      await carried.waitFor({ timeout: 10_000 }).catch(() => check(false, "no carried line after the reply"));
+      const line = (await carried.innerText()).trim();
+      check(/^\S+ 대화에 남음$/.test(line), "the carried line reads " + line);
+      check((await box.getByTestId("talk-live").count()) === 0, "the live mark stayed after the reply");
+      const reply = (await box.getByTestId("talk-reply").locator(".talk-bubble").innerText()).trim();
+      check(reply === "네, 확인했어요. 입력 폼 간격부터 맞추고 오늘 안에 다시 알려 드릴게요.", "the reply reads " + reply);
+      check((await box.getByTestId("write-error").count()) === 0, "an error line shows after a full reply");
+      const after = await page.evaluate(() => window.__linaScene.itemDetails.T4.comments.length);
+      check(after === comments, "the talk wrote " + (after - comments) + " comment(s) into the work record");
+      return reply + " / " + line;
+    });
+    await step("the next message takes the carried line away", async () => {
+      await field.fill("고마워요");
+      await send.click();
+      await box.getByTestId("talk-mine").nth(1).waitFor({ timeout: 3_000 });
+      check((await box.getByTestId("talk-carried").count()) === 0, "the carried line stays while the next reply streams");
+      await box.getByTestId("talk-carried").waitFor({ timeout: 10_000 });
+      return (await box.getByTestId("talk-mine").count()) + " messages, carried line on the last reply only: " + (await box.getByTestId("talk-carried").count());
+    });
+    await step("with reduced motion the live mark holds still", async () => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await openApp(page, "#/items/T4");
+      await field.fill("입력 폼 간격 봐 주세요");
+      await field.press("Enter");
+      const live = box.getByTestId("talk-live");
+      await live.waitFor({ state: "attached", timeout: 3_000 });
+      const animation = await live.evaluate((node) => getComputedStyle(node).animationName);
+      check(animation === "none", "the live mark animates (" + animation + ") under prefers-reduced-motion");
+      await page.emulateMedia({ reducedMotion: null });
+      return "animation " + animation;
+    });
+    for (const [talk, status, line] of [["busy", 429, "에이전트가 바쁨"], ["down", 503, "에이전트 연결 안 됨"], ["none", 409, "맡은 에이전트 없음"]]) {
+      await step("refused " + status + ": one line, the message stays in the field", async () => {
+        await openApp(page, "#/items/T4", "&talk=" + talk);
+        await field.fill("오늘 어디까지 했어요?");
+        await field.press("Enter");
+        const error = box.getByTestId("write-error");
+        await error.waitFor({ timeout: 3_000 }).catch(() => check(false, "no refusal line"));
+        const shown = (await error.innerText()).trim();
+        check(shown === line, "the refusal reads " + shown + ", expected " + line);
+        check((await field.inputValue()) === "오늘 어디까지 했어요?", "the message left the field");
+        check((await box.getByTestId("talk-mine").count()) === 0, "a refused message shows as sent");
+        check(!(await send.isDisabled()), "보내기 stays disabled after a refusal");
+        return status + " " + shown;
+      });
+    }
   },
 
   async "card-detail"(page, step) {

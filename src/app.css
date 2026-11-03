@@ -331,7 +331,6 @@ button:disabled {
   gap: 10px;
   min-height: var(--row);
   padding: 6px var(--inset);
-  position: relative;
   transition: background-color var(--motion);
 }
 
@@ -343,18 +342,23 @@ button:disabled {
   overflow: hidden;
 }
 
-/* The divider starts where the row's text starts (after the icon and avatar) and runs to the edge. */
-.lines {
+/* The divider sits on the row's top edge and starts where the row's text starts (after the icon, avatar or check
+   box), like iOS: it is placed against the row, and left where the text is (its static position). */
+.row {
   position: relative;
 }
 
 .row + .row .lines::before {
   content: "";
   position: absolute;
-  top: -6px;
-  left: 0;
-  right: -100vw;
+  top: 0;
+  width: 100vw;
   border-top: var(--line) solid var(--separator);
+}
+
+/* A quota's accounts are their own list with their own lines. */
+.accounts .lines::before {
+  content: none;
 }
 
 .row > a[aria-current="page"] {

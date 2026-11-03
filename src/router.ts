@@ -103,7 +103,11 @@ export function navigate(to: Route | string, options: { replace?: boolean; direc
   for (const listener of listeners) listener(direction);
 }
 
+/** Set by our own back (the control or the edge swipe) until its popstate arrives; a browser back is not ours. */
+let ownBack = false;
+
 export function back(): void {
+  ownBack = true;
   window.history.back();
 }
 
@@ -130,11 +134,19 @@ export function useNav(): { route: Route; state: NavState; hash: string } {
           new Promise<void>((resolve) => {
             settle.current?.();
             settle.current = resolve;
-            setNav(next);
+            // Always the latest screen: a transition skipped by a newer one still runs its swap, possibly after
+            // the newer one, and must not bring back the screen (and the scroll) it was started for.
+            setNav(shown.current);
           }),
       );
     };
-    const onHistory = () => update();
+    // A history step we did not start (the browser's back or forward, Safari's own swipe) is already drawn by the
+    // browser: the screen swaps at once, in the same task, so its scroll is back before the next frame.
+    const onHistory = (event: Event) => {
+      const ours = ownBack;
+      if (event.type === "popstate") ownBack = false;
+      update(event.type === "popstate" && !ours ? "none" : undefined);
+    };
     listeners.add(update);
     window.addEventListener("popstate", onHistory);
     window.addEventListener("hashchange", onHistory);

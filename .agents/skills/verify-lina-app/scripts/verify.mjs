@@ -381,6 +381,82 @@ async function swipe(page, from, to) {
   );
 }
 
+// A divider is the ::before line of a row's text block (or, on the phone menu, the top border of the row's link).
+// getBoundingClientRect cannot see a pseudo-element, so the line is placed from its computed top and left against
+// its containing block. Every divider between two rows must lie on the lower row's top edge and start at its text.
+async function dividerOffsets(page) {
+  return page.evaluate(() => {
+    const rowsOf = (row) => row.matches(".row, .nav-row");
+    const nameOf = (row) => {
+      const control = [":scope > a", ":scope > button.row-button", ":scope > .row-body", ":scope > details > summary", "a", "button"].map((selector) => row.querySelector(selector)).find(Boolean) || row;
+      const role = control.getAttribute("role") || { A: "link", BUTTON: "button", SUMMARY: "disclosure" }[control.tagName] || "row";
+      return role + ' "' + (control.getAttribute("aria-label") || control.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40) + '"';
+    };
+    let measured = 0;
+    const off = [];
+    for (const row of document.querySelectorAll(".row, .nav-row")) {
+      const before = row.previousElementSibling;
+      const box = row.getBoundingClientRect();
+      if (!before || !rowsOf(before) || box.height === 0) continue;
+      const lines = row.querySelector(".lines");
+      const line = lines ? getComputedStyle(lines, "::before") : null;
+      let y;
+      let x = null;
+      let text = null;
+      if (line && line.content !== "none" && line.display !== "none" && parseFloat(line.borderTopWidth) > 0) {
+        let block = lines;
+        while (block && getComputedStyle(block).position === "static") block = block.parentElement;
+        const frame = block.getBoundingClientRect();
+        y = frame.top + block.clientTop + parseFloat(line.top);
+        x = frame.left + block.clientLeft + parseFloat(line.left);
+        text = lines.getBoundingClientRect().left + parseFloat(getComputedStyle(lines).paddingLeft);
+      } else {
+        const edge = [row, ...row.children].find((element) => parseFloat(getComputedStyle(element).borderTopWidth) > 0 && getComputedStyle(element).borderTopStyle !== "none");
+        if (!edge) continue;
+        y = edge.getBoundingClientRect().top;
+      }
+      measured += 1;
+      if (Math.abs(y - box.top) > 1) off.push(nameOf(row) + ": divider " + Math.round((y - box.top) * 10) / 10 + " px from the row's top");
+      if (x !== null && Math.abs(x - text) > 1) off.push(nameOf(row) + ": divider starts at " + Math.round(x) + ", text at " + Math.round(text));
+    }
+    return { measured, off };
+  });
+}
+
+async function dividers(page, where) {
+  const { measured, off } = await dividerOffsets(page);
+  check(measured > 0, where + ": no divider to measure");
+  check(off.length === 0, where + ": " + off.length + " divider(s) off the row's top edge: " + off.join("; "));
+  return where + ": " + measured + " dividers on their row's top edge";
+}
+
+const DIVIDER_SCREENS = [
+  ["home", "#/"],
+  ["수신함", "#/inbox"],
+  ["마감일", "#/due"],
+  ["진행 중인 작업", "#/running"],
+  ["goal detail", "#/goals/G2"],
+];
+
+async function dividerSteps(page, step, width) {
+  for (const [where, hash] of DIVIDER_SCREENS) {
+    await step("at " + width + ", " + where + ": every divider lies on its row's top edge, from the row's text", async () => {
+      await openApp(page, hash);
+      await page.locator("[data-testid=screen-title], .detail-title").first().waitFor();
+      await page.locator("[data-testid=row], .nav-row").first().waitFor();
+      return await dividers(page, where + " @" + width);
+    });
+  }
+  await step("at " + width + ", the bell's notices: every divider lies on its row's top edge", async () => {
+    await openApp(page, "#/inbox");
+    await page.getByRole("button", { name: "알림 5" }).click();
+    const notices = page.getByRole("dialog", { name: "알림" });
+    await notices.waitFor();
+    await notices.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+    return await dividers(page, "bell @" + width);
+  });
+}
+
 const drivers = {
   async inbox(page, step) {
     await step("open the app on 수신함", async () => {
@@ -1100,6 +1176,7 @@ const drivers = {
         check((await page.locator("[data-layout=phone]").count()) === 0, "the phone stack is drawn at " + page.viewportSize().width);
         return "split view";
       });
+      await dividerSteps(page, step, page.viewportSize().width);
       return;
     }
     const screens = [
@@ -1136,6 +1213,7 @@ const drivers = {
       });
     }
     await page.setViewportSize({ width: 390, height: 844 });
+    await dividerSteps(page, step, 390);
     await step("Escape and a tap outside close the sheet", async () => {
       const sheet = page.getByRole("dialog", { name: "알림" });
       await page.keyboard.press("Escape");

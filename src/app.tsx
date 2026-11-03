@@ -331,14 +331,13 @@ function useScrollKeeping(panes: Panes, keys: Record<keyof Panes, string>, saved
   }, [keys.list, keys.detail, keys.main]);
 }
 
-function WideShell({ route, stack }: { route: Route; stack: readonly string[] }) {
+function WideShell({ route, stack, scroll }: { route: Route; stack: readonly string[]; scroll: Readonly<Record<string, number>> }) {
   const { model, store } = useApp();
   const listRoute: Route = route.name === "home" ? { name: "inbox" } : isList(route) ? route : (lastListIn(stack) ?? defaultListFor(route));
   const detailRoute = isList(route) || route.name === "home" ? null : route;
   const listRef = useRef<HTMLElement>(null);
   const detailRef = useRef<HTMLElement>(null);
-  const saved = (window.history.state?.scroll ?? {}) as Record<string, number>;
-  useScrollKeeping({ list: listRef, detail: detailRef }, { list: href(listRoute), detail: detailRoute ? href(detailRoute) : "", main: "" }, saved);
+  useScrollKeeping({ list: listRef, detail: detailRef }, { list: href(listRoute), detail: detailRoute ? href(detailRoute) : "", main: "" }, scroll);
   return (
     <div class="split" data-layout="wide">
       <aside class="sidebar">
@@ -372,11 +371,12 @@ function WideShell({ route, stack }: { route: Route; stack: readonly string[] })
   );
 }
 
-function PhoneShell({ route, stack }: { route: Route; stack: readonly string[] }) {
+function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly string[]; scroll: Readonly<Record<string, number>> }) {
   const { model, store } = useApp();
   const mainRef = useRef<HTMLElement>(null);
-  const saved = (window.history.state?.scroll ?? {}) as Record<string, number>;
-  useScrollKeeping({ main: mainRef }, { list: "", detail: "", main: href(route) }, saved);
+  // The scroll comes from the history entry the router read for this screen, not from whatever entry is current
+  // when the swap finally renders.
+  useScrollKeeping({ main: mainRef }, { list: "", detail: "", main: href(route) }, scroll);
   const parent = parentOf(route, stack);
   const isRoot = route.name === "home";
   const large = isRoot || isList(route);
@@ -443,7 +443,7 @@ export function App({ store }: { store: Store }) {
   return (
     <Ctx.Provider value={context}>
       <ActionsCtx.Provider value={actions}>
-        {wide ? <WideShell route={nav.route} stack={nav.state.stack} /> : <PhoneShell route={nav.route} stack={nav.state.stack} />}
+        {wide ? <WideShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} /> : <PhoneShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} />}
         <Toast />
       </ActionsCtx.Provider>
     </Ctx.Provider>

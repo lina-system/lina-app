@@ -1,4 +1,6 @@
 import { act, fireEvent, render, waitFor, within } from "@testing-library/preact";
+import { render as renderPreact } from "preact";
+import { useEffect, useState } from "preact/hooks";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { RouteName } from "./api/client";
 import { App } from "./app";
@@ -1265,5 +1267,49 @@ describe("work cards, round 6", () => {
     view.unmount();
     const home = await open("#/running", { wide: true });
     expect(home.container.querySelector('li:has(> a[href="#/cards/k-101"]) .progress-count')?.textContent).toBe("1/3");
+  });
+});
+
+describe("test environment teardown", () => {
+  test("an effect left pending when the environment is torn down does not throw", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+
+    function Pending() {
+      const [ran, setRan] = useState(false);
+      useEffect(() => setRan(true), []);
+      return <span>{ran ? "ran" : "pending"}</span>;
+    }
+
+    // testing-library's render runs inside act, which flushes effects and their
+    // after-paint flush. Rendering with preact directly leaves the effect in
+    // preact's after-paint queue, as a test that ends mid-update does.
+    renderPreact(<Pending />, container);
+
+    // The same flush src/test-setup.ts runs before a file's environment goes.
+    // The setup before this fix had no such step, so the effect is still
+    // pending below and its fallback timer throws once the globals are gone.
+    const { flushAfterPaint } = (await import("./test-setup")) as {
+      flushAfterPaint?: () => Promise<void>;
+    };
+    await flushAfterPaint?.();
+
+    // vitest's jsdom teardown deletes the window globals. A preact fallback
+    // timer still pending then calls cancelAnimationFrame and throws, which
+    // vitest reports as an unhandled error and fails the run for.
+    const cancelAnimationFrame = globalThis.cancelAnimationFrame;
+    delete (globalThis as { cancelAnimationFrame?: typeof globalThis.cancelAnimationFrame }).cancelAnimationFrame;
+    let text: string | null;
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      text = container.textContent;
+    } finally {
+      globalThis.cancelAnimationFrame = cancelAnimationFrame;
+      renderPreact(null, container);
+      container.remove();
+    }
+
+    expect(text).toBe("ran");
+    expect(flushAfterPaint).toBeTypeOf("function");
   });
 });

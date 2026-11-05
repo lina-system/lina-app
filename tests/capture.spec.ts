@@ -78,6 +78,15 @@ const SCREENS: readonly { id: string; hash: string; query?: string; line?: strin
   { id: "card-comment-folded", hash: "#/cards/k-103" },
   // An agent with a card just created: 예정 after 검토 필요, no time beside it.
   { id: "agent-planned", hash: "#/agents/ag-3" },
+  // The run's own timeline on a card, scrolled to it.
+  {
+    id: "card-timeline",
+    hash: "#/cards/k-101",
+    open: async (page) => {
+      await expect(page.getByTestId("timeline")).toBeVisible();
+      await page.getByTestId("timeline").scrollIntoViewIfNeeded();
+    },
+  },
   { id: "run-detail", hash: "#/runs/r6" },
   { id: "status", hash: "#/status" },
   {

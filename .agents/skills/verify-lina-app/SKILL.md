@@ -28,7 +28,7 @@ Two runs with different `VERIFY_RUN_ID`s run side by side; each has its own buil
 node .agents/skills/verify-lina-app/scripts/verify.mjs doctor
 ```
 
-Read-only. It prints JSON with `"healthy"`, `problems` and `notes`, and exits `1` when unhealthy. It checks that the recorded process is alive, `/app/` answers `200`, the page's version equals `package.json`'s, and the sidebar and bell show the scene's counts (수신함 `7`, 진행 중인 작업 `2` with a red `1`, 마감일 `5`, 완료 `3`, 목표 `5`, `알림 5`, `기기 3 · 정상 1 · 경고 1 · 꺼짐 1`), which is how it tells this run's fixture instance from any other page. A note says when the checkout has moved past the build's revision; relaunch to drive the current code. Run doctor before the first drive, after any failed drive, and whenever anything looks off.
+Read-only. It prints JSON with `"healthy"`, `problems` and `notes`, and exits `1` when unhealthy. It checks that the recorded process is alive, `/app/` answers `200`, the page's version equals `package.json`'s, and the sidebar and bell show the scene's counts (수신함 `8`, 진행 중인 작업 `2` with a red `1`, 마감일 `5`, 완료 `3`, 목표 `5`, `알림 5`, `기기 3 · 정상 1 · 경고 1 · 꺼짐 1`), which is how it tells this run's fixture instance from any other page. A note says when the checkout has moved past the build's revision; relaunch to drive the current code. Run doctor before the first drive, after any failed drive, and whenever anything looks off.
 
 ## Drive
 

@@ -24,6 +24,8 @@ function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
       return id ? scene.cardDetails[id] : undefined;
     case "inbox":
       return scene.inbox;
+    case "record":
+      return id ? scene.records[id] : undefined;
   }
 }
 
@@ -403,6 +405,17 @@ export class SyntheticSource implements Source {
       if (opening && this.script === "token") setTimeout(() => this.restartCore(), STREAM_RESTART_AFTER_MS);
     });
     return { close: () => this.end(connection, false) };
+  }
+
+  /**
+   * A worker run says one more thing in its round going now, as the runner's live view does: its record changes and
+   * a `worker` change event names the run.
+   */
+  recordSays(runId: string, text: string): void {
+    const round = this.scene.records[runId]?.rounds[0];
+    if (!round) return;
+    round.rows.push({ at: Math.floor(nowSeconds()), kind: "said", text, count: 1 });
+    this.changed({ source: "worker", kind: "progress", id: runId });
   }
 
   /** Every open connection drops, as on sleep or a network change. */

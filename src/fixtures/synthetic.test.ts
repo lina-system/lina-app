@@ -65,7 +65,7 @@ test("the scene holds what every screen needs", () => {
   expect(scene.cardDetails["k-101"].runs).toHaveLength(3);
   // A round with its worker run spans exactly that run, so the round's times and the run's duration agree.
   for (const [round, runId] of scene.cardDetails["k-101"].runs.map((each, index) => [each, ["r9", "r10", "r1"][index]] as const)) {
-    const run = scene.board.cards.find((candidate) => candidate.id === runId);
+    const run = scene.runs.find((candidate) => candidate.id === runId);
     expect(run?.startedAt).toBe(round.startedAt);
     expect(run?.endedAt).toBe(round.endedAt);
   }
@@ -130,7 +130,7 @@ test("names are invented and titles are Korean", () => {
   for (const item of scene.items.items) expect(item.title).toMatch(/^[가-힣 ]+$/);
   // The raw card and run titles are what workers record; the checked titles the screens draw are Korean.
   for (const card of scene.cards.cards) if (card.plain.title !== null) expect(card.plain.title).toMatch(/^[가-힣 :]+$/);
-  for (const run of scene.board.cards) {
+  for (const run of scene.runs) {
     if (run.plain.title !== null) expect(run.plain.title).toMatch(/^[가-힣 ]+$/);
     expect(run.title).not.toBe(run.plain.title);
   }
@@ -142,7 +142,7 @@ test("the scene contains no personal-data pattern or configured name", () => {
 });
 
 test("the scene does not contradict itself", () => {
-  const runs = new Map(scene.board.cards.map((run) => [run.id, run]));
+  const runs = new Map(scene.runs.map((run) => [run.id, run]));
   for (const detail of Object.values(scene.cardDetails)) {
     const running = detail.workerRuns.some((worker) => runs.get(worker.id)?.state === "in_progress");
     // A running card has finished steps only from an earlier follow-up round.

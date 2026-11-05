@@ -31,7 +31,7 @@ const viteBin = path.join(repo, "node_modules", "vite", "bin", "vite.js");
 // The synthetic scene (src/fixtures/synthetic.ts, SCENE_COUNTS). Doctor compares the sidebar and the bell
 // against it, so a page showing anything else is not this run's instance.
 const APP_PATH = "/app/?source=synthetic";
-const FIXTURE = { inbox: "7", running: "2", stopped: "1", due: "5", done: "3", goals: "5", bell: "알림 5", devices: "기기 3 · 정상 1 · 경고 1 · 꺼짐 1" };
+const FIXTURE = { inbox: "8", running: "2", stopped: "1", due: "5", done: "3", goals: "5", bell: "알림 5", devices: "기기 3 · 정상 1 · 경고 1 · 꺼짐 1" };
 const WIDTHS = [1280, 390];
 const H2S = [
   "Platforms",
@@ -621,7 +621,9 @@ const drivers = {
       const decide = await decisionNames(page.getByRole("list", { name: "결정 필요" }));
       const review = await rowNames(page.getByRole("list", { name: "검토 필요" }));
       const mine = await rowNames(page.getByRole("list", { name: "내 할 일" }));
-      check(decide.length === 4 && review.length === 1 && mine.length === 2, "groups have " + decide.length + "/" + review.length + "/" + mine.length + " rows, expected 4/1/2");
+      // 검토 필요: the run outside any card and the work card waiting for review.
+      check(decide.length === 4 && review.length === 2 && mine.length === 2, "groups have " + decide.length + "/" + review.length + "/" + mine.length + " rows, expected 4/2/2");
+      check(review.some((name) => name.includes("결제: 실패 화면 검토")), "the card waiting for review is not in 검토 필요: " + review.join(" | "));
       check(decide.filter((name) => name.endsWith("질문")).length === 2 && decide.filter((name) => name.endsWith("요청")).length === 2, "decisions are not two 질문 and two 요청: " + decide.join(" | "));
       const all = [...decide, ...review, ...mine];
       check(new Set(all).size === all.length, "an item appears twice");
@@ -1055,10 +1057,10 @@ const drivers = {
       return new URL(page.url()).hash;
     });
     await step("read its state, now line, to-dos, dimmed runs and comments", async () => {
-      const state = await page.locator(".detail-head .sub").innerText();
+      const state = await page.locator(".detail-head .sub").first().innerText();
       check(/^진행 중 · \d+분째$/.test(state), "state reads " + state);
       const heads = await page.locator(".detail .box-head").allInnerTexts();
-      check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "실행", "댓글"]), "boxes " + heads.join(", "));
+      check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "실행", "기록", "댓글"]), "boxes " + heads.join(", "));
       check((await page.getByTestId("card-now").innerText()).includes("변경 목록을 기능별로 묶는 중"), "the now box does not read the checked now line");
       check((await page.locator(".detail .box").filter({ has: page.locator(".box-head", { hasText: /^할 일$/ }) }).getByRole("checkbox").count()) === 3, "expected 3 to-dos");
       const dim = page.getByTestId("worker-runs").locator(".row.is-dim");
@@ -1069,13 +1071,18 @@ const drivers = {
       check((await page.getByTestId("comment").count()) === 2, "expected 2 comments");
       return state + "; " + heads.join(", ");
     });
-    await step("a run outside any card opens on its own", async () => {
+    await step("a run outside any card opens on its own, with its timeline", async () => {
       await openApp(page, "#/inbox");
       await page.getByRole("list", { name: "검토 필요" }).getByRole("link").first().click();
       await page.getByTestId("screen-run").waitFor();
-      const state = await page.locator(".detail-head .sub").innerText();
+      const state = await page.locator(".detail-head .sub").first().innerText();
       check(/^대기 · 검토 필요 · \d+시간 전$/.test(state), "run state reads " + state);
-      return new URL(page.url()).hash + " " + state;
+      const block = page.getByTestId("screen-run").getByTestId("timeline-block");
+      await block.waitFor();
+      const head = (await block.locator(".timeline-head").innerText()).trim();
+      const result = (await block.getByTestId("timeline-result").innerText()).replace(/\s+/g, " ").trim();
+      check(/ · 작업 마침$/.test(head) && result.replace(/^결과\s*/, "") === "가린 문장", "the run's timeline reads " + head + " / " + result);
+      return new URL(page.url()).hash + " " + state + "; " + head + "; " + result;
     });
   },
 
@@ -1155,11 +1162,11 @@ const drivers = {
       const strike = await box.locator("xpath=..").locator(".title").evaluate((title) => getComputedStyle(title).textDecorationLine);
       check(strike === "line-through", "the held row is not struck through");
       check((await headCount("mine")) === 2, "내 할 일 counts " + (await headCount("mine")) + " while the row is shown");
-      if (wide) check((await sidebarCount(page, "nav-inbox")) === "7", "the sidebar counts " + (await sidebarCount(page, "nav-inbox")));
+      if (wide) check((await sidebarCount(page, "nav-inbox")) === "8", "the sidebar counts " + (await sidebarCount(page, "nav-inbox")));
       await toastGone();
       await mine.getByRole("checkbox", { name: /^공지 문구 확인/ }).waitFor({ state: "detached", timeout: 2_000 }).catch(() => check(false, "the row stayed after the toast"));
       check((await headCount("mine")) === 1, "내 할 일 counts " + (await headCount("mine")) + " after the row left");
-      if (wide) check((await sidebarCount(page, "nav-inbox")) === "6", "the sidebar counts " + (await sidebarCount(page, "nav-inbox")) + " after the row left");
+      if (wide) check((await sidebarCount(page, "nav-inbox")) === "7", "the sidebar counts " + (await sidebarCount(page, "nav-inbox")) + " after the row left");
       return "held struck for the toast, then gone; 내 할 일 2 → 1";
     });
     await step("되돌리기 on a held row puts it back unchecked", async () => {
@@ -1183,11 +1190,11 @@ const drivers = {
       const pick = page.getByRole("button", { name: "금요일 오후 · 추천" });
       await pick.waitFor({ timeout: 3_000 });
       await pick.click();
-      const during = { decide: await headCount("decide"), rows: (await decisionNames(list)).length, sidebar: wide ? await sidebarCount(page, "nav-inbox") : "6" };
-      check(during.decide === 3 && during.rows === 3 && during.sidebar === "6", "during the toast: " + JSON.stringify(during));
+      const during = { decide: await headCount("decide"), rows: (await decisionNames(list)).length, sidebar: wide ? await sidebarCount(page, "nav-inbox") : "7" };
+      check(during.decide === 3 && during.rows === 3 && during.sidebar === "7", "during the toast: " + JSON.stringify(during));
       await page.getByTestId("toast").getByRole("button", { name: "되돌리기" }).click();
-      const after = { decide: await headCount("decide"), rows: (await decisionNames(list)).length, sidebar: wide ? await sidebarCount(page, "nav-inbox") : "7" };
-      check(after.decide === 4 && after.rows === 4 && after.sidebar === "7", "after undo: " + JSON.stringify(after));
+      const after = { decide: await headCount("decide"), rows: (await decisionNames(list)).length, sidebar: wide ? await sidebarCount(page, "nav-inbox") : "8" };
+      check(after.decide === 4 && after.rows === 4 && after.sidebar === "8", "after undo: " + JSON.stringify(after));
       return "during " + JSON.stringify(during) + ", after undo " + JSON.stringify(after);
     });
     await step("done, then 되돌리기 in the toast", async () => {
@@ -1279,7 +1286,9 @@ const drivers = {
       await line.waitFor({ timeout: 2_000 });
       const text = (await line.innerText()).trim();
       check(/^\S+에게 요청함$/.test(text), "the row reads " + text);
-      await page.waitForFunction(() => window.__linaScene.itemDetails.T5.comments.some((comment) => comment.text === "다시 시도해 주세요."), null, { timeout: 3_000 }).catch(() => check(false, "the retry did not reach the to-do"));
+      // The board does not list a card's own runs (as the core), so the card's to-do is not known: the retry is a
+      // comment on the card itself.
+      await page.waitForFunction(() => window.__linaScene.cardDetails["k-103"].comments.some((comment) => comment.body === "다시 시도해 주세요."), null, { timeout: 3_000 }).catch(() => check(false, "the retry did not reach the card"));
       await line.waitFor({ state: "detached", timeout: 15_000 }).catch(() => check(false, "요청함 stayed past the next refresh"));
       return text + ", then 다시 시도 again after the refresh";
     });
@@ -1885,7 +1894,7 @@ const drivers = {
       await openApp(page, "#/cards/k-101");
       const detail = page.getByTestId("screen-card");
       const heads = await detail.locator(":scope > .box > .box-head").allInnerTexts();
-      check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "실행", "댓글"]), "the boxes read " + JSON.stringify(heads));
+      check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "실행", "기록", "댓글"]), "the boxes read " + JSON.stringify(heads));
       const rounds = await detail.getByTestId("round").locator(".round-head").allInnerTexts();
       check(rounds.length === 3 && /^라운드 3 · \d\d:\d\d · 진행 중$/.test(rounds[0]) && /^라운드 2 · \d\d:\d\d–\d\d:\d\d$/.test(rounds[1]) && rounds[2].startsWith("라운드 1 · "), "the rounds read " + JSON.stringify(rounds));
       const look = await detail.getByTestId("round").locator("li.row").evaluateAll((rows) =>
@@ -1973,6 +1982,38 @@ const drivers = {
       const head = (await page.locator(".detail-head [data-testid=progress] .progress-count").innerText()).trim();
       check(head === "할 일 1/3", "the detail head's bar reads " + head);
       return (wide ? bars.join(", ") : "no bar on the phone home") + "; detail " + head;
+    });
+    await step("the run's own timeline: rounds newest first with their span and outcome; sentences bright, tools dim, raw text hidden", async () => {
+      await openApp(page, "#/cards/k-101");
+      const timeline = page.getByTestId("timeline");
+      await timeline.waitFor();
+      const heads = await page.locator(".detail > .box > .box-head").allInnerTexts();
+      check(heads.slice(-2).join(",") === "기록,댓글", "the timeline is not between the boxes and the comments: " + heads.join(", "));
+      const blocks = timeline.getByTestId("timeline-block");
+      const outcomes = await blocks.evaluateAll((items) => items.map((item) => item.getAttribute("data-outcome")));
+      check(JSON.stringify(outcomes) === JSON.stringify(["going", "comment", "rejected", "ended"]), "the blocks read " + JSON.stringify(outcomes));
+      const titles = await timeline.locator(".timeline-head").allInnerTexts();
+      check(/ · 진행 중$/.test(titles[0]) && / · 검토 반려$/.test(titles[2]) && /^–\S+( \S+)? · 작업 마침$/.test(titles[3]), "the heads read " + JSON.stringify(titles));
+      const rows = await blocks.first().locator(".timeline-row").evaluateAll((items) =>
+        items.map((item) => ({ kind: item.getAttribute("data-kind"), text: item.textContent.trim(), colour: getComputedStyle(item).color })),
+      );
+      const label = await page.locator(".detail-title").evaluate((title) => getComputedStyle(title).color);
+      check(rows.map((row) => row.text).join(" | ") === "병합된 변경을 기능별로 묶는 중 | 도구 사용 4번 | 가린 문장 | 문서만 바뀐 변경을 따로 묶는 중 ×3", "the going round reads " + rows.map((row) => row.text).join(" | "));
+      check(rows[0].colour === label && rows[1].colour !== label && rows[2].colour !== label, "sentence and dim colours " + JSON.stringify(rows.map((row) => row.colour)) + ", label " + label);
+      const noStart = (await blocks.nth(3).getByTestId("timeline-no-start").innerText()).trim();
+      check(noStart === "시작 기록 없음", "the start-unknown round reads " + noStart);
+      const text = await timeline.innerText();
+      check(!/Running|npm|packages|run 3|3f2a1c9/.test(text), "raw text in the timeline: " + text.slice(0, 160));
+      return outcomes.join(" → ") + "; " + titles.join(" | ");
+    });
+    await step("a worker run a card started opens its own page with its timeline, though the board does not list it", async () => {
+      await page.getByTestId("worker-runs").locator('a[href="#/runs/r1"]').click();
+      await settled(page);
+      await page.getByTestId("screen-run").waitFor();
+      await page.getByTestId("screen-run").getByTestId("timeline").waitFor();
+      const title = (await page.locator(".detail-title").first().innerText()).trim();
+      check(title === "코드 작업", "the run page is named " + title);
+      return new URL(page.url()).hash + " " + title;
     });
     await step("a stopped writer: one 요약 멈춤 line beside the freshness line", async () => {
       await openApp(page, "#/running", "&writer=stopped");

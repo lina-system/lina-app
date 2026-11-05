@@ -188,7 +188,7 @@ describe("what a change touches", () => {
   test("work, worker and kanban events name only their routes", () => {
     const store = { cardsWithRun: (id: string) => (id === "job-1" ? ["k-101"] : []) };
     expect(routesFor([{ source: "work", kind: "commented", id: "T4", at: 1 }], store)).toEqual([["board"], ["items"], ["item", "T4"]]);
-    expect(routesFor([{ source: "worker", kind: "exec_end", id: "job-1", at: 1 }], store)).toEqual([["board"], ["card", "k-101"]]);
+    expect(routesFor([{ source: "worker", kind: "exec_end", id: "job-1", at: 1 }], store)).toEqual([["board"], ["record", "job-1"], ["card", "k-101"]]);
     expect(routesFor([{ source: "kanban", kind: "moved", id: "k-102", at: null }], store)).toEqual([["cards"], ["goals"], ["inbox"], ["card", "k-102"], ["goal", "k-102"]]);
   });
 });

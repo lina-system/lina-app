@@ -536,6 +536,77 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+/* The run's own timeline: one block per round, newest first; its sentences bright, tool steps and missing records dim. */
+.timeline-block + .timeline-block {
+  margin-top: 12px;
+}
+
+.timeline-head {
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.timeline-head::-webkit-details-marker {
+  display: none;
+}
+
+.timeline-head::before {
+  content: "\203A";
+  display: inline-block;
+  width: 12px;
+  transition: transform var(--motion);
+}
+
+.timeline-block[open] > .timeline-head::before {
+  transform: rotate(90deg);
+}
+
+.timeline-rows {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0 0 0 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.timeline-row {
+  margin: 0;
+  color: var(--label);
+}
+
+.timeline-row.is-dim,
+.timeline-result.is-dim,
+.timeline-count,
+.timeline-label {
+  color: var(--label-2);
+}
+
+.timeline-row.is-dim {
+  font-size: var(--text-small);
+}
+
+.timeline-block > .timeline-row {
+  padding-left: 12px;
+}
+
+.timeline-row.is-comment {
+  display: grid;
+  gap: 2px;
+}
+
+.timeline-result {
+  margin: 6px 0 0;
+  padding-left: 12px;
+}
+
+.timeline-label {
+  margin-right: 6px;
+  font-size: var(--text-small);
+}
+
 /* Red marks the problem everywhere: a stopped card's state words in its detail head too; its time stays grey. */
 .detail-head .state[data-state="stopped"] {
   color: var(--red);
@@ -1415,6 +1486,13 @@ html:has(.stack) body {
 
 .stack .agent-counts {
   padding: 0 calc(var(--inset) + 12px) 4px;
+}
+
+/* On a phone a round's head is a 44 pt control like every other fold. */
+.stack .timeline-head {
+  display: flex;
+  align-items: center;
+  min-height: var(--hit);
 }
 
 .stack .agent-latest-line {

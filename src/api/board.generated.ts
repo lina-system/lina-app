@@ -208,6 +208,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/work/runs/{id}/record": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One lina worker run's own record, round by round, newest round first (lina#201).
+         * @description The run's session record lives on the build device that ran it and the hub cannot read it, so the record is made of what the hub keeps: its receipts (each round's start and own end, the owner's verdict notes and cancel reasons), the last fetched final message and report (an earlier round's are replaced by the next fetch), and for the round going now the runner's live view (its recent sentences and tool steps; only its last line from a device that does not send them). The sentences of a round that ended before the last fetch are not on the hub and are not served.
+         */
+        get: operations["getWorkRunRecord"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -555,6 +575,41 @@ export interface components {
             ok: boolean;
             unread: number;
         };
+        /** @description One run of the task, from its own start to its own end. A row belongs to the round going at its time; a row after a round's end and before the next round's start belongs to none. */
+        RecordRound: {
+            /** @description From the round's own end receipt only; null while it goes or when its end is not on record. */
+            endedAt: number | null;
+            endKnown: boolean;
+            /** @description The report's first line, on the round going when it was written; never on a round going now. */
+            result: string | null;
+            /** @description Oldest first. */
+            rows: components["schemas"]["RecordRow"][];
+            /** @description The round's run number; null on the round whose start fell out of the kept history. */
+            run: number | null;
+            startedAt: number | null;
+            /** @description The round's start fell out of the kept history; such a round is served only with content. */
+            startUnknown: boolean;
+            /** @description The round's own end says it stopped (stalled, failed, cancelled, no result, unreachable). */
+            stopped: boolean;
+            /**
+             * @description The owner's verdict, on the latest round that began before it.
+             * @enum {string|null}
+             */
+            verdict: "accepted" | "rejected" | null;
+        };
+        RecordRow: {
+            /** @description When it was said or done; a folded row's first step. */
+            at: number;
+            /** @description A tools row's steps; a said row's times the same sentence was said in a row; 1 on a comment. */
+            count: number;
+            /**
+             * @description said: the run's own sentence; tools: the tool steps between two sentences folded into one row; comment: the owner's words (a verdict note, a cancel reason).
+             * @enum {string}
+             */
+            kind: "said" | "tools" | "comment";
+            /** @description Null on a tools row, which never carries tool names, paths, commands or ids. */
+            text: string | null;
+        };
         Refusal: {
             /** @description One line. */
             detail: string;
@@ -576,6 +631,16 @@ export interface components {
             title: string;
             /** @description The work record to-do the run takes on. */
             todo: string | null;
+        };
+        RunRecord: {
+            /** @description Snapshot time (left out of the ETag). */
+            at: number;
+            /** @description Comments made while no round was going, newest first; each stands on its own. */
+            comments: components["schemas"]["RecordRow"][];
+            errors: components["schemas"]["Errors"];
+            id: string;
+            /** @description Newest round first. */
+            rounds: components["schemas"]["RecordRound"][];
         };
         SourceError: {
             message: string;
@@ -986,6 +1051,45 @@ export interface operations {
             404: components["responses"]["Refused"];
             409: components["responses"]["Refused"];
             429: components["responses"]["Refused"];
+        };
+    };
+    getWorkRunRecord: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The run's record. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunRecord"];
+                };
+            };
+            /** @description Unchanged since the ETag sent. */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such worker run (an unknown or malformed id). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
 }

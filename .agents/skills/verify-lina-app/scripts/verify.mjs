@@ -1102,12 +1102,16 @@ const drivers = {
       const rounds = await page.getByTestId("timeline").evaluate((root) =>
         [...root.querySelectorAll("[data-testid=timeline-block]")].map((block) => ({
           outcome: block.getAttribute("data-outcome"),
+          head: block.querySelector(".timeline-head")?.textContent ?? "",
           line: block.querySelector("[data-testid=run-model]")?.textContent ?? null,
           inHead: Boolean(block.querySelector(".timeline-head")?.contains(block.querySelector("[data-testid=run-model]"))),
         })),
       );
-      const roundLines = rounds.filter((block) => block.outcome !== "comment");
-      check(roundLines.length === 3 && roundLines.every((block) => block.line === "model-a · 보통" && !block.inHead), "round lines " + JSON.stringify(rounds));
+      const roundOf = (n) => rounds.find((block) => block.outcome !== "comment" && block.head.startsWith("라운드 " + n));
+      const third = roundOf(3);
+      check(Boolean(third) && third.line === "model-a · 보통" && !third.inHead, "round 3 reads " + JSON.stringify(third));
+      check(roundOf(2)?.line === null, "round 2 reads " + JSON.stringify(roundOf(2)));
+      check(roundOf(1)?.line === null, "round 1 reads " + JSON.stringify(roundOf(1)));
       check(rounds.filter((block) => block.outcome === "comment").every((block) => block.line === null), "a comment block names a model");
       await noRevision();
       await openApp(page, "#/runs/r8");
@@ -1118,7 +1122,7 @@ const drivers = {
       await page.getByTestId("timeline").waitFor();
       check((await page.getByTestId("run-model").count()) === 0, "a run with no model drew a line");
       await noRevision();
-      return "r1 model-a · 보통; r8 model-b · 높음 · 대체 모델; r6 none";
+      return "r1 model-a · 보통; k-101 round 3 model-a · 보통, rounds 2 and 1 none; r8 model-b · 높음 · 대체 모델; r6 none";
     });
   },
 

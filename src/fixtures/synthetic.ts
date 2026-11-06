@@ -25,9 +25,10 @@ import type {
 import { diffSettings } from "../model/settings";
 
 /**
- * The model a run started with, and the settings revision it was submitted under. r1 used model-a at medium; r8
- * started on the fallback model-b; r6 names no model. r6 still carries a revision so a screen that drew it would
- * fail the no-ids test. Every other run is from before the field existed.
+ * The model a run started with, and the settings revision it was submitted under. r1 (k-101's round 3) used
+ * model-a at medium; r8 started on the fallback model-b. r9 and r10 (k-101's rounds 1 and 2) and r6 name no model,
+ * so a card's 기록 can show one round with a model beside rounds with none. r6 still carries a revision so a
+ * screen that drew it would fail the no-ids test. Every other run is from before the field existed.
  */
 function modelFields(id: string): Pick<RunCard, "model" | "settingsRevision"> {
   if (id === "r1") return { model: { provider: "anthropic", id: "model-a", thinking: "medium", source: "runner:omo" }, settingsRevision: "r3" };

@@ -64,9 +64,10 @@ function head(block: TimelineBlock, now: number): string {
 
 /**
  * One block, open by default; its open state is the reader's and survives every refetch of the record. A round's
- * head is the link to its worker run's page when there is one to open.
+ * head is the link to its worker run's page when there is one to open. `modelRun` is that same worker run, and
+ * the round names its model.
  */
-function Block({ block, owner, link }: { block: TimelineBlock; owner: string; link: string | null }) {
+function Block({ block, owner, link, modelRun }: { block: TimelineBlock; owner: string; link: string | null; modelRun: string | null }) {
   const { now } = useApp();
   const [open, setOpen] = useState(true);
   // A sentence or a result line that would show raw text is left out; the round still shows its head.
@@ -84,7 +85,7 @@ function Block({ block, owner, link }: { block: TimelineBlock; owner: string; li
           title
         )}
       </summary>
-      {block.type === "round" ? <RunModelLine runId={block.runId} class="timeline-model" /> : null}
+      {modelRun ? <RunModelLine runId={modelRun} class="timeline-model" /> : null}
       {block.type === "round" && block.startUnknown ? <p class="timeline-row is-dim" data-testid="timeline-no-start">{W.noStart}</p> : null}
       {rows.length ? (
         <ul class="timeline-rows">
@@ -105,10 +106,12 @@ function Block({ block, owner, link }: { block: TimelineBlock; owner: string; li
 
 /**
  * The run's own timeline (lina#201): its rounds and the comments made between them, newest first, below a detail's
- * boxes. `link` names the page a round's head opens (a card's worker run), or null. `fallback` is what stands when
- * the record is not shown: under the one error line when its read failed, or alone while there is no record.
+ * boxes. `link` names the page a round's head opens (a card's worker run), or null. `modelRun` names the worker
+ * run a round was, whose model the round shows; it defaults to the record's own run, which is what a run's page
+ * names. `fallback` is what stands when the record is not shown: under the one error line when its read failed,
+ * or alone while there is no record.
  */
-export function Timeline({ runs, live, link = () => null, fallback = null }: { runs: readonly string[]; live: (runId: string) => boolean; link?: (runId: string, n: number) => string | null; fallback?: ComponentChildren }) {
+export function Timeline({ runs, live, link = () => null, modelRun = (runId) => runId, fallback = null }: { runs: readonly string[]; live: (runId: string) => boolean; link?: (runId: string, n: number) => string | null; modelRun?: (runId: string, n: number) => string; fallback?: ComponentChildren }) {
   const { model, store, now } = useApp();
   if (runs.some((id) => store.status("record", id) === "failed"))
     return (
@@ -131,7 +134,7 @@ export function Timeline({ runs, live, link = () => null, fallback = null }: { r
   return (
     <Box title={W.record} testid="timeline">
       {blocks.map((block) => (
-        <Block key={block.key} block={block} owner={owner} link={block.type === "round" ? link(block.runId, block.n) : null} />
+        <Block key={block.key} block={block} owner={owner} link={block.type === "round" ? link(block.runId, block.n) : null} modelRun={block.type === "round" ? modelRun(block.runId, block.n) : null} />
       ))}
     </Box>
   );

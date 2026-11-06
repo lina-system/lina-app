@@ -1440,18 +1440,22 @@ describe("the run's own timeline", () => {
     expect(screenText(none.container)).not.toMatch(/\br\d+\b/);
   });
 
-  test("each round of a card's 기록 names that round's model under its head, once, and a comment block does not", async () => {
+  test("each round of a card's 기록 names its own run's model, and a round whose run has none shows nothing", async () => {
     const view = await open("#/cards/k-101", { wide: true });
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const blocks = view.getAllByTestId("timeline-block");
-    const rounds = blocks.filter((block) => block.getAttribute("data-outcome") !== "comment");
-    expect(rounds).toHaveLength(3);
-    for (const round of rounds) {
-      const line = round.querySelector("[data-testid=run-model]");
-      expect(line?.textContent).toBe("model-a · 보통");
-      expect(line?.classList.contains("timeline-model")).toBe(true);
-      expect(round.querySelector(".timeline-head")?.contains(line)).toBe(false);
-    }
+    const round = (n: number) => blocks.find((block) => block.getAttribute("data-outcome") !== "comment" && block.querySelector(".timeline-head")?.textContent?.startsWith(`라운드 ${n}`));
+    // k-101's rounds stay r9, r10, r1. Only r1 (round 3) has a model.
+    const third = round(3);
+    const line = third?.querySelector("[data-testid=run-model]");
+    expect(third?.querySelector("[data-testid=timeline-link]")?.getAttribute("href")).toBe("#/runs/r1");
+    expect(line?.textContent).toBe("model-a · 보통");
+    expect(line?.classList.contains("timeline-model")).toBe(true);
+    expect(third?.querySelector(".timeline-head")?.contains(line ?? null)).toBe(false);
+    expect(round(2)?.querySelector("[data-testid=timeline-link]")?.getAttribute("href")).toBe("#/runs/r10");
+    expect(round(2)?.querySelector("[data-testid=run-model]")).toBeNull();
+    expect(round(1)?.querySelector("[data-testid=timeline-link]")?.getAttribute("href")).toBe("#/runs/r9");
+    expect(round(1)?.querySelector("[data-testid=run-model]")).toBeNull();
     for (const comment of blocks.filter((block) => block.getAttribute("data-outcome") === "comment")) {
       expect(comment.querySelector("[data-testid=run-model]")).toBeNull();
     }

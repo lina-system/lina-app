@@ -1,4 +1,4 @@
-import type { ActionResult, AnswerRequest, ChangeMessage, AnswerResult, CommentRequest, DoneRequest, NoticesReadRequest, NoticesReadResult, RouteName, Routes, TalkEvent, TalkRequest } from "../api/client";
+import type { ActionResult, AnswerRequest, ChangeMessage, AnswerResult, CommentRequest, DoneRequest, NoticesReadRequest, NoticesReadResult, PushKey, PushRemoveRequest, PushRemoveResult, PushSubscriptionRequest, PushSubscriptionResult, RouteName, Routes, TalkEvent, TalkRequest } from "../api/client";
 
 export type ReadResult<T> =
   | { readonly kind: "data"; readonly data: T; readonly at: number }
@@ -52,6 +52,11 @@ export interface Source {
   changes(since: string | null, handlers: ChangeHandlers): ChangeSocket;
   /** Reads the credential the core serves the page now, after it refused the one the page started with. */
   renewCredential(): Promise<Renewal>;
+  /** Whether the core sends Web Push, and the public key to subscribe with. */
+  pushKey(): Promise<ReadResult<PushKey>>;
+  /** Adds or refreshes this device's push subscription in the core (one per endpoint). */
+  savePushSubscription(body: PushSubscriptionRequest): Promise<WriteResult<PushSubscriptionResult>>;
+  removePushSubscription(body: PushRemoveRequest): Promise<WriteResult<PushRemoveResult>>;
 }
 
 export function nowSeconds(): number {

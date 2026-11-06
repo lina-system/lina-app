@@ -1,4 +1,5 @@
 import type { components as Board, paths as BoardPaths } from "./board.generated";
+import type { components as Push } from "./push.generated";
 import type { components as Talk, paths as TalkPaths } from "./talk.generated";
 import type { components as Work, paths as WorkPaths } from "./work.generated";
 
@@ -97,6 +98,20 @@ export const EVENTS_PATH = `${BOARD_BASE}/events`;
 export type TalkRequest = JsonBody<TalkPaths["/work/items/{item_id}/talk"]["post"]>;
 export type TalkEvent = Talk["schemas"]["TalkEvent"];
 export type TalkError = Talk["schemas"]["Error"];
+
+/** Web Push to the owner's devices (push-client.yaml, lina#244). */
+export type PushKey = Push["schemas"]["PushKey"];
+export type PushSubscriptionRequest = Push["schemas"]["SubscriptionRequest"];
+export type PushSubscriptionResult = Push["schemas"]["SubscriptionResult"];
+export type PushRemoveRequest = Push["schemas"]["RemoveRequest"];
+export type PushRemoveResult = Push["schemas"]["RemoveResult"];
+/** What the service worker receives: show a notification for an item, or close the one with that tag. */
+export type PushMessage = Push["schemas"]["PushMessage"];
+export type PushShowMessage = Push["schemas"]["ShowMessage"];
+
+export const PUSH_KEY_PATH = `${BOARD_BASE}/push/key`;
+export const PUSH_SUBSCRIPTIONS_PATH = `${BOARD_BASE}/push/subscriptions`;
+export const PUSH_REMOVE_PATH = `${BOARD_BASE}/push/subscriptions/remove`;
 
 export function talkPath(itemId: string): string {
   return `${BOARD_BASE}/work/items/${encodeURIComponent(itemId)}/talk`;

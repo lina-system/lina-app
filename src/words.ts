@@ -180,7 +180,22 @@ export const W = {
   result: "결과",
   outcome: { accepted: "검토 통과", rejected: "검토 반려", stopped: "작업 중단", ended: "작업 마침", unknown: "완료 기록 없음", going: "진행 중" },
   yesterday: "어제",
+
+  pushRow: "알림 받기",
+  pushNotSetUp: "푸시 설정 안 됨",
+  pushAddToHome: "공유 › 홈 화면에 추가 후 켤 수 있음",
+  pushUnsupported: "이 브라우저는 받을 수 없음",
+  pushBlocked: "브라우저에서 알림 막힘",
+  pushUnknown: "알림 설정을 읽지 못함",
+  pushOnFailed: "켜지 못함",
+  pushOffFailed: "끄지 못함",
 };
+
+/**
+ * A push notification's first body line, by the kind of item it is about (push-client.yaml ShowMessage.kind).
+ * public/sw.js keeps a copy; src/sw.test.ts holds the two equal.
+ */
+export const PUSH_LINE = { ask: "결정 필요", reply: "답글", blocked: "멈춤 · 기다림", question: "멈춤 · 기다림" } as const;
 
 /** The kind word beside a work card's icon in its detail. */
 export const KIND_WORD = { code: "코드", docs: "문서", research: "조사", device: "기기" } as const;

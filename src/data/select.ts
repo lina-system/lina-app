@@ -1,4 +1,5 @@
 import { bootstrapOptions, HttpSource } from "./http-source";
+import { browserPushHost, type PushHost } from "../push";
 import type { Source } from "./source";
 import { SyntheticSource, type StreamScript, type TalkRefusal } from "./synthetic-source";
 
@@ -11,7 +12,7 @@ const STREAM_SCRIPTS: readonly string[] = ["down", "drop", "resync", "token"] sa
  * `&running=none` one with no running card, `&writer=stopped` one whose writer of checked lines stopped,
  * `&talk=busy|down|none` one whose talk turns are refused (429, 503, 409), `&live=down|drop|resync|token` a change stream
  * that refuses every connection, drops once while another device writes, sends one resync, or restarts the core with a
- * new session token.
+ * new session token, `&push=off` a core without push.
  */
 export function chooseSource(location: Pick<Location, "search"> = window.location, flag: string | undefined = import.meta.env.VITE_LINA_SOURCE): Source {
   const params = new URLSearchParams(location.search);
@@ -26,14 +27,22 @@ export function chooseSource(location: Pick<Location, "search"> = window.locatio
       writerStopped: params.get("writer") === "stopped",
       talk: talk && TALK_REFUSALS.includes(talk) ? (talk as TalkRefusal) : null,
       live: live && STREAM_SCRIPTS.includes(live) ? (live as StreamScript) : "ok",
+      pushOff: params.get("push") === "off",
     });
     // verify.mjs reads the synthetic copy after a write to check the record changed, not only the screen.
     if (typeof window !== "undefined") {
       Object.defineProperty(window, "__linaScene", { configurable: true, get: () => structuredClone(synthetic.scene) });
       // verify.mjs reads which connections the stream had and how many snapshot reads the page made.
+      // verify.mjs reads the synthetic core's push subscriptions after the row turns push on or off.
+      Object.defineProperty(window, "__linaPush", { configurable: true, get: () => ({ enabled: synthetic.push.enabled, subscriptions: [...synthetic.push.subscriptions.values()].map((body) => structuredClone(body)), saves: synthetic.push.saves, removes: synthetic.push.removes }) });
       Object.defineProperty(window, "__linaStream", { configurable: true, get: () => ({ connections: structuredClone(synthetic.stream), reads: synthetic.reads, renewals: synthetic.renewals }) });
     }
     return synthetic;
   }
   return new HttpSource(bootstrapOptions());
+}
+
+/** The page's browser for push; the synthetic scene swaps in its own push service, since headless Chromium has none. */
+export function choosePushHost(source: Source): PushHost {
+  return browserPushHost(window as never, source instanceof SyntheticSource ? source.pushManager : undefined);
 }

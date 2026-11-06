@@ -1,5 +1,6 @@
-import type { ActionResult, AnswerRequest, AnswerResult, BoardSnapshot, ChangeEvent, ChangeMessage, CommentRequest, DoneRequest, ItemDetail, ItemSummary, NoticesReadRequest, NoticesReadResult, RouteName, Routes, TalkEvent, TalkRequest, WorkState } from "../api/client";
+import type { ActionResult, AnswerRequest, AnswerResult, BoardSnapshot, ChangeEvent, ChangeMessage, CommentRequest, DoneRequest, ItemDetail, ItemSummary, NoticesReadRequest, NoticesReadResult, PushKey, PushRemoveRequest, PushRemoveResult, PushSubscriptionRequest, PushSubscriptionResult, RouteName, Routes, TalkEvent, TalkRequest, WorkState } from "../api/client";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type Scene } from "../fixtures/synthetic";
+import { base64UrlBytes, type PushManagerLike, type PushSubscriptionLike } from "../push";
 import { nowSeconds, type ChangeHandlers, type ChangeSocket, type ReadResult, type Renewal, type Source, type TalkResult, type WriteResult } from "./source";
 
 function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
@@ -175,6 +176,67 @@ interface Connection {
   closed: boolean;
 }
 
+/** The synthetic core's public VAPID key: a real P-256 point whose private half was never kept. */
+export const SYNTHETIC_PUSH_KEY = "BPkTOtYKP-jDfBYNqtOrQaKFX_KfJI3EtwD82LPKIPadvD4wW3jXqRXfGTDYvnX9VdTs8mJIRKCvV_80hq2OkUc";
+
+/** The push service hosts the core takes an endpoint on (push-client.yaml savePushSubscription). */
+const PUSH_HOSTS = [/(^|\.)push\.apple\.com$/, /^fcm\.googleapis\.com$/, /(^|\.)push\.services\.mozilla\.com$/, /(^|\.)notify\.windows\.com$/];
+
+/** A subscription the synthetic push service handed out: an endpoint on a known host and keys of the right sizes. */
+class SyntheticSubscription implements PushSubscriptionLike {
+  constructor(
+    readonly endpoint: string,
+    private readonly dropped: (subscription: SyntheticSubscription) => void,
+  ) {}
+
+  toJSON(): PushSubscriptionJSON {
+    // 65 bytes from 0x04 (an uncompressed P-256 point's length and prefix) and a 16-byte secret.
+    return { endpoint: this.endpoint, expirationTime: null, keys: { p256dh: `B${"A".repeat(86)}`, auth: "A".repeat(22) } };
+  }
+
+  async unsubscribe(): Promise<boolean> {
+    this.dropped(this);
+    return true;
+  }
+}
+
+/**
+ * The browser's push service in a synthetic run, where headless Chromium has none: `subscribe` hands out a made-up
+ * endpoint on the Google host, and `rotate` stands for the push service changing it.
+ */
+export class SyntheticPushManager implements PushManagerLike {
+  private current: SyntheticSubscription | null = null;
+  private next = 1;
+
+  async getSubscription(): Promise<PushSubscriptionLike | null> {
+    return this.current;
+  }
+
+  async subscribe(options: { userVisibleOnly: true; applicationServerKey: Uint8Array }): Promise<PushSubscriptionLike> {
+    if (options.applicationServerKey.length !== 65) throw new DOMException("applicationServerKey is not a P-256 public key", "InvalidAccessError");
+    this.current ??= this.make();
+    return this.current;
+  }
+
+  rotate(): void {
+    this.current = this.make();
+  }
+
+  private make(): SyntheticSubscription {
+    return new SyntheticSubscription(`https://fcm.googleapis.com/fcm/send/synthetic-${this.next++}`, (subscription) => {
+      if (this.current === subscription) this.current = null;
+    });
+  }
+}
+
+/** The synthetic core's push store, as verify.mjs reads it (`window.__linaPush`). */
+export interface SyntheticPush {
+  readonly enabled: boolean;
+  readonly subscriptions: Map<string, PushSubscriptionRequest>;
+  saves: number;
+  removes: number;
+}
+
 function work(kind: string, id: string): Omit<ChangeEvent, "at"> {
   return { source: "work", kind, id };
 }
@@ -209,10 +271,14 @@ export class SyntheticSource implements Source {
   /** The session token the core takes, and the one this page holds; a restart changes the first. */
   private coreToken = 1;
   private pageToken = 1;
+  /** `&push=off`: the core has no VAPID key. */
+  readonly push: SyntheticPush;
+  readonly pushManager = new SyntheticPushManager();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean } = {}) {
     this.talkRefusal = options.talk ?? null;
+    this.push = { enabled: !options.pushOff, subscriptions: new Map(), saves: 0, removes: 0 };
     this.script = options.live ?? "ok";
     this.checksError = options.checksError ?? false;
     this.streamDown = this.script === "down";
@@ -453,6 +519,35 @@ export class SyntheticSource implements Source {
     if (this.pageToken === this.coreToken) return "same";
     this.pageToken = this.coreToken;
     return "renewed";
+  }
+
+  async pushKey(): Promise<ReadResult<PushKey>> {
+    const enabled = this.push.enabled;
+    return { kind: "data", data: { version: 1, enabled, publicKey: enabled ? SYNTHETIC_PUSH_KEY : null }, at: nowSeconds() };
+  }
+
+  /** The core's checks: push set up, an https endpoint on a known push host, a 65-byte key and a 16-byte secret. */
+  async savePushSubscription(body: PushSubscriptionRequest): Promise<WriteResult<PushSubscriptionResult>> {
+    if (!this.push.enabled) return fail(503, "push is not set up");
+    let host = "";
+    try {
+      const url = new URL(body.endpoint);
+      host = url.protocol === "https:" ? url.hostname : "";
+    } catch {
+      host = "";
+    }
+    if (!PUSH_HOSTS.some((rule) => rule.test(host))) return fail(400, "endpoint is not a known push service");
+    if (base64UrlBytes(body.keys.p256dh).length !== 65 || base64UrlBytes(body.keys.auth).length !== 16) return fail(400, "keys are not a P-256 key and a 16-byte secret");
+    const created = !this.push.subscriptions.has(body.endpoint);
+    this.push.subscriptions.set(body.endpoint, structuredClone(body));
+    this.push.saves += 1;
+    const id = [...this.push.subscriptions.keys()].indexOf(body.endpoint) + 1;
+    return { ok: true, data: { ok: true, id: id.toString(16).padStart(32, "0"), created } };
+  }
+
+  async removePushSubscription(body: PushRemoveRequest): Promise<WriteResult<PushRemoveResult>> {
+    this.push.removes += 1;
+    return { ok: true, data: { ok: true, removed: this.push.subscriptions.delete(body.endpoint) } };
   }
 
   /** While down, every new connection closes before its first message. */

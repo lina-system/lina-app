@@ -1149,6 +1149,29 @@ const drivers = {
       }
       return rows.map((row) => row.name + ": " + row.sub + (row.warn ? " · 주의" : "")).join(" | ");
     });
+    await step("read the checks", async () => {
+      const list = page.getByRole("list", { name: "점검" });
+      const rows = await list.locator(".status-check-row").evaluateAll((items) =>
+        items.map((item) => ({
+          text: item.querySelector(".title").textContent,
+          state: item.querySelector(".check-state").textContent,
+          time: item.querySelector(".time").textContent,
+          colour: getComputedStyle(item.querySelector(".check-state")).color,
+          checkRow: item.classList.contains("check-row"),
+          trail: item.querySelector(".trail").getBoundingClientRect().right,
+        })),
+      );
+      check(rows.length === 2, "expected 2 open checks, got " + rows.length);
+      check(rows[0]?.text === "백업 회선 · 응답 없음" && rows[0].state === "실패" && rows[0].time === "12분 전" && rows[0].colour === "rgb(255, 59, 48)", "first open check " + JSON.stringify(rows[0]));
+      check(rows[1]?.text === "대기 봇 · 소식이 끊김" && rows[1].state === "오래됨" && rows[1].time === "3시간 전" && rows[1].colour === "rgb(255, 149, 0)", "second open check " + JSON.stringify(rows[1]));
+      for (const row of rows) check(!row.checkRow, row.text + " carries the to-do row's check-row class");
+      // The same row layout as 기기: the trail (state word over time) ends at the row's right edge, not after the title.
+      const machineEdge = await page.getByRole("list", { name: "기기" }).locator(".machine-row .trail").first().evaluate((item) => item.getBoundingClientRect().right);
+      for (const row of rows) check(Math.abs(row.trail - machineEdge) <= 2, row.text + " has its trail at " + Math.round(row.trail) + " px, the 기기 rows' at " + Math.round(machineEdge) + " px");
+      const folded = (await list.locator(".status-check-fold").innerText()).trim();
+      check(folded === "정상 3", "the passing checks read " + folded);
+      return rows.map((row) => row.text + " / " + row.state + " / " + row.time).join(" | ") + "; " + folded + "; trail " + Math.round(rows[0].trail) + " px, 기기 " + Math.round(machineEdge) + " px";
+    });
   },
 
   // Every write control on the synthetic instance: what it changes on screen and in the page's copy of the record.

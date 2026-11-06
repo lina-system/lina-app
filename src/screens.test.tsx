@@ -112,7 +112,7 @@ function rowsIn(root: Element | null): number {
   return root ? root.querySelectorAll("[data-testid=row]").length : 0;
 }
 
-describe("machines and quota", () => {
+describe("machines, quota and checks", () => {
   test("each machine row reads name, state, the one reason word, three meters and its load", async () => {
     const view = await open("#/status", { wide: true });
     const rows = [...view.getByRole("list", { name: "기기" }).querySelectorAll(".row-body")].map((row) => row.getAttribute("aria-label"));
@@ -140,6 +140,30 @@ describe("machines and quota", () => {
     expect(services[2].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 일시 정지 · 5% · 12일 후");
     expect(services[0].querySelector(".rate")?.getAttribute("title")).toBe("최근 5시간 평균");
     expect(services.filter((row) => row.querySelector("summary .warn-mark"))).toHaveLength(1);
+  });
+
+  test("the third panel keeps failing and stale checks open and folds the passing ones", async () => {
+    const view = await open("#/status", { wide: true });
+    const list = view.getByRole("list", { name: "점검" });
+    const rows = [...list.querySelectorAll(".status-check-row")];
+    expect(rows.map((row) => row.querySelector(".row-body")?.getAttribute("aria-label"))).toEqual(["백업 회선 · 응답 없음 · 실패 · 12분 전", "대기 봇 · 소식이 끊김 · 오래됨 · 3시간 전"]);
+    expect(rows.map((row) => row.querySelector(".check-state")?.textContent)).toEqual(["실패", "오래됨"]);
+    expect(rows.map((row) => row.className)).toEqual(["row status-check-row is-failing", "row status-check-row is-stale"]);
+    // `check-row` is the to-do row with a check box: it indents past the box and lets the title size the row, so a
+    // 점검 row must not carry it (the trail would no longer sit at the row's right edge).
+    for (const row of rows) expect(row.classList.contains("check-row")).toBe(false);
+    const fold = list.querySelectorAll(".status-check-fold");
+    expect(fold).toHaveLength(1);
+    expect(fold[0].textContent).toBe("정상 3");
+    expect(view.queryByTestId("checks-empty")).toBeNull();
+  });
+
+  test("a checks read that failed says so and the panel reads 점검 없음", async () => {
+    const view = await open("#/status", { wide: true, source: new SyntheticSource({ checksError: true }) });
+    expect(view.getByTestId("checks-empty").textContent).toBe("점검 없음");
+    expect(view.queryByRole("list", { name: "점검" })).toBeNull();
+    await waitFor(() => expect(view.getByTestId("read-failed").textContent).toBe(" · 읽기 실패: 점검"));
+    expect(view.getByRole("list", { name: "쿼터" })).toBeTruthy();
   });
 });
 

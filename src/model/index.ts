@@ -10,6 +10,7 @@ import type {
   QuotaService,
   QuotaView,
   RunCard,
+  StatusChecks,
   WorkCardDetail,
   WorkCardList,
   WorkCardSummary,
@@ -18,6 +19,7 @@ import type {
 } from "../api/client";
 import { CRUMB, KIND_TITLE, SOURCE_WORD, STATE_WORD, W } from "../words";
 import { href } from "../router";
+import { checksView, type ChecksView } from "./checks";
 import { cardKind, type CardKind } from "./kind";
 
 export interface ModelInput {
@@ -30,6 +32,7 @@ export interface ModelInput {
   readonly inbox?: WorkInbox;
   readonly devices?: DevicesView;
   readonly quota?: QuotaView;
+  readonly checks?: StatusChecks;
   readonly cardDetails: Readonly<Record<string, WorkCardDetail>>;
   readonly failed: readonly string[];
   /** What the owner's writes in flight change in the lists (see Actions); counts follow the rows it leaves. */
@@ -190,6 +193,8 @@ export interface Model {
   readonly machines: readonly Machine[];
   readonly devices: { readonly ok: readonly Machine[]; readonly warn: readonly Machine[]; readonly down: readonly Machine[] };
   readonly quota: readonly QuotaService[];
+  /** The hub's own checks, folded: only failing, stale and error rows stay open. */
+  readonly checks: ChecksView;
   readonly notices: readonly Notice[];
   readonly errors: readonly string[];
   readonly counts: Counts;
@@ -419,6 +424,7 @@ export function buildModel(input: ModelInput, now: number): Model {
 
   const machines = input.devices?.machines ?? board?.machines ?? [];
   const quota = input.quota?.quota ?? board?.quota ?? [];
+  const checks = checksView(input.checks);
   const okMachines = machines.filter((machine) => machine.state === "ok");
   const warnMachines = machines.filter((machine) => machine.state === "warn");
   const downMachines = machines.filter((machine) => machine.state === "down");
@@ -467,6 +473,7 @@ export function buildModel(input: ModelInput, now: number): Model {
     machines,
     devices: { ok: okMachines, warn: warnMachines, down: downMachines },
     quota,
+    checks,
     notices,
     errors,
     today,

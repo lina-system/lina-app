@@ -7,6 +7,7 @@ import type {
   ItemSummary,
   QuotaView,
   RunCard,
+  StatusChecks,
   RunRecord,
   WorkCardDetail,
   WorkCardList,
@@ -55,6 +56,8 @@ function shuffle<T>(rng: Rng, values: readonly T[]): T[] {
 export interface SceneOptions {
   readonly now: number;
   readonly sourceError?: boolean;
+  /** The hub's checks did not answer (`&error=checks`): an empty list and a failed source. */
+  readonly checksError?: boolean;
   /** No card or worker run is running, so 진행 중인 작업 holds only the stopped card (`&running=none`). */
   readonly noRunning?: boolean;
   /** The writer of the checked lines has stopped (`&writer=stopped`): the screens say the summaries stopped. */
@@ -68,6 +71,8 @@ export interface Scene {
   readonly itemDetails: Readonly<Record<string, ItemDetail>>;
   readonly devices: DevicesView;
   readonly quota: QuotaView;
+  /** The hub's own checks (lina#233): three passing, one failing and one stale. */
+  readonly checks: StatusChecks;
   readonly goals: GoalList;
   readonly cards: WorkCardList;
   readonly cardDetails: Readonly<Record<string, WorkCardDetail>>;
@@ -479,6 +484,21 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
           accounts: [quotaAccount("acct-d", 1, "basic", "monthly", [quotaWindow("monthly", 5, 12 * DAY, null)], true)],
         },
       ];
+  // The hub's own checks (lina#233), newest `at` first. Only the failing and stale ones draw; the three that pass
+  // fold into one count. Each name and line is invented Korean, with no machine name, person or path.
+  const checks: StatusChecks = options.checksError
+    ? { version: 1, at: now, checks: [] }
+    : {
+        version: 1,
+        at: now,
+        checks: [
+          { name: "도구 버전", ok: true, line: "모두 최신", at: now - 3 * MIN, staleAfter: HOUR, stale: false, state: "ok", file: "tools.json" },
+          { name: "로그인 상태", ok: true, line: "로그인됨", at: now - 4 * MIN, staleAfter: HOUR, stale: false, state: "ok", file: "login.json" },
+          { name: "매일 도구 통일", ok: true, line: "어제와 같음", at: now - 5 * MIN, staleAfter: HOUR, stale: false, state: "ok", file: "daily.json" },
+          { name: "백업 회선", ok: false, line: "응답 없음", at: now - 12 * MIN, staleAfter: HOUR, stale: false, state: "failing", file: "backup.json" },
+          { name: "대기 봇", ok: true, line: "소식이 끊김", at: now - 3 * HOUR, staleAfter: HOUR, stale: true, state: "stale", file: "wait.json" },
+        ],
+      };
   const errors: BoardSnapshot["errors"] = options.sourceError ? [{ source: "quota", message: "quota source did not answer" }] : [];
 
   const notices: BoardSnapshot["notices"] = [
@@ -532,6 +552,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     itemDetails,
     devices: { version: 1, at: now, errors: [], machines: machineList },
     quota: { version: 1, at: now, errors, quota: quotaList },
+    checks,
     goals: { goals: goalCards },
     cards: cardList,
     cardDetails,
@@ -613,6 +634,10 @@ export const SCENE_COUNTS = {
   machinesOk: 1,
   machinesWarn: 1,
   machinesDown: 1,
+  // 점검: three pass and fold into 정상 3; one failing and one stale stay open.
+  checks: 5,
+  checksOk: 3,
+  checksOpen: 2,
   notices: 7,
   unread: 5,
 } as const;

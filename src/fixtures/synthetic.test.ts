@@ -19,6 +19,7 @@ function model(input: Scene) {
       inbox: input.inbox,
       devices: input.devices,
       quota: input.quota,
+      checks: input.checks,
       cardDetails: input.cardDetails,
       failed: [],
     },
@@ -103,11 +104,21 @@ test("the scene holds what every screen needs", () => {
   }
   expect(scene.quota.quota.filter((service) => service.accounts.some((account) => account.warn))).toHaveLength(1);
 
+  expect(scene.checks.checks).toHaveLength(SCENE_COUNTS.checks);
+  expect(scene.checks.checks.filter((check) => check.state === "ok")).toHaveLength(SCENE_COUNTS.checksOk);
+  expect(scene.checks.checks.filter((check) => check.state !== "ok").map((check) => [check.name, check.state])).toEqual([
+    ["백업 회선", "failing"],
+    ["대기 봇", "stale"],
+  ]);
+
   const threads = Object.values(scene.itemDetails).filter((detail) => detail.kind === "todo" && detail.comments.some((comment) => comment.replies.length));
   expect(threads).toHaveLength(2);
 
   const failed = generateScene(SYNTHETIC_SEED, { now: NOW, sourceError: true });
   expect(failed.board.errors.map((error) => error.source)).toEqual(["quota"]);
+  const checksFailed = generateScene(SYNTHETIC_SEED, { now: NOW, checksError: true });
+  expect(checksFailed.checks.checks).toEqual([]);
+  expect(checksFailed.board.errors).toEqual([]);
   expect(scene.board.errors).toEqual([]);
 });
 
@@ -124,6 +135,8 @@ test("the model's counts on the scene are the numbers doctor and the drivers exp
     devices: { all: SCENE_COUNTS.machines, ok: SCENE_COUNTS.machinesOk, warn: SCENE_COUNTS.machinesWarn, down: SCENE_COUNTS.machinesDown },
   });
   expect(model(scene).running.rows).toHaveLength(SCENE_COUNTS.running + SCENE_COUNTS.stopped);
+  expect(model(scene).checks).toMatchObject({ ok: SCENE_COUNTS.checksOk, total: SCENE_COUNTS.checks });
+  expect(model(scene).checks.open).toHaveLength(SCENE_COUNTS.checksOpen);
 });
 
 test("names are invented and titles are Korean", () => {

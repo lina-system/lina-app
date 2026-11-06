@@ -289,8 +289,8 @@ async function stoppedCardColours(list) {
   const rows = await list.locator("[data-testid=row]").evaluateAll((items) =>
     items.map((item) => ({
       stopped: item.classList.contains("is-stopped"),
-      // A card without a checked title draws none (work-cards.md); it has no title colour to compare.
-      // A card named by its kind (no checked title) is grey on purpose: only real titles carry the label colour.
+      // A work card always draws a title (its checked one, or its own until written); a run without one draws its kind
+      // word in grey. Only a title in colour is compared: a kind word is grey on purpose.
       title: item.querySelector(".title:not(.is-kind)") ? getComputedStyle(item.querySelector(".title:not(.is-kind)")).color : null,
       state: getComputedStyle(item.querySelector("[data-testid=state]")).color,
       time: item.querySelector(".time") ? getComputedStyle(item.querySelector(".time")).color : null,
@@ -652,7 +652,7 @@ const drivers = {
         const boxText = await box.innerText();
         check(boxText.includes(row.text), row.href + " shows a different decision: " + boxText);
         check(boxText.includes(row.kind) && /\d+(분|시간|일) 전/.test(boxText), row.href + " decision box lacks kind word or age: " + boxText);
-        // A card without a checked title draws none; its question names only its goal (work-cards.md).
+        // A work card without a checked title draws its own title; the question names the card by that same name.
         const title = (await page.locator(".detail-title").count()) ? (await page.locator(".detail-title").first().innerText()).trim() : "";
         if (row.href.startsWith("#/cards/")) {
           seen.card += 1;
@@ -1052,7 +1052,7 @@ const drivers = {
   async "card-detail"(page, step) {
     await step("open a running card", async () => {
       await openApp(page, "#/running");
-      await page.getByRole("list", { name: "진행 중인 작업" }).getByRole("link", { name: /릴리스 노트: 변경 목록 정리/ }).click();
+      await page.getByRole("list", { name: "진행 중인 작업" }).getByRole("link", { name: /릴리스 변경 목록 정리/ }).click();
       await page.getByTestId("screen-card").waitFor();
       return new URL(page.url()).hash;
     });
@@ -1074,6 +1074,18 @@ const drivers = {
       check(JSON.stringify(hrefs) === JSON.stringify(["#/runs/r1", "#/runs/r10", "#/runs/r9"]), "the round heads link to " + JSON.stringify(hrefs));
       check((await page.getByTestId("comment").count()) === 4, "expected 4 comments");
       return state + "; " + heads.join(", ") + "; " + order.join(", ");
+    });
+    await step("a work card with no checked title shows its own title and kind in its head", async () => {
+      await openApp(page, "#/cards/k-102");
+      const detail = page.getByTestId("screen-card");
+      await detail.waitFor();
+      const head = (await detail.locator(".detail-title").innerText()).trim();
+      check(head === "위키: 결제 화면 문서 정리", "the card head reads " + head);
+      check((await detail.locator(".detail-title.is-kind").count()) === 0, "the head shows a kind word instead of the title");
+      const kind = (await detail.getByTestId("kind").innerText()).trim();
+      check(kind === "문서", "the kind reads " + kind);
+      check((await detail.getByTestId("card-now").count()) === 0, "the card shows a now line");
+      return head + "; " + kind + "; no now line";
     });
     await step("a run outside any card opens on its own, with its timeline", async () => {
       await openApp(page, "#/inbox");
@@ -2353,7 +2365,7 @@ const drivers = {
       return found.join(", ") + "; running list " + running;
     });
     await step("one card per run: three rounds of one card stay one card, two jobs with one title stay two", async () => {
-      const release = await home().getByRole("link", { name: /릴리스 노트: 변경 목록 정리/ }).count();
+      const release = await home().getByRole("link", { name: /릴리스 변경 목록 정리/ }).count();
       check(release === 1, "the three-round card shows " + release + " times");
       const rounds = await home().locator('a[href="#/runs/r9"], a[href="#/runs/r10"]').count();
       check(rounds === 0, "earlier rounds' worker runs show as " + rounds + " cards");
@@ -2362,7 +2374,7 @@ const drivers = {
       return "1 card for 3 rounds; 2 cards " + twins.join(", ");
     });
     await step("the now line comes from the checked line only, on a wide window", async () => {
-      const raw = ["one-line summar", "editing", "payment card-form polish", "LINA-41", "guide-draft.md", "CHANGES.md"];
+      const raw = ["one-line summar", "editing", "card-form.tsx", "LINA-41", "guide-draft.md", "CHANGES.md"];
       const text = await home().innerText();
       const leaked = raw.filter((line) => text.includes(line));
       check(leaked.length === 0, "raw text on the home: " + leaked.join(", "));
@@ -2370,26 +2382,28 @@ const drivers = {
       check(now === (wide ? 1 : 0), "the now line shows " + now + " times at " + page.viewportSize().width);
       return wide ? "now line from plain.now" : "no now line on a phone";
     });
-    await step("a card with no checked lines is named by its kind of work in grey, never by raw text", async () => {
+    await step("a work card with no checked title is named by its own title, and its kind is read from that title", async () => {
       const row = home().locator('li:has(> a[href="#/cards/k-102"])');
-      const kindTitle = row.locator(".title.is-kind");
-      check((await kindTitle.innerText()).trim() === "코드 작업", "the card is named " + (await row.locator(".title").allInnerTexts()).join(""));
-      const grey = await kindTitle.evaluate((title) => getComputedStyle(title).color === getComputedStyle(title.closest(".row").querySelector(".sub")).color);
-      check(grey, "the kind name is not grey like the state line");
+      const title = row.locator(".title");
+      check((await title.innerText()).trim() === "위키: 결제 화면 문서 정리", "the card is named " + (await row.locator(".title").allInnerTexts()).join(""));
+      check((await row.locator(".title.is-kind").count()) === 0, "the card's own title is drawn as a kind word");
+      const icon = (await row.locator(".kind").getAttribute("data-kind"))?.trim();
+      check(icon === "docs", "the card's kind is " + icon);
       const state = (await row.locator(".state").innerText()).trim();
       check(state === "진행 중", "its state line reads " + state);
       await row.getByRole("link").click();
       await settled(page);
       const detail = page.getByTestId("screen-card");
       await detail.waitFor();
-      const head = (await detail.locator(".detail-title.is-kind").innerText()).trim();
-      check(head === "코드 작업", "the detail is named " + head);
+      const head = (await detail.locator(".detail-title").innerText()).trim();
+      check(head === "위키: 결제 화면 문서 정리", "the detail is named " + head);
+      check((await detail.locator(".detail-title.is-kind").count()) === 0, "the detail draws a kind word in place of its title");
       const kind = (await detail.getByTestId("kind").innerText()).trim();
-      check(kind === "코드", "the kind reads " + kind);
+      check(kind === "문서", "the kind reads " + kind);
       check((await detail.getByTestId("card-now").count()) === 0, "the detail shows a now line");
       const text = await detail.innerText();
       check(!/payment|card-form|editing/.test(text), "raw text in the detail: " + text.slice(0, 120));
-      return "row: 코드 작업 · " + state + "; detail: " + kind + ", " + head + ", no now line";
+      return "row: 위키: 결제 화면 문서 정리 · " + state + "; detail: " + kind + ", " + head + ", no now line";
     });
     await step("a card's detail: now, to-dos, then one round list (기록), each round's head the link to its worker run", async () => {
       await openApp(page, "#/cards/k-101");
@@ -2523,7 +2537,7 @@ const drivers = {
       const lines = await page.getByTestId("summaries-stopped").allInnerTexts();
       check(lines.length === 1 && lines[0].trim() === "· 요약 멈춤", "the line reads " + JSON.stringify(lines));
       const row = page.getByTestId("screen-running").locator('li:has(> a[href="#/cards/k-102"])');
-      check((await row.locator(".title.is-kind").innerText()).trim() === "코드 작업", "the card with no checked lines is not named by its kind");
+      check((await row.locator(".title").innerText()).trim() === "위키: 결제 화면 문서 정리", "the card with no checked lines is not named by its own title");
       if (!wide) await phoneRules(page, "summaries stopped @390");
       return lines[0].trim();
     });

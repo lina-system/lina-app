@@ -255,10 +255,11 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     { id: "r10", title: "release-notes: collect merged PRs (round 2)", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[1], startedAt: now - HOUR, endedAt: now - 40 * MIN, now: null, plain: plain("변경 목록 모으기", null, "문서만 바뀐 변경을 따로 묶음") },
   ] satisfies Omit<RunCard, "model" | "settingsRevision">[]).map((run) => ({ ...run, ...modelFields(run.id) }));
 
-  // k-101 is in its third follow-up round (one card); k-102's checked lines are all missing (nothing drawn for them).
+  // k-101 is in its third follow-up round (one card); k-102's checked lines are all missing, so its own title stands
+  // in until they are written (its kind is read from that title too: 문서).
   const cardSeeds = [
-    { id: "k-101", goal: "kg-1", agent: 0, title: "LINA-41 release notes / CHANGES.md", state: "in_progress", reason: null, elapsed: 12 * MIN, now: "adding one-line summaries", plain: plain("릴리스 노트: 변경 목록 정리", "변경마다 한 줄 요약을 붙이는 중"), todos: [["T1", true], ["모은 변경 확인", false], ["T3", false]], runs: ["r9", "r10", "r1"], lastBeat: now - 20 },
-    { id: "k-102", goal: "kg-2", agent: 1, title: "payment card-form polish", state: "in_progress", reason: null, elapsed: 2 * HOUR, now: "editing card-form.tsx", plain: NO_LINES, todos: [["T4", false]], runs: ["r2"], lastBeat: now - 40 },
+    { id: "k-101", goal: "kg-1", agent: 0, title: "LINA-41 release notes / CHANGES.md", state: "in_progress", reason: null, elapsed: 12 * MIN, now: "adding one-line summaries", plain: plain("릴리스 변경 목록 정리", "변경마다 한 줄 요약을 붙이는 중"), todos: [["T1", true], ["모은 변경 확인", false], ["T3", false]], runs: ["r9", "r10", "r1"], lastBeat: now - 20 },
+    { id: "k-102", goal: "kg-2", agent: 1, title: "위키: 결제 화면 문서 정리", state: "in_progress", reason: null, elapsed: 2 * HOUR, now: "editing card-form.tsx", plain: NO_LINES, todos: [["T4", false]], runs: ["r2"], lastBeat: now - 40 },
     { id: "k-103", goal: "kg-2", agent: 1, title: "payment error-copy.json", state: "stopped", reason: "unresponsive", elapsed: 52 * MIN, now: null, plain: plain("결제: 오류 문구 바꾸기"), todos: [["T5", false]], runs: ["r3"], lastBeat: now - 52 * MIN },
     { id: "k-104", goal: "kg-2", agent: 1, title: "payment failure review", state: "waiting", reason: "review", elapsed: 3 * HOUR, now: null, plain: plain("결제: 실패 화면 검토", null, "실패 화면 세 곳의 문구와 버튼을 비교함"), todos: [["T6", false]], runs: ["r4"], lastBeat: now - 3 * HOUR },
     { id: "k-105", goal: "kg-3", agent: 2, title: "backup log audit", state: "done", reason: null, elapsed: 9 * MIN, now: null, plain: plain("백업: 지난 기록 살펴보기", null, "지난 한 달 백업이 모두 끝까지 돌았음"), todos: [["T7", true]], runs: ["r5"], lastBeat: now - 2 * HOUR },
@@ -453,7 +454,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     return { ...item, runCount: detail.runs.length, commentCount: detail.comments.length };
   });
 
-  const question = { cardId: "k-102", title: "payment card-form polish", agent: agentId(1), commentId: 7, body: "카드 번호는 앞 여섯 자리까지 보여 줄까요?", askedAt: now - 1 * DAY - 4 * HOUR };
+  const question = { cardId: "k-102", title: "위키: 결제 화면 문서 정리", agent: agentId(1), commentId: 7, body: "카드 번호는 앞 여섯 자리까지 보여 줄까요?", askedAt: now - 1 * DAY - 4 * HOUR };
 
   const decide = Object.entries(decisions).map(([target, decision]) => ({
     target,

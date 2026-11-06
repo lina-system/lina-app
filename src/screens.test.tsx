@@ -1127,9 +1127,13 @@ describe("work cards", () => {
     expect(names("24시간 안에 끝남").length + names("이전에 끝남").length).toBe(count(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")));
   });
 
-  test("a card with no checked lines is named by its kind of work in grey, never by raw text, on the home, its detail and its agent", async () => {
+  test("a work card with no checked title is named by its own title, not its kind, on the home, its detail and its agent", async () => {
     const source = new SyntheticSource();
-    const raw = [...source.scene.cards.cards.map((card) => card.title), ...source.scene.board.cards.flatMap((run) => [run.title, run.now ?? ""]), ...source.scene.cards.cards.map((card) => card.now ?? "")].filter(Boolean);
+    const raw = [
+      ...source.scene.cards.cards.filter((card) => card.plain.title !== null).map((card) => card.title),
+      ...source.scene.board.cards.flatMap((run) => [run.title, run.now ?? ""]),
+      ...source.scene.cards.cards.map((card) => card.now ?? ""),
+    ].filter(Boolean);
     for (const hash of ["#/running", "#/done", "#/inbox", "#/cards/k-102", "#/cards/k-101", "#/runs/r2", "#/agents/ag-2"]) {
       const view = await open(hash, { wide: true, source: new SyntheticSource({ scene: source.scene }) });
       const text = screenText(view.container);
@@ -1139,20 +1143,44 @@ describe("work cards", () => {
     const view = await open("#/cards/k-102", { wide: true });
     const detail = view.getByTestId("screen-card");
     const head = detail.querySelector(".detail-title");
-    expect(head?.textContent).toBe("코드 작업");
-    expect(head?.classList.contains("is-kind")).toBe(true);
-    expect(within(detail).getByTestId("kind").textContent).toBe("코드");
+    expect(head?.textContent).toBe("위키: 결제 화면 문서 정리");
+    expect(head?.classList.contains("is-kind")).toBe(false);
+    expect(within(detail).getByTestId("kind").textContent).toBe("문서");
     expect(within(detail).queryByTestId("card-now")).toBeNull();
     const row = within(view.getByTestId("screen-running")).getAllByTestId("row").find((item) => item.querySelector("a")?.getAttribute("href") === "#/cards/k-102");
-    expect(row?.querySelector(".title")?.textContent).toBe("코드 작업");
-    expect(row?.querySelector(".title")?.classList.contains("is-kind")).toBe(true);
-    expect(row?.querySelector("a")?.getAttribute("aria-label")).toMatch(/ · 코드 작업 · 진행 중/);
+    expect(row?.querySelector(".title")?.textContent).toBe("위키: 결제 화면 문서 정리");
+    expect(row?.querySelector(".title")?.classList.contains("is-kind")).toBe(false);
+    expect(row?.querySelector("a")?.getAttribute("aria-label")).toMatch(/ · 위키: 결제 화면 문서 정리 · 진행 중/);
     expect(row?.querySelector(".state")?.textContent).toBe("진행 중");
     view.unmount();
     const agent = await open("#/agents/ag-2", { wide: true });
     const agentRow = agent.container.querySelector('.list-pane li:has(> a[href="#/cards/k-102"]) .title');
-    expect(agentRow?.textContent).toBe("코드 작업");
-    expect(agentRow?.classList.contains("is-kind")).toBe(true);
+    expect(agentRow?.textContent).toBe("위키: 결제 화면 문서 정리");
+    expect(agentRow?.classList.contains("is-kind")).toBe(false);
+  });
+
+  test("a work card whose own title would show raw text keeps its kind word on the home and its detail", async () => {
+    const source = new SyntheticSource();
+    const ownTitle = "LINA-41 release notes / CHANGES.md";
+    const scene = {
+      ...source.scene,
+      cards: { cards: source.scene.cards.cards.map((card) => (card.id === "k-102" ? { ...card, title: ownTitle } : card)) },
+      cardDetails: { ...source.scene.cardDetails, "k-102": { ...source.scene.cardDetails["k-102"], title: ownTitle } },
+    };
+    const view = await open("#/running", { wide: true, source: new SyntheticSource({ scene }) });
+    // The own title fails the raw-text rule, so nothing of it is drawn: the kind word names the card, in grey.
+    expect(screenText(view.container)).not.toContain(ownTitle);
+    const row = within(view.getByTestId("screen-running")).getAllByTestId("row").find((item) => item.querySelector("a")?.getAttribute("href") === "#/cards/k-102");
+    expect(row?.querySelector(".title")?.textContent).toBe("코드 작업");
+    expect(row?.querySelector(".title")?.classList.contains("is-kind")).toBe(true);
+    expect(row?.querySelector("a")?.getAttribute("aria-label")).toMatch(/ · 코드 작업 · 진행 중/);
+    view.unmount();
+    const detail = await open("#/cards/k-102", { wide: true, source: new SyntheticSource({ scene }) });
+    expect(screenText(detail.container)).not.toContain(ownTitle);
+    const head = detail.getByTestId("screen-card").querySelector(".detail-title");
+    expect(head?.textContent).toBe("코드 작업");
+    expect(head?.classList.contains("is-kind")).toBe(true);
+    expect(within(detail.getByTestId("screen-card")).getByTestId("kind").textContent).toBe("코드");
   });
 
   test("two jobs on one to-do with one generated title stay two cards; three rounds of one card stay one card", async () => {
@@ -1161,7 +1189,7 @@ describe("work cards", () => {
     expect(new Set(twins.map((link) => link.getAttribute("href")))).toEqual(new Set(["#/runs/r7", "#/runs/r8"]));
     view.unmount();
     const home = await open("#/running", { wide: true });
-    expect(within(home.getByTestId("screen-running")).getAllByRole("link", { name: /릴리스 노트: 변경 목록 정리/ })).toHaveLength(1);
+    expect(within(home.getByTestId("screen-running")).getAllByRole("link", { name: /릴리스 변경 목록 정리/ })).toHaveLength(1);
     expect(home.container.querySelectorAll('a[href="#/runs/r9"], a[href="#/runs/r10"]')).toHaveLength(0);
   });
 
@@ -1202,7 +1230,7 @@ describe("work cards", () => {
       const view = await open("#/running", { wide: true, source });
       const row = () => within(view.getByTestId("screen-running")).getAllByTestId("row").find((item) => item.querySelector("a")?.getAttribute("href") === "#/cards/k-102");
       const before = row();
-      expect(before?.querySelector(".title")?.textContent).toBe("코드 작업");
+      expect(before?.querySelector(".title")?.textContent).toBe("위키: 결제 화면 문서 정리");
       // Let the reads the page started on its own (the first tail, the open screen's wants) finish first.
       await act(async () => {
         await vi.advanceTimersByTimeAsync(STREAM_TICK_MS);

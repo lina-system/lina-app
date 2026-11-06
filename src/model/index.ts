@@ -23,6 +23,7 @@ import type {
 import { CRUMB, KIND_TITLE, SOURCE_WORD, STATE_WORD, W } from "../words";
 import { href } from "../router";
 import { checksView, type ChecksView } from "./checks";
+import { foldReason } from "./fold";
 import { cardKind, type CardKind } from "./kind";
 import { ocxView, usageViews, type OcxView, type UsageRangeView } from "./usage";
 
@@ -75,8 +76,9 @@ export interface CardRow {
   readonly work: CardKind;
   readonly id: string;
   readonly href: string;
+  /** The name in colour: a work card's checked title, or its own title until that exists when it may be drawn (cardTitle); a run's checked title only. */
   readonly title: string | null;
-  /** What the card is called everywhere: its checked title, or its kind word when it has none (cardName). */
+  /** What the card is called everywhere: that title, else its kind word (cardName). */
   readonly name: string;
   readonly agent: string | null;
   readonly state: WorkState;
@@ -235,9 +237,19 @@ function maxOf(values: (number | null | undefined)[]): number | null {
   return present.length ? Math.max(...present) : null;
 }
 
-/** The one naming rule: the checked title, or the kind of work (코드 작업, 문서 작업, 조사, 기기 작업) in its place. */
-export function cardName(title: string | null, work: CardKind): string {
-  return title ?? KIND_TITLE[work];
+/**
+ * The title a work card may draw: its checked title, or its own title until the checked one exists, but only while
+ * that own title passes the raw-text rule the app already applies to comments (foldReason). Null means nothing may
+ * be drawn, so the kind of work stands in.
+ */
+export function cardTitle(checked: string | null, own: string | null): string | null {
+  if (checked !== null) return checked;
+  return own !== null && foldReason(own) === null ? own : null;
+}
+
+/** The one naming rule: that title, else the kind of work (코드 작업, 문서 작업, 조사, 기기 작업). */
+export function cardName(title: string | null, work: CardKind, ownTitle: string | null = null): string {
+  return cardTitle(title, ownTitle) ?? KIND_TITLE[work];
 }
 
 function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, receivedAt: number, runCards: ReadonlyMap<string, RunCard>): CardRow {
@@ -245,15 +257,18 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
   const lastBeat = maxOf(runs.map((run) => run.lastHeartbeatAt));
   const ended = maxOf(runs.map((run) => run.endedAt));
   const base = receivedAt - card.elapsedSeconds;
-  const work = cardKind(card.plain.title ?? "", (detail?.workerRuns ?? []).map((worker) => runCards.get(worker.id)).filter((run): run is RunCard => run !== undefined));
+  // A card with no checked title is named by its own title when that may be drawn; its kind is read from that same
+  // text, so a card showing its own title is not guessed as code when it is a documents card.
+  const title = cardTitle(card.plain.title, card.title);
+  const work = cardKind(title ?? "", (detail?.workerRuns ?? []).map((worker) => runCards.get(worker.id)).filter((run): run is RunCard => run !== undefined));
   return {
     key: `card:${card.id}`,
     kind: "card",
     work,
     id: card.id,
     href: href({ name: "card", id: card.id }),
-    title: card.plain.title,
-    name: cardName(card.plain.title, work),
+    title,
+    name: cardName(card.plain.title, work, card.title),
     agent: card.agent,
     state: card.state,
     reason: card.reason,
@@ -330,7 +345,7 @@ export function buildModel(input: ModelInput, now: number): Model {
 
   // Inbox: decisions (oldest first), finished runs waiting on the owner, then the owner's own to-dos.
   const goalTitleOfCard = (cardId: string) => input.goals?.goals.find((goal) => goal.workCards.some((card) => card.id === cardId))?.title;
-  // A card's question names the card by its name (checked title or kind word), never the kanban card's own title.
+  // A card's question names the card by its name (checked title, its own title when that may be drawn, or a kind word).
   const questionContext = (cardId: string) => [goalTitleOfCard(cardId), cardMap.get(cardId)?.name].filter(Boolean).join(CRUMB);
   const contextOf = (target: string) => {
     const item = itemMap.get(target);

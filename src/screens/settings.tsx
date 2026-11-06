@@ -692,7 +692,7 @@ function RuleNewPage() {
     <fieldset class="settings-fieldset" disabled={locked}>
       <Group label={W.ruleLabel}>
         <li class="row settings-row settings-field">
-          <KoreanInput label={W.ruleLabel} value={label} onValue={setLabel} inline />
+          <KoreanInput label={W.ruleLabel} value={label} onValue={setLabel} inline disabled={locked} />
         </li>
       </Group>
       <section class="settings-group">

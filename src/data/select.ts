@@ -1,11 +1,12 @@
 import { bootstrapOptions, HttpSource } from "./http-source";
 import { browserPushHost, type PushHost } from "../push";
+import type { SettingsModel, SettingsPatch } from "../api/client";
 import type { Source } from "./source";
 import { SyntheticSource, type SettingsScript, type StreamScript, type TalkRefusal } from "./synthetic-source";
 
 const TALK_REFUSALS: readonly string[] = ["busy", "down", "none"] satisfies TalkRefusal[];
 const STREAM_SCRIPTS: readonly string[] = ["down", "drop", "resync", "token"] satisfies StreamScript[];
-const SETTINGS_SCRIPTS: readonly string[] = ["readonly", "empty", "stale", "race", "ocx-down"] satisfies SettingsScript[];
+const SETTINGS_SCRIPTS: readonly string[] = ["readonly", "empty", "stale", "race", "ocx-down", "many-warnings"] satisfies SettingsScript[];
 
 /**
  * The core by default. `?source=synthetic` or the build flag `VITE_LINA_SOURCE=synthetic` selects the synthetic
@@ -15,8 +16,8 @@ const SETTINGS_SCRIPTS: readonly string[] = ["readonly", "empty", "stale", "race
  * that refuses every connection, drops once while another device writes, sends one resync, or restarts the core with a
  * new session token, `&push=off` a core without push, `&settings=readonly|empty|stale|race|ocx-down` work settings this
  * device only reads, that were never written, that another device writes just before this page's first write (412) or
- * just after it lands (the changes queued behind it are dropped), or whose models OCX did not answer for (the last
- * good list, with an error).
+ * just after it lands (the changes queued behind it are dropped), whose models OCX did not answer for (the last
+ * good list, with an error), or that leave four models warned about.
  */
 export function chooseSource(location: Pick<Location, "search"> = window.location, flag: string | undefined = import.meta.env.VITE_LINA_SOURCE): Source {
   const params = new URLSearchParams(location.search);
@@ -43,6 +44,14 @@ export function chooseSource(location: Pick<Location, "search"> = window.locatio
       Object.defineProperty(window, "__linaPush", { configurable: true, get: () => ({ enabled: synthetic.push.enabled, subscriptions: [...synthetic.push.subscriptions.values()].map((body) => structuredClone(body)), saves: synthetic.push.saves, removes: synthetic.push.removes }) });
       // verify.mjs reads the settings writes the page sent and the If-Match each carried.
       Object.defineProperty(window, "__linaSettingsWrites", { configurable: true, get: () => structuredClone(synthetic.settingsWrites) });
+      // verify.mjs changes the settings or a model's state as another device or OCX would, with the settings event that follows.
+      Object.defineProperty(window, "__linaSettingsElsewhere", {
+        configurable: true,
+        value: {
+          write: (patch: SettingsPatch) => synthetic.settingsPatchedElsewhere(patch),
+          model: (id: string, changes: Partial<Pick<SettingsModel, "state" | "left" | "resetAt">>) => synthetic.modelChangedElsewhere(id, changes),
+        },
+      });
       Object.defineProperty(window, "__linaStream", { configurable: true, get: () => ({ connections: structuredClone(synthetic.stream), reads: synthetic.reads, renewals: synthetic.renewals }) });
     }
     return synthetic;

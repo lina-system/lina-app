@@ -74,7 +74,7 @@ export interface SceneOptions {
   readonly settings?: SettingsVariant | null;
 }
 
-export type SettingsVariant = "readonly" | "empty" | "ocx-down";
+export type SettingsVariant = "readonly" | "empty" | "ocx-down" | "many-warnings";
 
 /** The work settings (lina-app#48) as the core keeps them; the synthetic source writes into it. */
 export interface SettingsScene {
@@ -722,6 +722,11 @@ function settingsScene(now: number, variant: SettingsVariant | null): SettingsSc
   const r3: Settings = structuredClone(r2);
   r3.worker!.routing!.push({ name: "quick", when: { labels_any: ["quick"], size: ["S"] }, runner: "dsh" });
   r3.devices!.workers!["machine-a"].cap = 2;
+  if (variant === "many-warnings") {
+    // Four models warned about: omo's and the fallback off, codex's out of quota, dsh's off with no fallback to take.
+    r3.worker!.runners!.omo.model = "openai/model-d";
+    r3.worker!.models!.fallback = "openai/model-d";
+  }
   const revisions = [{}, r1, r2, r3];
   const by = [
     { kind: "cli", principal: OWNER.id, device: "local", at: now - 3 * DAY },

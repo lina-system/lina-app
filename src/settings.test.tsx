@@ -82,12 +82,7 @@ describe("the settings screen", () => {
   });
 
   test("more than three warnings show the first three, then 외 n개", async () => {
-    const synthetic = source();
-    const runners = synthetic.scene.settings.revisions[3].worker!.runners!;
-    runners.omo.model = "openai/model-d";
-    runners.codex.fallback_model = "openai/model-c";
-    synthetic.scene.settings.revisions[3].worker!.models!.fallback = "openai/model-d";
-    const { view } = await open("#/settings", { source: synthetic });
+    const { view } = await open("#/settings", { source: source("many-warnings") });
     expect(view.getAllByTestId("settings-warning")).toHaveLength(3);
     expect(view.getByTestId("settings-warning-more").textContent).toBe("외 1개");
   });
@@ -380,6 +375,22 @@ describe("the settings screen", () => {
     expect(synthetic.scene.settings.revisions).toHaveLength(4);
   });
 
+  test("on a device that may only read, every settings page opened by its address has no enabled control", async () => {
+    const synthetic = source("readonly");
+    const pages = ["default-runner", "fallback", "runner/omo", "runner/codex", "runner/codex/model", "runner/codex/effort", "runner/codex/access", "runner/codex/fallback", "device/machine-a", "device/files-a", "device/laptop-a", "rule-new", "models", "history"];
+    for (const wide of [false, true]) {
+      for (const page of pages) {
+        const { view } = await open(`#/settings/${page}`, { source: again(synthetic), wide });
+        await waitFor(() => expect(view.getByTestId("setting-page").querySelector(".rows, .empty")).not.toBeNull());
+        const scopes = [view.getByTestId("setting-page"), ...view.queryAllByTestId("screen-settings")];
+        const enabled = scopes.flatMap((scope) => [...scope.querySelectorAll<HTMLButtonElement | HTMLInputElement>("button, input, select, textarea")]).filter((control) => !control.disabled);
+        expect(enabled.map((control) => `${page}: ${control.getAttribute("aria-label") ?? control.textContent}`)).toEqual([]);
+        view.unmount();
+      }
+    }
+    expect(synthetic.settingsWrites).toEqual([]);
+  });
+
   test("settings never written: the groups show the defaults and there is nothing to roll back", async () => {
     const { view } = await open("#/settings", { source: source("empty") });
     expect(view.getByTestId("settings-rev").textContent).toBe("설정 r0");
@@ -441,6 +452,18 @@ describe("the settings screen", () => {
     new SyntheticSource({ scene: synthetic.scene }).settingsWrittenElsewhere("machine-a");
     await waitFor(() => expect(view.getByTestId("settings-rev").textContent).toBe("설정 r4"));
     expect(within(view.getByTestId("devices-work")).getAllByTestId("row")[0].textContent).toBe("machine-a입찰 3 · 지정 2");
+  });
+
+  test("another device's write or a model's new state refreshes the model warnings without a reload", async () => {
+    const { view, synthetic } = await open("#/settings");
+    const elsewhere = new SyntheticSource({ scene: synthetic.scene });
+    expect(elsewhere.settingsPatchedElsewhere({ worker: { runners: { dsh: { model: "anthropic/model-a" } } } })).toEqual({ ok: true, rev: "r4" });
+    await waitFor(() => expect(view.getAllByTestId("settings-warning").map((line) => line.textContent)).toEqual(["codex 모델의 쿼터가 다 찼습니다 · 다음 실행은 model-b로 갑니다"]));
+    elsewhere.modelChangedElsewhere("model-c", { state: "ok", left: 55, resetAt: null });
+    await waitFor(() => expect(view.queryByTestId("settings-warnings")).toBeNull());
+    expect(view.getByTestId("settings-rev").textContent).toBe("설정 r4");
+    expect(elsewhere.settingsPatchedElsewhere({ devices: { workers: { "machine-a": { cap: 0 } } } })).toEqual({ ok: false, detail: "devices.workers.machine-a.cap: must be an integer of 1 or more" });
+    expect(synthetic.scene.settings.revisions).toHaveLength(5);
   });
 
   test("the wide window keeps the settings beside a pushed list, with a way back to its runner", async () => {

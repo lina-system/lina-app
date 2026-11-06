@@ -2187,6 +2187,18 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   border: 0;
 }
 
+.settings .note.is-inline input:disabled {
+  opacity: 0.5;
+  background: var(--fill);
+  cursor: not-allowed;
+}
+
+.settings .choice:disabled,
+.settings .text-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .settings-sizes {
   padding: 0 calc(var(--inset) + 12px);
 }

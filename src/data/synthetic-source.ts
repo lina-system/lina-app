@@ -1,4 +1,4 @@
-import { SETTINGS_HISTORY, type ActionResult, type AnswerRequest, type AnswerResult, type BoardSnapshot, type ChangeEvent, type ChangeMessage, type CommentRequest, type DoneRequest, type ItemDetail, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type Settings, type SettingsAuditLine, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest, type WorkState } from "../api/client";
+import { SETTINGS_HISTORY, type ActionResult, type AnswerRequest, type AnswerResult, type BoardSnapshot, type ChangeEvent, type ChangeMessage, type CommentRequest, type DoneRequest, type ItemDetail, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type Settings, type SettingsAuditLine, type SettingsModel, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest, type WorkState } from "../api/client";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type Scene, type SettingsVariant } from "../fixtures/synthetic";
 import { mergePatch } from "../model/settings";
 import { currentSettings, historyView, invalidDetail, modelsView, revisionOf, settingsView, validate, writeRevision } from "./synthetic-settings";
@@ -605,10 +605,32 @@ export class SyntheticSource implements Source {
    * Every page that read them before now writes against a stale revision.
    */
   settingsWrittenElsewhere(device = "machine-b"): void {
-    const settings = currentSettings(this.scene.settings);
-    const cap = settings.devices?.workers?.[device]?.cap ?? 1;
-    const line = writeRevision(this.scene.settings, mergePatch(settings, { devices: { workers: { [device]: { cap: cap + 1 } } } }), { kind: "app", principal: SETTINGS_WRITER.principal, device: SETTINGS_WRITER.other }, Math.floor(nowSeconds()));
+    const cap = currentSettings(this.scene.settings).devices?.workers?.[device]?.cap ?? 1;
+    this.settingsPatchedElsewhere({ devices: { workers: { [device]: { cap: cap + 1 } } } });
+  }
+
+  /**
+   * Another device writes a merge patch over the settings, as the owner on SETTINGS_WRITER.other, checked like a write
+   * from this page: the new revision, or the core's one-line reason when it refuses.
+   */
+  settingsPatchedElsewhere(patch: SettingsPatch): { ok: true; rev: string } | { ok: false; detail: string } {
+    const settings = mergePatch(currentSettings(this.scene.settings), patch);
+    const errors = validate(settings);
+    if (errors.length) return { ok: false, detail: invalidDetail(errors) };
+    const line = writeRevision(this.scene.settings, settings, { kind: "app", principal: SETTINGS_WRITER.principal, device: SETTINGS_WRITER.other }, Math.floor(nowSeconds()));
     if (line) this.changed({ source: "settings", kind: "revised", id: line.rev });
+    return { ok: true, rev: revisionOf(this.scene.settings).id };
+  }
+
+  /**
+   * OCX's state of one model changes (quota used up, back, turned off), and the core says so with a settings event,
+   * as it does when another device's write changes what the models view warns about.
+   */
+  modelChangedElsewhere(id: string, changes: Partial<Pick<SettingsModel, "state" | "left" | "resetAt">>): void {
+    const model = this.scene.settings.models.find((each) => each.id === id);
+    if (!model) return;
+    Object.assign(model, changes);
+    this.changed({ source: "settings", kind: "revised", id: revisionOf(this.scene.settings).id });
   }
 
   private writeSettings(kind: "patch" | "rollback", next: () => Settings, by: SettingsAuditLine["by"], rollbackOf?: string): WriteResult<SettingsWritten> {

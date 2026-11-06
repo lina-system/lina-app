@@ -1244,6 +1244,10 @@ const drivers = {
     const rows = (testid) => page.getByTestId(testid).locator("[data-testid=row]").evaluateAll((items) => items.map((item) => [item.querySelector(".title")?.textContent, item.querySelector(".sub")?.textContent].filter(Boolean).join(" / ")));
     const rules = () => page.getByTestId("settings-rules").locator("[data-testid=rule] .title, [data-testid=rule-other] .title").allInnerTexts();
     const firstHistory = async () => (await page.getByTestId("history-row").first().locator(".title").innerText()).trim();
+    // Who drew each revision over which: the proof that a write went against the revision it was drawn over.
+    const lineage = () => page.evaluate(() => window.__linaScene.settings.history.map((line) => line.rev + "<" + line.base + " " + line.by.device));
+    const elsewhere = (patch) => page.evaluate((body) => window.__linaSettingsElsewhere.write(body), patch);
+    const warningLines = async () => ((await page.getByTestId("settings-warnings").count()) ? await page.getByTestId("settings-warning").allInnerTexts() : []).map((line) => line.trim());
     const until = async (read, wanted, what) => {
       const end = Date.now() + 10_000;
       let seen = await read();
@@ -1439,8 +1443,9 @@ const drivers = {
     await step("a stale write (412): another device wrote first, the page reloads the settings and says so", async () => {
       await openApp(page, "#/settings", "&settings=stale");
       await page.getByTestId("screen-settings").waitFor();
-      // Once: the reload puts machine-a back on, and a second press would go through against the new revision.
-      await toggle("machine-a 켜기").click();
+      // One raw press: the reload puts machine-a back on, and Playwright's click() would see the switch move back,
+      // press again and write a second time, against the new revision.
+      await page.evaluate(() => document.querySelector('[data-testid=screen-settings] [role=switch][aria-label="machine-a 켜기"]').click());
       const toast = page.getByTestId("toast");
       const said = (await text(toast)).trim();
       check(said === "다른 곳에서 먼저 바뀌었습니다 · 새로 읽었습니다", "the toast reads " + said);
@@ -1451,7 +1456,9 @@ const drivers = {
       const all = await writes();
       const sent = all.at(-1);
       check(all.length === 1 && sent.status === 412 && sent.ifMatch === "r3", "the writes went " + JSON.stringify(all));
-      return said + "; " + work.join(", ") + "; " + (await rev());
+      const drawn = await lineage();
+      check(JSON.stringify(drawn.slice(3)) === JSON.stringify(["r4<r3 phone-a"]), "the revisions after r3 are " + JSON.stringify(drawn));
+      return said + "; " + work.join(", ") + "; " + (await rev()) + "; " + drawn.slice(3).join(", ");
     });
     await step("changes queued behind a write go only against the revision they were drawn over", async () => {
       await openApp(page, "#/settings", "&settings=race");
@@ -1470,7 +1477,9 @@ const drivers = {
       check(sent.length === 1 && sent[0].ifMatch === "r3" && sent[0].status === 200, "the queued change was sent: " + JSON.stringify(sent));
       const list = await until(rules, (items) => JSON.stringify(items) === JSON.stringify(["quick · S → dsh", "docs → codex", "그 외 → omo"]), "the rules after the first change");
       const work = await until(() => rows("devices-work"), (items) => items[1] === "machine-b / 입찰 2 · 지정 2", "machine-b's row after the other device's write");
-      return said + "; sent " + sent.map((write) => write.ifMatch + " " + write.status).join(", ") + "; " + list.join(", ") + "; " + work[1];
+      const drawn = await lineage();
+      check(JSON.stringify(drawn.slice(3)) === JSON.stringify(["r4<r3 laptop-a", "r5<r4 phone-a"]), "the revisions after r3 are " + JSON.stringify(drawn));
+      return said + "; sent " + sent.map((write) => write.ifMatch + " " + write.status).join(", ") + "; " + list.join(", ") + "; " + work[1] + "; " + drawn.slice(3).join(", ");
     });
     await step("OCX not read: one grey line with the list's time, every model 확인 못 함, warnings say how old", async () => {
       await openApp(page, "#/settings", "&settings=ocx-down");
@@ -1499,6 +1508,50 @@ const drivers = {
       check(JSON.stringify(names) === JSON.stringify(["model-a · 확인 못 함", "model-b · 확인 못 함", "model-c · 확인 못 함"]), "models " + JSON.stringify(names));
       return said[0] + "; " + warnings.length + " warnings as of " + time + "; picker " + names.join(" | ");
     });
+    await step("four models warned about: the first three lines, then 외 1개", async () => {
+      await openApp(page, "#/settings", "&settings=many-warnings");
+      await page.getByTestId("screen-settings").waitFor();
+      const lines = await warningLines();
+      const more = (await text(page.getByTestId("settings-warning-more"))).trim();
+      check(lines.length === 3 && more === "외 1개", "warnings " + JSON.stringify(lines) + " then " + more);
+      return lines.join(" | ") + " | " + more;
+    });
+    await step("another device's write and a model's new state refresh the model warnings without a reload", async () => {
+      await openApp(page, "#/settings");
+      await page.getByTestId("screen-settings").waitFor();
+      await page.evaluate(() => (window.__sameLoad = true));
+      const before = await warningLines();
+      check(before.some((line) => line.startsWith("dsh ")) && before.some((line) => line.startsWith("codex ")), "warnings before " + JSON.stringify(before));
+      const written = await elsewhere({ worker: { runners: { dsh: { model: "anthropic/model-a" } } } });
+      check(written.ok, "the other device's write was refused: " + JSON.stringify(written));
+      const after = await until(warningLines, (lines) => lines.length === 1 && lines[0].startsWith("codex "), "the warnings after dsh's model changed elsewhere");
+      await page.evaluate(() => window.__linaSettingsElsewhere.model("model-c", { state: "ok", left: 55, resetAt: null }));
+      await until(warningLines, (lines) => lines.length === 0, "the warnings after model-c came back");
+      check(await page.evaluate(() => window.__sameLoad === true), "the page reloaded");
+      return before.length + " warnings -> " + after.join("") + " -> none; " + (await rev()) + ", same load";
+    });
+    await step("history names a rule changed in place, a device and a runner added and removed", async () => {
+      await openApp(page, "#/settings");
+      await page.getByTestId("screen-settings").waitFor();
+      const routing = (await latest()).worker.routing.map((rule) => (rule.name === "docs" ? { ...rule, runner: "dsh" } : rule));
+      const lines = [];
+      for (const [patch, wanted] of [
+        [{ worker: { routing } }, "docs → dsh"],
+        [{ devices: { workers: { "build-a": { host: "build-a", role: "work", cap: 1 } } } }, "build-a 추가"],
+        [{ devices: { workers: { "machine-b": null } } }, "machine-b 삭제"],
+        [{ worker: { runners: { gem: { type: "command", argv: ["gem", "-"], model: "anthropic/model-b" } } } }, "gem 추가"],
+        [{ worker: { runners: { gem: null } } }, "gem 삭제"],
+      ]) {
+        const written = await elsewhere(patch);
+        check(written.ok, "the other device's write was refused: " + JSON.stringify(written));
+        lines.push(await until(firstHistory, (row) => row.endsWith(" · 앱 · " + wanted), "the first history row after " + wanted));
+      }
+      const list = await rules();
+      check(list[0] === "docs → dsh", "the rules read " + JSON.stringify(list));
+      const work = await rows("devices-work");
+      check(work.some((row) => row.startsWith("build-a")) && !work.some((row) => row.startsWith("machine-b")), "기기 (작업) " + JSON.stringify(work));
+      return lines.map((line) => line.replace(/^.* · 앱 · /, "")).join(", ") + "; rules " + list.join(", ") + "; " + (await rev());
+    });
     await step("a device that may only read: every control disabled, one grey line, nothing sent", async () => {
       await openApp(page, "#/settings", "&settings=readonly");
       await page.getByTestId("screen-settings").waitFor();
@@ -1513,7 +1566,15 @@ const drivers = {
       check(look[0] === "0.5" && look[1] === "not-allowed" && look[2].includes("grayscale"), "a disabled switch looks " + JSON.stringify(look));
       await toggle("machine-a 켜기").click({ force: true });
       check((await writes()).length === 0, "a write was sent: " + JSON.stringify(await writes()));
-      return line.join(" ") + "; " + controls.length + " buttons disabled (" + look.join(", ") + "); no rollback, 기본값 rows open nothing";
+      // Opened by its address, a sub-page has no enabled control either: each disabled on its own, drawn grey.
+      await openApp(page, "#/settings/rule-new", "&settings=readonly");
+      const form = page.getByTestId("setting-page");
+      await form.locator(".rows").first().waitFor();
+      const open = await form.locator("button, input").evaluateAll((items) => items.filter((item) => !item.disabled).map((item) => item.getAttribute("aria-label") ?? item.textContent));
+      check(open.length === 0, "새 규칙 has enabled controls: " + JSON.stringify(open));
+      const label = await form.getByRole("textbox").evaluate((input) => [input.disabled, getComputedStyle(input).opacity]);
+      check(label[0] === true && label[1] === "0.5", "라벨 is " + JSON.stringify(label));
+      return line.join(" ") + "; " + controls.length + " buttons disabled (" + look.join(", ") + "); no rollback, 기본값 rows open nothing; 새 규칙 by address all disabled";
     });
     await step("the scene as it starts is writable: no read-only line, every switch and 한 단계 되돌리기 enabled", async () => {
       await openApp(page, "#/settings");

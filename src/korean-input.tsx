@@ -8,13 +8,14 @@ type Props = {
   inline?: boolean;
   /** Enter sends, outside a form: an Enter that ends a Hangul composition only commits the syllable. */
   onEnter?: () => void;
+  disabled?: boolean;
 };
 
 function isImeEvent(event: KeyboardEvent): boolean {
   return event.isComposing || event.keyCode === 229;
 }
 
-export function KoreanInput({ label, value, onValue, inline = false, onEnter }: Props) {
+export function KoreanInput({ label, value, onValue, inline = false, onEnter, disabled = false }: Props) {
   const ref = useRef<HTMLInputElement>(null);
   const composing = useRef(false);
 
@@ -45,6 +46,7 @@ export function KoreanInput({ label, value, onValue, inline = false, onEnter }: 
         autoCorrect="on"
         spellcheck
         autoComplete="off"
+        disabled={disabled}
         defaultValue={value}
         onCompositionStart={() => {
           composing.current = true;

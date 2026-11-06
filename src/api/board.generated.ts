@@ -72,6 +72,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/status/checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's own health checks (lina#233): one row per `<LINA root>/status/*.json` file, newest `at` first. A missing folder is an empty list; a malformed file is one error row naming it, never a failed response. */
+        get: operations["getStatusChecks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/work/add": {
         parameters: {
             query?: never;
@@ -647,6 +664,35 @@ export interface components {
             /** @enum {string} */
             source: "work" | "worker" | "devices" | "metrics" | "quota";
         };
+        StatusCheck: {
+            /** @description Unix epoch seconds the check last wrote (a malformed file's mtime). A file whose `at` is not a finite number is malformed, so no served `at` is ever NaN or Infinity. */
+            at: number;
+            /** @description The status file's name under `<LINA root>/status/`; bytes that are not UTF-8 are served as U+FFFD. */
+            file: string;
+            /** @description One line for the owner; for an error row, the file name, a colon and a short reason. Text that is not valid UTF-8 (a lone surrogate) is malformed, so no served text fails to encode. */
+            line: string;
+            /** @description The check's own name from its status file; a malformed file falls back to the file stem. */
+            name: string;
+            /** @description What the check last reported; always false for an error row. */
+            ok: boolean;
+            /** @description True when `now - at > staleAfter`. */
+            stale: boolean;
+            /** @description Seconds after `at` the check is stale; null for an error row. A negative value is malformed. */
+            staleAfter: number | null;
+            /**
+             * @description stale when `now - at > staleAfter` (wins over ok/failing); failing when `ok` is false; error for a malformed file (bad JSON, a bad field, a non-finite or negative time, text that is not valid UTF-8).
+             * @enum {string}
+             */
+            state: "ok" | "failing" | "stale" | "error";
+        };
+        StatusChecks: {
+            /** @description When the folder was read, Unix epoch seconds. */
+            at: number;
+            /** @description Newest `at` first. */
+            checks: components["schemas"]["StatusCheck"][];
+            /** @enum {integer} */
+            version: 1;
+        };
         TodoCount: {
             done: number;
             total: number;
@@ -789,6 +835,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuotaView"];
+                };
+            };
+            /** @description Unchanged since the ETag sent. */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getStatusChecks: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The checks. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusChecks"];
                 };
             };
             /** @description Unchanged since the ETag sent. */

@@ -3,6 +3,7 @@ import { bootstrapOptions, HttpSource } from "./http-source";
 import { chooseSource } from "./select";
 import { Store } from "./store";
 import type { TalkEvent } from "../api/client";
+import { SCENE_COUNTS } from "../fixtures/synthetic";
 import { SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS, UNDO_SECONDS } from "./synthetic-source";
 
 test("reads each route on its schema's server url with the session token and the last ETag", async () => {
@@ -18,12 +19,14 @@ test("reads each route on its schema's server url with the session token and the
   expect((await source.read("goals")).kind).toBe("unchanged");
   await source.read("board");
   await source.read("item", "a b");
+  await source.read("checks");
 
   expect(calls.map((call) => call.url)).toEqual([
     "/core/api/plugins/kanban/work/goals",
     "/core/api/plugins/kanban/work/goals",
     "/core/api/lina/board",
     "/core/api/lina/work/items/a%20b",
+    "/core/api/lina/status/checks",
   ]);
   expect(calls[0].headers["X-Hermes-Session-Token"]).toBe("token-a");
   expect(calls[0].headers["If-None-Match"]).toBeUndefined();
@@ -50,7 +53,14 @@ test("picks the synthetic scene only when asked", () => {
   expect(chooseSource({ search: "" }, undefined)).toBeInstanceOf(HttpSource);
 });
 
-test("machines and quota are read on the same refresh, at most once a minute", async () => {
+test("&error=checks fails the checks read and leaves the other slow routes answering", async () => {
+  const source = chooseSource({ search: "?source=synthetic&error=checks" }, undefined);
+  expect(source).toBeInstanceOf(SyntheticSource);
+  expect(await source.read("checks")).toMatchObject({ kind: "failed", offline: false });
+  expect((await source.read("quota")).kind).toBe("data");
+});
+
+test("machines, quota and checks are read on the same refresh, at most once a minute", async () => {
   vi.useFakeTimers({ toFake: ["Date"] });
   try {
     const reads: string[] = [];
@@ -65,18 +75,19 @@ test("machines and quota are read on the same refresh, at most once a minute", a
       },
     });
     const store = new Store(source);
-    const slow = () => reads.filter((name) => name === "devices" || name === "quota").length;
+    const slow = () => ["devices", "quota", "checks"].map((route) => reads.filter((name) => name === route).length);
     await store.refresh();
-    expect(slow()).toBe(2);
+    expect(slow()).toEqual([1, 1, 1]);
+    expect(store.get("checks")?.checks).toHaveLength(SCENE_COUNTS.checks);
     for (let tick = 1; tick <= 5; tick += 1) {
       vi.advanceTimersByTime(10_000);
       await store.refresh();
     }
-    expect(slow()).toBe(2);
+    expect(slow()).toEqual([1, 1, 1]);
     expect(reads.filter((name) => name === "board")).toHaveLength(6);
     vi.advanceTimersByTime(10_000);
     await store.refresh();
-    expect(slow()).toBe(4);
+    expect(slow()).toEqual([2, 2, 2]);
   } finally {
     vi.useRealTimers();
   }

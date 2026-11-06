@@ -2,6 +2,7 @@ import type { ComponentChildren } from "preact";
 import type { Machine, QuotaAccount, QuotaService } from "../api/client";
 import type { CardRow, DueRow, GoalRow, InboxRow } from "../model";
 import { agentView, doneFor } from "../model";
+import type { OpenCheck } from "../model/checks";
 import { href, navigate } from "../router";
 import { ago, dayLabel, until } from "../time";
 import { useEffect, useState } from "preact/hooks";
@@ -461,6 +462,25 @@ function QuotaRow({ service }: { service: QuotaService }) {
   );
 }
 
+/** A failing, stale or unreadable check: one row, its name and line, then the state word and how long ago. */
+function CheckRow({ check }: { check: OpenCheck }) {
+  const { now } = useApp();
+  const word = W.checkState[check.state] ?? "";
+  return (
+    <li class={`row check-row is-${check.state}`} data-testid="row">
+      <div class="row-body" aria-label={[check.name, check.line, word, ago(now - check.at)].filter(Boolean).join(SEP)}>
+        <span class="lines">
+          <span class="title one-line">{[check.name, check.line].filter(Boolean).join(SEP)}</span>
+        </span>
+        <span class="trail">
+          <span class={`check-state is-${check.state}`}>{word}</span>
+          <span class="time">{ago(now - check.at)}</span>
+        </span>
+      </div>
+    </li>
+  );
+}
+
 export function StatusScreen() {
   const { model } = useApp();
   return (
@@ -487,6 +507,31 @@ export function StatusScreen() {
           </ul>
         </section>
       ) : null}
+      <section class="list-section" data-testid="section-checks">
+        <h2 class="section-head">
+          <span>{W.checks}</span>
+        </h2>
+        {model.checks.total ? (
+          <ul class="rows" aria-label={W.checks}>
+            {model.checks.open.map((check) => (
+              <CheckRow key={check.key} check={check} />
+            ))}
+            {model.checks.ok ? (
+              <li class="row check-fold" data-testid="row">
+                <div class="row-body" aria-label={W.checksOk(model.checks.ok)}>
+                  <span class="lines">
+                    <span class="sub">{W.checksOk(model.checks.ok)}</span>
+                  </span>
+                </div>
+              </li>
+            ) : null}
+          </ul>
+        ) : (
+          <p class="empty" data-testid="checks-empty">
+            {W.checksEmpty}
+          </p>
+        )}
+      </section>
     </div>
   );
 }

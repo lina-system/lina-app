@@ -101,6 +101,11 @@ export const W = {
   quotaPaused: "일시 정지",
   quotaUnavailable: "사용 불가",
 
+  checks: "점검",
+  checksEmpty: "점검 없음",
+  checksOk: (n: number) => `정상 ${n}`,
+  checkState: { failing: "실패", stale: "오래됨", error: "읽기 오류" } as Record<string, string>,
+
   fresh: (seconds: number) => `갱신 ${seconds}초 전`,
   live: "실시간",
   stale: "갱신 지연",
@@ -219,6 +224,7 @@ export const SOURCE_WORD: Readonly<Record<string, string>> = {
   devices: "기기",
   metrics: "기기 상태",
   quota: "쿼터",
+  checks: "점검",
   board: "현황",
   items: "목표",
   goals: "목표",

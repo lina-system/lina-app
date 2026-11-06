@@ -1149,6 +1149,18 @@ const drivers = {
       }
       return rows.map((row) => row.name + ": " + row.sub + (row.warn ? " · 주의" : "")).join(" | ");
     });
+    await step("read the checks", async () => {
+      const list = page.getByRole("list", { name: "점검" });
+      const rows = await list.locator(".check-row").evaluateAll((items) =>
+        items.map((item) => ({ text: item.querySelector(".title").textContent, state: item.querySelector(".check-state").textContent, time: item.querySelector(".time").textContent, colour: getComputedStyle(item.querySelector(".check-state")).color })),
+      );
+      check(rows.length === 2, "expected 2 open checks, got " + rows.length);
+      check(rows[0]?.text === "백업 회선 · 응답 없음" && rows[0].state === "실패" && rows[0].time === "12분 전" && rows[0].colour === "rgb(255, 59, 48)", "first open check " + JSON.stringify(rows[0]));
+      check(rows[1]?.text === "대기 봇 · 소식이 끊김" && rows[1].state === "오래됨" && rows[1].time === "3시간 전" && rows[1].colour === "rgb(255, 149, 0)", "second open check " + JSON.stringify(rows[1]));
+      const folded = (await list.locator(".check-fold").innerText()).trim();
+      check(folded === "정상 3", "the passing checks read " + folded);
+      return rows.map((row) => row.text + " / " + row.state + " / " + row.time).join(" | ") + "; " + folded;
+    });
   },
 
   // Every write control on the synthetic instance: what it changes on screen and in the page's copy of the record.

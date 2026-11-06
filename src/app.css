@@ -852,6 +852,16 @@ button:disabled {
   color: var(--red);
 }
 
+/* 점검: only failing, stale and unreadable checks stay open, one row each; passing ones fold into one count. */
+.check-state.is-failing,
+.check-state.is-error {
+  color: var(--red);
+}
+
+.check-state.is-stale {
+  color: var(--orange);
+}
+
 /* Detail. */
 
 .detail {

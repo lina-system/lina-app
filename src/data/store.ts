@@ -17,8 +17,8 @@ export type Want = readonly (readonly [RouteName, string?])[];
 export type LiveState = "connecting" | "open" | "down";
 
 const LIST_ROUTES: readonly RouteName[] = ["board", "items", "goals", "cards", "inbox"];
-/** Machines and quota change slowly: read on the same refresh trigger, at most once a minute. */
-const SLOW_ROUTES: readonly RouteName[] = ["devices", "quota"];
+/** Machines, quota and the hub's own checks change slowly: read on the same refresh trigger, at most once a minute. */
+const SLOW_ROUTES: readonly RouteName[] = ["devices", "quota", "checks"];
 export const SLOW_REFRESH_S = 60;
 
 /**
@@ -281,6 +281,7 @@ export class Store {
       inbox: this.get("inbox"),
       devices: this.get("devices"),
       quota: this.get("quota"),
+      checks: this.get("checks"),
       cardDetails,
       failed: this.offline ? [] : failed,
     };

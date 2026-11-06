@@ -15,6 +15,9 @@ export type QuotaAccount = Board["schemas"]["QuotaAccount"];
 export type SourceError = Board["schemas"]["SourceError"];
 export type DevicesView = Board["schemas"]["DevicesView"];
 export type QuotaView = Board["schemas"]["QuotaView"];
+/** The hub's own health checks (lina#233). */
+export type StatusCheck = Board["schemas"]["StatusCheck"];
+export type StatusChecks = Board["schemas"]["StatusChecks"];
 export type Person = Board["schemas"]["Person"];
 export type ItemList = Board["schemas"]["ItemList"];
 export type ItemSummary = Board["schemas"]["ItemSummary"];
@@ -64,6 +67,7 @@ export type Routes = {
   item: Json<BoardPaths["/work/items/{id}"]["get"]>;
   devices: Json<BoardPaths["/devices"]["get"]>;
   quota: Json<BoardPaths["/quota"]["get"]>;
+  checks: Json<BoardPaths["/status/checks"]["get"]>;
   goals: Json<WorkPaths["/work/goals"]["get"]>;
   goal: Json<WorkPaths["/work/goals/{id}"]["get"]>;
   cards: Json<WorkPaths["/work/cards"]["get"]>;
@@ -116,6 +120,8 @@ export function routePath(name: RouteName, id?: string): string {
       return `${BOARD_BASE}/devices`;
     case "quota":
       return `${BOARD_BASE}/quota`;
+    case "checks":
+      return `${BOARD_BASE}/status/checks`;
     case "goals":
       return `${WORK_BASE}/work/goals`;
     case "goal":

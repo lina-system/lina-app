@@ -14,6 +14,8 @@ function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
       return scene.devices;
     case "quota":
       return scene.quota;
+    case "checks":
+      return scene.checks;
     case "goals":
       return scene.goals;
     case "goal":
@@ -197,6 +199,8 @@ export class SyntheticSource implements Source {
   private readonly talkRefusal: TalkRefusal | null;
   private readonly connections = new Set<Connection>();
   private readonly script: StreamScript;
+  /** `&error=checks`: the hub's checks route does not answer, while every other route still does. */
+  private readonly checksError: boolean;
   private streamDown: boolean;
   /** Every connection opened, every snapshot read and every credential renewal, for verify.mjs and the tests. */
   readonly stream: StreamConnection[] = [];
@@ -207,15 +211,17 @@ export class SyntheticSource implements Source {
   private pageToken = 1;
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; noRunning?: boolean; writerStopped?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript } = {}) {
     this.talkRefusal = options.talk ?? null;
     this.script = options.live ?? "ok";
+    this.checksError = options.checksError ?? false;
     this.streamDown = this.script === "down";
     this.scene =
       options.scene ??
       generateScene(options.seed ?? SYNTHETIC_SEED, {
         now: Math.floor(options.now ?? nowSeconds()),
         sourceError: options.sourceError,
+        checksError: options.checksError,
         noRunning: options.noRunning,
         writerStopped: options.writerStopped,
       });
@@ -225,6 +231,7 @@ export class SyntheticSource implements Source {
     const at = nowSeconds();
     this.reads += 1;
     if (this.pageToken !== this.coreToken) return { kind: "failed", offline: false, at, denied: true };
+    if (this.checksError && name === "checks") return { kind: "failed", offline: false, at };
     this.deliverReplies(at);
     const body = bodyOf(this.scene, name, id);
     if (body === undefined) return { kind: "missing", at };

@@ -3,12 +3,14 @@ import { useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, WorkCardDetail } from "../api/client";
 import { cardName, goalCards, runRow, type Model } from "../model";
 import { foldReason } from "../model/fold";
+import { holds } from "../model/rounds";
 import type { CardKind } from "../model/kind";
 import { href } from "../router";
 import { ago, clockAt } from "../time";
 import { useActions } from "../ui/actions";
 import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, useApp } from "../ui/parts";
-import { SEP, STATE_WORD, stateLabel, W } from "../words";
+import { KIND_TITLE, SEP, STATE_WORD, stateLabel, W } from "../words";
+import { Timeline } from "./timeline";
 import { Comments } from "./comments";
 import { Talk } from "./talk";
 
@@ -191,10 +193,10 @@ function TodoBody({ detail }: { detail: ItemDetail }) {
               const target = owner ? href({ name: "card", id: owner }) : href({ name: "run", id: run.id });
               return (
                 <li key={run.id} class="row run-line" data-testid="row">
-                  <Link href={target} label={[run.title, stateLabel(run.state, run.reason)].join(SEP)}>
+                  <Link href={target} label={[runName(model, run), stateLabel(run.state, run.reason)].join(SEP)}>
                     <span class="lines">
                       <span class="one-line">
-                        <span class="title">{run.title}</span>
+                        <span class="title">{runName(model, run)}</span>
                         <span class="sub">
                           {SEP}
                           <StateText state={run.state} reason={run.reason} />
@@ -264,7 +266,7 @@ export function workerRounds(detail: Pick<WorkCardDetail, "runs" | "workerRuns">
   const rounds = ordered.map((run, index) => {
     const start = startOf(run);
     const workers = detail.workerRuns
-      .filter((worker) => !placed.has(worker.id) && (start === null || worker.firstSeenAt >= start) && (run.endedAt === null || worker.firstSeenAt <= run.endedAt))
+      .filter((worker) => !placed.has(worker.id) && holds({ start, end: run.endedAt }, worker.firstSeenAt))
       .map((worker) => worker.id);
     for (const worker of workers) placed.add(worker);
     const content = workers.length > 0 || (start === null && Boolean(run.summary?.trim()));
@@ -313,15 +315,46 @@ function CardComment({ comment }: { comment: WorkCardDetail["comments"][number] 
 }
 
 /** A round's worker runs, dimmed; a round's single run does not repeat the state and time its round head carries. */
+/**
+ * A round's worker runs, dimmed. The board does not list the worker runs a card started (only runs outside any
+ * card), so such a run is still drawn, by its kind of work in grey, as a link to its own page: no worker row is ever
+ * left out because its target is not in a list.
+ */
 function WorkerRows({ ids, model }: { ids: readonly string[]; model: Model }) {
   return (
     <ul class="rows" aria-label={W.workerRuns}>
       {ids.map((workerId) => {
         const run = model.runs.get(workerId);
-        return run ? <CardRowView key={workerId} card={runRow(run)} dim bare={ids.length === 1} kindIcon={false} /> : null;
+        if (run) return <CardRowView key={workerId} card={runRow(run)} dim bare={ids.length === 1} kindIcon={false} />;
+        return (
+          <li key={workerId} class="row card-row is-dim" data-testid="row">
+            <Link href={href({ name: "run", id: workerId })} label={KIND_TITLE.code}>
+              <span class="lines">
+                <span class="one-line">
+                  <span class="title is-kind">{KIND_TITLE.code}</span>
+                </span>
+              </span>
+            </Link>
+          </li>
+        );
       })}
     </ul>
   );
+}
+
+/** A to-do's run by the one naming rule: its checked title when the board lists it, never raw text in its place. */
+function runName(model: Model, run: ItemDetail["runs"][number]): string {
+  const listed = model.runs.get(run.id);
+  if (listed) return runRow(listed).name;
+  return foldReason(run.title) ? KIND_TITLE.code : run.title;
+}
+
+/** Whether a worker run still goes: its own state, or for a run the board does not list, its card's. */
+function runLive(model: Model, runId: string): boolean {
+  const run = model.runs.get(runId);
+  if (run) return run.state === "in_progress";
+  const owner = model.runOwner.get(runId);
+  return owner ? model.cards.get(owner)?.state === "in_progress" : false;
 }
 
 export function CardScreen({ id }: { id: string }) {
@@ -331,10 +364,18 @@ export function CardScreen({ id }: { id: string }) {
   const row = model.cards.get(id);
   const questions = (store.get("inbox")?.questions ?? []).filter((question) => question.cardId === id);
   const { rounds, outside } = workerRounds(detail);
+  // The goal (project) the card serves, in its head; a goal title that would show raw text is left out.
+  const goal = store.get("goals")?.goals.find((candidate) => candidate.workCards.some((card) => card.id === id));
+  const goalLine = goal && !foldReason(goal.title) ? goal.title : null;
   return (
     <article class="detail" data-testid="screen-card">
       <CardHead work={row?.work ?? "code"} title={detail.plain.title}>
         <StateTime state={detail.state} reason={detail.reason} time={row ? [cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP) : ""} />
+        {goalLine ? (
+          <span class="sub" data-testid="card-goal">
+            {[W.goals, goalLine].join(SEP)}
+          </span>
+        ) : null}
         {detail.state === "in_progress" && detail.todoProgress.total > 0 ? <Progress done={detail.todoProgress.done} total={detail.todoProgress.total} word /> : null}
       </CardHead>
       {questions.map((question) => (
@@ -366,19 +407,28 @@ export function CardScreen({ id }: { id: string }) {
           </ul>
         </Box>
       ) : null}
-      {detail.workerRuns.length ? (
-        <Box title={W.workerRuns} testid="worker-runs">
-          {rounds.map((round) => (
-            <section key={round.n} class={round.startedAt === null ? "round is-no-start" : "round"} data-testid="round">
-              <h3 class="round-head">{roundHead(round, now)}</h3>
-              {/* The round's own line is its content; one that would show a path or a command reads 접힌 댓글. */}
-              {round.line ? <p class="round-line" data-testid="round-line">{foldReason(round.line) ? W.folded : round.line}</p> : null}
-              {round.workers.length ? <WorkerRows ids={round.workers} model={model} /> : null}
-            </section>
-          ))}
-          {outside.length ? <WorkerRows ids={outside} model={model} /> : null}
-        </Box>
-      ) : null}
+      {/* One round list: the record's blocks (기록), each head the link to its worker run. 실행 stands only while the
+          record is not shown, and under its error line when the read failed, so the worker links never disappear. */}
+      <Timeline
+        runs={detail.workerRuns.map((worker) => worker.id)}
+        live={(runId) => runLive(model, runId)}
+        link={(runId, n) => href({ name: "run", id: rounds.find((round) => round.n === n)?.workers[0] ?? runId })}
+        fallback={
+          detail.workerRuns.length ? (
+            <Box title={W.workerRuns} testid="worker-runs">
+              {rounds.map((round) => (
+                <section key={round.n} class={round.startedAt === null ? "round is-no-start" : "round"} data-testid="round">
+                  <h3 class="round-head">{roundHead(round, now)}</h3>
+                  {/* The round's own line is its content; one that would show a path or a command reads 접힌 댓글. */}
+                  {round.line ? <p class="round-line" data-testid="round-line">{foldReason(round.line) ? W.folded : round.line}</p> : null}
+                  {round.workers.length ? <WorkerRows ids={round.workers} model={model} /> : null}
+                </section>
+              ))}
+              {outside.length ? <WorkerRows ids={outside} model={model} /> : null}
+            </Box>
+          ) : null
+        }
+      />
       {detail.comments.length ? (
         <Box title={W.comments}>
           <ul class="thread" aria-label={W.comments}>
@@ -392,9 +442,32 @@ export function CardScreen({ id }: { id: string }) {
   );
 }
 
+/** A worker run a card started: the board does not list it, so its page is its card and its own record. */
+function CardRunScreen({ id, cardId }: { id: string; cardId: string }) {
+  const { model } = useApp();
+  const card = model.cards.get(cardId);
+  return (
+    <article class="detail" data-testid="screen-run">
+      <CardHead work="code" title={null}>
+        {null}
+      </CardHead>
+      {card ? (
+        <Box title={W.cards}>
+          <ul class="rows" aria-label={W.cards}>
+            <CardRowView card={card} />
+          </ul>
+        </Box>
+      ) : null}
+      <Timeline runs={[id]} live={(runId) => runLive(model, runId)} />
+    </article>
+  );
+}
+
 export function RunScreen({ id }: { id: string }) {
   const { model, now } = useApp();
   const run = model.runs.get(id);
+  const cardId = model.runOwner.get(id);
+  if (!run && cardId) return <CardRunScreen id={id} cardId={cardId} />;
   if (!run) return model.ready ? <Missing /> : <Loading />;
   const row = runRow(run);
   const todo = run.todo ? model.items.get(run.todo) : undefined;
@@ -436,6 +509,7 @@ export function RunScreen({ id }: { id: string }) {
           </ul>
         </Box>
       ) : null}
+      <Timeline runs={[id]} live={(runId) => runLive(model, runId)} />
     </article>
   );
 }

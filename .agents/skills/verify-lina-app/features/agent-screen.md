@@ -15,7 +15,7 @@ Each configured agent has a screen: its running cards, cards needing review, its
 - `예정` holds the agent's cards just created and not started, with no time beside them; they show nowhere else (not on the home).
 - `진행 중` holds the agent's stopped cards (first) and running cards. A stopped card's title keeps the label colour; only `중단됨 · <reason>` is red and its time is grey; `검토 필요` holds its cards waiting for review.
 - The header shows counts only: `진행 중 n · 검토 필요 n · 예정 n · 목표 n`, drawn with the same count component as the sidebar and the section headings: grey secondary numbers, stopped cards as the small red number. Stopped cards add their own small red number beside `진행 중`, never summed into it; grey plus red equals the section's rows.
-- A goal line has a progress dial, the name, the done condition and `진행 중 n` when to-dos run.
+- A goal line has a progress dial, the name, the done condition and `진행 중 n` when to-dos run. On an agent's screen its goals are the ones it owns and the ones holding its to-dos (another agent's goal included), and the dial, the count and `진행 중 n` count only this agent's to-dos; 목표 counts every agent's.
 
 ## Sub-features
 

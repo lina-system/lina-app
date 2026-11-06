@@ -24,6 +24,10 @@ export type ItemRun = Board["schemas"]["ItemRun"];
 export type ActionResult = Board["schemas"]["ActionResult"];
 /** The change stream (lina#150): what changed, by source and id, with no body; the screens refetch the snapshot. */
 export type ChangeEvent = Board["schemas"]["ChangeEvent"];
+/** One worker run's own record, round by round (lina#201). */
+export type RunRecord = Board["schemas"]["RunRecord"];
+export type RecordRound = Board["schemas"]["RecordRound"];
+export type RecordRow = Board["schemas"]["RecordRow"];
 export type ChangeBatch = Board["schemas"]["ChangeBatch"];
 export type ChangeResync = Board["schemas"]["ChangeResync"];
 export type ChangeMessage = Board["schemas"]["ChangeMessage"];
@@ -65,6 +69,7 @@ export type Routes = {
   cards: Json<WorkPaths["/work/cards"]["get"]>;
   card: Json<WorkPaths["/work/cards/{id}"]["get"]>;
   inbox: Json<WorkPaths["/work/inbox"]["get"]>;
+  record: Json<BoardPaths["/work/runs/{id}/record"]["get"]>;
 };
 
 export type RouteName = keyof Routes;
@@ -121,5 +126,7 @@ export function routePath(name: RouteName, id?: string): string {
       return `${WORK_BASE}/work/cards/${enc}`;
     case "inbox":
       return `${WORK_BASE}/work/inbox`;
+    case "record":
+      return `${BOARD_BASE}/work/runs/${enc}/record`;
   }
 }

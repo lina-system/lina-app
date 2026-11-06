@@ -24,7 +24,8 @@ export function routesFor(events: readonly ChangeEvent[], store: Pick<Store, "ca
         routes.push(["board"], ["items"], ["item", event.id]);
         break;
       case "worker":
-        routes.push(["board"], ...store.cardsWithRun(event.id).map((id) => ["card", id] as const));
+        // A worker run's change: the board, the cards that list it and its own record (read only when a screen read it).
+        routes.push(["board"], ["record", event.id], ...store.cardsWithRun(event.id).map((id) => ["card", id] as const));
         break;
       case "kanban":
         routes.push(["cards"], ["goals"], ["inbox"], ["card", event.id], ["goal", event.id]);

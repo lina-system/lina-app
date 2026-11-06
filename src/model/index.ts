@@ -126,6 +126,8 @@ export interface GoalRow {
   readonly todosTotal: number;
   readonly runningTodos: readonly ItemSummary[];
   readonly runningCount: number;
+  /** Every to-do of the goal is done, whoever owns it (the check box marks the whole goal). */
+  readonly allDone: boolean;
 }
 
 export interface AgentView {
@@ -348,12 +350,23 @@ export function buildModel(input: ModelInput, now: number): Model {
   ]
     .filter((row) => !hidden.has(row.key))
     .sort((a, b) => (a.type === "decide" && b.type === "decide" ? a.at - b.at : 0));
-  const reviewRows: InboxRow[] = (board?.inbox.review ?? [])
-    .map((id) => runs.get(id))
-    .filter((run): run is RunCard => run !== undefined)
-    .map((run) => ({ type: "review", key: `review:${run.id}`, href: href({ name: "run", id: run.id }), agent: run.agent, card: runRow(run) }));
+  // Finished work waiting for the owner's review: runs outside any card the core lists, and work cards whose run waits
+  // for review (the board does not list a card's own runs), whoever owns them and whether or not they have a to-do.
+  const reviewRows: InboxRow[] = [
+    ...(board?.inbox.review ?? [])
+      .map((id) => runs.get(id))
+      .filter((run): run is RunCard => run !== undefined)
+      .map((run): InboxRow => ({ type: "review", key: `review:${run.id}`, href: href({ name: "run", id: run.id }), agent: run.agent, card: runRow(run) })),
+    ...allCards
+      .filter((card) => card.kind === "card" && card.state === "waiting" && card.reason === "review")
+      .sort(newestFirst((card) => card.stateAt))
+      .map((card): InboxRow => ({ type: "review", key: `review:${card.id}`, href: card.href, agent: card.agent, card })),
+  ];
+  // An owner to-do that an open decision targets by its id is that decision's: it shows once, as the decision. Only
+  // an explicit id link counts, never similar text. The inbox, the sidebar and the bell read this same set.
+  const decided = new Set((board?.inbox.decide ?? []).filter((row) => !row.answered).map((row) => row.target));
   const listed = new Set((board?.inbox.mine ?? []).map((row) => row.id));
-  const mineSource = [...(board?.inbox.mine ?? [])];
+  const mineSource = (board?.inbox.mine ?? []).filter((row) => !decided.has(row.id));
   for (const { row, index } of [...(input.pending?.held ?? [])].sort((a, b) => a.index - b.index)) if (!mineSource.some((each) => each.id === row.id)) mineSource.splice(Math.min(index, mineSource.length), 0, row);
   const mineRows: InboxRow[] = mineSource.map((row) => ({
     type: "mine",
@@ -400,6 +413,7 @@ export function buildModel(input: ModelInput, now: number): Model {
         todosTotal: goal.todos?.total ?? 0,
         runningTodos,
         runningCount: runningTodos.length,
+        allDone: (goal.todos?.total ?? 0) > 0 && goal.todos?.done === goal.todos?.total,
       };
     });
 
@@ -408,7 +422,9 @@ export function buildModel(input: ModelInput, now: number): Model {
   const okMachines = machines.filter((machine) => machine.state === "ok");
   const warnMachines = machines.filter((machine) => machine.state === "warn");
   const downMachines = machines.filter((machine) => machine.state === "down");
-  const notices = board?.notices ?? [];
+  const allNotices = board?.notices ?? [];
+  const notices = allNotices.filter((notice) => !(notice.kind === "todo" && decided.has(notice.target)));
+  const hiddenUnread = allNotices.filter((notice) => !notices.includes(notice) && !notice.read).length;
 
   const errorSources = new Set<string>();
   for (const view of [board, items, input.devices, input.quota]) for (const error of view?.errors ?? []) errorSources.add(error.source);
@@ -462,7 +478,7 @@ export function buildModel(input: ModelInput, now: number): Model {
       done: done.length,
       goals: goals.length,
       notices: notices.length,
-      unread: board?.counts.unread ?? notices.filter((notice) => !notice.read).length,
+      unread: (board?.counts.unread ?? allNotices.filter((notice) => !notice.read).length) - hiddenUnread,
       agents: agentCounts,
       devices: { all: machines.length, ok: okMachines.length, warn: warnMachines.length, down: downMachines.length },
     },
@@ -487,7 +503,16 @@ export function agentView(model: Model, agentId: string): AgentView | null {
   const running = [...stoppedCards, ...mine.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt))];
   const review = mine.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt));
   const planned = mine.filter((card) => card.state === "planned").sort(newestFirst((card) => card.stateAt));
-  const goals = model.goals.filter((goal) => goal.agent === agentId);
+  // An agent's goals: the ones it owns and the ones holding its to-dos, another agent's included; the dial, the count
+  // and the running number all count only this agent's to-dos.
+  const goals = model.goals
+    .map((goal) => {
+      const todos = [...model.items.values()].filter((item) => item.kind === "todo" && item.parent === goal.id && item.agent === agentId);
+      const runningTodos = todos.filter((todo) => todo.state === "in_progress");
+      return { goal, row: { ...goal, todosDone: todos.filter((todo) => todo.state === "done").length, todosTotal: todos.length, runningTodos, runningCount: runningTodos.length } };
+    })
+    .filter(({ goal, row }) => goal.agent === agentId || row.todosTotal > 0)
+    .map(({ row }) => row);
   const doneToday = model.done.filter((card) => card.agent === agentId && card.endedAt !== null && localDay(card.endedAt) === model.today);
   return {
     agent,

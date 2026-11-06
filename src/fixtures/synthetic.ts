@@ -7,6 +7,7 @@ import type {
   ItemSummary,
   QuotaView,
   RunCard,
+  RunRecord,
   WorkCardDetail,
   WorkCardList,
   WorkGoal,
@@ -71,6 +72,10 @@ export interface Scene {
   readonly cards: WorkCardList;
   readonly cardDetails: Readonly<Record<string, WorkCardDetail>>;
   readonly inbox: WorkInbox;
+  /** Every worker run, the ones cards started included; the board lists only runs outside any card, as the core does. */
+  readonly runs: readonly RunCard[];
+  /** Worker runs' own records (lina#201), by run id; a run without one answers 404. */
+  readonly records: Record<string, RunRecord>;
 }
 
 const MIN = 60;
@@ -130,7 +135,8 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     { id: "T9", goal: "G3", agent: 2, title: "저장소 접근 권한 주기", state: "planned", reason: null, mine: true, sinceAgo: 2 * DAY, due: 30, doneCondition: "복구용 저장소에 들어갈 수 있음" },
     { id: "T10", goal: "G4", agent: 0, title: "가이드 초안 쓰기", state: "done", reason: null, sinceAgo: 1 * DAY, doneCondition: "초안이 검토를 통과함" },
     { id: "T11", goal: "G5", agent: 1, title: "색인 구조 비교", state: "stopped", reason: "failed", sinceAgo: 5 * HOUR, doneCondition: "두 색인 구조의 속도를 비교함" },
-    { id: "T12", goal: "G5", agent: 1, title: "느린 질의 모으기", state: "waiting", reason: "feedback", sinceAgo: 1 * DAY, doneCondition: "느린 질의 목록이 정리됨" },
+    // Another agent's to-do under G5: an agent's goals count only its own to-dos.
+    { id: "T12", goal: "G5", agent: 2, title: "느린 질의 모으기", state: "waiting", reason: "feedback", sinceAgo: 1 * DAY, doneCondition: "느린 질의 목록이 정리됨" },
   ];
 
   const summary = (fields: Omit<ItemSummary, "createdAt" | "lastActivityAt" | "closedAt" | "area" | "projects" | "runCount" | "commentCount"> & Partial<ItemSummary>): ItemSummary => ({
@@ -189,7 +195,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
   // r8 run outside any card. r7 and r8 are two jobs on one to-do that got one generated title: two cards. The raw
   // titles and live lines are what a worker records (file names, English topics); the screens never draw them.
   const runCards: RunCard[] = [
-    { id: "r1", title: "release-notes: collect merged PRs (round 3)", state: "in_progress", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[0], startedAt: now - 12 * MIN, endedAt: null, now: "grouping merged PRs by feature in CHANGES.md", plain: plain("변경 목록 모으기", "병합된 변경을 기능별로 묶는 중") },
+    { id: "r1", title: "release-notes: collect merged PRs (round 3)", state: "in_progress", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[0], startedAt: now - 12 * MIN, endedAt: null, now: "adding a one-line summary per merged PR in CHANGES.md", plain: plain("변경 목록 모으기", "변경마다 한 줄 요약을 붙이는 중") },
     { id: "r2", title: "card-form.tsx polish", state: "in_progress", reason: null, agent: agentId(1), kind: "ulw", todo: "T4", host: machines[1], startedAt: now - 2 * HOUR, endedAt: null, now: "editing src/payment/card-form.tsx", plain: NO_LINES },
     { id: "r3", title: "error-copy.json rewrite", state: "stopped", reason: "unresponsive", agent: agentId(1), kind: "ulw", todo: "T5", host: machines[2], startedAt: now - 58 * MIN, endedAt: null, now: null, plain: plain("오류 문구 바꾸기") },
     { id: "r4", title: "payment failure screen review", state: "waiting", reason: "review", agent: agentId(1), kind: "research", todo: "T6", host: machines[0], startedAt: now - 4 * HOUR, endedAt: now - 3 * HOUR, now: null, plain: plain("결제 실패 화면 검토", null, "실패 화면 세 곳의 문구와 버튼을 비교함") },
@@ -203,7 +209,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
 
   // k-101 is in its third follow-up round (one card); k-102's checked lines are all missing (nothing drawn for them).
   const cardSeeds = [
-    { id: "k-101", goal: "kg-1", agent: 0, title: "LINA-41 release notes / CHANGES.md", state: "in_progress", reason: null, elapsed: 12 * MIN, now: "grouping merged PRs by feature", plain: plain("릴리스 노트: 변경 목록 정리", "변경 목록을 기능별로 묶는 중"), todos: [["모은 변경 확인", true], ["T1", false], ["T3", false]], runs: ["r9", "r10", "r1"], lastBeat: now - 20 },
+    { id: "k-101", goal: "kg-1", agent: 0, title: "LINA-41 release notes / CHANGES.md", state: "in_progress", reason: null, elapsed: 12 * MIN, now: "adding one-line summaries", plain: plain("릴리스 노트: 변경 목록 정리", "변경마다 한 줄 요약을 붙이는 중"), todos: [["T1", true], ["모은 변경 확인", false], ["T3", false]], runs: ["r9", "r10", "r1"], lastBeat: now - 20 },
     { id: "k-102", goal: "kg-2", agent: 1, title: "payment card-form polish", state: "in_progress", reason: null, elapsed: 2 * HOUR, now: "editing card-form.tsx", plain: NO_LINES, todos: [["T4", false]], runs: ["r2"], lastBeat: now - 40 },
     { id: "k-103", goal: "kg-2", agent: 1, title: "payment error-copy.json", state: "stopped", reason: "unresponsive", elapsed: 52 * MIN, now: null, plain: plain("결제: 오류 문구 바꾸기"), todos: [["T5", false]], runs: ["r3"], lastBeat: now - 52 * MIN },
     { id: "k-104", goal: "kg-2", agent: 1, title: "payment failure review", state: "waiting", reason: "review", elapsed: 3 * HOUR, now: null, plain: plain("결제: 실패 화면 검토", null, "실패 화면 세 곳의 문구와 버튼을 비교함"), todos: [["T6", false]], runs: ["r4"], lastBeat: now - 3 * HOUR },
@@ -257,8 +263,13 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
             ]
           : card.id === "k-101"
           ? [
-              { id: 1, author: agentId(0), body: "지난 릴리스 이후 병합된 변경부터 모읍니다.", createdAt: now - 11 * MIN },
-              { id: 2, author: OWNER.id, body: "문서만 바뀐 변경은 따로 묶어 주세요.", createdAt: now - 6 * MIN },
+              // In time order: the agent's note in round 1; the owner asks for the doc-only group before round 2 does
+              // it, sends round 2 back for one-line summaries, then asks for a table before round 3 (which does both).
+              // The owner's words are also the record's comment rows at the same times (records()).
+              { id: 1, author: agentId(0), body: "지난 릴리스 이후 병합된 변경부터 모읍니다.", createdAt: now - 2 * HOUR - 55 * MIN },
+              { id: 2, author: OWNER.id, body: "문서만 바뀐 변경은 따로 묶어 주세요.", createdAt: now - 90 * MIN },
+              { id: 3, author: OWNER.id, body: "변경마다 한 줄 요약을 붙여 주세요", createdAt: now - 45 * MIN },
+              { id: 4, author: OWNER.id, body: "변경 목록은 표로 보여 주세요", createdAt: now - 25 * MIN },
             ]
           : [],
       runs: rounds[card.id] ?? [
@@ -486,7 +497,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     at: now,
     errors,
     counts: {
-      inbox: decide.length + 1 + 1 + mineRows.length,
+      inbox: decide.length + 1 + 2 + mineRows.length,
       running: 2,
       stopped: 1,
       due: due.overdue.length + due.today.length + due.week.length + due.later.length,
@@ -494,7 +505,8 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       agents: { [agentId(0)]: 1, [agentId(1)]: 1, [agentId(2)]: 0 },
       unread: notices.filter((notice) => !notice.read).length,
     },
-    cards: runCards,
+    // Like the core (hermes_cli/worker/board.py), the board lists only worker runs outside any card.
+    cards: runCards.filter((run) => !cardSeeds.some((card) => (card.runs as readonly string[]).includes(run.id))),
     inbox: { decide, review: ["r6"], mine: mineRows },
     due,
     notices,
@@ -524,6 +536,64 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     cards: cardList,
     cardDetails,
     inbox: { blocked: [], questions: [question] },
+    runs: runCards,
+    records: records(now),
+  };
+}
+
+/**
+ * The worker runs' own records. r1 (k-101's job) has its round going now (a sentence, a tools row, a raw English
+ * line with a path, a sentence said three times in a row), an earlier round the owner sent back with its note, a
+ * round whose start fell out of the kept history with only its result, and two comments made between rounds. r6 has one
+ * finished round whose result line is raw text. Raw text here fails the screens' no-raw-text tests if drawn as is.
+ */
+function records(now: number): Record<string, RunRecord> {
+  const row = (at: number, kind: RunRecord["comments"][number]["kind"], text: string | null, count = 1) => ({ at, kind, text, count });
+  return {
+    r1: {
+      id: "r1",
+      at: now,
+      rounds: [
+        {
+          run: 3,
+          startedAt: now - 12 * MIN,
+          endedAt: null,
+          endKnown: false,
+          startUnknown: false,
+          result: null,
+          verdict: null,
+          stopped: false,
+          rows: [
+            row(now - 11 * MIN, "said", "변경마다 한 줄 요약을 붙이는 중"),
+            row(now - 10 * MIN, "tools", null, 4),
+            row(now - 8 * MIN, "said", "Running npm test in packages/release"),
+            row(now - 6 * MIN, "said", "요약을 표로 옮기는 중", 3),
+          ],
+        },
+        {
+          run: 2,
+          startedAt: now - HOUR,
+          endedAt: now - 40 * MIN,
+          endKnown: true,
+          startUnknown: false,
+          result: "문서만 바뀐 변경을 따로 묶음",
+          verdict: "rejected",
+          stopped: false,
+          rows: [row(now - 45 * MIN, "comment", "변경마다 한 줄 요약을 붙여 주세요")],
+        },
+        // Round 1 (r9's): its start fell out of the kept history; it ends where r9 ends.
+        { run: null, startedAt: null, endedAt: now - 2 * HOUR - 40 * MIN, endKnown: true, startUnknown: true, result: "병합된 변경 41개를 모음", verdict: null, stopped: false, rows: [] },
+      ],
+      comments: [row(now - 90 * MIN, "comment", "문서만 바뀐 변경은 따로 묶어 주세요."), row(now - 25 * MIN, "comment", "변경 목록은 표로 보여 주세요")],
+      errors: [],
+    },
+    r6: {
+      id: "r6",
+      at: now,
+      rounds: [{ run: 1, startedAt: now - 6 * HOUR, endedAt: now - 5 * HOUR, endKnown: true, startUnknown: false, result: "index-structure benchmark v2 done (3f2a1c9)", verdict: null, stopped: false, rows: [] }],
+      comments: [],
+      errors: [],
+    },
   };
 }
 
@@ -533,7 +603,8 @@ export const SCENE_COUNTS = {
   goals: 5,
   todos: 12,
   decisions: 4,
-  inbox: 7,
+  // 결정 필요 4, 검토 필요 2 (r6 outside any card, k-104 a card waiting for review), 내 할 일 2.
+  inbox: 8,
   running: 2,
   stopped: 1,
   due: 5,

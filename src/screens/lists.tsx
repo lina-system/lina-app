@@ -264,7 +264,7 @@ export function DoneScreen({ agent }: { agent?: string }) {
 function GoalLine({ goal, showAgent }: { goal: GoalRow; showAgent: boolean }) {
   const { model, selected } = useApp();
   const actions = useActions();
-  const closed = goal.todosTotal > 0 && goal.todosDone === goal.todosTotal;
+  const closed = goal.allDone;
   const shown = actions.isDone(goal.id, goal.state === "done");
   return (
     <li class={`row goal-row${closed ? " check-row" : ""}${closed && shown ? " is-checked" : ""}`} data-testid="row">

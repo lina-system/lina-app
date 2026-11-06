@@ -3,7 +3,10 @@
  * number, an address or a cut-off fragment shows as one folded entry instead (the dashboard's rule for comment
  * rewrites, carried over as a rule: the same kinds of text the core refuses in its checked lines, lina#151).
  */
-export type FoldReason = "path" | "command" | "hash" | "issue" | "address" | "fragment";
+export type FoldReason = "path" | "command" | "hash" | "issue" | "address" | "fragment" | "latin";
+
+/** Latin words the core's checked lines allow (hermes_cli/lina_board_plain.py ALLOWED_LATIN); any other is raw text. */
+const ALLOWED_LATIN = new Set(["LINA", "Honcho", "GitHub", "macOS", "iPhone", "Telegram", "Codex"]);
 
 const RULES: readonly (readonly [FoldReason, RegExp])[] = [
   ["address", /https?:|www\./i],
@@ -18,5 +21,7 @@ export function foldReason(text: string): FoldReason | null {
   const body = text.trim();
   if (!body) return "fragment";
   for (const [reason, rule] of RULES) if (rule.test(body)) return reason;
-  return null;
+  // An English word of three letters or more is raw text the screen never shows (the core's rule for its lines).
+  const latin = (body.match(/[A-Za-z][A-Za-z0-9]*/g) ?? []).filter((word) => (word.match(/[A-Za-z]/g) ?? []).length >= 3 && !ALLOWED_LATIN.has(word));
+  return latin.length ? "latin" : null;
 }

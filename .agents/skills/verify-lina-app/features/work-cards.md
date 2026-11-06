@@ -17,13 +17,14 @@ Each piece of work is one card: a work card (a kanban sub-card an agent runs a s
 - The title is `plain.title`; a running card's now line (wide windows) is `plain.now`. A line the core has not written, or one that failed its check, is null and never shows raw text: a card with no checked title is named by its kind of work in grey (`코드 작업`, `문서 작업`, `조사`, `기기 작업`) on the home, the agent screen and its detail head; a missing now line draws nothing.
 - When the writer of the checked lines has stopped, the freshness line adds one orange `· 요약 멈춤`.
 - Every count equals its list: the sidebar's `진행 중인 작업` grey and red numbers are the running list, `완료` is the two finished sections, and each section head is its rows.
-- A card's detail: its kind icon and word, its name and state line; then `지금` (`plain.now`), `끝난 것` (only its result line, when it has one), `할 일` (the to-dos it owns), `실행` (its worker runs in the secondary label colour and regular weight, grouped by follow-up round, newest round first, each round with its own start and end time, with its day when not today: `어제 23:41`) and its comments. A box shows only when it adds something: nothing repeats the to-do list, and a round's single run does not repeat the round's state and time.
+- A card's detail: its kind icon and word, its name and state line; then `지금` (`plain.now`), `끝난 것` (only its result line, when it has one), `할 일` (the to-dos it owns), `기록` (its rounds, newest first, each head `라운드 n · <start–end> · <outcome>` linking to the round's worker run; see card-detail.md) and its comments. The rounds show once: `실행` (its worker runs by round, in the secondary label colour and regular weight) stands only while the record is not shown, and under the error line when the record's read failed. A box shows only when it adds something: nothing repeats the to-do list.
 - A running card with to-dos shows a thin bar and its count (`1/3`) after its lines on a wide window; on a phone the bar is in its detail head only.
 - A comment on a card shows its sentence with author and time. One that would show a path, a command, a hash, an issue number, an address or a cut-off fragment is one folded entry, `접힌 댓글 · <author> · <time>`; its text opens only when chosen.
 - A round whose start fell out of the kept history shows one dim line, `라운드 n · 시작 기록 없음`, only when it holds content (a line it said, or a worker run), and draws that content under it dimmed; a round with only its end on record shows nothing. A line that would show a path or a command reads `접힌 댓글`.
 - A stopped card's detail head shows `중단됨 · <reason>` in red, as on the home; its time stays grey.
 - A card just created (예정, not started) shows only on its agent's screen, in a `예정 n` group after `검토 필요`, with no time beside it (agent-screen.md); the home keeps its order without it.
 - 완료's agent filter is the address (`#/done?agent=<id>`): it survives a reload and every live update, nothing goes to web storage, each choice's count is the list it shows, and the filtered list's `최근 활동 <time>` reads the same as on the agent's screen.
+- A card's detail and a worker run's page show the run's own timeline below the boxes and above the comments (card-detail.md); it refetches on the run's `worker` change event and keeps its open state.
 - A card's checked lines change in place when its kanban event arrives: only the card list and that card's detail are read again (live.md).
 
 ## Sub-features
@@ -39,6 +40,7 @@ Each piece of work is one card: a work card (a kanban sub-card an agent runs a s
 - `cards-no-start` draws a round with no start on record as one dim line, only with content
 - `cards-done-filter` keeps 완료's agent filter in the address
 - `cards-planned` shows a card just created on its agent's screen, not on the home
+- `cards-timeline` shows each run's rounds once, newest first, heads linking to their worker runs, sentences bright and tools dim
 
 ## How to get to it (user POV)
 
@@ -51,18 +53,19 @@ Each piece of work is one card: a work card (a kanban sub-card an agent runs a s
 Preconditions:
 
 - `verify.mjs doctor` reports `"healthy": true` for this run.
-- The page is `/app/?source=synthetic`. In its scene k-101 is in its third follow-up round, k-102 has no checked lines at all, r7 and r8 are two jobs on one to-do with one generated title (r7 finished 30 minutes ago, r8 two days ago), k-103 is stopped with no response, and k-106 was just created (예정 · ready, no run yet). `&writer=stopped` (`/app/?source=synthetic&writer=stopped#/running`) stops the writer.
+- The page is `/app/?source=synthetic`. In its scene k-101 is in its third follow-up round, k-102 has no checked lines at all, r7 and r8 are two jobs on one to-do with one generated title (r7 finished 30 minutes ago, r8 two days ago), k-103 is stopped with no response, r1 (k-101's job) and r6 have records (lina#201), and k-106 was just created (예정 · ready, no run yet). `&writer=stopped` (`/app/?source=synthetic&writer=stopped#/running`) stops the writer.
 
 - **Home.** Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive work-cards`. On `#/` (1280) or the menu's `진행 중인 작업` (390) the lists read `수신함`, `진행 중인 작업`, `대기`, `24시간 안에 끝남`, `이전에 끝남`; the decisions line is `결정 필요 4`; the first card ends `중단됨 · 응답 없음`.
 - **Counts.** Each section's count equals its rows; at 1280 the sidebar's 진행 중인 작업 numbers add up to the running list and 완료 equals the two finished sections.
 - **One card per run.** `릴리스 노트: 변경 목록 정리` shows once and r9, r10 not at all; `가이드 초안 다듬기` shows twice, to `#/runs/r7` and `#/runs/r8`.
-- **Checked lines.** No raw title or live line (`grouping merged PRs`, `payment card-form polish`, `guide-draft.md`) is on the home; `변경 목록을 기능별로 묶는 중` shows at 1280 only. The k-102 card is named `코드 작업` in the state line's grey; its detail head reads `코드 작업`, the kind `코드` and no `지금`.
-- **Detail.** `#/cards/k-101` shows `지금`, `할 일`, `실행`, `댓글`; its rounds read `라운드 3 · <hh:mm> · 진행 중`, `라운드 2 · <hh:mm>–<hh:mm>`, `라운드 1 · …`; every worker run row is in the round head's grey at weight 400; a round's single run row carries neither a state nor a time, since the round head carries its start and end (`라운드 2 · <hh:mm>–<hh:mm>`).
+- **Checked lines.** No raw title or live line (`adding one-line summaries`, `payment card-form polish`, `guide-draft.md`) is on the home; `변경마다 한 줄 요약을 붙이는 중` shows at 1280 only. The k-102 card is named `코드 작업` in the state line's grey; its detail head reads `코드 작업`, the kind `코드` and no `지금`.
+- **Detail.** `#/cards/k-101` shows `지금`, `할 일`, `기록`, `댓글` and no `실행`; its round heads read `라운드 3 · <hh:mm> · 진행 중`, `라운드 2 · <hh:mm>–<hh:mm> · 검토 반려`, `라운드 1 · <hh:mm> · 작업 마침`, where round 1's time is r9's own end (2시간 40분 전).
 - **Group heading and finished times.** The home's `진행 중` head reads `2` and a red `1`; `24시간 안에 끝남` reads `완료 · <n>분 전` or `<n>시간 전`, `이전에 끝남` `완료 · <n>일 전`.
 - **Folded comments.** `#/cards/k-103` has three comments: the first reads as written; the second (a file and a hash) and the third (cut off) read `접힌 댓글 · …`, and the page shows neither `errors.json` nor `3f2a1c9` until the second is opened.
 - **No start on record.** `#/cards/k-103` shows `라운드 3 · <hh:mm> · 중단됨` (no end, its run no longer beats) and `라운드 1 · 시작 기록 없음` (regular weight) with the line it left under it, `오류 문구 초안을 남김`, dimmed; round 2, which kept only its end, is not drawn. Its head reads `중단됨 · 응답 없음` in red and its time in grey.
 - **완료 filter.** On `#/done` choose the first agent: the address becomes `#/done?agent=<id>`, a reload keeps it pressed, its count equals its rows, `최근 활동` equals the agent screen's, and web storage stays empty.
 - **To-do bar.** At 1280 the home's running cards read `할 일 1/3` and `할 일 0/1`; at 390 there is none on the home. `#/cards/k-101`'s head shows the bar and the words `할 일 1/3` at both widths; the home's rows keep `1/3` beside the bar.
+- **Timeline.** `#/cards/k-101`'s boxes end `기록`, `댓글`. Its blocks read `going`, `comment`, `rejected`, `comment`, `ended`: `라운드 3 · <hh:mm> · 진행 중`, `댓글 · <hh:mm>` (표로 보여 주세요), `라운드 2 · <hh:mm>–<hh:mm> · 검토 반려` (with the owner's note `변경마다 한 줄 요약을 붙여 주세요`), `댓글 · <hh:mm>` (문서만 바뀐 변경은 따로 묶어 주세요.), `라운드 1 · <hh:mm> · 작업 마침` (no dash before a lone end). The story runs in time order: each request comes before the round that does it, and the going round does what round 2 was sent back for. The going round's rows read `변경마다 한 줄 요약을 붙이는 중` (label colour), `도구 사용 4번` (dim), `요약을 표로 옮기는 중 ×3`; its raw English line is left out with no placeholder; the oldest block opens with `시작 기록 없음`; no `Running`, `npm`, `packages` or `가린 문장` anywhere. The owner's three comments in the record are the owner's three in `댓글`, at the same times. Focusing round 3's head and pressing Enter opens `#/runs/r1` (not on the board), a page named `코드 작업` with its timeline.
 - **Writer stopped.** `/app/?source=synthetic&writer=stopped#/running` shows one `· 요약 멈춤`; at 390 the phone measurements hold.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/work-cards/work-cards-1280.{png,aria.yml,json}` and `work-cards-390.{png,aria.yml,json}`.
 

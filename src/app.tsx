@@ -13,7 +13,7 @@ import { BackIcon, BellIcon, CalendarIcon, DeviceIcon, DoneIcon, GoalIcon, Inbox
 import { AgentMark, CountPair, Ctx, Disclosure, useApp, type AppContext } from "./ui/parts";
 import { ActionsCtx, useActions, useActionsFor } from "./ui/actions";
 import { APP_VERSION } from "./version";
-import { SEP, W } from "./words";
+import { KIND_TITLE, SEP, W } from "./words";
 
 export const WIDE_QUERY = "(min-width: 900px)";
 
@@ -50,7 +50,7 @@ export function titleOf(route: Route, model: Model, store: Store): string {
       return model.cards.get(route.id)?.name ?? W.cards;
     case "run": {
       const run = model.runs.get(route.id);
-      return run ? runRow(run).name : W.cards;
+      return run ? runRow(run).name : model.runOwner.has(route.id) ? KIND_TITLE.code : W.cards;
     }
   }
 }
@@ -64,7 +64,10 @@ function wantsFor(route: Route, store: Store): Want {
       return [["item", route.id], ...(detail?.workCards ?? []).filter((id) => goalCards.has(id)).map((id) => ["goal", id] as const)];
     }
     case "card":
-      return [["card", route.id]];
+      // A card's detail and the records of its worker runs (the timeline).
+      return [["card", route.id], ...(store.get("card", route.id)?.workerRuns ?? []).map((worker) => ["record", worker.id] as const)];
+    case "run":
+      return [["record", route.id]];
     default:
       return [];
   }

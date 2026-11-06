@@ -45,7 +45,7 @@ Preconditions:
 - **State lines.** Read each grey line. `중단됨 · 응답 없음 · n분 전`, then `진행 중 · n분째` or `n시간째`.
 - **Retry.** The stopped card has one `다시 시도` button; choosing it is driven in actions.md.
 - **No running card.** Load `/app/?source=synthetic&running=none#/running`. One row, the stopped card, with an accent `다시 시도`; no `없음`.
-- **Now line.** Look for `변경 목록을 기능별로 묶는 중`. Visible at 1280, absent at 390.
+- **Now line.** Look for `변경마다 한 줄 요약을 붙이는 중`. Visible at 1280, absent at 390.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/running/running-1280.{png,aria.yml,json}` and `running-390.{png,aria.yml,json}`.
 
 ## Gotchas

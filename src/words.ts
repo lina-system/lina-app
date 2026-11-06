@@ -112,6 +112,23 @@ export const W = {
   stoppedCount: (n: number) => `중단됨 ${n}`,
   machineState: { ok: "정상", warn: "경고", down: "꺼짐" } as Record<string, string>,
   load: (running: number | null, cap: number) => `작업 ${running ?? NONE}/${cap}`,
+  runnerWhy: {
+    update: "업데이트 필요",
+    prepare: "준비 필요",
+    sign_in: "로그인 필요",
+    unreachable: "연결 끊김",
+    unknown: "확인 중",
+  } as Readonly<Record<string, string>>,
+  signedIn: "로그인됨",
+  signIn: "로그인",
+  signingIn: "로그인 중",
+  restart: "다시 시작",
+  restartOf: (name: string) => `${name} 다시 시작`,
+  restartWorker: "작업 실행기",
+  restartOcx: "OCX",
+  restartWorkerConfirm: "작업 실행기를 다시 시작합니다.",
+  restartOcxConfirm: "OCX를 다시 시작합니다.",
+  connected: "연결됨",
   cpu: "CPU",
   memory: "메모리",
   disk: "디스크",
@@ -325,6 +342,11 @@ export const MACHINE_WHY: Readonly<Record<string, string>> = {
 
 export function machineWhy(why: string | null | undefined): string | null {
   return why && Object.hasOwn(MACHINE_WHY, why) ? MACHINE_WHY[why] : null;
+}
+
+/** The one reason word in a runner cell. A reason the table does not know yet reads as 확인 중. */
+export function runnerReason(why: string | null | undefined): string {
+  return why && Object.hasOwn(W.runnerWhy, why) ? W.runnerWhy[why] : W.runnerWhy.unknown;
 }
 
 /** Display names for the services the core knows; any other service shows as the core gives it. */

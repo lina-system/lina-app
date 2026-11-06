@@ -7,6 +7,7 @@ import type {
   ItemSummary,
   Machine,
   ModelsState,
+  PersonDevice,
   Notice,
   QuotaService,
   QuotaView,
@@ -201,6 +202,8 @@ export interface Model {
   readonly runOwner: ReadonlyMap<string, string>;
   readonly items: ReadonlyMap<string, ItemSummary>;
   readonly machines: readonly Machine[];
+  /** The owner's own Macs (role person). They are not nodes and are not counted in `counts.devices`. */
+  readonly person: readonly PersonDevice[];
   readonly devices: { readonly ok: readonly Machine[]; readonly warn: readonly Machine[]; readonly down: readonly Machine[] };
   readonly quota: readonly QuotaService[];
   /** Services OCX holds no account for (the view's `missing`), one line each under the quota rows. */
@@ -452,6 +455,7 @@ export function buildModel(input: ModelInput, now: number): Model {
     });
 
   const machines = input.devices?.machines ?? board?.machines ?? [];
+  const person = input.devices?.person ?? [];
   const quota = input.quota?.quota ?? board?.quota ?? [];
   const quotaMissing = input.quota?.missing ?? [];
   const usage = usageViews(input.usage);
@@ -503,6 +507,7 @@ export function buildModel(input: ModelInput, now: number): Model {
     runOwner,
     items: itemMap,
     machines,
+    person,
     devices: { ok: okMachines, warn: warnMachines, down: downMachines },
     quota,
     quotaMissing,

@@ -1,7 +1,7 @@
 import type { WriteResult } from "../data/source";
 import { W } from "../words";
 
-export type WriteKind = "comment" | "answer" | "done" | "undo" | "retry" | "read";
+export type WriteKind = "comment" | "answer" | "done" | "undo" | "retry" | "read" | "device";
 
 /**
  * Every refusal the core sends (hermes_cli/lina_board_write.py and the `lina work` messages it passes on, in the
@@ -27,6 +27,8 @@ const CONFLICT: Partial<Record<WriteKind, string>> = {
 };
 
 export function writeError(kind: WriteKind, result: Extract<WriteResult<unknown>, { ok: false }>): string {
+  // A device refusal's 429 means "not the owner's device", so its one line stays; other writes still read as too many.
+  if (kind === "device") return result.detail ?? W.writeFailed;
   if (result.status === 429) return W.errTooMany;
   const known = result.detail ? REFUSALS.find(([pattern]) => pattern.test(result.detail ?? "")) : undefined;
   if (known) return known[1];

@@ -429,6 +429,52 @@ test("the synthetic models view warns for each runner whose model does not run n
   expect(view?.warnings).toHaveLength(2);
 });
 
+test("restart and sign-in post to the device's routes with the session token", async () => {
+  const answer = (url: string) =>
+    new Response(JSON.stringify({ ok: true, device: "솔 방울", action: url.endsWith("/sign-in") ? "sign-in" : "restart", state: url.endsWith("/sign-in") ? "started" : "restarted", reason: null }), {
+      status: url.endsWith("/sign-in") ? 202 : 200,
+    });
+  const { calls, fetchImpl } = recordingFetch(answer);
+  const source = new HttpSource({ fetch: fetchImpl, token: "token-a" });
+  expect(await source.restartDevice("솔 방울", "worker")).toMatchObject({ ok: true, data: { action: "restart", state: "restarted" } });
+  expect(await source.signInDevice("솔 방울", "글결")).toMatchObject({ ok: true, data: { action: "sign-in", state: "started" } });
+  expect(calls.map((call) => [call.method, call.url, call.body])).toEqual([
+    ["POST", "/api/lina/devices/%EC%86%94%20%EB%B0%A9%EC%9A%B8/restart", { service: "worker" }],
+    ["POST", "/api/lina/devices/%EC%86%94%20%EB%B0%A9%EC%9A%B8/sign-in", { runner: "글결" }],
+  ]);
+  expect(calls.every((call) => call.headers["X-Hermes-Session-Token"] === "token-a")).toBe(true);
+});
+
+test("sign-in waits, then the next devices read shows the runner signed in", async () => {
+  const source = new SyntheticSource();
+  const machine = source.scene.devices.machines.find((item) => item.runners.some((cell) => cell.why === "sign_in"));
+  expect(machine).toBeTruthy();
+  const runner = machine?.runners.find((cell) => cell.why === "sign_in");
+  expect(runner).toBeTruthy();
+  await source.read("devices");
+  const started = Date.now();
+  const first = source.signInDevice(machine?.name ?? "", runner?.name ?? "");
+  expect(await source.signInDevice(machine?.name ?? "", runner?.name ?? "")).toMatchObject({ ok: false, status: 409 });
+  expect(await first).toMatchObject({ ok: true, data: { action: "sign-in", state: "started" } });
+  expect(Date.now() - started).toBeGreaterThanOrEqual(150);
+  expect(runner?.signIn).not.toBe("signed_in");
+  const read = await source.read("devices");
+  expect(read.kind).toBe("data");
+  const after = source.scene.devices.machines.find((item) => item.name === machine?.name)?.runners.find((cell) => cell.name === runner?.name);
+  expect(after).toMatchObject({ signIn: "signed_in", why: null, ready: true });
+  expect(await source.signInDevice(machine?.name ?? "", runner?.name ?? "")).toMatchObject({ ok: false, status: 409 });
+  const person = source.scene.devices.person[0];
+  expect(await source.signInDevice(person.name, runner?.name ?? "")).toMatchObject({ ok: false, status: 409 });
+  expect(await source.signInDevice("없는 기기", runner?.name ?? "")).toMatchObject({ ok: false, status: 404 });
+  expect(await source.restartDevice(machine?.name ?? "", "ocx")).toMatchObject({ ok: true, data: { action: "restart", state: "restarted" } });
+  expect(source.deviceWrites).toEqual([
+    { device: machine?.name, action: "sign-in", runner: runner?.name },
+    { device: machine?.name, action: "restart", service: "ocx" },
+  ]);
+  expect((await source.read("devices")).kind).toBe("unchanged");
+  expect(await source.restartDevice(person.name, "worker")).toMatchObject({ ok: false, status: 409 });
+});
+
 test("a read that lands after another read of the same route keeps the data the first one brought", async () => {
   const source = new SyntheticSource();
   const store = new Store(source);

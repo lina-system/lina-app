@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import { USAGE_RANGES, type Machine, type QuotaAccount, type QuotaService, type UsageRange } from "../api/client";
+import { USAGE_RANGES, type Machine, type PersonDevice, type QuotaAccount, type QuotaService, type RunnerCell, type UsageRange } from "../api/client";
 import type { CardRow, DueRow, GoalRow, InboxRow } from "../model";
 import { agentView, doneFor } from "../model";
 import type { OpenCheck } from "../model/checks";
@@ -10,7 +10,8 @@ import { useEffect, useState } from "preact/hooks";
 import { KoreanInput } from "../korean-input";
 import { useActions } from "../ui/actions";
 import { AgentMark, agentName, CardRowView, CountPair, Dial, Disclosure, DoneCheck, Empty, ErrorLine, Link, ListSection, useApp } from "../ui/parts";
-import { machineWhy, serviceName, SEP, W } from "../words";
+import { machineWhy, runnerReason, serviceName, SEP, W } from "../words";
+import { writeError } from "./write-error";
 
 type DecideRow = Extract<InboxRow, { type: "decide" }>;
 
@@ -353,7 +354,97 @@ function Meter({ label, value }: { label: string; value: number | null }) {
   );
 }
 
+interface RestartAsk {
+  device: string;
+  step: "choose" | "worker" | "ocx";
+}
+
+interface DeviceNote {
+  device: string;
+  line: string;
+}
+
+/** The restart sheet is drawn beside the shell, so the phone screen does not clip it. The row reads the note from here. */
+let restartAsk: RestartAsk | null = null;
+let deviceNote: DeviceNote | null = null;
+const restartListeners = new Set<() => void>();
+
+function publishRestart(): void {
+  for (const listener of restartListeners) listener();
+}
+
+function useRestartState(): { ask: RestartAsk | null; note: DeviceNote | null } {
+  const [state, setState] = useState({ ask: restartAsk, note: deviceNote });
+  useEffect(() => {
+    const listener = () => setState({ ask: restartAsk, note: deviceNote });
+    restartListeners.add(listener);
+    return () => restartListeners.delete(listener);
+  }, []);
+  return state;
+}
+
+function openRestart(device: string): void {
+  restartAsk = { device, step: "choose" };
+  publishRestart();
+}
+
+function closeRestart(): void {
+  if (!restartAsk) return;
+  restartAsk = null;
+  publishRestart();
+}
+
+function chooseRestart(step: "worker" | "ocx"): void {
+  if (!restartAsk) return;
+  restartAsk = { device: restartAsk.device, step };
+  publishRestart();
+}
+
+/** A fine runner shows its installed version and the signed-in mark. A sign-in cell shows the reason and one button. */
+function RunnerCellView({ machine, runner }: { machine: Machine; runner: RunnerCell }) {
+  const { store } = useApp();
+  const [signing, setSigning] = useState(false);
+  const [error, setError] = useState<string | undefined>(undefined);
+  const fine = !runner.why && (runner.signIn === "signed_in" || runner.signIn === "api_key" || runner.signIn === "ocx");
+  const pending = signing && runner.signIn !== "signed_in";
+  const needsSignIn = !fine && !pending && (runner.why === "sign_in" || runner.signIn === "signed_out");
+  const signIn = () => {
+    setError(undefined);
+    setSigning(true);
+    void (async () => {
+      const result = await store.source.signInDevice(machine.name, runner.name);
+      if (result.ok) await store.invalidate([["devices"]]);
+      else setError(writeError("device", result));
+      setSigning(false);
+    })();
+  };
+  return (
+    <div class="runner-cell" data-testid="runner-cell">
+      <span class="runner-name">{runner.name}</span>
+      {fine ? (
+        <>
+          <span class="runner-detail">{runner.installed ?? W.none}</span>
+          <span class="signed-mark" role="img" aria-label={W.signedIn}>
+            ✓
+          </span>
+        </>
+      ) : pending || needsSignIn ? (
+        <>
+          {pending ? null : <span class="runner-detail">{W.runnerWhy.sign_in}</span>}
+          <button type="button" class="text-button" disabled={pending} onClick={pending ? undefined : signIn}>
+            {pending ? W.signingIn : W.signIn}
+          </button>
+        </>
+      ) : (
+        <span class="runner-detail">{runnerReason(runner.why)}</span>
+      )}
+      {error ? <ErrorLine line={error} /> : null}
+    </div>
+  );
+}
+
 function MachineRow({ machine }: { machine: Machine }) {
+  const { note } = useRestartState();
   const word = W.machineState[machine.state] ?? "";
   const why = machineWhy(machine.why);
   const meters = [
@@ -363,7 +454,7 @@ function MachineRow({ machine }: { machine: Machine }) {
   ] as const;
   const label = [machine.name, word, why, ...meters.map(([name, value]) => W.meter(name, value)), W.load(machine.running, machine.cap)].filter(Boolean).join(SEP);
   return (
-    <li class={`row machine-row is-${machine.state}`} data-testid="row">
+    <li class={`row machine-row is-${machine.state}`} data-testid="row" data-role={machine.role}>
       <div class="row-body" aria-label={label}>
         <span class={`status-dot is-${machine.state}`} aria-hidden="true" />
         <span class="lines">
@@ -380,7 +471,104 @@ function MachineRow({ machine }: { machine: Machine }) {
         </span>
         <span class="trail">{W.load(machine.running, machine.cap)}</span>
       </div>
+      <div class="machine-restart">
+        <button type="button" class="text-button" aria-label={W.restartOf(machine.name)} onClick={() => openRestart(machine.name)}>
+          {W.restart}
+        </button>
+      </div>
+      <div class="runner-grid" role="group" aria-label={`${machine.name} ${W.runners}`}>
+        {machine.runners.map((runner) => (
+          <RunnerCellView key={runner.name} machine={machine} runner={runner} />
+        ))}
+      </div>
+      <ErrorLine line={note?.device === machine.name ? note.line : undefined} />
     </li>
+  );
+}
+
+function personState(device: PersonDevice): string {
+  if (device.reachable === true) return W.connected;
+  if (device.reachable === false) return W.offline;
+  return W.runnerWhy.unknown;
+}
+
+function PersonRow({ device }: { device: PersonDevice }) {
+  const state = personState(device);
+  return (
+    <li class="person-row">
+      <span class="person-name">{device.name}</span>
+      <span class={`person-state${device.reachable === false ? " is-off" : ""}`}>{state}</span>
+      {device.tools.map((tool) => (
+        <span key={tool.name} class="person-tool">
+          {`${tool.name} ${tool.installed ?? W.none}`}
+        </span>
+      ))}
+    </li>
+  );
+}
+
+/**
+ * One question before a restart: a bottom sheet on a phone, a small dialog on a wide window. Drawn beside the shell,
+ * like the settings rollback, so the phone screen's view transition does not trap it.
+ */
+export function RestartSheet() {
+  const { store } = useApp();
+  const { ask } = useRestartState();
+  useEffect(() => {
+    return () => {
+      restartAsk = null;
+      deviceNote = null;
+    };
+  }, []);
+  useEffect(() => {
+    if (!ask) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeRestart();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [ask]);
+  if (!ask) return null;
+  const confirming = ask.step === "worker" || ask.step === "ocx";
+  const send = () => {
+    if (ask.step !== "worker" && ask.step !== "ocx") return;
+    const { device, step } = ask;
+    // Close before the post, so a second tap cannot send it twice. A 200 leaves the row as it was.
+    restartAsk = null;
+    publishRestart();
+    void (async () => {
+      const result = await store.source.restartDevice(device, step);
+      deviceNote = result.ok ? null : { device, line: writeError("device", result) };
+      publishRestart();
+      await store.invalidate([["devices"]]);
+    })();
+  };
+  return (
+    <>
+      <div class="settings-scrim" aria-hidden="true" onClick={closeRestart} />
+      <div class="settings-sheet" role="dialog" aria-modal="true" aria-label={W.restart} data-testid="restart-sheet">
+        {confirming ? (
+          <>
+            <p class="settings-sheet-text">{ask.step === "worker" ? W.restartWorkerConfirm : W.restartOcxConfirm}</p>
+            <button type="button" class="settings-sheet-button" onClick={send}>
+              {W.restart}
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" class="settings-sheet-button" onClick={() => chooseRestart("worker")}>
+              {W.restartWorker}
+            </button>
+            <button type="button" class="settings-sheet-button" onClick={() => chooseRestart("ocx")}>
+              {W.restartOcx}
+            </button>
+          </>
+        )}
+        <button type="button" class="settings-sheet-button" onClick={closeRestart}>
+          {W.cancel}
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -578,6 +766,8 @@ export function StatusScreen() {
   // The quota panel is the service rows, then one row for each service OCX holds no account for, then OCX's own row.
   // A failed quota read leaves neither a service nor a missing service, so the panel stays away with OCX's row.
   const hasQuota = model.quota.length + model.quotaMissing.length > 0;
+  // Work nodes, then the file node. Person devices are a group of their own and are not machine rows.
+  const nodes = [...model.machines].sort((a, b) => Number(a.role === "files") - Number(b.role === "files"));
   return (
     <div class="list" data-testid="screen-status">
       <section class="list-section" data-testid="section-machines">
@@ -585,11 +775,23 @@ export function StatusScreen() {
           <span>{W.devices}</span>
         </h2>
         <ul class="rows" aria-label={W.devices}>
-          {model.machines.map((machine) => (
+          {nodes.map((machine) => (
             <MachineRow key={machine.name} machine={machine} />
           ))}
         </ul>
       </section>
+      {model.person.length ? (
+        <section class="list-section" data-testid="section-person">
+          <h2 class="section-head">
+            <span>{W.myDevices}</span>
+          </h2>
+          <ul class="rows" aria-label={W.myDevices}>
+            {model.person.map((device) => (
+              <PersonRow key={device.name} device={device} />
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {hasQuota ? (
         <section class="list-section" data-testid="section-quota">
           <h2 class="section-head">

@@ -1,4 +1,4 @@
-import { SETTINGS_HISTORY, type ActionResult, type AnswerRequest, type AnswerResult, type BoardSnapshot, type ChangeEvent, type ChangeMessage, type CommentRequest, type DoneRequest, type ItemDetail, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type Settings, type SettingsAuditLine, type SettingsModel, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest, type WorkState } from "../api/client";
+import { SETTINGS_HISTORY, type ActionResult, type AnswerRequest, type AnswerResult, type BoardSnapshot, type ChangeEvent, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemDetail, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type Settings, type SettingsAuditLine, type SettingsModel, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest, type WorkState } from "../api/client";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type Scene, type SettingsVariant } from "../fixtures/synthetic";
 import { mergePatch } from "../model/settings";
 import { currentSettings, historyView, invalidDetail, modelsView, revisionOf, settingsView, validate, writeRevision } from "./synthetic-settings";
@@ -269,6 +269,9 @@ function fail(status: number, detail: string): WriteResult<never> {
   return { ok: false, status, detail };
 }
 
+/** Long enough that a click's 로그인 중 is still on screen when the click returns. */
+const SIGN_IN_HOLD_MS = 180;
+
 /**
  * Serves the synthetic scene like the core does: data on the first read of a route, then "unchanged" until a write
  * changes the scene. It keeps its own copy of the scene and applies the owner's writes to it the way the core applies
@@ -306,6 +309,12 @@ export class SyntheticSource implements Source {
   private raceNext: boolean;
   /** Every settings write this page sent, refused ones too, for verify.mjs and the tests. */
   readonly settingsWrites: { kind: "patch" | "rollback"; ifMatch: string | null; status: number }[] = [];
+  /** Restarts and sign-ins this page sent and the core took, for the tests. */
+  readonly deviceWrites: { device: string; action: "restart" | "sign-in"; service?: "worker" | "ocx"; runner?: string }[] = [];
+  /** Sign-ins the core has taken and not yet folded into the next devices read. */
+  private readonly signIns = new Set<string>();
+  /** Sign-ins whose answer has not come back yet. */
+  private readonly signing = new Set<string>();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
   constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null } = {}) {
@@ -334,6 +343,7 @@ export class SyntheticSource implements Source {
     if (this.pageToken !== this.coreToken) return { kind: "failed", offline: false, at, denied: true };
     if (this.checksError && name === "checks") return { kind: "failed", offline: false, at };
     this.deliverReplies(at);
+    if (name === "devices") this.applySignIns();
     const body = bodyOf(this.scene, name, id);
     if (body === undefined) return { kind: "missing", at };
     const key = `${name}:${id ?? ""}`;
@@ -584,6 +594,55 @@ export class SyntheticSource implements Source {
   async removePushSubscription(body: PushRemoveRequest): Promise<WriteResult<PushRemoveResult>> {
     this.push.removes += 1;
     return { ok: true, data: { ok: true, removed: this.push.subscriptions.delete(body.endpoint) } };
+  }
+
+  /** Restarts worker or OCX on a node. Nothing on the row changes; the next devices read is unchanged. */
+  async restartDevice(name: string, service: "worker" | "ocx"): Promise<WriteResult<DeviceAction>> {
+    if (service !== "worker" && service !== "ocx") return fail(400, "service는 worker 또는 ocx");
+    if (!this.scene.devices.machines.some((item) => item.name === name)) {
+      if (this.scene.devices.person.some((item) => item.name === name)) return fail(409, "사람 기기는 다시 시작할 수 없습니다");
+      return fail(404, "기기를 찾을 수 없습니다");
+    }
+    this.deviceWrites.push({ device: name, action: "restart", service });
+    return { ok: true, data: { ok: true, device: name, action: "restart", state: "restarted", reason: null } };
+  }
+
+  /**
+   * Starts sign-in. The cell stays as it was until the next devices read, which is what the screen waits on:
+   * the button reads 로그인 중 for the hold, then the read brings the signed-in mark.
+   */
+  async signInDevice(name: string, runner: string): Promise<WriteResult<DeviceAction>> {
+    const machine = this.scene.devices.machines.find((item) => item.name === name);
+    if (!machine) {
+      if (this.scene.devices.person.some((item) => item.name === name)) return fail(409, "사람 기기는 로그인할 수 없습니다");
+      return fail(404, "기기를 찾을 수 없습니다");
+    }
+    const cell = machine.runners.find((item) => item.name === runner);
+    if (!cell) return fail(404, "실행기를 찾을 수 없습니다");
+    const key = `${name}\0${runner}`;
+    if (this.signing.has(key) || this.signIns.has(key)) return fail(409, "로그인이 이미 진행 중입니다");
+    if (cell.signIn === "signed_in" && !cell.why) return fail(409, "이미 로그인되어 있습니다");
+    this.signing.add(key);
+    await new Promise((resolve) => setTimeout(resolve, SIGN_IN_HOLD_MS));
+    this.signing.delete(key);
+    this.signIns.add(key);
+    this.deviceWrites.push({ device: name, action: "sign-in", runner });
+    return { ok: true, data: { ok: true, device: name, action: "sign-in", state: "started", reason: null } };
+  }
+
+  /** Fold queued sign-ins into the scene so this devices read is the one that shows the mark. */
+  private applySignIns(): void {
+    if (!this.signIns.size) return;
+    for (const key of this.signIns) {
+      const [name, runner] = key.split("\0");
+      const cell = this.scene.devices.machines.find((item) => item.name === name)?.runners.find((item) => item.name === runner);
+      if (!cell) continue;
+      cell.signIn = "signed_in";
+      cell.why = null;
+      cell.ready = true;
+    }
+    this.signIns.clear();
+    this.changed();
   }
 
   /** A JSON Merge Patch over the settings, refused like the core: read-only device, stale If-Match, invalid result. */

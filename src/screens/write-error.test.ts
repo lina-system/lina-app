@@ -37,3 +37,10 @@ test("a 429 reads as too many writes whatever its detail; an unknown 409 reads b
   expect(writeError("read", { ok: false, status: 503, detail: "quota: quota source did not answer" })).toBe("quota: quota source did not answer");
   expect(writeError("comment", { ok: false, status: 0, detail: null })).toBe(W.writeFailed);
 });
+
+test("a device refusal keeps the core's one line, including a 429", () => {
+  expect(writeError("device", { ok: false, status: 429, detail: "이 기기의 주인이 아닙니다" })).toBe("이 기기의 주인이 아닙니다");
+  expect(writeError("device", { ok: false, status: 502, detail: "노드가 거절했습니다" })).toBe("노드가 거절했습니다");
+  expect(writeError("device", { ok: false, status: 501, detail: null })).toBe(W.writeFailed);
+  expect(writeError("comment", { ok: false, status: 429, detail: "이 기기의 주인이 아닙니다" })).toBe(W.errTooMany);
+});

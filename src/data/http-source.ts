@@ -1,4 +1,4 @@
-import { cardAnswerPath, EVENTS_PATH, NOTICES_READ_PATH, PUSH_KEY_PATH, PUSH_REMOVE_PATH, PUSH_SUBSCRIPTIONS_PATH, routePath, SETTINGS_PATH, SETTINGS_ROLLBACK_PATH, talkPath, writePath, type ActionResult, type AnswerRequest, type AnswerResult, type ChangeMessage, type CommentRequest, type DoneRequest, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest } from "../api/client";
+import { BOARD_BASE, cardAnswerPath, EVENTS_PATH, NOTICES_READ_PATH, PUSH_KEY_PATH, PUSH_REMOVE_PATH, PUSH_SUBSCRIPTIONS_PATH, routePath, SETTINGS_PATH, SETTINGS_ROLLBACK_PATH, talkPath, writePath, type ActionResult, type AnswerRequest, type AnswerResult, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest } from "../api/client";
 import { nowSeconds, type ChangeHandlers, type ChangeSocket, type ReadResult, type Renewal, type Source, type TalkResult, type WriteResult } from "./source";
 import { readSse } from "./sse";
 
@@ -247,6 +247,14 @@ export class HttpSource implements Source {
     const ifMatch = this.settingsTag(revision);
     if (ifMatch === null) return Promise.resolve(NOT_THE_READ);
     return this.post(SETTINGS_ROLLBACK_PATH, undefined, { ifMatch });
+  }
+
+  restartDevice(name: string, service: "worker" | "ocx"): Promise<WriteResult<DeviceAction>> {
+    return this.post(`${BOARD_BASE}/devices/${encodeURIComponent(name)}/restart`, { service });
+  }
+
+  signInDevice(name: string, runner: string): Promise<WriteResult<DeviceAction>> {
+    return this.post(`${BOARD_BASE}/devices/${encodeURIComponent(name)}/sign-in`, { runner });
   }
 
   /**

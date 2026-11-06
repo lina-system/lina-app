@@ -121,14 +121,81 @@ describe("machines, quota and checks", () => {
   test("each machine row reads name, state, the one reason word, three meters and its load", async () => {
     const view = await open("#/status", { wide: true });
     const rows = [...view.getByRole("list", { name: "기기" }).querySelectorAll(".row-body")].map((row) => row.getAttribute("aria-label"));
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(4);
     expect(rows.some((label) => /^\S+ · 정상 · CPU \d+% · 메모리 \d+% · 디스크 \d+% · 작업 \d+\/\d+$/.test(label ?? ""))).toBe(true);
     expect(rows.some((label) => /^\S+ · 경고 · 디스크 · CPU \d+% · 메모리 \d+% · 디스크 \d+% · 작업 \d+\/\d+$/.test(label ?? ""))).toBe(true);
     expect(rows.some((label) => /^\S+ · 꺼짐 · 연결 끊김 · CPU — · 메모리 — · 디스크 — · 작업 —\/\d+$/.test(label ?? ""))).toBe(true);
     const down = view.container.querySelector(".machine-row.is-down") as HTMLElement;
     expect(down.querySelectorAll(".mini-none")).toHaveLength(3);
     expect(down.querySelectorAll(".meter")).toHaveLength(0);
-    expect(view.container.querySelectorAll(".machine-row.is-ok .meter")).toHaveLength(3);
+    expect(view.container.querySelectorAll(".machine-row.is-ok .meter")).toHaveLength(6);
+  });
+
+  test("each node shows its runners, and 내 기기 shows tools without buttons", async () => {
+    const view = await open("#/status", { wide: true });
+    const list = view.getByRole("list", { name: "기기" });
+    const rows = [...list.querySelectorAll(".machine-row")];
+    expect(rows).toHaveLength(4);
+    expect(rows.slice(0, -1).every((row) => row.getAttribute("data-role") === "work")).toBe(true);
+    expect(rows.at(-1)?.getAttribute("data-role")).toBe("files");
+    expect(view.getByText("업데이트 필요")).toBeTruthy();
+    expect(view.getByText("로그인 필요")).toBeTruthy();
+    const downCells = [...view.container.querySelectorAll(".machine-row.is-down [data-testid=runner-cell]")];
+    expect(downCells.length).toBeGreaterThan(0);
+    for (const cell of downCells) {
+      expect(cell.textContent).toContain("연결 끊김");
+      expect(cell.textContent).not.toMatch(/\d/);
+    }
+    const filesCell = rows.at(-1)?.querySelector("[data-testid=runner-cell]") as HTMLElement;
+    expect(filesCell.textContent).toContain("2.0");
+    expect(within(filesCell).getByRole("img", { name: "로그인됨" })).toBeTruthy();
+    expect(filesCell.textContent).not.toMatch(/업데이트 필요|준비 필요|로그인 필요|연결 끊김|확인 중/);
+    const people = view.getByRole("list", { name: "내 기기" });
+    expect(people.querySelectorAll(".person-row")).toHaveLength(2);
+    expect(people.textContent).toContain("연결됨");
+    expect(people.textContent).toContain("연결 끊김");
+    expect(people.querySelector("button")).toBeNull();
+    expect(view.getByTestId("section-machines").contains(people)).toBe(false);
+  });
+
+  test("the sign-in button reads 로그인 중 and then the signed-in mark", async () => {
+    const view = await open("#/status", { wide: true });
+    const before = view.getAllByRole("img", { name: "로그인됨" }).length;
+    const button = view.getByRole("button", { name: "로그인" });
+    const cell = button.closest("[data-testid=runner-cell]") as HTMLElement;
+    fireEvent.click(button);
+    expect(within(cell).getByText("로그인 중")).toBeTruthy();
+    await waitFor(() => expect(within(cell).getByRole("img", { name: "로그인됨" })).toBeTruthy());
+    expect(view.queryByRole("button", { name: "로그인" })).toBeNull();
+    expect(view.getAllByRole("img", { name: "로그인됨" })).toHaveLength(before + 1);
+  });
+
+  test("다시 시작 asks once, then restarts the worker and shows nothing new", async () => {
+    const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
+    const view = await open("#/status", { wide: true, source });
+    const machine = source.scene.devices.machines.find((item) => item.role === "work" && item.state === "ok");
+    expect(machine).toBeTruthy();
+    fireEvent.click(view.getByRole("button", { name: `${machine?.name} 다시 시작` }));
+    const dialog = view.getByRole("dialog", { name: "다시 시작" });
+    expect(source.deviceWrites).toEqual([]);
+    fireEvent.click(within(dialog).getByRole("button", { name: "작업 실행기" }));
+    expect(source.deviceWrites).toEqual([]);
+    fireEvent.click(view.getByRole("button", { name: "다시 시작" }));
+    expect(source.deviceWrites).toEqual([{ device: machine?.name, action: "restart", service: "worker" }]);
+    expect(view.queryByRole("dialog", { name: "다시 시작" })).toBeNull();
+    expect(view.queryByTestId("write-error")).toBeNull();
+  });
+
+  test("a refused restart shows the core's line on the row", async () => {
+    const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
+    source.restartDevice = async () => ({ ok: false as const, status: 502, detail: "노드가 거절했습니다" });
+    const view = await open("#/status", { wide: true, source });
+    const machine = source.scene.devices.machines[0];
+    fireEvent.click(view.getByRole("button", { name: `${machine.name} 다시 시작` }));
+    fireEvent.click(view.getByRole("button", { name: "작업 실행기" }));
+    fireEvent.click(view.getByRole("button", { name: "다시 시작" }));
+    await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("노드가 거절했습니다"));
+    expect(view.queryByRole("dialog", { name: "다시 시작" })).toBeNull();
   });
 
   test("one quota row per service with its accounts folded under it, known services by their display names", async () => {
@@ -177,7 +244,7 @@ describe("usage, OCX and the accounts' quota", () => {
   test("the 사용량 panel sits between 쿼터 and 점검 and reads today's totals and the costliest rows", async () => {
     const view = await open("#/status", { wide: true });
     const sections = [...view.getByTestId("screen-status").querySelectorAll(".list-section")].map((section) => section.getAttribute("data-testid"));
-    expect(sections).toEqual(["section-machines", "section-quota", "section-usage", "section-checks"]);
+    expect(sections).toEqual(["section-machines", "section-person", "section-quota", "section-usage", "section-checks"]);
     expect(view.getByTestId("usage-total").textContent).toBe("$3.42 · 토큰 1.2만");
     const rows = (name: string) => [...view.getByRole("list", { name }).querySelectorAll(".usage-row")].map((row) => row.textContent);
     expect(rows("모델별")).toEqual(["haru · $1.85 · 토큰 6,200", "saeol · $1.12 · 토큰 4,200", "moru · $0.45 · 토큰 2,080"]);
@@ -302,7 +369,7 @@ describe("every count equals the length of the list it labels", () => {
   test("the device line counts machine rows and the bell counts unread notices", async () => {
     const view = await open("#/status", { wide: true });
     const line = view.getByTestId("device-line").textContent ?? "";
-    expect(line).toBe("기기 3 · 정상 1 · 경고 1 · 꺼짐 1");
+    expect(line).toBe("기기 4 · 정상 2 · 경고 1 · 꺼짐 1");
     const [all, ok, warn, down] = (line.match(/\d+/g) ?? []).map(Number);
     expect(ok + warn + down).toBe(all);
     const machines = view.getByTestId("section-machines");

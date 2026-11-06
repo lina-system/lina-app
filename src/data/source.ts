@@ -1,4 +1,4 @@
-import type { ActionResult, AnswerRequest, ChangeMessage, AnswerResult, CommentRequest, DoneRequest, NoticesReadRequest, NoticesReadResult, PushKey, PushRemoveRequest, PushRemoveResult, PushSubscriptionRequest, PushSubscriptionResult, RouteName, Routes, SettingsPatch, SettingsWritten, TalkEvent, TalkRequest } from "../api/client";
+import type { ActionResult, AnswerRequest, ChangeMessage, AnswerResult, CommentRequest, DeviceAction, DoneRequest, NoticesReadRequest, NoticesReadResult, PushKey, PushRemoveRequest, PushRemoveResult, PushSubscriptionRequest, PushSubscriptionResult, RouteName, Routes, SettingsPatch, SettingsWritten, TalkEvent, TalkRequest } from "../api/client";
 
 export type ReadResult<T> =
   | { readonly kind: "data"; readonly data: T; readonly at: number }
@@ -65,6 +65,10 @@ export interface Source {
   patchSettings(patch: SettingsPatch, revision: string): Promise<WriteResult<SettingsWritten>>;
   /** Writes the revision before the newest as a new one, asked of revision `revision`, like patchSettings. */
   rollbackSettings(revision: string): Promise<WriteResult<SettingsWritten>>;
+  /** Restarts one service on a node (lina#234). 200 shows nothing new; a refusal is one `detail` line. */
+  restartDevice(name: string, service: "worker" | "ocx"): Promise<WriteResult<DeviceAction>>;
+  /** Starts sign-in for one runner on a node (lina#234). 202 means it started; the next devices read says whether it took. */
+  signInDevice(name: string, runner: string): Promise<WriteResult<DeviceAction>>;
 }
 
 export function nowSeconds(): number {

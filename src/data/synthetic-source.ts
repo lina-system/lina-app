@@ -177,7 +177,7 @@ interface Connection {
 }
 
 /** The synthetic core's public VAPID key: a real P-256 point whose private half was never kept. */
-export const SYNTHETIC_PUSH_KEY = "BPkTOtYKP-jDfBYNqtOrQaKFX_KfJI3EtwD82LPKIPadvD4wW3jXqRXfGTDYvnX9VdTs8mJIRKCvV_80hq2OkUc";
+export const SYNTHETIC_PUSH_KEY = "BPkTOtYKP-jDfBYNqtOrQaKFX_KfJI3EtwD82LPKIPadvD4wW3jXqRXfGTDYvnX9VdTs8mJIRKCvV_80hq2OkUc"; // gitleaks:allow (a public key)
 
 /** The push service hosts the core takes an endpoint on (push-client.yaml savePushSubscription). */
 const PUSH_HOSTS = [/(^|\.)push\.apple\.com$/, /^fcm\.googleapis\.com$/, /(^|\.)push\.services\.mozilla\.com$/, /(^|\.)notify\.windows\.com$/];

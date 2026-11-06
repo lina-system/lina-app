@@ -2073,7 +2073,20 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 .settings-choice:disabled,
 .settings-danger:disabled {
   opacity: 0.5;
-  cursor: default;
+  cursor: not-allowed;
+}
+
+/* A switch that cannot change loses its colour too, so on reads as a grey state rather than a dim green one. */
+.settings-switch:disabled .switch {
+  filter: grayscale(1);
+}
+
+.settings-switch:disabled .switch::after {
+  box-shadow: none;
+}
+
+.settings .stepper:has(button:disabled + button:disabled) {
+  opacity: 0.5;
 }
 
 .settings-choice {

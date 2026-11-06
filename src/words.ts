@@ -230,7 +230,7 @@ export const W = {
 
   settings: "설정",
   settingsReadOnly: "이 기기에서는 볼 수만 있습니다",
-  settingsStale: "다른 곳에서 바뀌어 다시 불러옴",
+  settingsStale: "다른 곳에서 먼저 바뀌었습니다 · 새로 읽었습니다",
   settingsRev: (rev: string) => `설정 ${rev}`,
   more: (n: number) => `외 ${n}개`,
   defaults: "기본값",
@@ -285,6 +285,11 @@ export const W = {
   allHistory: "모든 기록",
   byKind: { app: "앱", cli: "CLI", outside: "바깥 편집", rollback: "되돌리기" } as Readonly<Record<string, string>>,
   noChange: "바뀐 것 없음",
+  added: (what: string) => `${what} 추가`,
+  rule: (name: string) => `${name} 규칙`,
+  ruleOrder: "배정 규칙 순서",
+  alias: (name: string) => `${name} 별칭`,
+  modeDefault: (mode: string) => `${mode} 기본`,
   rollbackOne: "한 단계 되돌리기",
   rollbackQuestion: "이전 설정으로 되돌립니다. 되돌리기도 기록에 남습니다.",
 };

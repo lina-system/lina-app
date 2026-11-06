@@ -58,12 +58,13 @@ export interface Source {
   savePushSubscription(body: PushSubscriptionRequest): Promise<WriteResult<PushSubscriptionResult>>;
   removePushSubscription(body: PushRemoveRequest): Promise<WriteResult<PushRemoveResult>>;
   /**
-   * Changes the work settings with a JSON Merge Patch, If-Match the settings this source read last: 412 when they
-   * changed since, 422 with the core's one-line `detail` when the result would not be valid.
+   * Changes the work settings with a JSON Merge Patch drawn over revision `revision`, If-Match the settings this source
+   * read last: 412 when they changed since (or the read last is not `revision`: then nothing is sent), 422 with the
+   * core's one-line `detail` when the result would not be valid.
    */
-  patchSettings(patch: SettingsPatch): Promise<WriteResult<SettingsWritten>>;
-  /** Writes the revision before the newest as a new one, If-Match the settings read last, like patchSettings. */
-  rollbackSettings(): Promise<WriteResult<SettingsWritten>>;
+  patchSettings(patch: SettingsPatch, revision: string): Promise<WriteResult<SettingsWritten>>;
+  /** Writes the revision before the newest as a new one, asked of revision `revision`, like patchSettings. */
+  rollbackSettings(revision: string): Promise<WriteResult<SettingsWritten>>;
 }
 
 export function nowSeconds(): number {

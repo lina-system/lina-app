@@ -48,10 +48,13 @@ function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
  * How the synthetic core takes settings writes (`&settings=`): this device may only read them, no revision was ever
  * written, or another device writes just before this page's first write, which the core then refuses as stale (412).
  */
-export type SettingsScript = SettingsVariant | "stale";
+export type SettingsScript = SettingsVariant | "stale" | "race";
 
 /** Who the synthetic core says wrote from this page, and from the other device of `&settings=stale`. */
 export const SETTINGS_WRITER = { principal: SYNTHETIC_OWNER.id, device: "laptop-a", other: "phone-a" } as const;
+
+/** A settings write drawn over another revision than the one read last: stale, and not sent, like HttpSource. */
+const NOT_THE_READ: WriteResult<never> = { ok: false, status: 412, detail: null };
 
 /** The owner's done mark can be taken back for ten minutes (lina#149). */
 export const UNDO_SECONDS = 600;
@@ -299,12 +302,15 @@ export class SyntheticSource implements Source {
   private settingsRead: string | null = null;
   /** `&settings=stale`: another device still has to write before this page's first write. */
   private staleNext: boolean;
+  /** `&settings=race`: another device still has to write right after this page's first write lands. */
+  private raceNext: boolean;
   /** Every settings write this page sent, refused ones too, for verify.mjs and the tests. */
   readonly settingsWrites: { kind: "patch" | "rollback"; ifMatch: string | null; status: number }[] = [];
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
   constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null } = {}) {
     this.staleNext = options.settings === "stale";
+    this.raceNext = options.settings === "race";
     this.talkRefusal = options.talk ?? null;
     this.push = { enabled: !options.pushOff, subscriptions: new Map(), saves: 0, removes: 0 };
     this.script = options.live ?? "ok";
@@ -318,7 +324,7 @@ export class SyntheticSource implements Source {
         checksError: options.checksError,
         noRunning: options.noRunning,
         writerStopped: options.writerStopped,
-        settings: options.settings === "stale" ? null : options.settings,
+        settings: options.settings === "stale" || options.settings === "race" ? null : options.settings,
       });
   }
 
@@ -581,12 +587,14 @@ export class SyntheticSource implements Source {
   }
 
   /** A JSON Merge Patch over the settings, refused like the core: read-only device, stale If-Match, invalid result. */
-  async patchSettings(patch: SettingsPatch): Promise<WriteResult<SettingsWritten>> {
+  async patchSettings(patch: SettingsPatch, revision: string): Promise<WriteResult<SettingsWritten>> {
+    if (this.settingsRead !== null && this.settingsRead !== revision) return NOT_THE_READ;
     return this.writeSettings("patch", () => mergePatch(currentSettings(this.scene.settings), patch), { kind: "app", principal: SETTINGS_WRITER.principal, device: SETTINGS_WRITER.device });
   }
 
   /** The revision before the newest, written again as a new revision; a second rollback undoes the first. */
-  async rollbackSettings(): Promise<WriteResult<SettingsWritten>> {
+  async rollbackSettings(revision: string): Promise<WriteResult<SettingsWritten>> {
+    if (this.settingsRead !== null && this.settingsRead !== revision) return NOT_THE_READ;
     const { revisions } = this.scene.settings;
     if (revisions.length < 2) return this.settingsRefused("rollback", null, fail(422, "there is no revision to roll back to"));
     return this.writeSettings("rollback", () => revisions[revisions.length - 2], { kind: "rollback", principal: SETTINGS_WRITER.principal, device: SETTINGS_WRITER.device }, revisionOf(this.scene.settings).id);
@@ -619,7 +627,12 @@ export class SyntheticSource implements Source {
     const line = writeRevision(this.scene.settings, settings, by, Math.floor(nowSeconds()), rollbackOf);
     this.settingsWrites.push({ kind, ifMatch, status: 200 });
     if (line) this.changed({ source: "settings", kind: rollbackOf ? "rolled_back" : "revised", id: line.rev });
-    return { ok: true, data: { ok: true, changes: line?.changes ?? [], revision: revisionOf(this.scene.settings) } };
+    const written: WriteResult<SettingsWritten> = { ok: true, data: { ok: true, changes: line?.changes ?? [], revision: revisionOf(this.scene.settings) } };
+    if (this.raceNext) {
+      this.raceNext = false;
+      this.settingsWrittenElsewhere();
+    }
+    return written;
   }
 
   private settingsRefused(kind: "patch" | "rollback", ifMatch: string | null, result: WriteResult<never>): WriteResult<never> {

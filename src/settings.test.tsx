@@ -1,8 +1,10 @@
 import { fireEvent, render, waitFor, within } from "@testing-library/preact";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { App } from "./app";
+import type { SettingsAuditLine } from "./api/client";
 import { Store } from "./data/store";
 import { SyntheticSource, type SettingsScript } from "./data/synthetic-source";
+import { changesLine } from "./model/settings";
 import { W } from "./words";
 
 function setWide(wide: boolean) {
@@ -57,7 +59,8 @@ describe("the settings screen", () => {
     const order = [...screen.children].map((child) => child.getAttribute("data-testid")).filter(Boolean);
     expect(order).toEqual(["settings-warnings", "settings-defaults", "settings-runners", "settings-rules", "settings-devices", "settings-models", "settings-history", "settings-rev"]);
     const warnings = view.getAllByTestId("settings-warning").map((line) => line.textContent);
-    expect(warnings).toEqual(["codex 모델의 쿼터가 다 찼습니다 · 다음 실행은 anthropic/model-b로 갑니다", "dsh 모델이 꺼져 있습니다 · 다음 실행은 anthropic/model-b로 갑니다"]);
+    expect(warnings).toEqual(["codex 모델의 쿼터가 다 찼습니다 · 다음 실행은 model-b로 갑니다", "dsh 모델이 꺼져 있습니다 · 다음 실행은 model-b로 갑니다"]);
+    expect(within(view.getByTestId("settings-defaults")).getAllByTestId("row")[1].textContent).toBe("대체 모델model-b");
     const runners = within(view.getByTestId("settings-runners")).getAllByTestId("row").map((row) => row.querySelector(".lines")?.textContent);
     expect(runners).toEqual(["omomodel-a · 높음", "codexmodel-c · 보통", "dshmodel-d"]);
     const rules = [...view.getByTestId("settings-rules").querySelectorAll("[data-testid=rule], [data-testid=rule-other]")].map((row) => row.textContent);
@@ -68,10 +71,12 @@ describe("the settings screen", () => {
     expect(view.getByTestId("settings-models").textContent).toContain(W.modelsFoot);
     const history = view.getAllByTestId("history-row").map((row) => row.querySelector(".title")?.textContent ?? "");
     expect(history).toHaveLength(3);
-    expect(history[0]).toMatch(/^\d\d-\d\d \d\d:\d\d · 바깥 편집 · /);
+    expect(history[0]).toMatch(/^\d\d-\d\d \d\d:\d\d · 바깥 편집 · machine-a 입찰 2 외 1개$/);
     expect(history[1]).toMatch(/ · 앱 · codex 모델 model-c$/);
-    expect(history[2]).toMatch(/ · CLI · /);
+    expect(history[2]).toMatch(/ · CLI · machine-a 추가 외 9개$/);
     expect(view.getByTestId("settings-rev").textContent).toBe("설정 r3");
+    expect(view.queryByTestId("read-only")).toBeNull();
+    expect(view.getByTestId("rollback")).toHaveProperty("disabled", false);
   });
 
   test("more than three warnings show the first three, then 외 n개", async () => {
@@ -91,7 +96,7 @@ describe("the settings screen", () => {
     fireEvent.click(switchOf(view, "machine-b 켜기"));
     expect(switchOf(view, "machine-b 켜기").getAttribute("aria-checked")).toBe("false");
     await waitFor(() => expect(view.getByTestId("settings-rev").textContent).toBe("설정 r4"));
-    expect(patch).toHaveBeenCalledExactlyOnceWith({ devices: { workers: { "machine-b": { off: true } } } });
+    expect(patch).toHaveBeenCalledExactlyOnceWith({ devices: { workers: { "machine-b": { off: true } } } }, "r3");
     expect(synthetic.settingsWrites).toEqual([{ kind: "patch", ifMatch: "r3", status: 200 }]);
     expect(synthetic.scene.settings.revisions[4].devices?.workers?.["machine-b"].off).toBe(true);
     expect(switchOf(view, "machine-b 켜기").getAttribute("aria-checked")).toBe("false");
@@ -99,7 +104,7 @@ describe("the settings screen", () => {
 
     fireEvent.click(switchOf(view, "machine-b 켜기"));
     await waitFor(() => expect(view.getByTestId("settings-rev").textContent).toBe("설정 r5"));
-    expect(patch).toHaveBeenLastCalledWith({ devices: { workers: { "machine-b": { off: null } } } });
+    expect(patch).toHaveBeenLastCalledWith({ devices: { workers: { "machine-b": { off: null } } } }, "r4");
     expect(synthetic.settingsWrites.at(-1)).toEqual({ kind: "patch", ifMatch: "r4", status: 200 });
     expect(synthetic.scene.settings.revisions[5].devices?.workers?.["machine-b"]).not.toHaveProperty("off");
   });
@@ -110,17 +115,17 @@ describe("the settings screen", () => {
     fireEvent.click(view.getByRole("button", { name: "동시 작업 (입찰) 늘리기" }));
     expect(view.getAllByTestId("stepper-value")[0].textContent).toBe("3");
     await waitFor(() => expect(synthetic.scene.settings.revisions).toHaveLength(5));
-    expect(patch).toHaveBeenCalledWith({ devices: { workers: { "machine-a": { cap: 3 } } } });
+    expect(patch).toHaveBeenCalledWith({ devices: { workers: { "machine-a": { cap: 3 } } } }, expect.any(String));
     fireEvent.click(view.getByRole("button", { name: "동시 작업 (지정) 줄이기" }));
     await waitFor(() => expect(synthetic.scene.settings.revisions).toHaveLength(6));
-    expect(patch).toHaveBeenLastCalledWith({ devices: { workers: { "machine-a": { named_cap: 1 } } } });
+    expect(patch).toHaveBeenLastCalledWith({ devices: { workers: { "machine-a": { named_cap: 1 } } } }, expect.any(String));
     expect(view.getByRole("button", { name: "동시 작업 (지정) 줄이기" })).toHaveProperty("disabled", true);
     fireEvent.click(switchOf(view, W.repoWork));
     await waitFor(() => expect(synthetic.scene.settings.revisions).toHaveLength(7));
-    expect(patch).toHaveBeenLastCalledWith({ devices: { workers: { "machine-a": { no_repo: true } } } });
+    expect(patch).toHaveBeenLastCalledWith({ devices: { workers: { "machine-a": { no_repo: true } } } }, expect.any(String));
     fireEvent.click(switchOf(view, W.fastDevice));
     await waitFor(() => expect(synthetic.scene.settings.revisions).toHaveLength(8));
-    expect(patch).toHaveBeenLastCalledWith({ devices: { workers: { "machine-a": { fast: null } } } });
+    expect(patch).toHaveBeenLastCalledWith({ devices: { workers: { "machine-a": { fast: null } } } }, expect.any(String));
     expect(synthetic.settingsWrites.map((write) => write.ifMatch)).toEqual(["r3", "r4", "r5", "r6"]);
   });
 
@@ -153,10 +158,10 @@ describe("the settings screen", () => {
     const patch = vi.spyOn(synthetic, "patchSettings");
     fireEvent.click(choices[0]);
     await waitFor(() => expect(view.getAllByRole("radio")[0].getAttribute("aria-checked")).toBe("true"));
-    expect(patch).toHaveBeenCalledExactlyOnceWith({ worker: { runners: { codex: { model: "anthropic/model-a:medium" } } } });
+    expect(patch).toHaveBeenCalledExactlyOnceWith({ worker: { runners: { codex: { model: "anthropic/model-a:medium" } } } }, expect.any(String));
     fireEvent.click(view.getAllByRole("radio")[1]);
     await waitFor(() => expect(synthetic.scene.settings.revisions).toHaveLength(6));
-    expect(patch).toHaveBeenLastCalledWith({ worker: { runners: { codex: { model: "anthropic/model-b" } } } });
+    expect(patch).toHaveBeenLastCalledWith({ worker: { runners: { codex: { model: "anthropic/model-b" } } } }, expect.any(String));
   });
 
   test("생각 깊이 offers only the model's own efforts; 접근 권한 and 대체 모델 save the same way", async () => {
@@ -165,7 +170,7 @@ describe("the settings screen", () => {
     const patch = vi.spyOn(synthetic, "patchSettings");
     fireEvent.click(view.getByRole("radio", { name: "낮음" }));
     await waitFor(() => expect(synthetic.scene.settings.revisions).toHaveLength(5));
-    expect(patch).toHaveBeenLastCalledWith({ worker: { runners: { omo: { model: "anthropic/model-a:low" } } } });
+    expect(patch).toHaveBeenLastCalledWith({ worker: { runners: { omo: { model: "anthropic/model-a:low" } } } }, expect.any(String));
     view.unmount();
 
     const access = await open("#/settings/runner/dsh/access", { source: again(synthetic) });
@@ -189,7 +194,7 @@ describe("the settings screen", () => {
     const patch = vi.spyOn(synthetic, "patchSettings");
     fireEvent.click(view.getByRole("radio", { name: "codex" }));
     await waitFor(() => expect(view.getByRole("radio", { name: "codex" }).getAttribute("aria-checked")).toBe("true"));
-    expect(patch).toHaveBeenCalledWith({ worker: { default_runner: "codex" } });
+    expect(patch).toHaveBeenCalledWith({ worker: { default_runner: "codex" } }, expect.any(String));
   });
 
   test("a runner's page shows its command read-only", async () => {
@@ -213,6 +218,31 @@ describe("the settings screen", () => {
     expect(synthetic.settingsWrites.at(-1)).toEqual({ kind: "patch", ifMatch: "r4", status: 200 });
   });
 
+  test("changes queued behind a write go only against the revision they were drawn over: another device's write in between drops them", async () => {
+    const { view, synthetic } = await open("#/settings");
+    const send = synthetic.patchSettings.bind(synthetic);
+    const elsewhere = again(synthetic);
+    const patch = vi.spyOn(synthetic, "patchSettings").mockImplementation(async (body, revision) => {
+      const result = await send(body, revision);
+      if (patch.mock.calls.length === 1) elsewhere.settingsWrittenElsewhere("machine-b");
+      return result;
+    });
+    fireEvent.click(view.getByTestId("rules-edit"));
+    fireEvent.click(view.getByRole("button", { name: "docs → codex 아래로" }));
+    fireEvent.click(view.getByRole("button", { name: "quick · S → dsh 삭제" }));
+    await waitFor(() => expect(view.getByTestId("toast").textContent).toBe(W.settingsStale));
+    await waitFor(() => expect(view.getByTestId("settings-rev").textContent).toBe("설정 r5"));
+    expect(patch).toHaveBeenCalledOnce();
+    expect(patch).toHaveBeenCalledWith({ worker: { routing: [expect.objectContaining({ name: "quick" }), expect.objectContaining({ name: "docs" })] } }, "r3");
+    expect(synthetic.settingsWrites).toEqual([{ kind: "patch", ifMatch: "r3", status: 200 }]);
+    expect(synthetic.scene.settings.revisions).toHaveLength(6);
+    const now = synthetic.scene.settings.revisions[5];
+    expect(now.devices?.workers?.["machine-b"].cap).toBe(2);
+    expect(now.worker?.routing?.map((rule) => rule.name)).toEqual(["quick", "docs"]);
+    expect([...view.getByTestId("settings-rules").querySelectorAll("[data-testid=rule] .title")].map((row) => row.textContent)).toEqual(["quick · S → dsh", "docs → codex"]);
+    expect(within(view.getByTestId("devices-work")).getAllByTestId("row")[1].textContent).toBe("machine-b입찰 2 · 지정 2");
+  });
+
   test("a refused write (422) puts the control back and shows the core's detail under its row", async () => {
     const { view, synthetic } = await open("#/settings");
     fireEvent.click(switchOf(view, "omo 켜기"));
@@ -233,7 +263,7 @@ describe("the settings screen", () => {
     expect(view.getByRole("button", { name: "docs → codex 위로" })).toHaveProperty("disabled", true);
     fireEvent.click(view.getByRole("button", { name: "docs → codex 아래로" }));
     await waitFor(() => expect(synthetic.scene.settings.revisions).toHaveLength(5));
-    expect(patch).toHaveBeenLastCalledWith({ worker: { routing: [expect.objectContaining({ name: "quick" }), expect.objectContaining({ name: "docs" })] } });
+    expect(patch).toHaveBeenLastCalledWith({ worker: { routing: [expect.objectContaining({ name: "quick" }), expect.objectContaining({ name: "docs" })] } }, expect.any(String));
     fireEvent.click(view.getByRole("button", { name: "quick · S → dsh 삭제" }));
     await waitFor(() => expect(synthetic.scene.settings.revisions).toHaveLength(6));
     expect(synthetic.scene.settings.revisions[5].worker?.routing).toEqual([{ name: "docs", when: { labels_any: ["docs"] }, runner: "codex" }]);
@@ -281,13 +311,20 @@ describe("the settings screen", () => {
     expect(controls.length).toBeGreaterThan(0);
     expect(controls.every((control) => control.disabled)).toBe(true);
     expect(view.queryByTestId("rules-edit")).toBeNull();
+    expect(view.queryByTestId("rollback")).toBeNull();
+    const defaults = within(view.getByTestId("settings-defaults")).getAllByTestId("row");
+    expect(defaults.map((row) => row.querySelector("a, .disclosure"))).toEqual([null, null]);
+    expect(defaults.map((row) => row.textContent)).toEqual(["기본 실행기omo", "대체 모델model-b"]);
+    expect(view.getByTestId("history-all").querySelector("a")).not.toBeNull();
+    expect(within(view.getByTestId("settings-runners")).getAllByTestId("row")[0].querySelector("a")).not.toBeNull();
     fireEvent.click(switchOf(view, "machine-a 켜기"));
     expect(switchOf(view, "machine-a 켜기").getAttribute("aria-checked")).toBe("true");
     view.unmount();
     expect(synthetic.settingsWrites).toEqual([]);
-    for (const page of ["#/settings/device/machine-a", "#/settings/runner/codex/model", "#/settings/rule-new"]) {
+    for (const page of ["#/settings/device/machine-a", "#/settings/runner/codex", "#/settings/runner/codex/model", "#/settings/rule-new"]) {
       const pushed = await open(page, { source: again(synthetic) });
       expect(pushed.view.getByTestId("read-only").textContent).toBe(W.settingsReadOnly);
+      expect(pushed.view.getByTestId("setting-page").querySelector(".rows a")).toBeNull();
       const controls = [...pushed.view.getByTestId("setting-page").querySelectorAll<HTMLButtonElement | HTMLInputElement>("button, input")];
       expect(controls.length).toBeGreaterThan(0);
       expect(controls.every((control) => control.matches(":disabled"))).toBe(true);
@@ -312,7 +349,7 @@ describe("the settings screen", () => {
     const patch = vi.spyOn(synthetic, "patchSettings");
     fireEvent.click(switchOf(view, "omo 켜기"));
     await waitFor(() => expect(view.getByTestId("write-error")).toBeTruthy());
-    expect(patch).toHaveBeenCalledWith({ worker: { runners: { omo: { type: "omo", on: false } } } });
+    expect(patch).toHaveBeenCalledWith({ worker: { runners: { omo: { type: "omo", on: false } } } }, expect.any(String));
   });
 
   test("a settings event from another device redraws the screen without a reload", async () => {
@@ -331,5 +368,33 @@ describe("the settings screen", () => {
   test("모든 기록 lists every revision", async () => {
     const { view } = await open("#/settings/history");
     await waitFor(() => expect(view.getAllByTestId("history-row")).toHaveLength(3));
+  });
+});
+
+describe("what a history line says changed", () => {
+  const line = (changes: SettingsAuditLine["changes"]): SettingsAuditLine => ({ rev: "r9", base: "r8", at: 0, by: { kind: "cli", principal: "", device: "" }, changes });
+
+  test("it names the thing: a device or runner added or removed whole, a field with its new value", () => {
+    expect(changesLine(line([{ path: "devices.workers.build-a", from: null, to: { role: "work", cap: 2 } }]), {}, [])).toBe("build-a 추가");
+    expect(changesLine(line([{ path: "worker.runners.dsh", from: { type: "command" }, to: null }]), {}, [])).toBe("dsh 삭제");
+    expect(changesLine(line([{ path: "devices.workers.machine-a.cap", from: 1, to: 2 }]), {}, [])).toBe("machine-a 입찰 2");
+    expect(changesLine(line([{ path: "worker.runners.codex.access", from: "read-only", to: "full" }]), {}, [])).toBe("codex 접근 권한 전체");
+  });
+
+  test("a whole section splits into the things in it, never a bare section word", () => {
+    const written = changesLine(line([{ path: "devices", from: null, to: { workers: { "build-a": { role: "work" }, "files-b": { role: "files" } } } }]), {}, []);
+    expect(written).toBe("build-a 추가 외 1개");
+    const edited = changesLine(line([{ path: "devices", from: { workers: { "build-a": { cap: 1 } } }, to: { workers: { "build-a": { cap: 3 } } } }]), {}, []);
+    expect(edited).toBe("build-a 입찰 3");
+  });
+
+  test("a rule list names the rules added, removed or changed, or says the order changed", () => {
+    const docs = { name: "docs", when: { labels_any: ["docs"] }, runner: "codex" };
+    const quick = { name: "quick", when: { labels_any: ["quick"], size: ["S" as const] }, runner: "dsh" };
+    const path = "worker.routing";
+    expect(changesLine(line([{ path, from: [docs], to: [docs, quick] }]), {}, [])).toBe("quick 규칙 추가");
+    expect(changesLine(line([{ path, from: [docs, quick], to: [docs] }]), {}, [])).toBe("quick 규칙 삭제");
+    expect(changesLine(line([{ path, from: [docs, quick], to: [quick, docs] }]), {}, [])).toBe("배정 규칙 순서");
+    expect(changesLine(line([{ path, from: [docs], to: [{ ...docs, runner: "dsh" }] }]), {}, [])).toBe("docs → dsh");
   });
 });

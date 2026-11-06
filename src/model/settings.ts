@@ -1,4 +1,4 @@
-import type { Settings, SettingsAuditLine, SettingsChange, SettingsDevice, SettingsModel, SettingsRule, SettingsRunner } from "../api/client";
+import type { Settings, SettingsAuditLine, SettingsChange, SettingsDevice, SettingsModel, SettingsModels, SettingsRule, SettingsRunner } from "../api/client";
 import { serviceName, SEP, W } from "../words";
 
 /** The runner `lina worker` uses when the settings name none, and that is there even when not listed. */
@@ -110,6 +110,16 @@ export function modelLabel(value: string | undefined | null, settings: Settings,
   return model ? modelName(model) : (ref?.id ?? value);
 }
 
+/**
+ * The core's warning lines, each model value its checks name read as modelLabel reads it, so a warning names a model
+ * the way the rows and the picker do.
+ */
+export function warningLines(view: SettingsModels, settings: Settings): string[] {
+  const checks = [...view.runners, ...view.modes, view.fallback];
+  const values = [...new Set(checks.flatMap((check) => [check.model, check.fallback]).filter((value): value is string => Boolean(value)))].sort((a, b) => b.length - a.length);
+  return view.warnings.map((line) => values.reduce((text, value) => text.split(value).join(modelLabel(value, settings, view.models)), line));
+}
+
 /** The effort a model value runs at: its own, else the OCX model's default. */
 export function effortOf(value: string | undefined | null, settings: Settings, models: readonly SettingsModel[]): string | null {
   const ref = parseModel(value, settings);
@@ -177,57 +187,108 @@ function onOff(on: unknown): string {
   return on === false ? W.turnedOff : W.turnedOn;
 }
 
-/** One change in a few words: what it is about, then where it went when that fits in a word. */
-function changeWords(change: SettingsChange, settings: Settings, models: readonly SettingsModel[]): string {
+/** A path that names one thing a person added or removed as a whole: a device, a runner, a model alias. */
+function isEntry(parts: readonly string[]): boolean {
+  if (parts.length === 3) return (parts[0] === "devices" && parts[1] === "workers") || (parts[0] === "worker" && parts[1] === "runners");
+  return parts.length === 4 && parts[0] === "worker" && parts[1] === "models" && parts[2] === "aliases";
+}
+
+/**
+ * A change split down to the things it is about: a whole section (the first revision writes `devices` and `worker`
+ * at once) becomes one change per device, runner, alias and field, and a device or runner added or removed whole
+ * stays one change.
+ */
+function thingChanges(path: string, from: unknown, to: unknown): SettingsChange[] {
+  const parts = path.split(".");
+  const whole = isEntry(parts) && (!isObject(from) || !isObject(to));
+  if (!whole && (isObject(from) || isObject(to))) {
+    const before = isObject(from) ? from : {};
+    const after = isObject(to) ? to : {};
+    const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])];
+    return keys.flatMap((key) => thingChanges(path ? `${path}.${key}` : key, before[key], after[key]));
+  }
+  if (JSON.stringify(from) === JSON.stringify(to)) return [];
+  return [{ path, from: from ?? null, to: to ?? null }];
+}
+
+function asRules(value: unknown): SettingsRule[] {
+  return Array.isArray(value) ? (value as SettingsRule[]) : [];
+}
+
+/** The rules a change of the list touched: each rule added or removed by name, each one changed, or their order. */
+function ruleWords(from: unknown, to: unknown): string[] {
+  const before = asRules(from);
+  const after = asRules(to);
+  const was = new Map(before.map((rule) => [rule.name, rule]));
+  const is = new Set(after.map((rule) => rule.name));
+  const words = [
+    ...after.filter((rule) => !was.has(rule.name)).map((rule) => W.added(W.rule(rule.name))),
+    ...before.filter((rule) => !is.has(rule.name)).map((rule) => W.remove(W.rule(rule.name))),
+    ...after.filter((rule) => was.has(rule.name) && JSON.stringify(was.get(rule.name)) !== JSON.stringify(rule)).map((rule) => W.ruleTo(ruleLabel(rule), rule.runner)),
+  ];
+  const kept = (rules: SettingsRule[], other: Set<string>) => rules.map((rule) => rule.name).filter((name) => other.has(name));
+  if (!words.length && kept(before, is).join("\n") !== kept(after, new Set(was.keys())).join("\n")) words.push(W.ruleOrder);
+  return words;
+}
+
+/** One change in a few words, naming the thing it is about, then where it went when that fits in a word. */
+function changeWords(change: SettingsChange, settings: Settings, models: readonly SettingsModel[]): string[] {
   const parts = change.path.split(".");
   const to = change.to;
   const model = (value: unknown) => (typeof value === "string" ? modelLabel(value, settings, models) : W.followDefault);
+  const number = (value: unknown) => (typeof value === "number" ? value : W.defaultValue);
+  if (isEntry(parts)) {
+    const name = parts.at(-1) ?? change.path;
+    const thing = parts[2] === "aliases" ? W.alias(name) : name;
+    return [to === null ? W.remove(thing) : change.from === null ? W.added(thing) : thing];
+  }
+  if (change.path === "worker.routing") return ruleWords(change.from, to);
+  if (change.path === "worker.default_runner") return [`${W.defaultRunner} ${typeof to === "string" ? to : W.defaultValue}`];
+  if (change.path === "worker.models.fallback") return [`${W.fallbackModel} ${model(to)}`];
+  if (parts[0] === "worker" && parts[1] === "models" && parts[2] === "defaults" && parts[3]) return [`${W.modeDefault(parts[3])} ${W.model} ${model(to)}`];
+  if (parts[0] === "worker" && parts[1] === "models" && parts[2] === "aliases" && parts[3]) return [W.alias(parts[3])];
   if (parts[0] === "worker" && parts[1] === "runners" && parts[2]) {
     const name = parts[2];
     switch (parts[3]) {
       case "on":
-        return `${name} ${onOff(to)}`;
+        return [`${name} ${onOff(to)}`];
       case "model":
-        return `${name} ${W.model} ${model(to)}`;
+        return [`${name} ${W.model} ${model(to)}`];
       case "fallback_model":
-        return `${name} ${W.fallbackModel} ${model(to)}`;
+        return [`${name} ${W.fallbackModel} ${model(to)}`];
       case "access":
-        return `${name} ${W.access}`;
+        return [`${name} ${W.access} ${typeof to === "string" && Object.hasOwn(W.accessWord, to) ? W.accessWord[to] : W.defaultValue}`];
+      case "argv":
+        return [`${name} ${W.command}`];
       default:
-        return name;
+        return [`${name} ${parts.slice(3).join(".")}`];
     }
   }
-  if (change.path === "worker.default_runner") return `${W.defaultRunner} ${typeof to === "string" ? to : W.defaultValue}`;
-  if (change.path === "worker.models.fallback") return `${W.fallbackModel} ${model(to)}`;
-  if (parts[0] === "worker" && parts[1] === "routing") return W.rules;
-  if (parts[0] === "worker" && parts[1] === "models") return W.model;
   if (parts[0] === "devices" && parts[1] === "workers" && parts[2]) {
     const name = parts[2];
     switch (parts[3]) {
       case "off":
-        return `${name} ${onOff(to !== true)}`;
+        return [`${name} ${onOff(to !== true)}`];
       case "cap":
-        return `${name} ${W.bid} ${typeof to === "number" ? to : W.defaultValue}`;
+        return [`${name} ${W.bid} ${number(to)}`];
       case "named_cap":
-        return `${name} ${W.named} ${typeof to === "number" ? to : W.defaultValue}`;
+        return [`${name} ${W.named} ${number(to)}`];
       case "no_repo":
-        return `${name} ${W.repoWork} ${onOff(to !== true)}`;
+        return [`${name} ${W.repoWork} ${onOff(to !== true)}`];
       case "fast":
-        return `${name} ${W.fastDevice} ${onOff(to === true)}`;
+        return [`${name} ${W.fastDevice} ${onOff(to === true)}`];
       default:
-        return name;
+        return [`${name} ${parts.slice(3).join(".")}`];
     }
   }
-  if (parts[0] === "devices") return W.devices;
-  if (parts[0] === "worker") return W.runners;
-  return change.path;
+  return [change.path];
 }
 
-/** What a revision changed, in a few words: the first change, then how many more. */
+/** What a revision changed, in a few words: the first thing it changed, named, then how many more. */
 export function changesLine(line: SettingsAuditLine, settings: Settings, models: readonly SettingsModel[]): string {
-  if (!line.changes.length) return W.noChange;
-  const first = changeWords(line.changes[0], settings, models);
-  return line.changes.length > 1 ? `${first} ${W.more(line.changes.length - 1)}` : first;
+  const words = line.changes.flatMap((change) => thingChanges(change.path, change.from, change.to)).flatMap((change) => changeWords(change, settings, models));
+  if (!words.length) return W.noChange;
+  return words.length > 1 ? `${words[0]} ${W.more(words.length - 1)}` : words[0];
 }
 
 /** `MM-DD HH:mm` in the page's own time zone. */

@@ -1,18 +1,15 @@
 import { createContext } from "preact";
 import { useContext, useMemo, useState } from "preact/hooks";
 import type { Settings, SettingsPatch, SettingsView, SettingsWritten } from "../api/client";
-import { SETTINGS_ROUTES } from "../data/live";
+import { SETTINGS_REVISED } from "../data/live";
 import type { WriteResult } from "../data/source";
-import type { Store, Want } from "../data/store";
+import type { Store } from "../data/store";
 import { mergePatch } from "../model/settings";
 import { W } from "../words";
 import type { Actions } from "./actions";
 
 /** The row a refused rollback says why under. */
 export const ROLLBACK_KEY = "rollback";
-
-/** After a write: the settings, their history and the model list, whose warnings follow the settings. */
-const AFTER_WRITE: Want = [...SETTINGS_ROUTES, ["settingsModels"]];
 
 /** A refused write's one line: the core's own `detail` (422 names the path and why), or the shared lines. */
 export function settingsError(result: Extract<WriteResult<unknown>, { ok: false }>): string {
@@ -28,10 +25,11 @@ interface Edit {
 
 /**
  * The owner's changes to the work settings. Each control saves when it changes: its patch is drawn over the settings
- * at once and sent in turn, one write at a time, each with the ETag of the settings read last. A write the core takes
- * reads the settings again before its patch stops being drawn; a stale one (412) drops every change not sent yet,
- * reads the settings again and says so in one toast; a refused one puts the control back and keeps the reason under
- * its row.
+ * at once and sent in turn, one write at a time. The changes on their way are drawn over one revision, moved on only
+ * by this page's own writes; a change goes only when the settings read last are still that revision, with their ETag.
+ * A write the core takes reads the settings again before its patch stops being drawn; a stale one (412, or another
+ * writer's revision read before the next change goes) drops every change not sent yet, reads the settings again and
+ * says so in one toast; a refused one puts the control back and keeps the reason under its row.
  */
 export class SettingsEdits {
   private edits: Edit[] = [];
@@ -41,6 +39,9 @@ export class SettingsEdits {
   private nextId = 1;
   private rolling = false;
   private asking = false;
+  /** The revision the changes on their way are drawn over, and how many are on their way. */
+  private basis: string | null = null;
+  private pending = 0;
   version = 0;
 
   constructor(
@@ -86,13 +87,9 @@ export class SettingsEdits {
     this.edits.push(edit);
     this.errors.delete(key);
     this.notify();
-    const generation = this.generation;
-    void this.inTurn(async () => {
-      if (generation !== this.generation) return;
-      const result = await this.store.write((source) => source.patchSettings(patch), { refresh: false });
-      await this.settle(key, result, () => {
-        this.edits = this.edits.filter((each) => each.id !== edit.id);
-      });
+    const send = (revision: string) => this.store.write((source) => source.patchSettings(patch, revision), { refresh: false });
+    void this.inTurn(key, send, () => {
+      this.edits = this.edits.filter((each) => each.id !== edit.id);
     });
   }
 
@@ -102,36 +99,50 @@ export class SettingsEdits {
     this.rolling = true;
     this.errors.delete(ROLLBACK_KEY);
     this.notify();
-    const generation = this.generation;
-    return this.inTurn(async () => {
-      if (generation === this.generation) {
-        const result = await this.store.write((source) => source.rollbackSettings(), { refresh: false });
-        await this.settle(ROLLBACK_KEY, result, () => {});
-      }
+    return this.inTurn(ROLLBACK_KEY, (revision) => this.store.write((source) => source.rollbackSettings(revision), { refresh: false }), () => {}).then(() => {
       this.rolling = false;
       this.notify();
     });
   }
 
-  private inTurn(run: () => Promise<void>): Promise<void> {
+  /** One write after the ones before it, sent only while the settings read last are the revision it was drawn over. */
+  private inTurn(key: string, send: (revision: string) => Promise<WriteResult<SettingsWritten>>, sent: () => void): Promise<void> {
+    if (this.pending++ === 0) this.basis = this.view?.revision.id ?? null;
+    const generation = this.generation;
+    const run = async () => {
+      try {
+        if (generation !== this.generation) return;
+        const revision = this.basis;
+        if (revision === null || this.view?.revision.id !== revision) await this.stale();
+        else await this.settle(key, await send(revision), sent);
+        this.notify();
+      } finally {
+        this.pending -= 1;
+      }
+    };
     this.sending = this.sending.then(run, run);
     return this.sending;
   }
 
   private async settle(key: string, result: WriteResult<SettingsWritten>, sent: () => void): Promise<void> {
     if (result.ok) {
-      await this.store.invalidate(AFTER_WRITE);
+      this.basis = result.data.revision.id;
+      await this.store.invalidate(SETTINGS_REVISED);
       sent();
     } else if (result.status === 412) {
-      this.generation += 1;
-      this.edits = [];
-      await this.store.invalidate(AFTER_WRITE);
-      this.actions.note(W.settingsStale);
+      await this.stale();
     } else {
       sent();
       this.errors.set(key, settingsError(result));
     }
-    this.notify();
+  }
+
+  /** Every change not sent yet is dropped, the settings are read again, and one toast says so. */
+  private async stale(): Promise<void> {
+    this.generation += 1;
+    this.edits = [];
+    await this.store.invalidate(SETTINGS_REVISED);
+    this.actions.note(W.settingsStale);
   }
 
   private notify(): void {

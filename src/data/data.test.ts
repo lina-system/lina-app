@@ -317,7 +317,7 @@ test("talk posts the message with the session token and reads the reply off the 
 
 const WRITTEN = { ok: true, changes: [{ path: "devices.workers.machine-a.cap", from: 1, to: 2 }], revision: { id: "r4", at: 1, base: "r3", by: { kind: "app", principal: "owner", device: "laptop-a" } } };
 
-test("a settings write is a merge patch (or a bare rollback) with the ETag of the settings read last as If-Match", async () => {
+test("a settings write is a merge patch (or a bare rollback) with the ETag of the settings read last as If-Match, never another revision's", async () => {
   let tag = '"r3-aaa"';
   const { calls, fetchImpl } = recordingFetch(() => {
     if (calls.at(-1)?.method === "GET") return new Response(JSON.stringify({ settings: {} }), { status: 200, headers: { ETag: tag } });
@@ -326,10 +326,11 @@ test("a settings write is a merge patch (or a bare rollback) with the ETag of th
   const source = new HttpSource({ fetch: fetchImpl, token: "token-a", basePath: "/core" });
   await source.read("settings");
   const patch = { devices: { workers: { "machine-a": { cap: 2, fast: null } } } };
-  expect(await source.patchSettings(patch)).toEqual({ ok: true, data: WRITTEN });
+  expect(await source.patchSettings(patch, "r3")).toEqual({ ok: true, data: WRITTEN });
   tag = '"r4-bbb"';
   await source.read("settings");
-  await source.rollbackSettings();
+  expect(await source.patchSettings(patch, "r3")).toEqual({ ok: false, status: 412, detail: null });
+  await source.rollbackSettings("r4");
   expect(calls.slice(1).filter((call) => call.method !== "GET")).toEqual([
     {
       url: "/core/api/lina/work/settings",
@@ -359,38 +360,48 @@ test("the settings, their history by limit and the OCX model list are read on th
 
 test("a refused settings write answers the core's status and detail: stale 412, invalid 422", async () => {
   const stale = new HttpSource({ fetch: recordingFetch(() => new Response(JSON.stringify({ detail: "the settings changed since you read them (now r5): read again" }), { status: 412 })).fetchImpl });
-  expect(await stale.patchSettings({ worker: { default_runner: "codex" } })).toEqual({ ok: false, status: 412, detail: "the settings changed since you read them (now r5): read again" });
+  expect(await stale.patchSettings({ worker: { default_runner: "codex" } }, "r4")).toEqual({ ok: false, status: 412, detail: "the settings changed since you read them (now r5): read again" });
   const invalid = new HttpSource({ fetch: recordingFetch(() => new Response(JSON.stringify({ detail: "worker.default_runner: runner 'omo' is off", errors: [{ path: "worker.default_runner", message: "runner 'omo' is off" }] }), { status: 422 })).fetchImpl });
-  expect(await invalid.rollbackSettings()).toEqual({ ok: false, status: 422, detail: "worker.default_runner: runner 'omo' is off" });
+  expect(await invalid.rollbackSettings("r4")).toEqual({ ok: false, status: 422, detail: "worker.default_runner: runner 'omo' is off" });
 });
 
 test("the synthetic core takes a settings write only against the revision the page read, and refuses an invalid one", async () => {
   const source = new SyntheticSource();
-  expect(await source.patchSettings({ worker: { default_runner: "codex" } })).toMatchObject({ ok: false, status: 428 });
+  expect(await source.patchSettings({ worker: { default_runner: "codex" } }, "r3")).toMatchObject({ ok: false, status: 428 });
   await source.read("settings");
-  expect(await source.patchSettings({ worker: { routing: [{ name: "docs", runner: "nobody" }] } })).toEqual({ ok: false, status: 422, detail: "worker.routing[0].runner: unknown runner 'nobody'" });
-  expect(await source.patchSettings({ devices: { workers: { "laptop-a": { cap: 2 } } } })).toMatchObject({ ok: false, status: 422, detail: "devices.workers.laptop-a.cap: a person device takes no work" });
-  const written = await source.patchSettings({ worker: { default_runner: "codex" } });
+  expect(await source.patchSettings({ worker: { routing: [{ name: "docs", runner: "nobody" }] } }, "r3")).toEqual({ ok: false, status: 422, detail: "worker.routing[0].runner: unknown runner 'nobody'" });
+  expect(await source.patchSettings({ devices: { workers: { "laptop-a": { cap: 2 } } } }, "r3")).toMatchObject({ ok: false, status: 422, detail: "devices.workers.laptop-a.cap: a person device takes no work" });
+  const written = await source.patchSettings({ worker: { default_runner: "codex" } }, "r3");
   expect(written).toMatchObject({ ok: true, data: { changes: [{ path: "worker.default_runner", from: "omo", to: "codex" }], revision: { id: "r4", base: "r3", by: { kind: "app" } } } });
-  expect(await source.patchSettings({ worker: { default_runner: "omo" } })).toMatchObject({ ok: false, status: 412, detail: "the settings changed since you read them (now r4): read again" });
+  expect(await source.patchSettings({ worker: { default_runner: "omo" } }, "r3")).toMatchObject({ ok: false, status: 412, detail: "the settings changed since you read them (now r4): read again" });
   const after = await source.read("settings");
   expect(after.kind === "data" ? after.data.settings.worker?.default_runner : null).toBe("codex");
   const history = await source.read("settingsHistory", "2");
   expect(history.kind === "data" ? history.data.revisions.map((line) => line.rev) : []).toEqual(["r4", "r3"]);
 });
 
+test("&settings=race: another device writes right after the page's first write lands, so the next one is not sent", async () => {
+  const source = new SyntheticSource({ settings: "race" });
+  await source.read("settings");
+  expect(await source.patchSettings({ worker: { default_runner: "codex" } }, "r3")).toMatchObject({ ok: true, data: { revision: { id: "r4" } } });
+  expect(source.scene.settings.history.at(-1)).toMatchObject({ rev: "r5", by: { device: "phone-a" } });
+  await source.read("settings");
+  expect(await source.patchSettings({ worker: { default_runner: "dsh" } }, "r4")).toEqual({ ok: false, status: 412, detail: null });
+  expect(source.settingsWrites).toEqual([{ kind: "patch", ifMatch: "r3", status: 200 }]);
+});
+
 test("a synthetic rollback writes the revision before as a new one, and a second rollback undoes the first", async () => {
   const source = new SyntheticSource();
   const before = structuredClone(source.scene.settings.revisions[3]);
   await source.read("settings");
-  expect(await source.rollbackSettings()).toMatchObject({ ok: true, data: { revision: { id: "r4", by: { kind: "rollback" } } } });
+  expect(await source.rollbackSettings("r3")).toMatchObject({ ok: true, data: { revision: { id: "r4", by: { kind: "rollback" } } } });
   expect(source.scene.settings.history.at(-1)).toMatchObject({ rev: "r4", rollback_of: "r3" });
   await source.read("settings");
-  await source.rollbackSettings();
+  await source.rollbackSettings("r4");
   expect(source.scene.settings.revisions[5]).toEqual(before);
   const empty = new SyntheticSource({ settings: "empty" });
   await empty.read("settings");
-  expect(await empty.rollbackSettings()).toMatchObject({ ok: false, status: 422 });
+  expect(await empty.rollbackSettings("r0")).toMatchObject({ ok: false, status: 422 });
 });
 
 test("the synthetic models view warns for each runner whose model does not run now, in the core's words", async () => {

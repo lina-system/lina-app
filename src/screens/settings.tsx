@@ -29,6 +29,7 @@ import {
   runnerLine,
   runnerOn,
   runnerTable,
+  warningLines,
   type DeviceRow,
   type RuleSize,
 } from "../model/settings";
@@ -119,8 +120,19 @@ function Lines({ title, sub }: { title: string; sub?: string | null }) {
   );
 }
 
-function LinkRow({ to, title, value, sub, error, testid = "row" }: { to: string; title: string; value?: string; sub?: string; error?: string; testid?: string }) {
+/** A row that opens a list; `locked` (a picker on a device that may only read) shows its value with nothing to open. */
+function LinkRow({ to, title, value, sub, error, locked = false, testid = "row" }: { to: string; title: string; value?: string; sub?: string; error?: string; locked?: boolean; testid?: string }) {
   const { selected } = useApp();
+  if (locked)
+    return (
+      <li class="row settings-row" data-testid={testid}>
+        <span class="row-body" aria-label={[title, sub, value].filter(Boolean).join(SEP)}>
+          <Lines title={title} sub={sub} />
+          {value ? <span class="settings-value one-line">{value}</span> : null}
+        </span>
+        <ErrorLine line={error} />
+      </li>
+    );
   return (
     <li class="row settings-row" data-testid={testid}>
       <Link href={to} label={[title, sub, value].filter(Boolean).join(SEP)} current={selected === to}>
@@ -215,8 +227,8 @@ function PlainRow({ title, sub, testid = "row" }: { title: string; sub?: string;
 }
 
 function ReadOnlyLine() {
-  const { locked } = useSettings();
-  return locked ? (
+  const { edits, locked } = useSettings();
+  return edits.view && locked ? (
     <p class="settings-note" data-testid="read-only">
       {W.settingsReadOnly}
     </p>
@@ -225,8 +237,8 @@ function ReadOnlyLine() {
 
 /** What the core says the settings or the models get wrong now: one orange line each, the first three. */
 function Warnings() {
-  const { edits, modelsView } = useSettings();
-  const lines = [...(modelsView?.warnings ?? []), ...(edits.view?.warnings ?? []).map((warning) => (warning.path ? `${warning.path}: ${warning.message}` : warning.message))];
+  const { edits, settings, modelsView } = useSettings();
+  const lines = [...(modelsView ? warningLines(modelsView, settings) : []), ...(edits.view?.warnings ?? []).map((warning) => (warning.path ? `${warning.path}: ${warning.message}` : warning.message))];
   if (!lines.length) return null;
   return (
     <ul class="settings-warnings" data-testid="settings-warnings">
@@ -245,12 +257,12 @@ function Warnings() {
 }
 
 function DefaultsGroup() {
-  const { edits, settings, models } = useSettings();
+  const { edits, settings, models, locked } = useSettings();
   const fallback = settings.worker?.models?.fallback;
   return (
     <Group title={W.defaults} testid="settings-defaults">
-      <LinkRow to={pageHref("default-runner")} title={W.defaultRunner} value={defaultRunner(settings)} error={edits.error("default-runner")} />
-      <LinkRow to={pageHref("fallback")} title={W.fallbackModel} value={fallback ? modelLabel(fallback, settings, models) : W.empty} error={edits.error("fallback")} />
+      <LinkRow to={pageHref("default-runner")} title={W.defaultRunner} value={defaultRunner(settings)} error={edits.error("default-runner")} locked={locked} />
+      <LinkRow to={pageHref("fallback")} title={W.fallbackModel} value={fallback ? modelLabel(fallback, settings, models) : W.empty} error={edits.error("fallback")} locked={locked} />
     </Group>
   );
 }
@@ -441,12 +453,14 @@ function HistoryGroup() {
           <HistoryRow key={line.rev} line={line} />
         ))}
         <LinkRow to={pageHref("history")} title={W.allHistory} testid="history-all" />
-        <li class="row settings-row" data-testid="rollback-row">
-          <button type="button" class="row-button settings-danger" disabled={locked || edits.rollingBack || revision === "r0"} onClick={() => edits.askRollback(true)} data-testid="rollback">
-            {W.rollbackOne}
-          </button>
-          <ErrorLine line={edits.error(ROLLBACK_KEY)} />
-        </li>
+        {locked ? null : (
+          <li class="row settings-row" data-testid="rollback-row">
+            <button type="button" class="row-button settings-danger" disabled={edits.rollingBack || revision === "r0"} onClick={() => edits.askRollback(true)} data-testid="rollback">
+              {W.rollbackOne}
+            </button>
+            <ErrorLine line={edits.error(ROLLBACK_KEY)} />
+          </li>
+        )}
       </Group>
       <p class="settings-foot settings-rev" data-testid="settings-rev">
         {W.settingsRev(revision)}
@@ -527,10 +541,10 @@ function RunnerPage({ name }: { name: string }) {
         <SwitchRow title={W.turnOn} label={`${name} ${W.turnOn}`} on={runnerOn(runner)} disabled={locked} onChange={(on) => edits.change(key("on"), runnerPatch(settings, name, { on }))} error={edits.error(key("on"))} />
       </Group>
       <Group label={W.model}>
-        <LinkRow to={pageHref(`runner/${name}/model`)} title={W.model} value={modelLabel(runner.model, settings, models)} error={edits.error(key("model"))} />
-        <LinkRow to={pageHref(`runner/${name}/effort`)} title={W.effort} value={effort ? effortWord(effort) : W.defaultValue} error={edits.error(key("effort"))} />
-        <LinkRow to={pageHref(`runner/${name}/access`)} title={W.access} value={runner.access ? W.accessWord[runner.access] : W.defaultValue} error={edits.error(key("access"))} />
-        <LinkRow to={pageHref(`runner/${name}/fallback`)} title={W.fallbackModel} value={runner.fallback_model ? modelLabel(runner.fallback_model, settings, models) : W.followDefault} error={edits.error(key("fallback"))} />
+        <LinkRow to={pageHref(`runner/${name}/model`)} title={W.model} value={modelLabel(runner.model, settings, models)} error={edits.error(key("model"))} locked={locked} />
+        <LinkRow to={pageHref(`runner/${name}/effort`)} title={W.effort} value={effort ? effortWord(effort) : W.defaultValue} error={edits.error(key("effort"))} locked={locked} />
+        <LinkRow to={pageHref(`runner/${name}/access`)} title={W.access} value={runner.access ? W.accessWord[runner.access] : W.defaultValue} error={edits.error(key("access"))} locked={locked} />
+        <LinkRow to={pageHref(`runner/${name}/fallback`)} title={W.fallbackModel} value={runner.fallback_model ? modelLabel(runner.fallback_model, settings, models) : W.followDefault} error={edits.error(key("fallback"))} locked={locked} />
       </Group>
       {runner.argv?.length ? (
         <Group title={W.command}>

@@ -15,10 +15,13 @@ export function backoffMs(attempt: number, random: () => number): number {
 /** The settings and their history (each limit only when a screen read it): a settings event, and the page shown again. */
 export const SETTINGS_ROUTES: Want = [["settings"], ["settingsHistory", SETTINGS_HISTORY.recent], ["settingsHistory", SETTINGS_HISTORY.all]];
 
+/** A new revision of the settings, written here or elsewhere: the settings, their history and the model list, whose warnings follow the settings. */
+export const SETTINGS_REVISED: Want = [...SETTINGS_ROUTES, ["settingsModels"]];
+
 /**
  * The routes one change touches. work: the record's to-dos and goals (board, items, the item); worker: a worker run
  * (board, and the cards that list it); kanban: a work card or goal card (cards, goals, inbox, the card, the goal);
- * settings: a new revision of the work settings (the settings and their history).
+ * settings: a new revision of the work settings (the settings, their history and the model list).
  */
 export function routesFor(events: readonly ChangeEvent[], store: Pick<Store, "cardsWithRun">): Want {
   const routes: (readonly [Parameters<Store["get"]>[0], string?])[] = [];
@@ -35,7 +38,7 @@ export function routesFor(events: readonly ChangeEvent[], store: Pick<Store, "ca
         routes.push(["cards"], ["goals"], ["inbox"], ["card", event.id], ["goal", event.id]);
         break;
       case "settings":
-        routes.push(...SETTINGS_ROUTES);
+        routes.push(...SETTINGS_REVISED);
         break;
     }
   }

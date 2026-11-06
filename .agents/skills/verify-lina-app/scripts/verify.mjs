@@ -1280,6 +1280,10 @@ const drivers = {
       check(JSON.stringify(groups) === JSON.stringify(["settings-warnings", "settings-defaults", "settings-runners", "settings-rules", "settings-devices", "settings-models", "settings-history", "settings-rev"]), "groups " + groups.join(", "));
       const warnings = await page.getByTestId("settings-warning").evaluateAll((items) => items.map((item) => [item.textContent, getComputedStyle(item).color]));
       check(warnings.length === 2 && warnings[0][0].startsWith("codex 모델의 쿼터가 다 찼습니다") && warnings[1][0].startsWith("dsh 모델이 꺼져 있습니다") && warnings.every(([, colour]) => colour === ORANGE), "warnings " + JSON.stringify(warnings));
+      // One way to write a model: the warnings name the fallback as the 기본값 row and the picker do.
+      const fallback = (await page.getByTestId("settings-defaults").locator("[data-testid=row]").nth(1).locator(".settings-value").innerText()).trim();
+      check(fallback === "model-b", "the 기본값 row's fallback reads " + fallback);
+      check(warnings.every(([line]) => line.endsWith(" · 다음 실행은 " + fallback + "로 갑니다")), "the warnings name the fallback another way: " + JSON.stringify(warnings));
       const runners = await rows("settings-runners");
       check(JSON.stringify(runners) === JSON.stringify(["omo / model-a · 높음", "codex / model-c · 보통", "dsh / model-d"]), "runners " + JSON.stringify(runners));
       const order = await rules();
@@ -1293,11 +1297,12 @@ const drivers = {
       const models = (await page.getByTestId("settings-models").innerText()).replace(/\s+/g, " ");
       check(models.includes("켜진 모델 3개") && models.includes("모델 켜고 끄기는 OCX에서 합니다"), "models " + models);
       const history = await page.getByTestId("history-row").locator(".title").allInnerTexts();
-      check(history.length === 3 && / · 바깥 편집 · /.test(history[0]) && / · 앱 · codex 모델 model-c$/.test(history[1]) && / · CLI · /.test(history[2]) && history.every((line) => /^\d\d-\d\d \d\d:\d\d · /.test(line)), "history " + JSON.stringify(history));
+      check(history.length === 3 && / · 바깥 편집 · machine-a 입찰 2 외 1개$/.test(history[0]) && / · 앱 · codex 모델 model-c$/.test(history[1]) && / · CLI · machine-a 추가 외 9개$/.test(history[2]) && history.every((line) => /^\d\d-\d\d \d\d:\d\d · /.test(line)), "history " + JSON.stringify(history));
+      check(!history.some((line) => / · (기기|실행기|배정 규칙|모델)( 외 \d+개)?$/.test(line)), "a history line names a bare section: " + JSON.stringify(history));
       const rollback = await page.getByTestId("rollback").evaluate((button) => getComputedStyle(button).color);
       check(rollback === RED, "한 단계 되돌리기 is drawn " + rollback);
       check((await rev()) === "설정 r3", "the revision reads " + (await rev()));
-      return [warnings.length + " warnings", runners.join(", "), order.join(", "), work.concat(files, mine).join(", "), history.length + " changes", await rev()].join("; ");
+      return [warnings.length + " warnings, fallback " + fallback, runners.join(", "), order.join(", "), work.concat(files, mine).join(", "), history.length + " changes", await rev()].join("; ");
     });
     await step("a switch saves at once: machine-b off, a new revision written against the one read", async () => {
       await toggle("machine-b 켜기").click();
@@ -1408,7 +1413,7 @@ const drivers = {
       await toggle("machine-a 켜기").click();
       const toast = page.getByTestId("toast");
       const said = (await text(toast)).trim();
-      check(said === "다른 곳에서 바뀌어 다시 불러옴", "the toast reads " + said);
+      check(said === "다른 곳에서 먼저 바뀌었습니다 · 새로 읽었습니다", "the toast reads " + said);
       check((await toast.getByRole("button").count()) === 0, "the toast offers 되돌리기");
       await until(rev, (line) => line === "설정 r4", "the revision after the stale write");
       check((await toggle("machine-a 켜기").getAttribute("aria-checked")) === "true", "machine-a stayed off");
@@ -1417,6 +1422,25 @@ const drivers = {
       check(sent.status === 412 && sent.ifMatch === "r3", "the write went " + JSON.stringify(sent));
       return said + "; " + work.join(", ") + "; " + (await rev());
     });
+    await step("changes queued behind a write go only against the revision they were drawn over", async () => {
+      await openApp(page, "#/settings", "&settings=race");
+      await page.getByTestId("screen-settings").waitFor();
+      await page.getByTestId("rules-edit").click();
+      // Two taps in one go, so the second change waits behind the first write; another device writes as it lands.
+      await page.evaluate(() => {
+        const button = (name) => document.querySelector(`[data-testid=settings-rules] button[aria-label="${name}"]`);
+        button("docs → codex 아래로").click();
+        button("quick · S → dsh 삭제").click();
+      });
+      const said = (await text(page.getByTestId("toast"))).trim();
+      check(said === "다른 곳에서 먼저 바뀌었습니다 · 새로 읽었습니다", "the toast reads " + said);
+      await until(rev, (line) => line === "설정 r5", "the revision after the other device's write");
+      const sent = await writes();
+      check(sent.length === 1 && sent[0].ifMatch === "r3" && sent[0].status === 200, "the queued change was sent: " + JSON.stringify(sent));
+      const list = await until(rules, (items) => JSON.stringify(items) === JSON.stringify(["quick · S → dsh", "docs → codex", "그 외 → omo"]), "the rules after the first change");
+      const work = await until(() => rows("devices-work"), (items) => items[1] === "machine-b / 입찰 2 · 지정 2", "machine-b's row after the other device's write");
+      return said + "; sent " + sent.map((write) => write.ifMatch + " " + write.status).join(", ") + "; " + list.join(", ") + "; " + work[1];
+    });
     await step("a device that may only read: every control disabled, one grey line, nothing sent", async () => {
       await openApp(page, "#/settings", "&settings=readonly");
       await page.getByTestId("screen-settings").waitFor();
@@ -1424,9 +1448,25 @@ const drivers = {
       check(line[0] === "이 기기에서는 볼 수만 있습니다", "the line reads " + line[0]);
       const controls = await page.getByTestId("screen-settings").locator("button").evaluateAll((buttons) => buttons.map((button) => button.disabled));
       check(controls.length > 0 && controls.every(Boolean), (controls.length - controls.filter(Boolean).length) + " of " + controls.length + " buttons are enabled");
+      check((await page.getByTestId("rollback").count()) === 0, "한 단계 되돌리기 shows on a device that may only read");
+      const pickers = await page.getByTestId("settings-defaults").locator("[data-testid=row]").evaluateAll((items) => items.map((item) => item.querySelectorAll("a, .disclosure").length));
+      check(pickers.every((count) => count === 0), "기본값 rows still open a picker: " + JSON.stringify(pickers));
+      const look = await toggle("machine-a 켜기").evaluate((button) => [getComputedStyle(button).opacity, getComputedStyle(button).cursor, getComputedStyle(button.querySelector(".switch")).filter]);
+      check(look[0] === "0.5" && look[1] === "not-allowed" && look[2].includes("grayscale"), "a disabled switch looks " + JSON.stringify(look));
       await toggle("machine-a 켜기").click({ force: true });
       check((await writes()).length === 0, "a write was sent: " + JSON.stringify(await writes()));
-      return line.join(" ") + "; " + controls.length + " buttons disabled";
+      return line.join(" ") + "; " + controls.length + " buttons disabled (" + look.join(", ") + "); no rollback, 기본값 rows open nothing";
+    });
+    await step("the scene as it starts is writable: no read-only line, every switch and 한 단계 되돌리기 enabled", async () => {
+      await openApp(page, "#/settings");
+      await page.getByTestId("screen-settings").waitFor();
+      check((await page.getByTestId("read-only").count()) === 0, "the default scene says it is read-only");
+      const enabled = await page.getByTestId("screen-settings").getByRole("switch").evaluateAll((items) => items.every((item) => !item.disabled));
+      check(enabled, "a switch is disabled in the default scene");
+      check(await page.getByTestId("rollback").isEnabled(), "한 단계 되돌리기 is disabled in the default scene");
+      const pickers = await page.getByTestId("settings-defaults").locator("[data-testid=row] a").count();
+      check(pickers === 2, "기본값 has " + pickers + " pickers");
+      return "writable; " + (await rev());
     });
     if (!wide) {
       for (const [where, hash] of [

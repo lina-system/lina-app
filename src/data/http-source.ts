@@ -42,6 +42,9 @@ export function eventsUrl(href: string, basePath: string, token: string | null, 
 /** Close codes the dashboard's sockets use to turn a credential away (policy violation, the auth gate's 4401 and 4403). */
 const REFUSED_CODES: ReadonlySet<number> = new Set([1008, 4401, 4403]);
 
+/** A settings write drawn over another revision than the one read last: stale, and not sent. */
+const NOT_THE_READ: WriteResult<never> = { ok: false, status: 412, detail: null };
+
 /** The session token the core's bootstrap script sets on the page (`window.__HERMES_SESSION_TOKEN__="…"`), if any. */
 export function tokenInPage(html: string): string | null {
   const match = /window\.__HERMES_SESSION_TOKEN__\s*=\s*"([^"\\<]+)"/.exec(html);
@@ -234,12 +237,26 @@ export class HttpSource implements Source {
    * The ETag of the settings this page read last goes back as If-Match. It stays the read's own: after a write the
    * next read must answer with the new settings, not 304 against the write's tag.
    */
-  patchSettings(patch: SettingsPatch): Promise<WriteResult<SettingsWritten>> {
-    return this.post(SETTINGS_PATH, patch, { method: "PATCH", contentType: "application/merge-patch+json", ifMatch: this.etags.get(`${this.basePath}${SETTINGS_PATH}`) });
+  patchSettings(patch: SettingsPatch, revision: string): Promise<WriteResult<SettingsWritten>> {
+    const ifMatch = this.settingsTag(revision);
+    if (ifMatch === null) return Promise.resolve(NOT_THE_READ);
+    return this.post(SETTINGS_PATH, patch, { method: "PATCH", contentType: "application/merge-patch+json", ifMatch });
   }
 
-  rollbackSettings(): Promise<WriteResult<SettingsWritten>> {
-    return this.post(SETTINGS_ROLLBACK_PATH, undefined, { ifMatch: this.etags.get(`${this.basePath}${SETTINGS_PATH}`) });
+  rollbackSettings(revision: string): Promise<WriteResult<SettingsWritten>> {
+    const ifMatch = this.settingsTag(revision);
+    if (ifMatch === null) return Promise.resolve(NOT_THE_READ);
+    return this.post(SETTINGS_ROLLBACK_PATH, undefined, { ifMatch });
+  }
+
+  /**
+   * The read's ETag when it is revision `revision`'s (`"r<n>-<hash>"`), null when it names another one: a read that
+   * landed since the change was drawn must not carry it. A tag of another form goes as it is, for the core to judge.
+   */
+  private settingsTag(revision: string): string | undefined | null {
+    const tag = this.etags.get(`${this.basePath}${SETTINGS_PATH}`);
+    const named = tag?.match(/^(?:W\/)?"(r\d+)-/)?.[1];
+    return named === undefined || named === revision ? tag : null;
   }
 
   /** One write: JSON body, the session token like the reads, and `keepalive` so a write sent as the page goes still lands. */

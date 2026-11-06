@@ -70,6 +70,8 @@ async function onPush(data) {
 // The app's open window goes to the item (focused, so the screen comes forward); with none open, a new one opens on it.
 // The message carries the notification's tag, so the page can read-mark a reply. A new page has no listener until it
 // loads: it asks with `lina-ready`, and this one open is handed over then (a second ask is not a second read mark).
+// A click while that window is up but has not asked yet replaces this open. Posting it now would be lost, and leaving
+// the older open would navigate back to it after the newer one.
 let pendingOpen = null;
 
 async function openItem(notification) {
@@ -82,13 +84,18 @@ async function openItem(notification) {
   const scope = self.registration.scope;
   const windows = (await self.clients.matchAll({ type: "window", includeUncontrolled: true })).filter((client) => client.url.startsWith(scope));
   const app = windows.find((client) => client.focused) || windows[0];
-  if (app) {
-    app.postMessage(message);
+  if (!app) {
+    pendingOpen = message;
+    await self.clients.openWindow(scope + hash);
+    return;
+  }
+  if (pendingOpen) {
+    pendingOpen = message;
     await app.focus();
     return;
   }
-  pendingOpen = message;
-  await self.clients.openWindow(scope + hash);
+  app.postMessage(message);
+  await app.focus();
 }
 
 async function closeMatching(tags, prefixes) {

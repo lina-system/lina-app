@@ -58,6 +58,7 @@ function worker(windows: { url: string; focused: boolean }[] = []) {
     push: (message: PushMessage | string) => dispatch("push", { data: { json: () => (typeof message === "string" ? JSON.parse(message) : message) } }),
     click: (note: Shown) => dispatch("notificationclick", { notification: note }),
     message: (data: unknown) => dispatch("message", { data, source: { postMessage: (message: unknown) => posted.push(message) } }),
+    addWindow: (url: string) => windows.push({ url, focused: true }),
     shown: () => shown,
     shows: () => shows,
     opened,
@@ -177,6 +178,20 @@ describe("choosing a notification", () => {
     expect(sw.posted).toHaveLength(1);
   });
 
+  test("a second click before the new window is ready replaces the pending open", async () => {
+    const sw = worker();
+    await sw.push(show({ kind: "reply", tag: "reply:T4:n1", target: "T4" }));
+    await sw.push(show({ kind: "reply", tag: "reply:T5:n1", target: "T5" }));
+    const [first, second] = sw.shown();
+    await sw.click(first);
+    sw.addWindow(`${SCOPE}#/items/T4`);
+    await sw.click(second);
+    await sw.message({ type: "lina-ready" });
+    expect(sw.posted).toEqual([{ type: "lina-open", kind: "reply", target: "T5", hash: "#/items/T5", tag: "reply:T5:n1" }]);
+    await sw.message({ type: "lina-ready" });
+    expect(sw.posted).toHaveLength(1);
+  });
+
   test("with the app open, its window (the focused one first) is brought forward and sent to the item", async () => {
     const sw = worker([
       { url: "https://hub.example/other/", focused: true },
@@ -188,5 +203,7 @@ describe("choosing a notification", () => {
     expect(sw.opened).toEqual([]);
     expect(sw.focused).toEqual([`${SCOPE}?source=synthetic#/running`]);
     expect(sw.posted).toEqual([{ type: "lina-open", kind: "blocked", target: "k-101", hash: "#/cards/k-101", tag: "blocked:k-101" }]);
+    await sw.message({ type: "lina-ready" });
+    expect(sw.posted).toHaveLength(1);
   });
 });

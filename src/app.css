@@ -852,20 +852,6 @@ button:disabled {
   color: var(--red);
 }
 
-/* A service OCX holds no account for: one line under that panel's service rows. */
-.quota-missing {
-  padding: 2px var(--inset) 0;
-  color: var(--label-2);
-  font-size: var(--text-small);
-}
-
-/* OCX's own line under the quota: the models on, and only the links that are down. */
-.ocx-line {
-  padding: 0 var(--inset);
-  color: var(--label-2);
-  font-size: var(--text-small);
-}
-
 /* 사용량: one control per range, the range's totals, then its costliest models and machines. */
 .usage-range {
   display: flex;
@@ -1529,9 +1515,7 @@ html:has(.stack) body {
   padding: 0 calc(var(--inset) + 12px) 6px;
 }
 
-/* A phone's 쿼터 and 사용량 panels align their lines with the rows' text, inside the rows' own margin. */
-.stack .quota-missing,
-.stack .ocx-line,
+/* A phone's 사용량 panel aligns its lines with the rows' text, inside the rows' own margin. */
 .stack .usage-range,
 .stack .usage-total,
 .stack .usage-head {

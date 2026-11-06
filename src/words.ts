@@ -125,8 +125,7 @@ export const W = {
   quotaPaused: "일시 중지",
   quotaReauth: "다시 로그인 필요",
   quotaUnavailable: "사용 불가",
-  leftPercent: (n: number) => `${Math.round(n)}% 남음`,
-  quotaMissing: (service: string) => `${service} 계정 없음`,
+  quotaMissing: (service: string) => `${service}${SEP}계정 없음`,
 
   usage: "사용량",
   usageRange: { today: "오늘", "7d": "7일", "30d": "30일" } as Readonly<Record<UsageRange, string>>,
@@ -137,8 +136,8 @@ export const W = {
   cost: costValue,
   tokens: tokenCount,
 
-  ocxModels: (n: number) => `모델 ${n}개 켜짐`,
-  ocxLinksDown: (machines: readonly string[]) => `연결 끊김: ${machines.join(", ")}`,
+  /** OCX's own row last in the quota list: the models on, then only the links that are down. */
+  ocxLine: (enabled: number, down: readonly string[]) => [`OCX`, `모델 ${enabled}개 켜짐`, ...(down.length ? [`연결 끊김: ${down.join(", ")}`] : [])].join(SEP),
 
   checks: "점검",
   checksEmpty: "점검 없음",

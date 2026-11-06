@@ -458,7 +458,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     ratePerHour,
     warn: ratePerHour !== null && percent + (ratePerHour * resetIn) / HOUR >= 100,
   });
-  const quotaAccount = (id: string, number: number, plan: string, mainWindow: string, windows: ReturnType<typeof quotaWindow>[], state: "ok" | "paused" | "reauth" = "ok", active = true) => ({
+  const quotaAccount = (id: string, number: number, plan: string, mainWindow: string | null, windows: ReturnType<typeof quotaWindow>[], state: "ok" | "paused" | "reauth" = "ok", active = true) => ({
     id,
     number,
     plan,
@@ -470,6 +470,9 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     warn: windows.some((window) => window.warn),
     windows,
   });
+  // The core's rule (lina_board_quota.quota_view): a service row's percent and rate are the mean over the accounts
+  // that are not paused and have a main window, so every service here keeps one such account and the row equals it.
+  // A reauth account holds no window at all, so nothing stale can be read off it.
   const quotaList: BoardSnapshot["quota"] = options.sourceError
     ? []
     : [
@@ -479,7 +482,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
           ratePerHour: 10,
           accounts: [
             quotaAccount("acct-a", 1, "pro", "fiveHour", [quotaWindow("fiveHour", 72, 3 * HOUR, 10), quotaWindow("weekly", 40, 4 * DAY, 0.5)]),
-            quotaAccount("acct-b", 2, "pro", "fiveHour", [quotaWindow("fiveHour", 18, 2 * HOUR, 3)], "reauth", false),
+            quotaAccount("acct-b", 2, "pro", null, [], "reauth", false),
           ],
         },
         {
@@ -492,7 +495,10 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
           service: SERVICE_NAMES[2],
           percent: 5,
           ratePerHour: null,
-          accounts: [quotaAccount("acct-d", 1, "basic", "monthly", [quotaWindow("monthly", 5, 12 * DAY, null)], "paused")],
+          accounts: [
+            quotaAccount("acct-d", 1, "basic", "monthly", [quotaWindow("monthly", 5, 12 * DAY, null)]),
+            quotaAccount("acct-e", 2, "basic", "monthly", [quotaWindow("monthly", 9, 26 * DAY, null)], "paused"),
+          ],
         },
       ];
   // Usage (lina#232), invented small numbers: a few dollars and a few thousand tokens today, more in 7 and 30 days.
@@ -520,7 +526,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       ],
       byProvider: [usageRow(18, 1.85, [4700, 1000, 500], { provider: "anthropic" }), usageRow(24, 1.57, [4300, 1000, 980], { provider: "openai" })],
       byAccount: [],
-      byMachine: [usageRow(24, 2.05, [5000, 1200, 800], { machine: "machine-a" }), usageRow(12, 1.01, [2800, 600, 400], { machine: "machine-b" }), usageRow(6, 0.36, [1200, 200, 280], { machine: "machine-c" })],
+      byMachine: [usageRow(24, 2.05, [5000, 1200, 800], { machine: machines[0] }), usageRow(12, 1.01, [2800, 600, 400], { machine: machines[1] }), usageRow(6, 0.36, [1200, 200, 280], { machine: machines[2] })],
     },
     "7d": {
       version: 1,
@@ -537,7 +543,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       ],
       byProvider: [usageRow(130, 9.8, [28000, 9000, 4200], { provider: "anthropic" }), usageRow(180, 8.6, [32000, 9000, 4200], { provider: "openai" })],
       byAccount: [],
-      byMachine: [usageRow(190, 11.2, [34000, 10000, 5000], { machine: "machine-a" }), usageRow(80, 5.4, [18000, 5500, 2500], { machine: "machine-b" }), usageRow(40, 1.8, [8000, 2500, 900], { machine: "machine-c" })],
+      byMachine: [usageRow(190, 11.2, [34000, 10000, 5000], { machine: machines[0] }), usageRow(80, 5.4, [18000, 5500, 2500], { machine: machines[1] }), usageRow(40, 1.8, [8000, 2500, 900], { machine: machines[2] })],
     },
     "30d": {
       version: 1,
@@ -554,11 +560,12 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       ],
       byProvider: [usageRow(480, 34.2, [135000, 36000, 19000], { provider: "anthropic" }), usageRow(700, 28.9, [165000, 44000, 21000], { provider: "openai" })],
       byAccount: [],
-      byMachine: [usageRow(720, 38.5, [170000, 45000, 25000], { machine: "machine-a" }), usageRow(310, 17.6, [85000, 23000, 12000], { machine: "machine-b" }), usageRow(150, 7, [45000, 12000, 3000], { machine: "machine-c" })],
+      byMachine: [usageRow(720, 38.5, [170000, 45000, 25000], { machine: machines[0] }), usageRow(310, 17.6, [85000, 23000, 12000], { machine: machines[1] }), usageRow(150, 7, [45000, 12000, 3000], { machine: machines[2] })],
     },
   };
-  // OCX itself (lina#232): three models on, and two links of which one did not answer. machine-a is fine, so the
-  // screen's line names only machine-c.
+  // OCX itself (lina#232): three models on, and two links of which one did not answer. The machines named here are the
+  // 기기 panel's own names, and the link that is not fine is the machine that panel draws as 꺼짐 (machines[2]), so one
+  // machine never carries two names on one screen.
   const modelsState: ModelsState = {
     version: 1,
     at: now,
@@ -570,8 +577,8 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       { provider: "openai", model: "moru" },
     ],
     machines: [
-      { machine: "machine-a", state: "connected", reportedAt: now - 30, ok: true },
-      { machine: "machine-c", state: "failed", reportedAt: now - 2 * HOUR, ok: false },
+      { machine: machines[0], state: "connected", reportedAt: now - 30, ok: true },
+      { machine: machines[2], state: "failed", reportedAt: now - 2 * HOUR, ok: false },
     ],
   };
   // The hub's own checks (lina#233), newest `at` first. Only the failing and stale ones draw; the three that pass

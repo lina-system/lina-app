@@ -396,10 +396,10 @@ function mainWindow(account: QuotaAccount): QuotaAccount["windows"][number] | un
 }
 
 /** A quota line's parts: the percent (or the word that stands in its place), the rate and the reset. */
-function QuotaParts({ line, now, percent }: { line: QuotaLine; now: number; percent: string | null }) {
+function QuotaParts({ line, now, percent, rate = true }: { line: QuotaLine; now: number; percent: string | null; rate?: boolean }) {
   const parts: ComponentChildren[] = [];
   if (percent !== null) parts.push(<span key="p">{percent}</span>);
-  if (line.rate !== null)
+  if (rate && line.rate !== null)
     parts.push(
       <span key="r" class="rate" title={W.rateTitle}>
         {W.ratePerHour(line.rate)}
@@ -421,11 +421,45 @@ function QuotaMeter({ line }: { line: QuotaLine }) {
   );
 }
 
+/** An account's line: percent used, rate and reset as the service row reads them, or the state word that stands in. */
+function AccountRow({ account, now }: { account: QuotaAccount; now: number }) {
+  const window = mainWindow(account);
+  const line: QuotaLine = { percent: window?.percent ?? null, rate: window?.ratePerHour ?? null, resetAt: window?.resetAt ?? null, warn: account.warn };
+  // OCX cannot read an account that needs signing in again: nothing on it is current, so the row says only that. A
+  // paused account keeps its reset (the window still resets) and drops the rate.
+  const reauth = account.state === "reauth";
+  const paused = account.state === "paused";
+  const flags = [account.unavailable ? W.quotaUnavailable : null].filter((flag): flag is string => Boolean(flag));
+  // One convention with the service row: the percent used. The state word stands in its place when OCX cannot use
+  // the account, and the parts after it are the ones that still hold: the reset alone for a paused account.
+  const percent = reauth ? W.quotaReauth : paused ? W.quotaPaused : line.percent !== null ? W.percent(line.percent) : null;
+  const parts = [percent, !reauth && !paused && line.rate !== null ? W.ratePerHour(line.rate) : null, line.resetAt !== null ? until(line.resetAt - now) : null].filter((part): part is string => Boolean(part));
+  const spoken = [W.quotaAccount(account.number), ...flags, ...parts, account.warn ? W.quotaWarn : null].filter(Boolean).join(SEP);
+  return (
+    <li class={`account-row${account.warn ? " is-warn" : ""}`} data-testid="account" aria-label={spoken}>
+      <span class="lines">
+        <span class="title one-line">{[W.quotaAccount(account.number), ...flags].join(SEP)}</span>
+        <span class="sub">
+          {reauth ? <span class="warn-mark">{W.quotaReauth}</span> : <QuotaParts line={line} now={now} percent={percent} rate={!paused} />}
+        </span>
+      </span>
+      {account.warn ? <span class="trail warn-mark">{W.quotaWarn}</span> : null}
+      {reauth ? null : <QuotaMeter line={line} />}
+    </li>
+  );
+}
+
 function QuotaRow({ service }: { service: QuotaService }) {
   const { now } = useApp();
   const name = serviceName(service.service);
-  const resets = service.accounts.map((account) => mainWindow(account)?.resetAt ?? null).filter((at): at is number => at !== null);
-  const line: QuotaLine = { percent: service.percent, rate: service.ratePerHour, resetAt: resets.length ? Math.min(...resets) : null, warn: service.accounts.some((account) => account.warn) };
+  // The core's rule (lina_board_quota.quota_view) for a service row: the mean over the accounts that are not paused
+  // and have a main window. The row's percent and rate come from the core; its reset and warning from those accounts.
+  const live = service.accounts
+    .filter((account) => !account.paused)
+    .map((account) => mainWindow(account))
+    .filter((window): window is QuotaAccount["windows"][number] => window !== undefined);
+  const resets = live.map((window) => window.resetAt).filter((at): at is number => at !== null);
+  const line: QuotaLine = { percent: service.percent, rate: service.ratePerHour, resetAt: resets.length ? Math.min(...resets) : null, warn: live.some((window) => window.warn) };
   return (
     <li class={`row quota-row${line.warn ? " is-warn" : ""}`} data-testid="row">
       <details class="quota-fold">
@@ -441,37 +475,9 @@ function QuotaRow({ service }: { service: QuotaService }) {
           <QuotaMeter line={line} />
         </summary>
         <ul class="accounts" aria-label={name}>
-          {service.accounts.map((account) => {
-            const window = mainWindow(account);
-            const accountLine: QuotaLine = { percent: window?.percent ?? null, rate: window?.ratePerHour ?? null, resetAt: window?.resetAt ?? null, warn: account.warn };
-            // An account OCX cannot use says so in place of its percent: signing in again, or paused. The rest read
-            // what is left of the main window, with the reset as it was.
-            const stateWord = account.state === "reauth" ? W.quotaReauth : account.state === "paused" ? W.quotaPaused : null;
-            const percent = stateWord ?? (window ? W.leftPercent(window.left) : null);
-            const flags = [account.unavailable ? W.quotaUnavailable : null].filter((flag): flag is string => Boolean(flag));
-            const spoken = [
-              W.quotaAccount(account.number),
-              ...flags,
-              percent,
-              accountLine.rate !== null ? W.ratePerHour(accountLine.rate) : null,
-              accountLine.resetAt !== null ? until(accountLine.resetAt - now) : null,
-              account.warn ? W.quotaWarn : null,
-            ]
-              .filter((part): part is string => Boolean(part))
-              .join(SEP);
-            return (
-              <li key={account.id} class={`account-row${account.warn ? " is-warn" : ""}`} data-testid="account" aria-label={spoken}>
-                <span class="lines">
-                  <span class="title one-line">{[W.quotaAccount(account.number), ...flags].join(SEP)}</span>
-                  <span class="sub">
-                    <QuotaParts line={accountLine} now={now} percent={percent} />
-                  </span>
-                </span>
-                {account.warn ? <span class="trail warn-mark">{W.quotaWarn}</span> : null}
-                <QuotaMeter line={accountLine} />
-              </li>
-            );
-          })}
+          {service.accounts.map((account) => (
+            <AccountRow key={account.id} account={account} now={now} />
+          ))}
         </ul>
       </details>
     </li>
@@ -554,22 +560,24 @@ function UsagePanel() {
   );
 }
 
-/** OCX's own line under the quota: the models on, then only the machines whose link is down (nothing when all are fine). */
-function OcxLine() {
-  const { model } = useApp();
-  if (!model.ocx) return null;
-  const models = W.ocxModels(model.ocx.enabled);
+/** A quota list row that is not a service: a service OCX holds no account for, or OCX's own line. */
+function PlainQuotaRow({ text, testid }: { text: string; testid: string }) {
   return (
-    <section class="list-section" data-testid="section-ocx">
-      <p class="ocx-line" data-testid="ocx-line">
-        {model.ocx.down.length ? `${models}${SEP}${W.ocxLinksDown(model.ocx.down)}` : models}
-      </p>
-    </section>
+    <li class="row" data-testid={testid}>
+      <div class="row-body" aria-label={text}>
+        <span class="lines">
+          <span class="title one-line">{text}</span>
+        </span>
+      </div>
+    </li>
   );
 }
 
 export function StatusScreen() {
   const { model } = useApp();
+  // The quota panel is the service rows, then one row for each service OCX holds no account for, then OCX's own row.
+  // A failed quota read leaves neither a service nor a missing service, so the panel stays away with OCX's row.
+  const hasQuota = model.quota.length + model.quotaMissing.length > 0;
   return (
     <div class="list" data-testid="screen-status">
       <section class="list-section" data-testid="section-machines">
@@ -582,7 +590,7 @@ export function StatusScreen() {
           ))}
         </ul>
       </section>
-      {model.quota.length ? (
+      {hasQuota ? (
         <section class="list-section" data-testid="section-quota">
           <h2 class="section-head">
             <span>{W.quota}</span>
@@ -591,15 +599,13 @@ export function StatusScreen() {
             {model.quota.map((service) => (
               <QuotaRow key={service.service} service={service} />
             ))}
+            {model.quotaMissing.map((service) => (
+              <PlainQuotaRow key={service} testid="quota-missing" text={W.quotaMissing(serviceName(service))} />
+            ))}
+            {model.ocx ? <PlainQuotaRow testid="ocx-line" text={W.ocxLine(model.ocx.enabled, model.ocx.down)} /> : null}
           </ul>
-          {model.quotaMissing.map((service) => (
-            <p key={service} class="quota-missing" data-testid="quota-missing">
-              {W.quotaMissing(serviceName(service))}
-            </p>
-          ))}
         </section>
       ) : null}
-      <OcxLine />
       <UsagePanel />
       <section class="list-section" data-testid="section-checks">
         <h2 class="section-head">

@@ -52,8 +52,9 @@ test("the scene's three ranges come back in the screen's order", () => {
   expect(usageViews(undefined)).toEqual([]);
 });
 
-test("OCX's view names only the links that are down, and nothing when every link is fine", () => {
-  expect(ocxView(scene.modelsState)).toEqual({ enabled: 3, down: ["machine-c"] });
+test("OCX's view names only the links that are down, by the 기기 panel's own machine names", () => {
+  const down = scene.devices.machines.find((machine) => machine.state === "down")?.name;
+  expect(ocxView(scene.modelsState)).toEqual({ enabled: 3, down: [down] });
   const allOk = { ...scene.modelsState, machines: scene.modelsState.machines.map((link) => ({ ...link, ok: true })) };
   expect(ocxView(allOk)).toEqual({ enabled: 3, down: [] });
   expect(ocxView(undefined)).toBeNull();

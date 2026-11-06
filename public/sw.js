@@ -67,12 +67,16 @@ async function onPush(data) {
   if (message.type === "close") for (const open of await self.registration.getNotifications({ tag: message.tag })) open.close();
 }
 
-// The app's open window goes to the item (focused, so the screen comes forward); with none open, a new one opens on it.
-// The message carries the notification's tag, so the page can read-mark a reply. A new page has no listener until it
-// loads: it asks with `lina-ready`, and this one open is handed over then (a second ask is not a second read mark).
-// A click while that window is up but has not asked yet replaces this open. Posting it now would be lost, and leaving
-// the older open would navigate back to it after the newer one.
-let pendingOpen = null;
+// The app's open window goes to the item (focused, so the screen comes forward). The message carries the notification's
+// tag, so that page can read-mark a reply. With no window open, a new one opens on the item and the tag rides in the
+// address (`?open=<tag>` before the hash). A browser may stop the worker before the page loads, so the tag cannot
+// live in a worker global; the page reads it once on start. An existing query on the scope, such as `source=synthetic`, stays.
+function openAddress(scope, hash, tag) {
+  const url = new URL(scope);
+  if (tag) url.searchParams.set("open", tag);
+  url.hash = hash;
+  return url.href;
+}
 
 async function openItem(notification) {
   const data = notification && notification.data;
@@ -84,18 +88,12 @@ async function openItem(notification) {
   const scope = self.registration.scope;
   const windows = (await self.clients.matchAll({ type: "window", includeUncontrolled: true })).filter((client) => client.url.startsWith(scope));
   const app = windows.find((client) => client.focused) || windows[0];
-  if (!app) {
-    pendingOpen = message;
-    await self.clients.openWindow(scope + hash);
-    return;
-  }
-  if (pendingOpen) {
-    pendingOpen = message;
+  if (app) {
+    app.postMessage(message);
     await app.focus();
     return;
   }
-  app.postMessage(message);
-  await app.focus();
+  await self.clients.openWindow(openAddress(scope, hash, tag));
 }
 
 async function closeMatching(tags, prefixes) {
@@ -129,9 +127,4 @@ self.addEventListener("notificationclick", (event) => {
 self.addEventListener("message", (event) => {
   const data = event.data;
   if (data && data.type === "lina-close") event.waitUntil(closeMatching(data.tags || [], data.prefixes || []));
-  if (data && data.type === "lina-ready" && pendingOpen && event.source) {
-    const open = pendingOpen;
-    pendingOpen = null;
-    event.source.postMessage(open);
-  }
 });

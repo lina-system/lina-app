@@ -19,7 +19,7 @@ interface Shown {
  * public/sw.js in a service worker scope of its own: notifications kept the way a browser keeps them (one per tag, a
  * new one with the same tag replaces it), and the windows the worker can see.
  */
-function worker(windows: { url: string; focused: boolean }[] = []) {
+function worker(windows: { url: string; focused: boolean }[] = [], scope = SCOPE) {
   const listeners = new Map<string, (event: object) => void>();
   let shown: Shown[] = [];
   const opened: string[] = [];
@@ -27,7 +27,7 @@ function worker(windows: { url: string; focused: boolean }[] = []) {
   const focused: string[] = [];
   let shows = 0;
   const registration = {
-    scope: SCOPE,
+    scope,
     async showNotification(title: string, options: { tag: string; body: string; data: Shown["data"] }) {
       shows += 1;
       const note: Shown = { title, tag: options.tag, body: options.body, data: options.data, close: () => (shown = shown.filter((each) => each !== note)) };
@@ -58,7 +58,6 @@ function worker(windows: { url: string; focused: boolean }[] = []) {
     push: (message: PushMessage | string) => dispatch("push", { data: { json: () => (typeof message === "string" ? JSON.parse(message) : message) } }),
     click: (note: Shown) => dispatch("notificationclick", { notification: note }),
     message: (data: unknown) => dispatch("message", { data, source: { postMessage: (message: unknown) => posted.push(message) } }),
-    addWindow: (url: string) => windows.push({ url, focused: true }),
     shown: () => shown,
     shows: () => shows,
     opened,
@@ -151,45 +150,38 @@ describe("the service worker's push messages", () => {
   });
 });
 
+function openedAt(tag: string, hash: string, scope = SCOPE): string {
+  return `${scope}${scope.includes("?") ? "&" : "?"}open=${encodeURIComponent(tag)}${hash}`;
+}
+
 describe("choosing a notification", () => {
-  test("with no app window open, a new one opens on the item's screen", async () => {
+  test("with no app window open, a new one opens on the item's screen, carrying the tag", async () => {
     const sw = worker();
     await sw.push(show());
     await sw.push(show({ kind: "reply", tag: "reply:G2:n1", target: "G2" }));
     await sw.push(show({ kind: "question", tag: "question:k-102:7", target: "k-102" }));
     for (const note of sw.shown()) await sw.click(note);
-    expect(sw.opened).toEqual([`${SCOPE}#/inbox`, `${SCOPE}#/items/G2`, `${SCOPE}#/cards/k-102`]);
+    expect(sw.opened).toEqual([
+      openedAt("ask:T2:1700000000", "#/inbox"),
+      openedAt("reply:G2:n1", "#/items/G2"),
+      openedAt("question:k-102:7", "#/cards/k-102"),
+    ]);
     expect(sw.shown()).toEqual([]);
-    await sw.message({ type: "lina-ready" });
-    expect(sw.posted).toEqual([{ type: "lina-open", kind: "question", target: "k-102", hash: "#/cards/k-102", tag: "question:k-102:7" }]);
-    await sw.message({ type: "lina-ready" });
-    expect(sw.posted).toHaveLength(1);
+    expect(sw.posted).toEqual([]);
   });
 
-  test("a new window is told which reply opened it, once, so the page can read-mark that tag", async () => {
+  test("a new window's address carries the reply tag, and keeps a query the scope already has", async () => {
     const sw = worker();
     await sw.push(show({ kind: "reply", tag: "reply:T4:n1", target: "T4" }));
     await sw.click(sw.shown()[0]);
-    expect(sw.opened).toEqual([`${SCOPE}#/items/T4`]);
+    expect(sw.opened).toEqual([openedAt("reply:T4:n1", "#/items/T4")]);
     expect(sw.posted).toEqual([]);
-    await sw.message({ type: "lina-ready" });
-    expect(sw.posted).toEqual([{ type: "lina-open", kind: "reply", target: "T4", hash: "#/items/T4", tag: "reply:T4:n1" }]);
-    await sw.message({ type: "lina-ready" });
-    expect(sw.posted).toHaveLength(1);
-  });
 
-  test("a second click before the new window is ready replaces the pending open", async () => {
-    const sw = worker();
-    await sw.push(show({ kind: "reply", tag: "reply:T4:n1", target: "T4" }));
-    await sw.push(show({ kind: "reply", tag: "reply:T5:n1", target: "T5" }));
-    const [first, second] = sw.shown();
-    await sw.click(first);
-    sw.addWindow(`${SCOPE}#/items/T4`);
-    await sw.click(second);
-    await sw.message({ type: "lina-ready" });
-    expect(sw.posted).toEqual([{ type: "lina-open", kind: "reply", target: "T5", hash: "#/items/T5", tag: "reply:T5:n1" }]);
-    await sw.message({ type: "lina-ready" });
-    expect(sw.posted).toHaveLength(1);
+    const scope = `${SCOPE}?source=synthetic`;
+    const withQuery = worker([], scope);
+    await withQuery.push(show({ kind: "reply", tag: "reply:T4:n1", target: "T4" }));
+    await withQuery.click(withQuery.shown()[0]);
+    expect(withQuery.opened).toEqual([openedAt("reply:T4:n1", "#/items/T4", scope)]);
   });
 
   test("with the app open, its window (the focused one first) is brought forward and sent to the item", async () => {
@@ -203,7 +195,5 @@ describe("choosing a notification", () => {
     expect(sw.opened).toEqual([]);
     expect(sw.focused).toEqual([`${SCOPE}?source=synthetic#/running`]);
     expect(sw.posted).toEqual([{ type: "lina-open", kind: "blocked", target: "k-101", hash: "#/cards/k-101", tag: "blocked:k-101" }]);
-    await sw.message({ type: "lina-ready" });
-    expect(sw.posted).toHaveLength(1);
   });
 });

@@ -467,6 +467,17 @@ export function App({ store, pushHost }: { store: Store; pushHost?: PushHost }) 
     if (request.kind === "reply" && request.tag) void actions.readNotices([request.tag]);
   });
 
+  useEffect(() => {
+    // A new window opened from a notification carries the tag in `?open=`, because the worker may have restarted
+    // before this page loaded. Read it once and drop it, so a reload does not mark the reply again.
+    const url = new URL(window.location.href);
+    const tag = url.searchParams.get("open");
+    if (tag === null) return;
+    url.searchParams.delete("open");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    if (tag.startsWith("reply:")) void actions.readNotices([tag]);
+  }, [actions]);
+
   useEffect(() => startLive(store), [store]);
   useEffect(() => store.want(wantsFor(nav.route, store)), [nav.hash, version]);
 

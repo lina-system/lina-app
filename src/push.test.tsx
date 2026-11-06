@@ -205,6 +205,31 @@ describe("notifications on this device", () => {
     }
   });
 
+  test("a start address with open=reply:T4:n1 read-marks once and the parameter is gone; an open=ask sends nothing", async () => {
+    const readNotices = vi.spyOn(Actions.prototype, "readNotices");
+    try {
+      setWide();
+      window.history.replaceState(null, "", "/app/?source=synthetic&open=reply%3AT4%3An1#/items/T4");
+      const reply = render(<App store={new Store(new SyntheticSource())} pushHost={browser().host} />);
+      await waitFor(() => expect(readNotices).toHaveBeenCalledTimes(1));
+      expect(readNotices).toHaveBeenCalledWith(["reply:T4:n1"]);
+      const left = new URL(window.location.href);
+      expect(left.searchParams.get("open")).toBeNull();
+      expect(left.searchParams.get("source")).toBe("synthetic");
+      expect(left.hash).toBe("#/items/T4");
+      reply.unmount();
+
+      window.history.replaceState(null, "", "/app/?open=ask%3AT2%3A1#/inbox");
+      const ask = render(<App store={new Store(new SyntheticSource())} pushHost={browser().host} />);
+      await waitFor(() => expect(ask.getByTestId("freshness-line").textContent).toBe("실시간"));
+      expect(readNotices).toHaveBeenCalledTimes(1);
+      expect(new URL(window.location.href).searchParams.get("open")).toBeNull();
+      ask.unmount();
+    } finally {
+      readNotices.mockRestore();
+    }
+  });
+
   test("an open request for a reply calls readNotices with reply:<item>:<cid>; an ask, a stopped card or a question sends nothing", async () => {
     const readNotices = vi.spyOn(Actions.prototype, "readNotices");
     try {

@@ -82,8 +82,6 @@ export function browserPushHost(host: Host = window as unknown as Host, manager?
         }
       };
       worker.addEventListener("message", receive);
-      // A window opened from a notification click starts listening only now, so ask for the open it missed.
-      if (production) void worker.ready.then((registration) => registration.active?.postMessage({ type: "lina-ready" }));
       return () => worker.removeEventListener("message", receive);
     },
   };

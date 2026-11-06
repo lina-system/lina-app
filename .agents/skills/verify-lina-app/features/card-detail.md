@@ -10,7 +10,7 @@ A work card (`#/cards/<id>`) or a worker run outside any card (`#/runs/<id>`) op
 
 ## Intended behavior
 
-- The head reads the title and `진행 중 · n분째` (or the stopped, waiting or done line).
+- The head reads the title and `진행 중 · n분째` (or the stopped, waiting or done line). A work card's title is its checked title, or its own title until the checked one is written, shortened to the row width; the kind stays the icon and word. A run outside any card without a checked title keeps its kind of work in grey.
 - A question the card asks the owner (from the work inbox) shows on top as a `결정 필요` box: the sentence, then agent, `질문` and age.
 - Below the boxes and above the comments, `기록` is the run's own timeline (lina#201), on a card (its worker runs' records together) and on a worker run's page. It is the card's one round list: one block per round, newest first, headed `라운드 n · <start–end> · <outcome>` (`어제 23:41` when not today; the end alone when the start is not on record, never a dangling dash) with the outcome `진행 중`, `검토 통과`, `검토 반려`, `작업 중단`, `작업 마침` or `완료 기록 없음`. On a card each round's head is the keyboard-reachable link to that round's worker run (`#/runs/<id>`). Rows read oldest first: the run's sentences in the label colour, tool steps as one dim `도구 사용 n번`, the owner's comments with author and time, a sentence said n times in a row once with `×n`; a round whose start is not on record opens with one dim `시작 기록 없음`; a round's result line follows its rows (`결과`); a comment made between rounds is its own block. A sentence or a result line that would show raw English, a path, a command, an id or a run number is left out, with no placeholder; a round left with no rows still shows its head. A comment that would show raw text stays as its folded entry (`접힌 댓글`). Each block folds; its open state and the scroll survive the record's refetch on its run's `worker` change event. A failed read shows one line `읽기 실패: 기록` in its place, and the rest of the detail keeps working.
 - A worker run a card started is not on the board's list (the core lists only runs outside any card); its round's head still opens its own page: the card it belongs to and its timeline.
@@ -26,7 +26,7 @@ A work card (`#/cards/<id>`) or a worker run outside any card (`#/runs/<id>`) op
 
 ## Sub-features
 
-- `card-head` shows title, state and time
+- `card-head` shows a work card's checked or own title (a run's checked title or kind word), state and time
 - `card-now` shows what it does now
 - `card-runs` dims the worker runs it started
 - `run-detail` opens a run outside any card, or a card's own worker run
@@ -46,8 +46,9 @@ Preconditions:
 - `verify.mjs doctor` reports `"healthy": true` for this run.
 - The page is `/app/?source=synthetic`, the synthetic scene; the drive opens it fresh for each width.
 
-- **Open a card.** On 진행 중인 작업, choose `릴리스 노트: 변경 목록 정리`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive card-detail`.
+- **Open a card.** On 진행 중인 작업, choose `릴리스 변경 목록 정리`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive card-detail`.
 - **Read it.** State `진행 중 · n분째`; boxes `지금`, `할 일`, `기록`, `댓글` (no `실행` beside the record); 3 check boxes reading `변경 목록 모으기` (checked), `모은 변경 확인`, `공지 문구 확인`; the round heads link to `#/runs/r1`, `#/runs/r10`, `#/runs/r9`; 4 comments (the agent's note in round 1 and the owner's three, which are also the record's comment rows).
+- **Own title.** Open `#/cards/k-102`: its head reads `위키: 결제 화면 문서 정리` with the `문서` kind and no `지금`, not `코드 작업`.
 - **Card question.** In 수신함 open `카드 번호는 앞 여섯 자리까지 보여 줄까요?` in place and choose its `목표 › 작업` link. The address is `#/cards/<id>` and the first box is `결정 필요` with that sentence, `질문` and `n일 전`.
 - **Open a run.** In 수신함 choose the 검토 필요 row. The address is `#/runs/<id>` and the state reads `대기 · 검토 필요 · n시간 전`.
 - **Timeline.** Driven in work-cards.md on `#/cards/k-101` and `#/runs/r1`; here `#/runs/r6`'s single round reads `라운드 1 · <hh:mm>–<hh:mm> · 작업 마침` and its raw result line is left out: no result line, no `가린 문장`.

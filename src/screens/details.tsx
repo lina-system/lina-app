@@ -227,8 +227,8 @@ export function ItemScreen({ id }: { id: string }) {
 export const GoalScreen = ItemScreen;
 
 /**
- * A work card's head: its kind icon and word, its name (the checked title, or its kind of work in grey when the core
- * has none) and its state line. The raw card title is never drawn.
+ * A work card's head: its kind icon and word, its name (the checked title, or the card's own title until that exists;
+ * a run without a checked title keeps its kind word in grey) and its state line.
  */
 function CardHead({ work, title, children }: { work: CardKind; title: string | null; children: ComponentChildren }) {
   return (
@@ -371,7 +371,7 @@ export function CardScreen({ id }: { id: string }) {
   const goalLine = goal && !foldReason(goal.title) ? goal.title : null;
   return (
     <article class="detail" data-testid="screen-card">
-      <CardHead work={row?.work ?? "code"} title={detail.plain.title}>
+      <CardHead work={row?.work ?? "code"} title={detail.plain.title ?? detail.title}>
         <StateTime state={detail.state} reason={detail.reason} time={row ? [cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP) : ""} />
         {goalLine ? (
           <span class="sub" data-testid="card-goal">

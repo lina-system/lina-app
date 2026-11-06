@@ -208,6 +208,38 @@ for (const screen of SCREENS) {
   });
 }
 
+// The bell's 알림 받기 row in each state. A full Chromium: the headless shell denies notifications, so its row would
+// always read 브라우저에서 알림 막힘.
+const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
+const PUSH_ROWS: readonly { id: string; query?: string; userAgent?: string; granted?: boolean; turnOn?: boolean }[] = [
+  { id: "off", query: "&push=off" },
+  { id: "home", userAgent: IPHONE },
+  { id: "ready" },
+  { id: "on", granted: true, turnOn: true },
+];
+
+test.describe("push row", () => {
+  test.use({ channel: "chromium" });
+  for (const row of PUSH_ROWS) {
+    test(`capture push-row-${row.id}`, async ({ browser }, testInfo) => {
+      const { viewport, colorScheme, hasTouch, isMobile, locale, baseURL } = testInfo.project.use;
+      const context = await browser.newContext({ viewport, colorScheme, hasTouch, isMobile, locale, baseURL, deviceScaleFactor: 1, ...(row.userAgent ? { userAgent: row.userAgent } : {}), ...(row.granted ? { permissions: ["notifications"] } : {}) });
+      const page = await context.newPage();
+      await page.goto(`${APP}${row.query ?? ""}#/inbox`);
+      await expect(page.getByTestId("freshness-line")).toHaveText("실시간");
+      await page.getByTestId("bell").click();
+      const shown = page.getByTestId("notices").getByTestId("push-row");
+      if (row.turnOn) {
+        await shown.getByRole("switch", { name: "알림 받기" }).click();
+      }
+      await expect(shown).toHaveAttribute("data-state", row.id);
+      await page.getByTestId("notices").evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+      await page.screenshot({ path: `captures/push-row-${row.id}-${suffix(testInfo.project.name)}.png`, fullPage: true, animations: "disabled" });
+      await context.close();
+    });
+  }
+});
+
 test("installs from /app/ with its manifest, icons and worker", async ({ page }) => {
   await page.goto(APP);
   const href = await page.locator('link[rel="manifest"]').getAttribute("href");

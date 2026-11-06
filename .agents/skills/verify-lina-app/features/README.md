@@ -30,7 +30,7 @@ This directory is the maintained source for verifying what people see and do in 
 ## Never press
 
 - On a disposable instance (`?source=synthetic`) every control may be pressed: writes go to the page's copy of the scene and a reload undoes them.
-- On a live core (a read-only pass after a deploy), never press `완료 표시` (a check box), `되돌리기`, `보내기` (in `댓글` or `대화`), `다시 시도` or `모두 읽음`, and never choose a notice in the bell or an answer button. They write to the owner's record, and a read-only pass must leave it as it found it.
+- On a live core (a read-only pass after a deploy), never press `완료 표시` (a check box), `되돌리기`, `보내기` (in `댓글` or `대화`), `다시 시도`, `모두 읽음` or the `알림 받기` switch, and never choose a notice in the bell or an answer button. They write to the owner's record, and a read-only pass must leave it as it found it.
 
 ## Feature entry contract
 
@@ -68,6 +68,7 @@ Keep implementation details out of the map. Name only user paths, stable handles
 - [Freshness](./freshness.md) covers the toolbar's freshness line and read failures.
 - [Live updates](./live.md) covers the change stream: changes from anywhere without a reload, drops, resyncs and the stale line.
 - [알림](./bell.md) covers the bell, its notices and their read marks.
+- [Push notifications](./notifications-push.md) covers the bell's 알림 받기 row, this device's subscription and the service worker's notifications.
 - [Phone](./phone.md) covers hit areas, type, press feedback, bars, sheets and the push and pop on a phone.
 - [Navigation](./phone-nav.md) covers the phone navigation stack, the wide split view and back.
 - [Install on the Home Screen](./install.md) covers the web app manifest, the icons and the service worker.

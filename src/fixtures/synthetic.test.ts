@@ -2,6 +2,7 @@
 import { expect, test } from "vitest";
 import { scanText } from "../../scripts/check-personal-data.ts";
 import { buildModel } from "../model";
+import { holds } from "../model/rounds";
 import { generateScene, SCENE_COUNTS, SYNTHETIC_SEED, type Scene } from "./synthetic";
 
 const NOW = 1_793_700_000;
@@ -173,6 +174,62 @@ test("every record round ends where its worker run ends, when both ends are know
     });
   }
   expect(compared).toBe(3);
+});
+
+/** The card whose worker runs include the record's run. */
+function cardOf(runId: string) {
+  return Object.values(scene.cardDetails).find((detail) => detail.workerRuns.some((worker) => worker.id === runId));
+}
+
+test("a record's comments and its card's 댓글 are one set: the owner's words, at the same times, in the round going then", () => {
+  const owner = scene.items.owner?.id;
+  let compared = 0;
+  for (const [id, record] of Object.entries(scene.records)) {
+    const card = cardOf(id);
+    const inRounds = record.rounds.flatMap((round) => round.rows.filter((row) => row.kind === "comment").map((row) => ({ row, round })));
+    const between = record.comments.map((row) => ({ row, round: null }));
+    // Every comment the record holds is one of the card's comments, by the owner, with the same text and time.
+    for (const { row } of [...inRounds, ...between]) {
+      const twin = card?.comments.find((comment) => comment.createdAt === row.at && comment.body === row.text);
+      expect(twin, `${id}: ${row.text}`).toBeDefined();
+      expect(twin?.author).toBe(owner);
+      compared += 1;
+    }
+    // Every comment the owner made on the card is in the record: in the round going at its time, else between rounds.
+    for (const comment of card?.comments.filter((candidate) => candidate.author === owner) ?? []) {
+      const going = record.rounds.find((round) => holds({ start: round.startedAt, end: round.endedAt }, comment.createdAt));
+      const rows = going ? going.rows : record.comments;
+      expect(
+        rows.some((row) => row.kind === "comment" && row.at === comment.createdAt && row.text === comment.body),
+        `${id}: "${comment.body}" is in ${going ? `round ${going.run ?? "?"}` : "the comments between rounds"}`,
+      ).toBe(true);
+    }
+  }
+  expect(compared).toBe(3);
+});
+
+/** Whether a result does what a request asks: they share three or more words (by their first two letters). */
+function answers(result: string, request: string): boolean {
+  const stems = (text: string) => new Set(text.split(/\s+/).filter((word) => word.length >= 2).map((word) => word.slice(0, 2)));
+  const done = stems(result);
+  return [...stems(request)].filter((stem) => done.has(stem)).length >= 3;
+}
+
+test("no round's result does what the owner asked only after that round ended; the round going now does not redo a finished one", () => {
+  expect(answers("문서만 바뀐 변경을 따로 묶음", "문서만 바뀐 변경은 따로 묶어 주세요.")).toBe(true);
+  expect(answers("문서만 바뀐 변경을 따로 묶음", "변경마다 한 줄 요약을 붙여 주세요")).toBe(false);
+  for (const [id, record] of Object.entries(scene.records)) {
+    const requests = (cardOf(id)?.comments ?? []).filter((comment) => comment.author === scene.items.owner?.id);
+    for (const round of record.rounds) {
+      if (!round.result || round.endedAt === null) continue;
+      const late = requests.filter((request) => request.createdAt > (round.endedAt ?? 0) && answers(round.result ?? "", request.body));
+      expect(late.map((request) => request.body), `${id} round ${round.run ?? "?"}: ${round.result}`).toEqual([]);
+    }
+    const going = record.rounds.find((round) => round.endedAt === null && !round.endKnown);
+    const finished = record.rounds.flatMap((round) => (round.result ? [round.result] : []));
+    for (const row of going?.rows.filter((candidate) => candidate.kind === "said") ?? [])
+      expect(finished.filter((result) => answers(result, row.text ?? "")), `${id}: "${row.text}"`).toEqual([]);
+  }
 });
 
 test("cards differ in kind: code, docs, research and device all appear", () => {

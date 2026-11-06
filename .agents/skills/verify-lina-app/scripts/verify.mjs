@@ -723,7 +723,7 @@ const drivers = {
     });
     await step("the now line shows at 1280 only", async () => {
       const wide = page.viewportSize().width >= 900;
-      const shown = await page.getByText("변경 목록을 기능별로 묶는 중").first().isVisible();
+      const shown = await page.getByText("변경마다 한 줄 요약을 붙이는 중").first().isVisible();
       check(shown === wide, "now line visible=" + shown + " at width " + page.viewportSize().width);
       return wide ? "now line shown" : "no now line on a phone";
     });
@@ -1064,7 +1064,7 @@ const drivers = {
       // One round list: the record's blocks; 실행 does not stand beside them.
       check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "기록", "댓글"]), "boxes " + heads.join(", "));
       check((await page.getByTestId("worker-runs").count()) === 0, "the 실행 box stands beside the record");
-      check((await page.getByTestId("card-now").innerText()).includes("변경 목록을 기능별로 묶는 중"), "the now box does not read the checked now line");
+      check((await page.getByTestId("card-now").innerText()).includes("변경마다 한 줄 요약을 붙이는 중"), "the now box does not read the checked now line");
       const todos = page.locator(".detail .box").filter({ has: page.locator(".box-head", { hasText: /^할 일$/ }) });
       check((await todos.getByRole("checkbox").count()) === 3, "expected 3 to-dos");
       const order = await todos.locator(".title").allInnerTexts();
@@ -1072,7 +1072,7 @@ const drivers = {
       const links = page.getByTestId("timeline-link");
       const hrefs = await links.evaluateAll((items) => items.map((item) => item.getAttribute("href")));
       check(JSON.stringify(hrefs) === JSON.stringify(["#/runs/r1", "#/runs/r10", "#/runs/r9"]), "the round heads link to " + JSON.stringify(hrefs));
-      check((await page.getByTestId("comment").count()) === 2, "expected 2 comments");
+      check((await page.getByTestId("comment").count()) === 4, "expected 4 comments");
       return state + "; " + heads.join(", ") + "; " + order.join(", ");
     });
     await step("a run outside any card opens on its own, with its timeline", async () => {
@@ -1087,7 +1087,7 @@ const drivers = {
       // Its raw result line is left out, with no placeholder; the round keeps its head.
       const results = await block.getByTestId("timeline-result").count();
       const text = await page.getByTestId("timeline").innerText();
-      check(/^라운드 1 · \S+–\S+ · 작업 마침$/.test(head) && results === 0 && !text.includes("가린 문장") && !/benchmark|3f2a1c9/.test(text), "the run's timeline reads " + head + " / results " + results + " / " + text.replace(/\s+/g, " "));
+      check(/^라운드 1 · (어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 작업 마침$/.test(head) && results === 0 && !text.includes("가린 문장") && !/benchmark|3f2a1c9/.test(text), "the run's timeline reads " + head + " / results " + results + " / " + text.replace(/\s+/g, " "));
       return new URL(page.url()).hash + " " + state + "; " + head + "; no result line";
     });
   },
@@ -1867,11 +1867,11 @@ const drivers = {
       return "1 card for 3 rounds; 2 cards " + twins.join(", ");
     });
     await step("the now line comes from the checked line only, on a wide window", async () => {
-      const raw = ["grouping merged PRs", "editing", "payment card-form polish", "LINA-41", "guide-draft.md", "CHANGES.md"];
+      const raw = ["one-line summar", "editing", "payment card-form polish", "LINA-41", "guide-draft.md", "CHANGES.md"];
       const text = await home().innerText();
       const leaked = raw.filter((line) => text.includes(line));
       check(leaked.length === 0, "raw text on the home: " + leaked.join(", "));
-      const now = await home().getByText("변경 목록을 기능별로 묶는 중", { exact: true }).count();
+      const now = await home().getByText("변경마다 한 줄 요약을 붙이는 중", { exact: true }).count();
       check(now === (wide ? 1 : 0), "the now line shows " + now + " times at " + page.viewportSize().width);
       return wide ? "now line from plain.now" : "no now line on a phone";
     });
@@ -1904,13 +1904,15 @@ const drivers = {
       check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "기록", "댓글"]), "the boxes read " + JSON.stringify(heads));
       const rounds = await detail.getByTestId("timeline-link").allInnerTexts();
       check(
-        rounds.length === 3 && /^라운드 3 · \d\d:\d\d · 진행 중$/.test(rounds[0]) && /^라운드 2 · \d\d:\d\d–\d\d:\d\d · 검토 반려$/.test(rounds[1]) && /^라운드 1 · \d\d:\d\d · 작업 마침$/.test(rounds[2]),
+        rounds.length === 3 && /^라운드 3 · (어제 )?\d\d:\d\d · 진행 중$/.test(rounds[0]) && /^라운드 2 · (어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 검토 반려$/.test(rounds[1]) && /^라운드 1 · (어제 )?\d\d:\d\d · 작업 마침$/.test(rounds[2]),
         "the rounds read " + JSON.stringify(rounds),
       );
       // Round 1's end is r9's own end (2시간 40분 전), so the head and the run agree.
       const end = await detail.getByTestId("timeline-link").nth(2).evaluate(() => {
+        // The app's clock rule: the time alone today, 어제 before it when it was yesterday.
         const at = new Date((window.__linaScene.now - 2 * 3600 - 40 * 60) * 1000);
-        return String(at.getHours()).padStart(2, "0") + ":" + String(at.getMinutes()).padStart(2, "0");
+        const time = String(at.getHours()).padStart(2, "0") + ":" + String(at.getMinutes()).padStart(2, "0");
+        return at.toDateString() === new Date(window.__linaScene.now * 1000).toDateString() ? time : "어제 " + time;
       });
       check(rounds[2] === "라운드 1 · " + end + " · 작업 마침", "round 1 ends " + rounds[2] + ", its run at " + end);
       return heads.join(", ") + "; " + rounds.join(" | ");
@@ -1944,7 +1946,7 @@ const drivers = {
     });
     await step("a round with no start on record is one dim line when it holds content; an end alone shows nothing", async () => {
       const heads = await page.getByTestId("round").locator(".round-head").allInnerTexts();
-      check(heads.length === 2 && /^라운드 3 · \S+ · 중단됨$/.test(heads[0]) && heads[1] === "라운드 1 · 시작 기록 없음", "the rounds read " + JSON.stringify(heads));
+      check(heads.length === 2 && /^라운드 3 · (어제 )?\d\d:\d\d · 중단됨$/.test(heads[0]) && heads[1] === "라운드 1 · 시작 기록 없음", "the rounds read " + JSON.stringify(heads));
       const weight = await page.getByTestId("round").nth(1).locator(".round-head").evaluate((head) => getComputedStyle(head).fontWeight);
       check(weight === "400", "the no-start line has weight " + weight);
       const line = (await page.getByTestId("round").nth(1).getByTestId("round-line").innerText()).trim();
@@ -1996,16 +1998,16 @@ const drivers = {
       check(heads.slice(-2).join(",") === "기록,댓글", "the timeline is not between the boxes and the comments: " + heads.join(", "));
       const blocks = timeline.getByTestId("timeline-block");
       const outcomes = await blocks.evaluateAll((items) => items.map((item) => item.getAttribute("data-outcome")));
-      check(JSON.stringify(outcomes) === JSON.stringify(["going", "comment", "rejected", "ended"]), "the blocks read " + JSON.stringify(outcomes));
+      check(JSON.stringify(outcomes) === JSON.stringify(["going", "comment", "rejected", "comment", "ended"]), "the blocks read " + JSON.stringify(outcomes));
       const titles = await timeline.locator(".timeline-head").allInnerTexts();
-      check(/^라운드 3 · .* · 진행 중$/.test(titles[0]) && /^라운드 2 · .* · 검토 반려$/.test(titles[2]) && /^라운드 1 · \S+( \S+)? · 작업 마침$/.test(titles[3]) && !titles.some((title) => title.includes(" –") || title.startsWith("–")), "the heads read " + JSON.stringify(titles));
+      check(/^라운드 3 · .* · 진행 중$/.test(titles[0]) && /^라운드 2 · .* · 검토 반려$/.test(titles[2]) && /^댓글 · /.test(titles[3]) && /^라운드 1 · (어제 )?\d\d:\d\d · 작업 마침$/.test(titles[4]) && !titles.some((title) => title.includes(" –") || title.startsWith("–")), "the heads read " + JSON.stringify(titles));
       const rows = await blocks.first().locator(".timeline-row").evaluateAll((items) =>
         items.map((item) => ({ kind: item.getAttribute("data-kind"), text: item.textContent.trim(), colour: getComputedStyle(item).color })),
       );
       const label = await page.locator(".detail-title").evaluate((title) => getComputedStyle(title).color);
-      check(rows.map((row) => row.text).join(" | ") === "병합된 변경을 기능별로 묶는 중 | 도구 사용 4번 | 문서만 바뀐 변경을 따로 묶는 중 ×3", "the going round reads " + rows.map((row) => row.text).join(" | "));
+      check(rows.map((row) => row.text).join(" | ") === "변경마다 한 줄 요약을 붙이는 중 | 도구 사용 4번 | 요약을 표로 옮기는 중 ×3", "the going round reads " + rows.map((row) => row.text).join(" | "));
       check(rows[0].colour === label && rows[1].colour !== label && rows[2].colour === label, "sentence and dim colours " + JSON.stringify(rows.map((row) => row.colour)) + ", label " + label);
-      const noStart = (await blocks.nth(3).getByTestId("timeline-no-start").innerText()).trim();
+      const noStart = (await blocks.nth(4).getByTestId("timeline-no-start").innerText()).trim();
       check(noStart === "시작 기록 없음", "the start-unknown round reads " + noStart);
       const text = await timeline.innerText();
       check(!/Running|npm|packages|run 3|3f2a1c9/.test(text) && !text.includes("가린 문장"), "raw text or a placeholder in the timeline: " + text.slice(0, 160));

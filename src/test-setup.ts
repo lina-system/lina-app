@@ -1,9 +1,26 @@
 import { act, cleanup } from "@testing-library/preact";
-import { afterAll, afterEach } from "vitest";
+import { afterAll, afterEach, beforeEach, vi } from "vitest";
 
 afterEach(() => {
   cleanup();
 });
+
+/**
+ * `LINA_TEST_CLOCK=HH:MM npm test` runs every test with the wall clock at that local time today, to prove no test
+ * depends on the hour it runs at (a time read as `어제 23:33` just after midnight). A test's own fake timers start
+ * from the pinned time; its useRealTimers ends the pin for the rest of that test only.
+ */
+const pinned = process.env.LINA_TEST_CLOCK?.match(/^(\d\d):(\d\d)$/);
+if (pinned) {
+  beforeEach(() => {
+    const at = new Date();
+    at.setHours(Number(pinned[1]), Number(pinned[2]), 0, 0);
+    vi.setSystemTime(at);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+}
 
 /**
  * Flush preact's pending after-paint effects before the file's jsdom

@@ -195,7 +195,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
   // r8 run outside any card. r7 and r8 are two jobs on one to-do that got one generated title: two cards. The raw
   // titles and live lines are what a worker records (file names, English topics); the screens never draw them.
   const runCards: RunCard[] = [
-    { id: "r1", title: "release-notes: collect merged PRs (round 3)", state: "in_progress", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[0], startedAt: now - 12 * MIN, endedAt: null, now: "grouping merged PRs by feature in CHANGES.md", plain: plain("변경 목록 모으기", "병합된 변경을 기능별로 묶는 중") },
+    { id: "r1", title: "release-notes: collect merged PRs (round 3)", state: "in_progress", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[0], startedAt: now - 12 * MIN, endedAt: null, now: "adding a one-line summary per merged PR in CHANGES.md", plain: plain("변경 목록 모으기", "변경마다 한 줄 요약을 붙이는 중") },
     { id: "r2", title: "card-form.tsx polish", state: "in_progress", reason: null, agent: agentId(1), kind: "ulw", todo: "T4", host: machines[1], startedAt: now - 2 * HOUR, endedAt: null, now: "editing src/payment/card-form.tsx", plain: NO_LINES },
     { id: "r3", title: "error-copy.json rewrite", state: "stopped", reason: "unresponsive", agent: agentId(1), kind: "ulw", todo: "T5", host: machines[2], startedAt: now - 58 * MIN, endedAt: null, now: null, plain: plain("오류 문구 바꾸기") },
     { id: "r4", title: "payment failure screen review", state: "waiting", reason: "review", agent: agentId(1), kind: "research", todo: "T6", host: machines[0], startedAt: now - 4 * HOUR, endedAt: now - 3 * HOUR, now: null, plain: plain("결제 실패 화면 검토", null, "실패 화면 세 곳의 문구와 버튼을 비교함") },
@@ -209,7 +209,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
 
   // k-101 is in its third follow-up round (one card); k-102's checked lines are all missing (nothing drawn for them).
   const cardSeeds = [
-    { id: "k-101", goal: "kg-1", agent: 0, title: "LINA-41 release notes / CHANGES.md", state: "in_progress", reason: null, elapsed: 12 * MIN, now: "grouping merged PRs by feature", plain: plain("릴리스 노트: 변경 목록 정리", "변경 목록을 기능별로 묶는 중"), todos: [["T1", true], ["모은 변경 확인", false], ["T3", false]], runs: ["r9", "r10", "r1"], lastBeat: now - 20 },
+    { id: "k-101", goal: "kg-1", agent: 0, title: "LINA-41 release notes / CHANGES.md", state: "in_progress", reason: null, elapsed: 12 * MIN, now: "adding one-line summaries", plain: plain("릴리스 노트: 변경 목록 정리", "변경마다 한 줄 요약을 붙이는 중"), todos: [["T1", true], ["모은 변경 확인", false], ["T3", false]], runs: ["r9", "r10", "r1"], lastBeat: now - 20 },
     { id: "k-102", goal: "kg-2", agent: 1, title: "payment card-form polish", state: "in_progress", reason: null, elapsed: 2 * HOUR, now: "editing card-form.tsx", plain: NO_LINES, todos: [["T4", false]], runs: ["r2"], lastBeat: now - 40 },
     { id: "k-103", goal: "kg-2", agent: 1, title: "payment error-copy.json", state: "stopped", reason: "unresponsive", elapsed: 52 * MIN, now: null, plain: plain("결제: 오류 문구 바꾸기"), todos: [["T5", false]], runs: ["r3"], lastBeat: now - 52 * MIN },
     { id: "k-104", goal: "kg-2", agent: 1, title: "payment failure review", state: "waiting", reason: "review", elapsed: 3 * HOUR, now: null, plain: plain("결제: 실패 화면 검토", null, "실패 화면 세 곳의 문구와 버튼을 비교함"), todos: [["T6", false]], runs: ["r4"], lastBeat: now - 3 * HOUR },
@@ -263,8 +263,13 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
             ]
           : card.id === "k-101"
           ? [
-              { id: 1, author: agentId(0), body: "지난 릴리스 이후 병합된 변경부터 모읍니다.", createdAt: now - 11 * MIN },
-              { id: 2, author: OWNER.id, body: "문서만 바뀐 변경은 따로 묶어 주세요.", createdAt: now - 6 * MIN },
+              // In time order: the agent's note in round 1; the owner asks for the doc-only group before round 2 does
+              // it, sends round 2 back for one-line summaries, then asks for a table before round 3 (which does both).
+              // The owner's words are also the record's comment rows at the same times (records()).
+              { id: 1, author: agentId(0), body: "지난 릴리스 이후 병합된 변경부터 모읍니다.", createdAt: now - 2 * HOUR - 55 * MIN },
+              { id: 2, author: OWNER.id, body: "문서만 바뀐 변경은 따로 묶어 주세요.", createdAt: now - 90 * MIN },
+              { id: 3, author: OWNER.id, body: "변경마다 한 줄 요약을 붙여 주세요", createdAt: now - 45 * MIN },
+              { id: 4, author: OWNER.id, body: "변경 목록은 표로 보여 주세요", createdAt: now - 25 * MIN },
             ]
           : [],
       runs: rounds[card.id] ?? [
@@ -539,7 +544,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
 /**
  * The worker runs' own records. r1 (k-101's job) has its round going now (a sentence, a tools row, a raw English
  * line with a path, a sentence said three times in a row), an earlier round the owner sent back with its note, a
- * round whose start fell out of the kept history with only its result, and a comment made between rounds. r6 has one
+ * round whose start fell out of the kept history with only its result, and two comments made between rounds. r6 has one
  * finished round whose result line is raw text. Raw text here fails the screens' no-raw-text tests if drawn as is.
  */
 function records(now: number): Record<string, RunRecord> {
@@ -559,10 +564,10 @@ function records(now: number): Record<string, RunRecord> {
           verdict: null,
           stopped: false,
           rows: [
-            row(now - 11 * MIN, "said", "병합된 변경을 기능별로 묶는 중"),
+            row(now - 11 * MIN, "said", "변경마다 한 줄 요약을 붙이는 중"),
             row(now - 10 * MIN, "tools", null, 4),
             row(now - 8 * MIN, "said", "Running npm test in packages/release"),
-            row(now - 6 * MIN, "said", "문서만 바뀐 변경을 따로 묶는 중", 3),
+            row(now - 6 * MIN, "said", "요약을 표로 옮기는 중", 3),
           ],
         },
         {
@@ -579,7 +584,7 @@ function records(now: number): Record<string, RunRecord> {
         // Round 1 (r9's): its start fell out of the kept history; it ends where r9 ends.
         { run: null, startedAt: null, endedAt: now - 2 * HOUR - 40 * MIN, endKnown: true, startUnknown: true, result: "병합된 변경 41개를 모음", verdict: null, stopped: false, rows: [] },
       ],
-      comments: [row(now - 25 * MIN, "comment", "변경 목록은 표로 보여 주세요")],
+      comments: [row(now - 90 * MIN, "comment", "문서만 바뀐 변경은 따로 묶어 주세요."), row(now - 25 * MIN, "comment", "변경 목록은 표로 보여 주세요")],
       errors: [],
     },
     r6: {

@@ -44,7 +44,7 @@ Preconditions:
 - The page is `/app/?source=synthetic`, the synthetic scene; the drive opens it fresh for each width.
 
 - **Open a card.** On 진행 중인 작업, choose `릴리스 노트: 변경 목록 정리`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive card-detail`.
-- **Read it.** State `진행 중 · n분째`; boxes `지금`, `할 일`, `기록`, `댓글` (no `실행` beside the record); 3 check boxes reading `변경 목록 모으기` (checked), `모은 변경 확인`, `공지 문구 확인`; the round heads link to `#/runs/r1`, `#/runs/r10`, `#/runs/r9`; 2 comments.
+- **Read it.** State `진행 중 · n분째`; boxes `지금`, `할 일`, `기록`, `댓글` (no `실행` beside the record); 3 check boxes reading `변경 목록 모으기` (checked), `모은 변경 확인`, `공지 문구 확인`; the round heads link to `#/runs/r1`, `#/runs/r10`, `#/runs/r9`; 4 comments (the agent's note in round 1 and the owner's three, which are also the record's comment rows).
 - **Card question.** In 수신함 open `카드 번호는 앞 여섯 자리까지 보여 줄까요?` in place and choose its `목표 › 작업` link. The address is `#/cards/<id>` and the first box is `결정 필요` with that sentence, `질문` and `n일 전`.
 - **Open a run.** In 수신함 choose the 검토 필요 row. The address is `#/runs/<id>` and the state reads `대기 · 검토 필요 · n시간 전`.
 - **Timeline.** Driven in work-cards.md on `#/cards/k-101` and `#/runs/r1`; here `#/runs/r6`'s single round reads `라운드 1 · <hh:mm>–<hh:mm> · 작업 마침` and its raw result line is left out: no result line, no `가린 문장`.

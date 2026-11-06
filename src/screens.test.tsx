@@ -1071,7 +1071,7 @@ describe("work cards", () => {
     // One round list: the record's blocks; 실행 does not stand beside them.
     expect(boxes).toEqual(["지금", "할 일", "기록", "댓글"]);
     expect([...detail.querySelectorAll(".checklist .title")].map((title) => title.textContent)).toEqual(["변경 목록 모으기", "모은 변경 확인", "공지 문구 확인"]);
-    expect(within(detail).getByTestId("card-now").textContent).toContain("변경 목록을 기능별로 묶는 중");
+    expect(within(detail).getByTestId("card-now").textContent).toContain("변경마다 한 줄 요약을 붙이는 중");
     expect(within(detail).queryByTestId("card-done-so-far")).toBeNull();
     expect(within(detail).queryByTestId("card-next")).toBeNull();
     expect(within(detail).queryByTestId("worker-runs")).toBeNull();
@@ -1197,7 +1197,7 @@ describe("work cards, round 4", () => {
     const view = await open("#/cards/k-103", { wide: true });
     const heads = view.getAllByTestId("round").map((round) => round.querySelector(".round-head")?.textContent);
     // Round 3 has no end and its run no longer beats: the head says 중단됨, not 진행 중.
-    expect(heads).toEqual([expect.stringMatching(/^라운드 3 · \S+ · 중단됨$/), "라운드 1 · 시작 기록 없음"]);
+    expect(heads).toEqual([expect.stringMatching(/^라운드 3 · (어제 )?\d\d:\d\d · 중단됨$/), "라운드 1 · 시작 기록 없음"]);
     expect(view.getAllByTestId("round")[1].classList.contains("is-no-start")).toBe(true);
     expect(view.getAllByTestId("round")[1].querySelector("li")).toBeNull();
   });
@@ -1281,13 +1281,14 @@ describe("the run's own timeline", () => {
     const heads = [...view.getByTestId("detail-pane").querySelectorAll(".detail > .box > .box-head")].map((head) => head.textContent);
     expect(heads.slice(-2)).toEqual(["기록", "댓글"]);
     const blocks = view.getAllByTestId("timeline-block");
-    expect(blocks.map((block) => block.getAttribute("data-outcome"))).toEqual(["going", "comment", "rejected", "ended"]);
+    expect(blocks.map((block) => block.getAttribute("data-outcome"))).toEqual(["going", "comment", "rejected", "comment", "ended"]);
     const titles = blocks.map((block) => block.querySelector(".timeline-head")?.textContent);
     expect(titles[0]).toMatch(/^라운드 3 · (어제 )?\d\d:\d\d · 진행 중$/);
     expect(titles[1]).toMatch(/^댓글 · (어제 )?\d\d:\d\d$/);
     expect(titles[2]).toMatch(/^라운드 2 · (어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 검토 반려$/);
     // No start on record: the end alone, no dangling dash; the dim line below says the start is missing.
-    expect(titles[3]).toMatch(/^라운드 1 · (어제 )?\d\d:\d\d · 작업 마침$/);
+    expect(titles[3]).toMatch(/^댓글 · (어제 )?\d\d:\d\d$/);
+    expect(titles[4]).toMatch(/^라운드 1 · (어제 )?\d\d:\d\d · 작업 마침$/);
     expect(titles.join("\n")).not.toMatch(/ –|^–/m);
   });
 
@@ -1297,9 +1298,9 @@ describe("the run's own timeline", () => {
     const going = view.getAllByTestId("timeline-block")[0];
     const rows = [...going.querySelectorAll(".timeline-row")].map((row) => [row.getAttribute("data-kind"), row.classList.contains("is-dim"), row.textContent]);
     expect(rows).toEqual([
-      ["said", false, "병합된 변경을 기능별로 묶는 중"],
+      ["said", false, "변경마다 한 줄 요약을 붙이는 중"],
       ["tools", true, "도구 사용 4번"],
-      ["said", false, "문서만 바뀐 변경을 따로 묶는 중 ×3"],
+      ["said", false, "요약을 표로 옮기는 중 ×3"],
     ]);
     expect(going.querySelector("[data-testid=timeline-result]")).toBeNull();
     const text = screenText(view.getByTestId("timeline"));
@@ -1311,8 +1312,10 @@ describe("the run's own timeline", () => {
     const view = await open("#/cards/k-101", { wide: true });
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const blocks = view.getAllByTestId("timeline-block");
-    expect(blocks[3].querySelector("[data-testid=timeline-no-start]")?.textContent).toBe("시작 기록 없음");
-    expect(blocks[3].querySelector("[data-testid=timeline-result]")?.textContent).toBe("결과병합된 변경 41개를 모음");
+    expect(blocks[4].querySelector("[data-testid=timeline-no-start]")?.textContent).toBe("시작 기록 없음");
+    expect(blocks[4].querySelector("[data-testid=timeline-result]")?.textContent).toBe("결과병합된 변경 41개를 모음");
+    // The owner asked for the doc-only group between rounds 1 and 2, before round 2 did it.
+    expect(blocks[3].querySelector(".timeline-text")?.textContent).toBe("문서만 바뀐 변경은 따로 묶어 주세요.");
     expect(blocks[1].querySelector(".timeline-text")?.textContent).toBe("변경 목록은 표로 보여 주세요");
     // A comment's own block already carries its time in the head; the row names its author only.
     expect(blocks[1].querySelector(".sub")?.textContent).toBe("나");
@@ -1377,8 +1380,8 @@ describe("the run's own timeline", () => {
     const boxes = [...view.getByTestId("screen-card").querySelectorAll(":scope > .box > .box-head")].map((head) => head.textContent);
     expect(boxes).toEqual(["지금", "할 일", "기록", "실행", "댓글"]);
     expect([...view.getByTestId("worker-runs").querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual(["#/runs/r1", "#/runs/r10", "#/runs/r9"]);
-    expect(view.getByTestId("card-now").textContent).toContain("변경 목록을 기능별로 묶는 중");
-    expect(view.getAllByTestId("comment")).toHaveLength(2);
+    expect(view.getByTestId("card-now").textContent).toContain("변경마다 한 줄 요약을 붙이는 중");
+    expect(view.getAllByTestId("comment")).toHaveLength(4);
   });
 });
 

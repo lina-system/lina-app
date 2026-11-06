@@ -1090,6 +1090,46 @@ const drivers = {
       check(/^라운드 1 · (어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 작업 마침$/.test(head) && results === 0 && !text.includes("가린 문장") && !/benchmark|3f2a1c9/.test(text), "the run's timeline reads " + head + " / results " + results + " / " + text.replace(/\s+/g, " "));
       return new URL(page.url()).hash + " " + state + "; " + head + "; no result line";
     });
+    await step("a run names the model it used", async () => {
+      const noRevision = async () => check(!/\br\d+\b/.test(await page.locator("article.detail").innerText()), "the page shows a settings revision");
+      await openApp(page, "#/runs/r1");
+      await page.getByTestId("screen-run").waitFor();
+      await page.getByTestId("timeline").waitFor();
+      const used = await text(page.locator(".detail-head").getByTestId("run-model"));
+      check(used === "model-a · 보통", "r1 reads " + used);
+      check((await page.getByTestId("run-model").count()) === 1, "r1 names the model " + (await page.getByTestId("run-model").count()) + " times");
+      check((await page.getByTestId("timeline-block").getByTestId("run-model").count()) === 0, "a round of r1's 기록 names a model");
+      await noRevision();
+      await openApp(page, "#/cards/k-101");
+      await page.getByTestId("timeline").waitFor();
+      const rounds = await page.getByTestId("timeline").evaluate((root) =>
+        [...root.querySelectorAll("[data-testid=timeline-block]")].map((block) => ({
+          outcome: block.getAttribute("data-outcome"),
+          head: block.querySelector(".timeline-head")?.textContent ?? "",
+          line: block.querySelector("[data-testid=run-model]")?.textContent ?? null,
+          inHead: Boolean(block.querySelector(".timeline-head")?.contains(block.querySelector("[data-testid=run-model]"))),
+        })),
+      );
+      const roundOf = (n) => rounds.find((block) => block.outcome !== "comment" && block.head.startsWith("라운드 " + n));
+      const third = roundOf(3);
+      check(Boolean(third) && third.line === "model-a · 보통" && !third.inHead, "round 3 reads " + JSON.stringify(third));
+      check(roundOf(2)?.line === null, "round 2 reads " + JSON.stringify(roundOf(2)));
+      check(roundOf(1)?.line === null, "round 1 reads " + JSON.stringify(roundOf(1)));
+      check(rounds.filter((block) => block.outcome === "comment").every((block) => block.line === null), "a comment block names a model");
+      await noRevision();
+      await openApp(page, "#/runs/r8");
+      await page.getByTestId("screen-run").waitFor();
+      const fallback = await text(page.locator(".detail-head").getByTestId("run-model"));
+      check(fallback === "model-b · 높음 · 대체 모델", "r8 reads " + fallback);
+      check((await page.getByTestId("run-model").count()) === 1, "r8 names the model " + (await page.getByTestId("run-model").count()) + " times");
+      check((await page.getByTestId("timeline-block").getByTestId("run-model").count()) === 0, "a round of r8's 기록 names a model");
+      await noRevision();
+      await openApp(page, "#/runs/r6");
+      await page.getByTestId("timeline").waitFor();
+      check((await page.getByTestId("run-model").count()) === 0, "a run with no model drew a line");
+      await noRevision();
+      return "r1 model-a · 보통 once; k-101 round 3 model-a · 보통, rounds 2 and 1 none; r8 model-b · 높음 · 대체 모델 once; r6 none";
+    });
   },
 
   async status(page, step) {

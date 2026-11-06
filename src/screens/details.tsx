@@ -10,7 +10,7 @@ import { ago, clockAt } from "../time";
 import { useActions } from "../ui/actions";
 import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, useApp } from "../ui/parts";
 import { KIND_TITLE, SEP, STATE_WORD, stateLabel, W } from "../words";
-import { Timeline } from "./timeline";
+import { RunModelLine, Timeline } from "./timeline";
 import { Comments } from "./comments";
 import { Talk } from "./talk";
 
@@ -364,6 +364,8 @@ export function CardScreen({ id }: { id: string }) {
   const row = model.cards.get(id);
   const questions = (store.get("inbox")?.questions ?? []).filter((question) => question.cardId === id);
   const { rounds, outside } = workerRounds(detail);
+  // The worker run a round was: the same run its head opens. A card's 기록 holds several runs' rounds in one record.
+  const roundRun = (runId: string, n: number) => rounds.find((round) => round.n === n)?.workers[0] ?? runId;
   // The goal (project) the card serves, in its head; a goal title that would show raw text is left out.
   const goal = store.get("goals")?.goals.find((candidate) => candidate.workCards.some((card) => card.id === id));
   const goalLine = goal && !foldReason(goal.title) ? goal.title : null;
@@ -412,7 +414,8 @@ export function CardScreen({ id }: { id: string }) {
       <Timeline
         runs={detail.workerRuns.map((worker) => worker.id)}
         live={(runId) => runLive(model, runId)}
-        link={(runId, n) => href({ name: "run", id: rounds.find((round) => round.n === n)?.workers[0] ?? runId })}
+        link={(runId, n) => href({ name: "run", id: roundRun(runId, n) })}
+        modelRun={roundRun}
         fallback={
           detail.workerRuns.length ? (
             <Box title={W.workerRuns} testid="worker-runs">
@@ -449,7 +452,7 @@ function CardRunScreen({ id, cardId }: { id: string; cardId: string }) {
   return (
     <article class="detail" data-testid="screen-run">
       <CardHead work="code" title={null}>
-        {null}
+        <RunModelLine runId={id} />
       </CardHead>
       {card ? (
         <Box title={W.cards}>
@@ -477,6 +480,7 @@ export function RunScreen({ id }: { id: string }) {
     <article class="detail" data-testid="screen-run">
       <CardHead work={row.work} title={run.plain.title}>
         <StateTime state={run.state} reason={run.reason} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} />
+        <RunModelLine runId={id} />
       </CardHead>
       {run.plain.now && run.state === "in_progress" ? (
         <Box title={W.now}>

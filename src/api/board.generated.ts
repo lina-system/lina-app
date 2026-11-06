@@ -705,17 +705,28 @@ export interface components {
             id: string;
             /** @description The run's mode (ulw, research, mass, mass-research). */
             kind: string | null;
+            model: components["schemas"]["RunModel"];
             /** @description What the run does now, from the runner's live state (at most 120 characters). */
             now: string | null;
             plain: components["schemas"]["PlainLines"];
             /** @description planned: new, queued; waiting: review, decision; stopped: failed, unresponsive, result_missing, cancelled, rejected. */
             reason: string | null;
+            settingsRevision: components["schemas"]["SettingsRevision"];
             startedAt: number | null;
             state: components["schemas"]["WorkState"];
             title: string;
             /** @description The work record to-do the run takes on. */
             todo: string | null;
         };
+        /** @description The model the run started with (lina#257); null when it runs on the runner's own default. A follow-up keeps it. */
+        RunModel: {
+            id: string | null;
+            provider: string | null;
+            /** @description Where it came from: --model, runner:<runner> (the runner's model in the work settings), mode:<mode> (the mode default), fallback:<off|out_of_quota|no_account> (the fallback model, because OCX said so of the chosen one), runner (the runner's own default). */
+            source: string;
+            /** @description The effort (off, minimal, low, medium, high, xhigh, max), null for the model's own. */
+            thinking: string | null;
+        } | null;
         RunRecord: {
             /** @description Snapshot time (left out of the ETag). */
             at: number;
@@ -723,9 +734,13 @@ export interface components {
             comments: components["schemas"]["RecordRow"][];
             errors: components["schemas"]["Errors"];
             id: string;
+            model: components["schemas"]["RunModel"];
             /** @description Newest round first. */
             rounds: components["schemas"]["RecordRound"][];
+            settingsRevision: components["schemas"]["SettingsRevision"];
         };
+        /** @description The work-settings revision (r<n>) the run was submitted under; null for a run from before lina#257. */
+        SettingsRevision: string | null;
         SourceError: {
             message: string;
             /** @enum {string} */
@@ -785,7 +800,7 @@ export interface components {
         UsageView: {
             at: number;
             byAccount: components["schemas"]["UsageRow"][];
-            /** @description One row per OCX access key named `link:<machine>`. */
+            /** @description One row per OCX access key named `link:<machine>`, summed over this range's days from one 30-day `usage --api-key-id` read per machine key. Those reads run in the background, started by a usage read at most every 15 minutes; a read serves the last finished ones and never waits, so the list is empty until the first one finishes and a day they have no record for counts 0 until the next. */
             byMachine: components["schemas"]["UsageRow"][];
             byModel: components["schemas"]["UsageRow"][];
             byProvider: components["schemas"]["UsageRow"][];

@@ -560,6 +560,15 @@ button:disabled {
   transition: transform var(--motion);
 }
 
+/* The model a round's worker run used, under the head: dim, and not part of the head's own text. */
+.timeline-model {
+  margin: 2px 0 0;
+  padding-left: 12px;
+  font-size: var(--text-small);
+  font-weight: 400;
+  color: var(--label-2);
+}
+
 .timeline-block[open] > .timeline-head::before {
   transform: rotate(90deg);
 }

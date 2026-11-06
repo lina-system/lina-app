@@ -209,7 +209,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
 
   // k-101 is in its third follow-up round (one card); k-102's checked lines are all missing (nothing drawn for them).
   const cardSeeds = [
-    { id: "k-101", goal: "kg-1", agent: 0, title: "LINA-41 release notes / CHANGES.md", state: "in_progress", reason: null, elapsed: 12 * MIN, now: "grouping merged PRs by feature", plain: plain("릴리스 노트: 변경 목록 정리", "변경 목록을 기능별로 묶는 중"), todos: [["모은 변경 확인", true], ["T1", false], ["T3", false]], runs: ["r9", "r10", "r1"], lastBeat: now - 20 },
+    { id: "k-101", goal: "kg-1", agent: 0, title: "LINA-41 release notes / CHANGES.md", state: "in_progress", reason: null, elapsed: 12 * MIN, now: "grouping merged PRs by feature", plain: plain("릴리스 노트: 변경 목록 정리", "변경 목록을 기능별로 묶는 중"), todos: [["T1", true], ["모은 변경 확인", false], ["T3", false]], runs: ["r9", "r10", "r1"], lastBeat: now - 20 },
     { id: "k-102", goal: "kg-2", agent: 1, title: "payment card-form polish", state: "in_progress", reason: null, elapsed: 2 * HOUR, now: "editing card-form.tsx", plain: NO_LINES, todos: [["T4", false]], runs: ["r2"], lastBeat: now - 40 },
     { id: "k-103", goal: "kg-2", agent: 1, title: "payment error-copy.json", state: "stopped", reason: "unresponsive", elapsed: 52 * MIN, now: null, plain: plain("결제: 오류 문구 바꾸기"), todos: [["T5", false]], runs: ["r3"], lastBeat: now - 52 * MIN },
     { id: "k-104", goal: "kg-2", agent: 1, title: "payment failure review", state: "waiting", reason: "review", elapsed: 3 * HOUR, now: null, plain: plain("결제: 실패 화면 검토", null, "실패 화면 세 곳의 문구와 버튼을 비교함"), todos: [["T6", false]], runs: ["r4"], lastBeat: now - 3 * HOUR },
@@ -576,7 +576,8 @@ function records(now: number): Record<string, RunRecord> {
           stopped: false,
           rows: [row(now - 45 * MIN, "comment", "변경마다 한 줄 요약을 붙여 주세요")],
         },
-        { run: null, startedAt: null, endedAt: now - 3 * HOUR, endKnown: true, startUnknown: true, result: "병합된 변경 41개를 모음", verdict: null, stopped: false, rows: [] },
+        // Round 1 (r9's): its start fell out of the kept history; it ends where r9 ends.
+        { run: null, startedAt: null, endedAt: now - 2 * HOUR - 40 * MIN, endKnown: true, startUnknown: true, result: "병합된 변경 41개를 모음", verdict: null, stopped: false, rows: [] },
       ],
       comments: [row(now - 25 * MIN, "comment", "변경 목록은 표로 보여 주세요")],
       errors: [],

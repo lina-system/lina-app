@@ -1063,20 +1063,20 @@ describe("work cards", () => {
 
   test("a card's detail: now, its to-dos, then its worker runs by round; no box repeats the to-do list", async () => {
     const view = await open("#/cards/k-101", { wide: true });
+    await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const detail = view.getByTestId("screen-card");
     const boxes = [...detail.querySelectorAll(":scope > .box > .box-head")].map((head) => head.textContent);
-    expect(boxes).toEqual(["지금", "할 일", "실행", "기록", "댓글"]);
+    // One round list: the record's blocks; 실행 does not stand beside them.
+    expect(boxes).toEqual(["지금", "할 일", "기록", "댓글"]);
+    expect([...detail.querySelectorAll(".checklist .title")].map((title) => title.textContent)).toEqual(["변경 목록 모으기", "모은 변경 확인", "공지 문구 확인"]);
     expect(within(detail).getByTestId("card-now").textContent).toContain("변경 목록을 기능별로 묶는 중");
     expect(within(detail).queryByTestId("card-done-so-far")).toBeNull();
     expect(within(detail).queryByTestId("card-next")).toBeNull();
-    const rounds = within(detail).getAllByTestId("round");
-    expect(rounds.map((round) => round.querySelector(".round-head")?.textContent?.split(" · ")[0])).toEqual(["라운드 3", "라운드 2", "라운드 1"]);
-    expect(rounds[0].querySelector(".round-head")?.textContent).toMatch(/^라운드 3 · \d\d:\d\d · 진행 중$/);
-    expect(rounds[1].querySelector(".round-head")?.textContent).toMatch(/^라운드 2 · \d\d:\d\d–\d\d:\d\d$/);
-    expect(rounds.map((round) => round.querySelector("a")?.getAttribute("href"))).toEqual(["#/runs/r1", "#/runs/r10", "#/runs/r9"]);
-    expect(rounds.every((round) => round.querySelector(".row")?.classList.contains("is-dim"))).toBe(true);
-    // A round's single run does not repeat the state and time its round head carries.
-    expect(rounds.map((round) => round.querySelector(".row .state"))).toEqual([null, null, null]);
+    expect(within(detail).queryByTestId("worker-runs")).toBeNull();
+    // Each round's head is the link to its worker run.
+    const links = within(detail).getAllByTestId("timeline-link");
+    expect(links.map((link) => link.textContent?.split(" · ")[0])).toEqual(["라운드 3", "라운드 2", "라운드 1"]);
+    expect(links.map((link) => link.getAttribute("href"))).toEqual(["#/runs/r1", "#/runs/r10", "#/runs/r9"]);
     view.unmount();
     const waiting = await open("#/cards/k-104", { wide: true });
     expect(waiting.getByTestId("card-done-so-far").textContent).toBe("끝난 것실패 화면 세 곳의 문구와 버튼을 비교함");
@@ -1281,13 +1281,15 @@ describe("the run's own timeline", () => {
     const blocks = view.getAllByTestId("timeline-block");
     expect(blocks.map((block) => block.getAttribute("data-outcome"))).toEqual(["going", "comment", "rejected", "ended"]);
     const titles = blocks.map((block) => block.querySelector(".timeline-head")?.textContent);
-    expect(titles[0]).toMatch(/^(어제 )?\d\d:\d\d · 진행 중$/);
+    expect(titles[0]).toMatch(/^라운드 3 · (어제 )?\d\d:\d\d · 진행 중$/);
     expect(titles[1]).toMatch(/^댓글 · (어제 )?\d\d:\d\d$/);
-    expect(titles[2]).toMatch(/^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 검토 반려$/);
-    expect(titles[3]).toMatch(/^–(어제 )?\d\d:\d\d · 작업 마침$/);
+    expect(titles[2]).toMatch(/^라운드 2 · (어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 검토 반려$/);
+    // No start on record: the end alone, no dangling dash; the dim line below says the start is missing.
+    expect(titles[3]).toMatch(/^라운드 1 · (어제 )?\d\d:\d\d · 작업 마침$/);
+    expect(titles.join("\n")).not.toMatch(/ –|^–/m);
   });
 
-  test("rows read oldest first: sentences bright, tools one dim line with its count, a repeat once with ×n, raw text hidden", async () => {
+  test("rows read oldest first: sentences bright, tools one dim line with its count, a repeat once with ×n, raw text left out", async () => {
     const view = await open("#/cards/k-101", { wide: true });
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const going = view.getAllByTestId("timeline-block")[0];
@@ -1295,12 +1297,12 @@ describe("the run's own timeline", () => {
     expect(rows).toEqual([
       ["said", false, "병합된 변경을 기능별로 묶는 중"],
       ["tools", true, "도구 사용 4번"],
-      ["said", true, "가린 문장"],
       ["said", false, "문서만 바뀐 변경을 따로 묶는 중 ×3"],
     ]);
     expect(going.querySelector("[data-testid=timeline-result]")).toBeNull();
     const text = screenText(view.getByTestId("timeline"));
     expect(text).not.toMatch(/Running|npm|packages|3f2a1c9|run 3/);
+    expect(text).not.toContain("가린 문장");
   });
 
   test("a round with no start on record shows one dim line at its top; the owner's comments show with author and time", async () => {
@@ -1316,18 +1318,24 @@ describe("the run's own timeline", () => {
     expect(blocks[2].querySelector(".timeline-text")?.textContent).toBe("변경마다 한 줄 요약을 붙여 주세요");
   });
 
-  test("a run's own page shows its timeline; a raw result line reads 가린 문장", async () => {
+  test("a run's own page shows its timeline; a raw result line is left out and the round keeps its head", async () => {
     const view = await open("#/runs/r6", { wide: true });
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const block = view.getByTestId("timeline-block");
     expect(block.getAttribute("data-outcome")).toBe("ended");
-    expect(block.querySelector("[data-testid=timeline-result]")?.textContent).toBe("결과가린 문장");
+    expect(block.querySelector(".timeline-head")?.textContent).toMatch(/^라운드 1 · (어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 작업 마침$/);
+    expect(block.querySelector("[data-testid=timeline-result]")).toBeNull();
+    expect(block.querySelector(".timeline-rows")).toBeNull();
+    const text = screenText(view.getByTestId("timeline"));
+    expect(text).not.toMatch(/index-structure|benchmark|3f2a1c9/);
+    expect(text).not.toContain("가린 문장");
   });
 
   test("a worker run a card started opens its own page from the card even though the board does not list it", async () => {
     const view = await open("#/cards/k-101", { wide: true });
-    const link = view.getByTestId("worker-runs").querySelector('a[href="#/runs/r1"]') as HTMLAnchorElement;
-    expect(link.getAttribute("aria-label")).toBe("코드 작업");
+    await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
+    const link = view.getByTestId("timeline").querySelector('a[href="#/runs/r1"]') as HTMLAnchorElement;
+    expect(link.textContent).toMatch(/^라운드 3 · /);
     view.unmount();
     const run = await open("#/runs/r1", { wide: true });
     await waitFor(() => expect(run.getByTestId("timeline")).toBeTruthy());
@@ -1363,6 +1371,10 @@ describe("the run's own timeline", () => {
     const view = await open("#/cards/k-101", { wide: true, source: new FailingSource((name) => (name === "record" ? "failed" : null)) });
     await waitFor(() => expect(view.getByTestId("timeline-error").textContent).toBe("읽기 실패: 기록"));
     expect(view.queryAllByTestId("timeline-block")).toHaveLength(0);
+    // The worker links never disappear: 실행 stands under the error line.
+    const boxes = [...view.getByTestId("screen-card").querySelectorAll(":scope > .box > .box-head")].map((head) => head.textContent);
+    expect(boxes).toEqual(["지금", "할 일", "기록", "실행", "댓글"]);
+    expect([...view.getByTestId("worker-runs").querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual(["#/runs/r1", "#/runs/r10", "#/runs/r9"]);
     expect(view.getByTestId("card-now").textContent).toContain("변경 목록을 기능별로 묶는 중");
     expect(view.getAllByTestId("comment")).toHaveLength(2);
   });

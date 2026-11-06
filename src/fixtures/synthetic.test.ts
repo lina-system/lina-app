@@ -156,6 +156,25 @@ test("the scene does not contradict itself", () => {
   }
 });
 
+test("every record round ends where its worker run ends, when both ends are known", () => {
+  const runs = new Map(scene.runs.map((run) => [run.id, run]));
+  let compared = 0;
+  for (const [id, record] of Object.entries(scene.records)) {
+    // A card's job: its rounds are the card's worker runs, oldest first; a run outside any card is its own round.
+    const card = Object.values(scene.cardDetails).find((detail) => detail.workerRuns.some((worker) => worker.id === id));
+    const workers = card ? [...card.workerRuns].sort((a, b) => a.firstSeenAt - b.firstSeenAt).map((worker) => worker.id) : [id];
+    record.rounds.forEach((round, index) => {
+      const n = round.run ?? record.rounds.length - index;
+      const run = runs.get(card ? workers[n - 1] : id);
+      expect(run, `${id} round ${n}`).toBeDefined();
+      if (round.endedAt === null || run?.endedAt == null) return;
+      expect(round.endedAt, `${id} round ${n} ends at its run's end`).toBe(run.endedAt);
+      compared += 1;
+    });
+  }
+  expect(compared).toBe(3);
+});
+
 test("cards differ in kind: code, docs, research and device all appear", () => {
   const kinds = new Set([...model(scene).cards.values()].map((card) => card.work));
   expect(kinds).toEqual(new Set(["code", "docs", "research", "device"]));

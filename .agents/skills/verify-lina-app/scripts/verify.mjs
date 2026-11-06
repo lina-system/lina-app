@@ -1059,17 +1059,21 @@ const drivers = {
     await step("read its state, now line, to-dos, dimmed runs and comments", async () => {
       const state = await page.locator(".detail-head .sub").first().innerText();
       check(/^진행 중 · \d+분째$/.test(state), "state reads " + state);
+      await page.getByTestId("timeline").waitFor();
       const heads = await page.locator(".detail .box-head").allInnerTexts();
-      check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "실행", "기록", "댓글"]), "boxes " + heads.join(", "));
+      // One round list: the record's blocks; 실행 does not stand beside them.
+      check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "기록", "댓글"]), "boxes " + heads.join(", "));
+      check((await page.getByTestId("worker-runs").count()) === 0, "the 실행 box stands beside the record");
       check((await page.getByTestId("card-now").innerText()).includes("변경 목록을 기능별로 묶는 중"), "the now box does not read the checked now line");
-      check((await page.locator(".detail .box").filter({ has: page.locator(".box-head", { hasText: /^할 일$/ }) }).getByRole("checkbox").count()) === 3, "expected 3 to-dos");
-      const dim = page.getByTestId("worker-runs").locator(".row.is-dim");
-      check((await dim.count()) === 3, "expected 3 worker run rows, one per round, got " + (await dim.count()));
-      // Dimmed by colour and weight, not by fading the row; a round's single run carries no state of its own.
-      const look = await dim.first().evaluate((row) => ({ opacity: getComputedStyle(row).opacity, weight: getComputedStyle(row.querySelector(".title")).fontWeight, state: row.querySelector("[data-testid=state]") !== null }));
-      check(look.opacity === "1" && look.weight === "400" && !look.state, "the worker run row reads " + JSON.stringify(look));
+      const todos = page.locator(".detail .box").filter({ has: page.locator(".box-head", { hasText: /^할 일$/ }) });
+      check((await todos.getByRole("checkbox").count()) === 3, "expected 3 to-dos");
+      const order = await todos.locator(".title").allInnerTexts();
+      check(JSON.stringify(order) === JSON.stringify(["변경 목록 모으기", "모은 변경 확인", "공지 문구 확인"]), "the to-dos read " + order.join(", "));
+      const links = page.getByTestId("timeline-link");
+      const hrefs = await links.evaluateAll((items) => items.map((item) => item.getAttribute("href")));
+      check(JSON.stringify(hrefs) === JSON.stringify(["#/runs/r1", "#/runs/r10", "#/runs/r9"]), "the round heads link to " + JSON.stringify(hrefs));
       check((await page.getByTestId("comment").count()) === 2, "expected 2 comments");
-      return state + "; " + heads.join(", ");
+      return state + "; " + heads.join(", ") + "; " + order.join(", ");
     });
     await step("a run outside any card opens on its own, with its timeline", async () => {
       await openApp(page, "#/inbox");
@@ -1080,9 +1084,11 @@ const drivers = {
       const block = page.getByTestId("screen-run").getByTestId("timeline-block");
       await block.waitFor();
       const head = (await block.locator(".timeline-head").innerText()).trim();
-      const result = (await block.getByTestId("timeline-result").innerText()).replace(/\s+/g, " ").trim();
-      check(/ · 작업 마침$/.test(head) && result.replace(/^결과\s*/, "") === "가린 문장", "the run's timeline reads " + head + " / " + result);
-      return new URL(page.url()).hash + " " + state + "; " + head + "; " + result;
+      // Its raw result line is left out, with no placeholder; the round keeps its head.
+      const results = await block.getByTestId("timeline-result").count();
+      const text = await page.getByTestId("timeline").innerText();
+      check(/^라운드 1 · \S+–\S+ · 작업 마침$/.test(head) && results === 0 && !text.includes("가린 문장") && !/benchmark|3f2a1c9/.test(text), "the run's timeline reads " + head + " / results " + results + " / " + text.replace(/\s+/g, " "));
+      return new URL(page.url()).hash + " " + state + "; " + head + "; no result line";
     });
   },
 
@@ -1890,25 +1896,24 @@ const drivers = {
       check(!/payment|card-form|editing/.test(text), "raw text in the detail: " + text.slice(0, 120));
       return "row: 코드 작업 · " + state + "; detail: " + kind + ", " + head + ", no now line";
     });
-    await step("a card's detail: now, to-dos, worker runs by round (newest first, dimmed); no box repeats the to-dos", async () => {
+    await step("a card's detail: now, to-dos, then one round list (기록), each round's head the link to its worker run", async () => {
       await openApp(page, "#/cards/k-101");
       const detail = page.getByTestId("screen-card");
+      await detail.getByTestId("timeline").waitFor();
       const heads = await detail.locator(":scope > .box > .box-head").allInnerTexts();
-      check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "실행", "기록", "댓글"]), "the boxes read " + JSON.stringify(heads));
-      const rounds = await detail.getByTestId("round").locator(".round-head").allInnerTexts();
-      check(rounds.length === 3 && /^라운드 3 · \d\d:\d\d · 진행 중$/.test(rounds[0]) && /^라운드 2 · \d\d:\d\d–\d\d:\d\d$/.test(rounds[1]) && rounds[2].startsWith("라운드 1 · "), "the rounds read " + JSON.stringify(rounds));
-      const look = await detail.getByTestId("round").locator("li.row").evaluateAll((rows) =>
-        rows.map((row) => {
-          const title = getComputedStyle(row.querySelector(".title"));
-          return { dim: row.classList.contains("is-dim"), weight: title.fontWeight, grey: title.color === getComputedStyle(row.closest(".detail").querySelector(".round-head")).color, state: row.querySelector(".state") !== null };
-        }),
+      check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "기록", "댓글"]), "the boxes read " + JSON.stringify(heads));
+      const rounds = await detail.getByTestId("timeline-link").allInnerTexts();
+      check(
+        rounds.length === 3 && /^라운드 3 · \d\d:\d\d · 진행 중$/.test(rounds[0]) && /^라운드 2 · \d\d:\d\d–\d\d:\d\d · 검토 반려$/.test(rounds[1]) && /^라운드 1 · \d\d:\d\d · 작업 마침$/.test(rounds[2]),
+        "the rounds read " + JSON.stringify(rounds),
       );
-      check(look.every((row) => row.dim && row.weight === "400" && row.grey && !row.state), "worker run rows read " + JSON.stringify(look));
-      // The round head carries the round's start and end; its single run row repeats neither, nor its own time.
-      const rowText = (await detail.getByTestId("round").nth(1).locator("li.row").innerText()).trim();
-      check(!/\d+(분|시간)/.test(rowText) && /^라운드 2 · \S+–\S+$/.test(rounds[1]), "round 2 reads " + rounds[1] + " and its run row " + rowText);
-      const took = rowText;
-      return heads.join(", ") + "; " + rounds.join(" | ") + "; round 2's run row: " + took;
+      // Round 1's end is r9's own end (2시간 40분 전), so the head and the run agree.
+      const end = await detail.getByTestId("timeline-link").nth(2).evaluate(() => {
+        const at = new Date((window.__linaScene.now - 2 * 3600 - 40 * 60) * 1000);
+        return String(at.getHours()).padStart(2, "0") + ":" + String(at.getMinutes()).padStart(2, "0");
+      });
+      check(rounds[2] === "라운드 1 · " + end + " · 작업 마침", "round 1 ends " + rounds[2] + ", its run at " + end);
+      return heads.join(", ") + "; " + rounds.join(" | ");
     });
     await step("the stopped and running group has its heading and counts; finished cards say when they ended", async () => {
       await openApp(page, "#/running");
@@ -1983,7 +1988,7 @@ const drivers = {
       check(head === "할 일 1/3", "the detail head's bar reads " + head);
       return (wide ? bars.join(", ") : "no bar on the phone home") + "; detail " + head;
     });
-    await step("the run's own timeline: rounds newest first with their span and outcome; sentences bright, tools dim, raw text hidden", async () => {
+    await step("the run's own timeline: rounds newest first with their span and outcome; sentences bright, tools dim, raw text left out", async () => {
       await openApp(page, "#/cards/k-101");
       const timeline = page.getByTestId("timeline");
       await timeline.waitFor();
@@ -1993,21 +1998,22 @@ const drivers = {
       const outcomes = await blocks.evaluateAll((items) => items.map((item) => item.getAttribute("data-outcome")));
       check(JSON.stringify(outcomes) === JSON.stringify(["going", "comment", "rejected", "ended"]), "the blocks read " + JSON.stringify(outcomes));
       const titles = await timeline.locator(".timeline-head").allInnerTexts();
-      check(/ · 진행 중$/.test(titles[0]) && / · 검토 반려$/.test(titles[2]) && /^–\S+( \S+)? · 작업 마침$/.test(titles[3]), "the heads read " + JSON.stringify(titles));
+      check(/^라운드 3 · .* · 진행 중$/.test(titles[0]) && /^라운드 2 · .* · 검토 반려$/.test(titles[2]) && /^라운드 1 · \S+( \S+)? · 작업 마침$/.test(titles[3]) && !titles.some((title) => title.includes(" –") || title.startsWith("–")), "the heads read " + JSON.stringify(titles));
       const rows = await blocks.first().locator(".timeline-row").evaluateAll((items) =>
         items.map((item) => ({ kind: item.getAttribute("data-kind"), text: item.textContent.trim(), colour: getComputedStyle(item).color })),
       );
       const label = await page.locator(".detail-title").evaluate((title) => getComputedStyle(title).color);
-      check(rows.map((row) => row.text).join(" | ") === "병합된 변경을 기능별로 묶는 중 | 도구 사용 4번 | 가린 문장 | 문서만 바뀐 변경을 따로 묶는 중 ×3", "the going round reads " + rows.map((row) => row.text).join(" | "));
-      check(rows[0].colour === label && rows[1].colour !== label && rows[2].colour !== label, "sentence and dim colours " + JSON.stringify(rows.map((row) => row.colour)) + ", label " + label);
+      check(rows.map((row) => row.text).join(" | ") === "병합된 변경을 기능별로 묶는 중 | 도구 사용 4번 | 문서만 바뀐 변경을 따로 묶는 중 ×3", "the going round reads " + rows.map((row) => row.text).join(" | "));
+      check(rows[0].colour === label && rows[1].colour !== label && rows[2].colour === label, "sentence and dim colours " + JSON.stringify(rows.map((row) => row.colour)) + ", label " + label);
       const noStart = (await blocks.nth(3).getByTestId("timeline-no-start").innerText()).trim();
       check(noStart === "시작 기록 없음", "the start-unknown round reads " + noStart);
       const text = await timeline.innerText();
-      check(!/Running|npm|packages|run 3|3f2a1c9/.test(text), "raw text in the timeline: " + text.slice(0, 160));
+      check(!/Running|npm|packages|run 3|3f2a1c9/.test(text) && !text.includes("가린 문장"), "raw text or a placeholder in the timeline: " + text.slice(0, 160));
       return outcomes.join(" → ") + "; " + titles.join(" | ");
     });
-    await step("a worker run a card started opens its own page with its timeline, though the board does not list it", async () => {
-      await page.getByTestId("worker-runs").locator('a[href="#/runs/r1"]').click();
+    await step("a worker run a card started opens from its round's head by keyboard, with its timeline, though the board does not list it", async () => {
+      await page.getByTestId("timeline-link").first().focus();
+      await page.keyboard.press("Enter");
       await settled(page);
       await page.getByTestId("screen-run").waitFor();
       await page.getByTestId("screen-run").getByTestId("timeline").waitFor();

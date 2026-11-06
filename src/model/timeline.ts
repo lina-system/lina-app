@@ -8,6 +8,10 @@ export type TimelineBlock =
   | {
       readonly type: "round";
       readonly key: string;
+      /** The id of the run whose record holds the round. */
+      readonly runId: string;
+      /** The round's number in its job: its own when on record, else its place counted from the oldest. */
+      readonly n: number;
       readonly at: number;
       readonly start: number | null;
       readonly end: number | null;
@@ -46,6 +50,8 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
       blocks.push({
         type: "round",
         key: `${id}:${round.run ?? "x"}:${round.startedAt ?? round.endedAt ?? 0}`,
+        runId: id,
+        n: round.run ?? record.rounds.length - index,
         at: round.startedAt ?? round.endedAt ?? round.rows[0]?.at ?? 0,
         start: round.startedAt,
         end: round.endedAt,

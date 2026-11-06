@@ -407,20 +407,28 @@ export function CardScreen({ id }: { id: string }) {
           </ul>
         </Box>
       ) : null}
-      {detail.workerRuns.length ? (
-        <Box title={W.workerRuns} testid="worker-runs">
-          {rounds.map((round) => (
-            <section key={round.n} class={round.startedAt === null ? "round is-no-start" : "round"} data-testid="round">
-              <h3 class="round-head">{roundHead(round, now)}</h3>
-              {/* The round's own line is its content; one that would show a path or a command reads 접힌 댓글. */}
-              {round.line ? <p class="round-line" data-testid="round-line">{foldReason(round.line) ? W.folded : round.line}</p> : null}
-              {round.workers.length ? <WorkerRows ids={round.workers} model={model} /> : null}
-            </section>
-          ))}
-          {outside.length ? <WorkerRows ids={outside} model={model} /> : null}
-        </Box>
-      ) : null}
-      <Timeline runs={detail.workerRuns.map((worker) => worker.id)} live={(runId) => runLive(model, runId)} />
+      {/* One round list: the record's blocks (기록), each head the link to its worker run. 실행 stands only while the
+          record is not shown, and under its error line when the read failed, so the worker links never disappear. */}
+      <Timeline
+        runs={detail.workerRuns.map((worker) => worker.id)}
+        live={(runId) => runLive(model, runId)}
+        link={(runId, n) => href({ name: "run", id: rounds.find((round) => round.n === n)?.workers[0] ?? runId })}
+        fallback={
+          detail.workerRuns.length ? (
+            <Box title={W.workerRuns} testid="worker-runs">
+              {rounds.map((round) => (
+                <section key={round.n} class={round.startedAt === null ? "round is-no-start" : "round"} data-testid="round">
+                  <h3 class="round-head">{roundHead(round, now)}</h3>
+                  {/* The round's own line is its content; one that would show a path or a command reads 접힌 댓글. */}
+                  {round.line ? <p class="round-line" data-testid="round-line">{foldReason(round.line) ? W.folded : round.line}</p> : null}
+                  {round.workers.length ? <WorkerRows ids={round.workers} model={model} /> : null}
+                </section>
+              ))}
+              {outside.length ? <WorkerRows ids={outside} model={model} /> : null}
+            </Box>
+          ) : null
+        }
+      />
       {detail.comments.length ? (
         <Box title={W.comments}>
           <ul class="thread" aria-label={W.comments}>

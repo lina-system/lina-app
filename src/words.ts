@@ -172,7 +172,6 @@ export const W = {
   record: "기록",
   toolSteps: (n: number) => `도구 사용 ${n}번`,
   repeated: (n: number) => `×${n}`,
-  hiddenLine: "가린 문장",
   result: "결과",
   outcome: { accepted: "검토 통과", rejected: "검토 반려", stopped: "작업 중단", ended: "작업 마침", unknown: "완료 기록 없음", going: "진행 중" },
   yesterday: "어제",

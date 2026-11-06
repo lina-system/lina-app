@@ -1159,6 +1159,30 @@ describe("work cards", () => {
     expect(agentRow?.classList.contains("is-kind")).toBe(false);
   });
 
+  test("a work card whose own title would show raw text keeps its kind word on the home and its detail", async () => {
+    const source = new SyntheticSource();
+    const ownTitle = "LINA-41 release notes / CHANGES.md";
+    const scene = {
+      ...source.scene,
+      cards: { cards: source.scene.cards.cards.map((card) => (card.id === "k-102" ? { ...card, title: ownTitle } : card)) },
+      cardDetails: { ...source.scene.cardDetails, "k-102": { ...source.scene.cardDetails["k-102"], title: ownTitle } },
+    };
+    const view = await open("#/running", { wide: true, source: new SyntheticSource({ scene }) });
+    // The own title fails the raw-text rule, so nothing of it is drawn: the kind word names the card, in grey.
+    expect(screenText(view.container)).not.toContain(ownTitle);
+    const row = within(view.getByTestId("screen-running")).getAllByTestId("row").find((item) => item.querySelector("a")?.getAttribute("href") === "#/cards/k-102");
+    expect(row?.querySelector(".title")?.textContent).toBe("코드 작업");
+    expect(row?.querySelector(".title")?.classList.contains("is-kind")).toBe(true);
+    expect(row?.querySelector("a")?.getAttribute("aria-label")).toMatch(/ · 코드 작업 · 진행 중/);
+    view.unmount();
+    const detail = await open("#/cards/k-102", { wide: true, source: new SyntheticSource({ scene }) });
+    expect(screenText(detail.container)).not.toContain(ownTitle);
+    const head = detail.getByTestId("screen-card").querySelector(".detail-title");
+    expect(head?.textContent).toBe("코드 작업");
+    expect(head?.classList.contains("is-kind")).toBe(true);
+    expect(within(detail.getByTestId("screen-card")).getByTestId("kind").textContent).toBe("코드");
+  });
+
   test("two jobs on one to-do with one generated title stay two cards; three rounds of one card stay one card", async () => {
     const view = await open("#/done", { wide: true });
     const twins = within(view.getByTestId("screen-done")).getAllByRole("link", { name: /가이드 초안 다듬기/ });

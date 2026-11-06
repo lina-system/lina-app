@@ -41,11 +41,13 @@ test("a work card's own title names it until its checked title exists, and its k
   const running = summary("k-running", "위키: 배포 문서 정리", null, "in_progress");
   const done = summary("k-done", "결제: 안내 문서 다듬기", null, "done");
   const checked = summary("k-checked", "위키: 결제 문서 정리", "결제: 카드 입력 폼 다듬기", "done");
-  const cards: WorkCardList = { cards: [running, done, checked] };
+  // An own title that would show raw text (a file name, English words) is never drawn: the kind word stands in.
+  const raw = summary("k-raw", "LINA-41 release notes / CHANGES.md", null, "done");
+  const cards: WorkCardList = { cards: [running, done, checked, raw] };
   const model = buildModel(
     {
       cards,
-      cardDetails: Object.fromEntries([running, done, checked].map((card) => [card.id, detail(card)])),
+      cardDetails: Object.fromEntries([running, done, checked, raw].map((card) => [card.id, detail(card)])),
       failed: [],
     },
     NOW,
@@ -60,4 +62,9 @@ test("a work card's own title names it until its checked title exists, and its k
 
   // A checked title wins over the card's own title, and the kind is read from the checked one.
   expect(model.cards.get("k-checked")).toMatchObject({ name: "결제: 카드 입력 폼 다듬기", title: "결제: 카드 입력 폼 다듬기", work: "code" });
+
+  // The own title fails the raw-text rule, so nothing is drawn and the kind word names the card; its kind is read
+  // from the checked title alone, which does not exist.
+  expect(model.cards.get("k-raw")).toMatchObject({ name: "코드 작업", title: null, work: "code" });
+  expect(model.done.map((card) => card.name)).toContain("코드 작업");
 });

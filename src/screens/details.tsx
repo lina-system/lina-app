@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, WorkCardDetail } from "../api/client";
-import { cardName, goalCards, runRow, type Model } from "../model";
+import { cardName, cardTitle, goalCards, runRow, type Model } from "../model";
 import { foldReason } from "../model/fold";
 import { holds } from "../model/rounds";
 import type { CardKind } from "../model/kind";
@@ -227,8 +227,8 @@ export function ItemScreen({ id }: { id: string }) {
 export const GoalScreen = ItemScreen;
 
 /**
- * A work card's head: its kind icon and word, its name (the checked title, or the card's own title until that exists;
- * a run without a checked title keeps its kind word in grey) and its state line.
+ * A work card's head: its kind icon and word, its name (the checked title, or the card's own title until that exists
+ * and may be drawn; a run without a checked title keeps its kind word in grey) and its state line.
  */
 function CardHead({ work, title, children }: { work: CardKind; title: string | null; children: ComponentChildren }) {
   return (
@@ -371,7 +371,7 @@ export function CardScreen({ id }: { id: string }) {
   const goalLine = goal && !foldReason(goal.title) ? goal.title : null;
   return (
     <article class="detail" data-testid="screen-card">
-      <CardHead work={row?.work ?? "code"} title={detail.plain.title ?? detail.title}>
+      <CardHead work={row?.work ?? "code"} title={cardTitle(detail.plain.title, detail.title)}>
         <StateTime state={detail.state} reason={detail.reason} time={row ? [cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP) : ""} />
         {goalLine ? (
           <span class="sub" data-testid="card-goal">

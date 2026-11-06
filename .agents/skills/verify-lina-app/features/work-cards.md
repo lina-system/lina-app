@@ -14,7 +14,7 @@ Each piece of work is one card: a work card (a kanban sub-card an agent runs a s
 - A finished card says when it ended (`완료 · 20분 전`, `완료 · 2일 전`); how long it took (`20분 걸림`) is in its detail. Cards under `이전에 끝남` ended more than 24 hours ago.
 - A wide window opens on the home; on a phone it is the `진행 중인 작업` row of the menu. On a phone nothing but the large title sits above the list.
 - One card per run: follow-up rounds of one card stay one card; two jobs stay two cards even when they share a to-do and one generated title. Worker runs started by a card show only inside its detail.
-- The title is `plain.title`; a running card's now line (wide windows) is `plain.now`. A work card without a checked title shows its own title, shortened to the row width (never sliced), on the home, 완료, the agent screen and its detail head, and its kind is read from the same text. A run without a checked title keeps its kind of work in grey (`코드 작업`, `문서 작업`, `조사`, `기기 작업`). A line the core has not written, or one that failed its check, is null and never shows raw text; a missing now line draws nothing.
+- The title is `plain.title`; a running card's now line (wide windows) is `plain.now`. A work card without a checked title shows its own title, shortened to the row width (never sliced), on the home, 완료, the agent screen and its detail head, and its kind is read from the same text — but only while that own title passes the app's raw-text rule (a path, a command, an English word and so on). An own title the rule refuses draws nothing: the card keeps its kind of work in grey (`코드 작업`, `문서 작업`, `조사`, `기기 작업`), and its kind is read from the checked title alone. A run without a checked title keeps its kind of work in grey. A line the core has not written, or one that failed its check, is null and never shows raw text; a missing now line draws nothing.
 - When the writer of the checked lines has stopped, the freshness line adds one orange `· 요약 멈춤`.
 - Every count equals its list: the sidebar's `진행 중인 작업` grey and red numbers are the running list, `완료` is the two finished sections, and each section head is its rows.
 - A card's detail: its kind icon and word, its name and state line; then `지금` (`plain.now`), `끝난 것` (only its result line, when it has one), `할 일` (the to-dos it owns), `기록` (its rounds, newest first, each head `라운드 n · <start–end> · <outcome>` linking to the round's worker run; see card-detail.md) and its comments. The rounds show once: `실행` (its worker runs by round, in the secondary label colour and regular weight) stands only while the record is not shown, and under the error line when the record's read failed. A box shows only when it adds something: nothing repeats the to-do list.
@@ -31,7 +31,7 @@ Each piece of work is one card: a work card (a kanban sub-card an agent runs a s
 
 - `cards-home` orders the home: decisions, stopped and running, waiting, the last 24 hours, older
 - `cards-one` keeps one card per run and per job
-- `cards-plain` draws a work card's checked title, or its own title until that exists; a run without one keeps its kind word, and a missing now line nothing
+- `cards-plain` draws a work card's checked title, or its own title until that exists when the raw-text rule lets it; a run without one keeps its kind word, and a missing now line nothing
 - `cards-writer` says 요약 멈춤 when the writer stopped
 - `cards-counts` makes every count equal its list
 - `cards-detail` shows now, done so far, next, to-dos and worker runs by round

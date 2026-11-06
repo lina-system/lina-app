@@ -1,4 +1,4 @@
-import { cardAnswerPath, EVENTS_PATH, NOTICES_READ_PATH, routePath, talkPath, writePath, type ActionResult, type AnswerRequest, type AnswerResult, type ChangeMessage, type CommentRequest, type DoneRequest, type NoticesReadRequest, type NoticesReadResult, type RouteName, type Routes, type TalkEvent, type TalkRequest } from "../api/client";
+import { cardAnswerPath, EVENTS_PATH, NOTICES_READ_PATH, PUSH_KEY_PATH, PUSH_REMOVE_PATH, PUSH_SUBSCRIPTIONS_PATH, routePath, talkPath, writePath, type ActionResult, type AnswerRequest, type AnswerResult, type ChangeMessage, type CommentRequest, type DoneRequest, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type TalkEvent, type TalkRequest } from "../api/client";
 import { nowSeconds, type ChangeHandlers, type ChangeSocket, type ReadResult, type Renewal, type Source, type TalkResult, type WriteResult } from "./source";
 import { readSse } from "./sse";
 
@@ -121,8 +121,24 @@ export class HttpSource implements Source {
     };
   }
 
-  async read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {
-    const url = `${this.basePath}${routePath(name, id)}`;
+  read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {
+    return this.get(`${this.basePath}${routePath(name, id)}`);
+  }
+
+  pushKey(): Promise<ReadResult<PushKey>> {
+    return this.get(`${this.basePath}${PUSH_KEY_PATH}`);
+  }
+
+  savePushSubscription(body: PushSubscriptionRequest): Promise<WriteResult<PushSubscriptionResult>> {
+    return this.post(PUSH_SUBSCRIPTIONS_PATH, body);
+  }
+
+  removePushSubscription(body: PushRemoveRequest): Promise<WriteResult<PushRemoveResult>> {
+    return this.post(PUSH_REMOVE_PATH, body);
+  }
+
+  /** One GET with the session token and the ETag the last answer for this address carried. */
+  private async get<T>(url: string): Promise<ReadResult<T>> {
     const headers: Record<string, string> = { Accept: "application/json" };
     if (this.token) headers["X-Hermes-Session-Token"] = this.token;
     const etag = this.etags.get(url);
@@ -139,7 +155,7 @@ export class HttpSource implements Source {
     if (response.status === 401 || response.status === 403) return { kind: "failed", offline: false, at, denied: true };
     if (!response.ok) return { kind: "failed", offline: false, at };
     try {
-      const data = (await response.json()) as Routes[N];
+      const data = (await response.json()) as T;
       const tag = response.headers.get("ETag");
       if (tag) this.etags.set(url, tag);
       return { kind: "data", data, at };

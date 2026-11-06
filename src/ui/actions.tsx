@@ -2,6 +2,7 @@ import { createContext } from "preact";
 import { useContext, useEffect, useMemo, useState } from "preact/hooks";
 import type { Store } from "../data/store";
 import type { CardRow, DecisionTarget, MineSource, Pending } from "../model";
+import type { CloseMatch } from "../push";
 import { writeError } from "../screens/write-error";
 import { W } from "../words";
 
@@ -49,6 +50,8 @@ export class Actions {
     private readonly store: Store,
     private readonly onChange: () => void,
     private readonly timers: { setTimeout: typeof setTimeout; clearTimeout: typeof clearTimeout } = globalThis,
+    /** Closes this device's push notifications at once; the core's `close` push clears the other devices. */
+    private readonly closeNotifications: (match: CloseMatch) => void = () => {},
   ) {}
 
   private notify(): void {
@@ -117,6 +120,8 @@ export class Actions {
     if (keys === "all") this.allRead = false;
     else for (const key of keys) this.readKeys.delete(key);
     if (!result.ok) this.noticeError = writeError("read", result);
+    // A decision's notification is tagged with its notice key (`ask:<item>:<at>`); all read closes every one.
+    else this.closeNotifications(keys === "all" ? { prefixes: ["ask:"] } : { tags: [...keys] });
     this.notify();
   }
 
@@ -178,7 +183,8 @@ export class Actions {
     if (!result.ok) {
       this.hiddenKeys.delete(key);
       this.errors.set(key, { line: writeError("answer", result), text });
-    }
+    } else if (target.kind === "item") this.closeNotifications({ prefixes: [`ask:${target.id}:`] });
+    else this.closeNotifications({ tags: [`blocked:${target.id}`], prefixes: [`question:${target.id}:`] });
     this.notify();
   }
 
@@ -259,9 +265,9 @@ export function useActions(): Actions {
   return value;
 }
 
-export function useActionsFor(store: Store): Actions {
+export function useActionsFor(store: Store, closeNotifications?: (match: CloseMatch) => void): Actions {
   const [, setTick] = useState(0);
-  const actions = useMemo(() => new Actions(store, () => setTick((value) => value + 1)), [store]);
+  const actions = useMemo(() => new Actions(store, () => setTick((value) => value + 1), globalThis, closeNotifications), [store]);
   useEffect(() => {
     const flush = () => actions.endToast();
     window.addEventListener("pagehide", flush);

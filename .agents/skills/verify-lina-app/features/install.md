@@ -46,5 +46,5 @@ Preconditions:
 
 ## Not goals
 
-- No push notifications.
+- Push notifications are their own feature ([notifications-push](./notifications-push.md)).
 - No offline use: the worker passes every request to the network and caches nothing.

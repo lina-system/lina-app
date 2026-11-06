@@ -12,6 +12,8 @@ import { CardScreen, GoalScreen, ItemScreen, RunScreen } from "./screens/details
 import { BackIcon, BellIcon, CalendarIcon, DeviceIcon, DoneIcon, GoalIcon, InboxIcon, PlusIcon, RunningIcon } from "./ui/icons";
 import { AgentMark, CountPair, Ctx, Disclosure, useApp, type AppContext } from "./ui/parts";
 import { ActionsCtx, useActions, useActionsFor } from "./ui/actions";
+import { browserPushHost, type OpenRequest, type PushHost } from "./push";
+import { PushCtx, PushRow, usePushFor } from "./ui/push-row";
 import { APP_VERSION } from "./version";
 import { KIND_TITLE, SEP, W } from "./words";
 
@@ -197,6 +199,14 @@ function noticeHref(model: Model, target: string): string {
   return href({ name: item?.kind === "goal" ? "goal" : "item", id: target });
 }
 
+/** Where a chosen notification opens: a decision in 수신함, a reply on its goal or to-do, a stopped card on its page. */
+export function pushHref(model: Model, request: OpenRequest): string {
+  if (request.kind === "ask") return href({ name: "inbox" });
+  if (request.kind === "reply") return noticeHref(model, request.target);
+  if (request.kind === "blocked" || request.kind === "question") return href({ name: "card", id: request.target });
+  return request.hash;
+}
+
 /**
  * The bell: the badge is the core's unread count, the dialog lists the notices with read ones dimmed. Choosing a
  * notice opens its item and marks it read on the core; 모두 읽음 marks them all. Read marks live on the core only,
@@ -270,6 +280,7 @@ export function Bell() {
             })}
           </ul>
           {actions.noticesError ? <p class="write-error notice-error" role="alert" data-testid="write-error">{actions.noticesError}</p> : null}
+          <PushRow />
         </div>
       ) : null}
     </div>
@@ -437,15 +448,19 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
   );
 }
 
-export function App({ store }: { store: Store }) {
+export function App({ store, pushHost }: { store: Store; pushHost?: PushHost }) {
+  const host = useMemo(() => pushHost ?? browserPushHost(), []);
   const version = useStore(store);
   const tick = useClock();
   const now = Math.max(tick, nowSeconds());
   const wide = useWide();
   const nav = useNav();
   const minute = Math.floor(now / 60);
-  const actions = useActionsFor(store);
+  const actions = useActionsFor(store, (match) => host.close(match));
   const model = useMemo(() => buildModel({ ...store.input(), pending: actions.pending() }, now), [version, minute, actions.version]);
+  const latest = useRef(model);
+  latest.current = model;
+  const push = usePushFor(store.source, host, (request) => navigate(pushHref(latest.current, request)));
 
   useEffect(() => startLive(store), [store]);
   useEffect(() => store.want(wantsFor(nav.route, store)), [nav.hash, version]);
@@ -454,8 +469,10 @@ export function App({ store }: { store: Store }) {
   return (
     <Ctx.Provider value={context}>
       <ActionsCtx.Provider value={actions}>
-        {wide ? <WideShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} /> : <PhoneShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} />}
-        <Toast />
+        <PushCtx.Provider value={push}>
+          {wide ? <WideShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} /> : <PhoneShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} />}
+          <Toast />
+        </PushCtx.Provider>
       </ActionsCtx.Provider>
     </Ctx.Provider>
   );

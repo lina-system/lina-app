@@ -2114,6 +2114,183 @@ const drivers = {
     });
   },
 
+  async "notifications-push"(page, step) {
+    const width = page.viewportSize().width;
+    const viewport = page.viewportSize();
+    const origin = new URL(readState().url).origin;
+    const shots = path.join(evidenceRoot, "notifications-push");
+    const bell = (where) => where.getByRole("button", { name: /^알림/ });
+    const row = (where) => where.getByRole("dialog", { name: "알림" }).getByTestId("push-row");
+    const pushSwitch = (where) => row(where).getByRole("switch", { name: "알림 받기" });
+    // Opens the bell and reads the row once it has left its loading state.
+    const readRow = async (where) => {
+      await bell(where).click();
+      await row(where).waitFor({ timeout: 10_000 });
+      return row(where).evaluate((element) => ({
+        state: element.dataset.state,
+        line: element.querySelector("[data-testid=push-line]")?.textContent ?? null,
+        error: element.querySelector("[data-testid=push-error]")?.textContent ?? null,
+        switches: element.querySelectorAll("[role=switch]").length,
+        checked: element.querySelector("[role=switch]")?.getAttribute("aria-checked") ?? null,
+      }));
+    };
+    const shot = async (where, state) => {
+      mkdirSync(shots, { recursive: true });
+      await where.screenshot({ path: path.join(shots, "notifications-push-" + state + "-" + width + ".png"), fullPage: true, animations: "disabled" });
+    };
+    // Notifications need a full Chromium (the headless shell denies them); it also answers a permission prompt with denied.
+    const chromium = await loadChromium();
+    const full = await chromium.launch({ channel: "chromium" });
+    const open = async (options = {}, hash = "#/inbox", query = "") => {
+      const context = await full.newContext({ baseURL: origin, viewport, deviceScaleFactor: 1, ...options });
+      const tab = await context.newPage();
+      await openApp(tab, hash, query);
+      return { context, tab };
+    };
+    const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
+    try {
+      await step("push off in the core: one line, no switch", async () => {
+        const { context, tab } = await open({}, "#/inbox", "&push=off");
+        const seen = await readRow(tab);
+        check(seen.state === "off" && seen.line === "푸시 설정 안 됨" && seen.switches === 0, "the row is " + JSON.stringify(seen));
+        await shot(tab, "off");
+        await context.close();
+        return seen.line;
+      });
+      await step("iPhone Safari outside the Home Screen: how to add it, no switch", async () => {
+        const { context, tab } = await open({ userAgent: IPHONE });
+        const seen = await readRow(tab);
+        check(seen.state === "home" && seen.line === "공유 › 홈 화면에 추가 후 켤 수 있음" && seen.switches === 0, "the row is " + JSON.stringify(seen));
+        await shot(tab, "home");
+        await context.close();
+        return seen.line;
+      });
+      await step("the iPhone Home Screen app, and a desktop browser: the switch, off, and the page asked nothing on load", async () => {
+        const seen = [];
+        for (const options of [{ userAgent: IPHONE }, {}]) {
+          const context = await full.newContext({ baseURL: origin, viewport, deviceScaleFactor: 1, ...options });
+          await context.addInitScript((standalone) => {
+            if (standalone) Object.defineProperty(navigator, "standalone", { configurable: true, get: () => true });
+            window.__asked = 0;
+            const ask = Notification.requestPermission.bind(Notification);
+            Notification.requestPermission = async (...args) => {
+              window.__asked += 1;
+              window.__answer = await ask(...args);
+              return window.__answer;
+            };
+          }, Boolean(options.userAgent));
+          const tab = await context.newPage();
+          await openApp(tab, "#/inbox");
+          const one = await readRow(tab);
+          const asked = await tab.evaluate(() => window.__asked);
+          check(one.state === "ready" && one.checked === "false" && one.line === null && asked === 0, (options.userAgent ? "Home Screen" : "desktop") + ": " + JSON.stringify(one) + ", asked " + asked);
+          if (!options.userAgent) {
+            await shot(tab, "ready");
+            await pushSwitch(tab).click();
+            await tab.waitForFunction(() => window.__answer !== undefined, null, { timeout: 5_000 }).catch(() => check(false, "the switch did not ask for permission"));
+            const answer = await tab.evaluate(() => window.__answer);
+            await tab.waitForFunction(() => !document.querySelector("[data-testid=push-switch]")?.disabled, null, { timeout: 5_000 });
+            const after = await row(tab).getAttribute("data-state");
+            const asks = await tab.evaluate(() => window.__asked);
+            // The headless prompt is dismissed (default) or refused (denied); neither turns push on.
+            check(asks === 1 && after === (answer === "denied" ? "blocked" : "ready"), "the prompt answered " + answer + " after " + asks + " ask(s) and the row is " + after);
+            seen.push("desktop asked once from the switch, the prompt answered " + answer + " -> " + after);
+          } else seen.push("Home Screen ready");
+          await context.close();
+        }
+        return seen.join("; ");
+      });
+      await step("turning it on subscribes and the core keeps this device; off removes it and unsubscribes", async () => {
+        const { context, tab } = await open({ permissions: ["notifications"] });
+        const before = await readRow(tab);
+        check(before.state === "ready", "the row is " + JSON.stringify(before));
+        await pushSwitch(tab).click();
+        await tab.waitForFunction(() => document.querySelector("[data-testid=push-row]")?.dataset.state === "on", null, { timeout: 5_000 }).catch(() => check(false, "the row did not turn on"));
+        const core = await tab.evaluate(() => window.__linaPush);
+        check(core.subscriptions.length === 1 && core.subscriptions[0].endpoint.startsWith("https://fcm.googleapis.com/"), "the core keeps " + JSON.stringify(core.subscriptions));
+        check((await pushSwitch(tab).getAttribute("aria-checked")) === "true", "the switch is not on");
+        await shot(tab, "on");
+        await pushSwitch(tab).click();
+        await tab.waitForFunction(() => document.querySelector("[data-testid=push-row]")?.dataset.state === "ready", null, { timeout: 5_000 }).catch(() => check(false, "the row did not turn off"));
+        const after = await tab.evaluate(() => window.__linaPush);
+        check(after.subscriptions.length === 0 && after.removes === 1, "after off the core keeps " + JSON.stringify(after));
+        await context.close();
+        return "on: " + core.subscriptions[0].endpoint.replace(/[^/]+$/, "…") + "; off: 0 kept, 1 removed";
+      });
+      await step("the service worker shows, replaces by tag and closes the core's messages", async () => {
+        const { context, tab } = await open({ permissions: ["notifications"] });
+        await tab.reload();
+        await tab.waitForFunction(async () => Boolean((await navigator.serviceWorker.getRegistration())?.active), null, { timeout: 15_000 });
+        const cdp = await context.newCDPSession(tab);
+        const registration = new Promise((resolve) => cdp.on("ServiceWorker.workerRegistrationUpdated", (event) => event.registrations.length && resolve(event.registrations[0].registrationId)));
+        await cdp.send("ServiceWorker.enable");
+        const registrationId = await registration;
+        const notes = () => tab.evaluate(async () => (await (await navigator.serviceWorker.getRegistration()).getNotifications()).map((note) => ({ tag: note.tag, title: note.title, body: note.body, data: note.data })));
+        // waitForFunction takes a promise as truthy, so the notifications are read until they are the ones expected (5 s at most).
+        const settle = async (done) => {
+          for (let tries = 0; tries < 50 && !done(await notes()); tries += 1) await tab.waitForTimeout(100);
+          return notes();
+        };
+        const push = async (message, done) => {
+          await cdp.send("ServiceWorker.deliverPushMessage", { origin, registrationId, data: JSON.stringify(message) });
+          return settle(done);
+        };
+        const scene = await tab.evaluate(() => window.__linaScene);
+        const key = scene.board.notices.find((notice) => !notice.read).key;
+        const ask = { v: 1, type: "show", tag: key, kind: "ask", target: "T2", at: 0, title: "배포 순서 정하기", body: "오늘 저녁에 배포할까요?" };
+        let seen = await push(ask, (all) => all.length === 1);
+        check(seen.length === 1 && seen[0].title === ask.title && seen[0].body === "결정 필요\n" + ask.body && seen[0].tag === key, "after show: " + JSON.stringify(seen));
+        seen = await push({ ...ask, body: "src/app.tsx 고쳤어요" }, (all) => all.length === 1 && all[0].body === "결정 필요");
+        check(seen.length === 1 && seen[0].body === "결정 필요", "the same tag again did not replace it with the kind line only: " + JSON.stringify(seen));
+        seen = await push({ v: 1, type: "show", tag: "reply:T4:n1", kind: "reply", target: "T4", at: 0, title: "입력 폼 정리", body: "간격 맞췄어요." }, (all) => all.length === 2);
+        check(seen.length === 2, "a second item did not get its own notification: " + JSON.stringify(seen));
+        seen = await push({ v: 1, type: "close", tag: "reply:T4:n1" }, (all) => all.length === 1);
+        check(seen.length === 1 && seen[0].tag === key, "close left " + JSON.stringify(seen));
+        seen = await push({ v: 1, type: "close", tag: "question:k-102:7" }, (all) => all.length !== 1);
+        check(seen.length === 1, "a close with nothing to close changed " + JSON.stringify(seen));
+        const unread = scene.board.notices.filter((notice) => !notice.read).map((notice) => notice.key);
+        for (const [index, tag] of unread.entries()) seen = await push({ ...ask, tag }, (all) => all.length === index + 1);
+        check(seen.length === unread.length, "one notification per unread notice: " + seen.length + " of " + unread.length);
+        await bell(tab).click();
+        await tab.getByRole("dialog", { name: "알림" }).locator("a[href]").filter({ has: tab.locator(".notice-dot.is-unread") }).first().click();
+        await tab.waitForFunction((count) => window.__linaScene.board.notices.filter((notice) => !notice.read).length === count, unread.length - 1, { timeout: 5_000 });
+        const left = (await tab.evaluate(() => window.__linaScene)).board.notices.filter((notice) => !notice.read).map((notice) => notice.key).sort();
+        seen = await settle((all) => all.length === left.length);
+        check(JSON.stringify(seen.map((note) => note.tag).sort()) === JSON.stringify(left), "after reading one notice the device shows " + JSON.stringify(seen.map((note) => note.tag)) + ", the unread are " + JSON.stringify(left));
+        await cdp.detach();
+        await context.close();
+        return "show, replace by tag, a second tag, close, an empty close, and the read mark closing it here";
+      });
+      await step("choosing a notification takes the open window to the item, as the bell does", async () => {
+        const { context, tab } = await open({ permissions: ["notifications"] }, "#/due");
+        await tab.reload();
+        await tab.waitForFunction(async () => Boolean((await navigator.serviceWorker.getRegistration())?.active), null, { timeout: 15_000 });
+        const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent("serviceworker"));
+        const routes = [];
+        for (const [kind, target, hash] of [["ask", "T2", "#/inbox"], ["reply", "T4", "#/items/T4"], ["blocked", "k-101", "#/cards/k-101"]]) {
+          // A notification the worker drew, then a click on it; a click sent from a script may not focus, so only the route is read.
+          await worker.evaluate(async ({ kind, target }) => {
+            await self.registration.showNotification("항목", { tag: kind + ":" + target, body: "", data: { kind, target } });
+            const [note] = await self.registration.getNotifications({ tag: kind + ":" + target });
+            self.dispatchEvent(new NotificationEvent("notificationclick", { notification: note }));
+          }, { kind, target });
+          await tab.waitForFunction((hash) => location.hash === hash, hash, { timeout: 5_000 }).catch(() => check(false, kind + " opened " + new URL(tab.url()).hash + ", not " + hash));
+          routes.push(kind + " -> " + hash);
+        }
+        await context.close();
+        return routes.join(", ");
+      });
+    } finally {
+      await full.close();
+    }
+    await step("on this page (the drive's own browser) the bell carries the row", async () => {
+      await openApp(page, "#/inbox", "&push=off");
+      const seen = await readRow(page);
+      check(seen.state === "off", "the row is " + JSON.stringify(seen));
+      return "row " + seen.state + "; state shots in " + path.relative(repo, shots);
+    });
+  },
+
   async install(page, step) {
     await step("open the app", async () => {
       await openApp(page, "#/");

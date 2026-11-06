@@ -1,4 +1,4 @@
-import type { ActionResult, AnswerRequest, ChangeMessage, AnswerResult, CommentRequest, DoneRequest, NoticesReadRequest, NoticesReadResult, PushKey, PushRemoveRequest, PushRemoveResult, PushSubscriptionRequest, PushSubscriptionResult, RouteName, Routes, TalkEvent, TalkRequest } from "../api/client";
+import type { ActionResult, AnswerRequest, ChangeMessage, AnswerResult, CommentRequest, DoneRequest, NoticesReadRequest, NoticesReadResult, PushKey, PushRemoveRequest, PushRemoveResult, PushSubscriptionRequest, PushSubscriptionResult, RouteName, Routes, SettingsPatch, SettingsWritten, TalkEvent, TalkRequest } from "../api/client";
 
 export type ReadResult<T> =
   | { readonly kind: "data"; readonly data: T; readonly at: number }
@@ -57,6 +57,13 @@ export interface Source {
   /** Adds or refreshes this device's push subscription in the core (one per endpoint). */
   savePushSubscription(body: PushSubscriptionRequest): Promise<WriteResult<PushSubscriptionResult>>;
   removePushSubscription(body: PushRemoveRequest): Promise<WriteResult<PushRemoveResult>>;
+  /**
+   * Changes the work settings with a JSON Merge Patch, If-Match the settings this source read last: 412 when they
+   * changed since, 422 with the core's one-line `detail` when the result would not be valid.
+   */
+  patchSettings(patch: SettingsPatch): Promise<WriteResult<SettingsWritten>>;
+  /** Writes the revision before the newest as a new one, If-Match the settings read last, like patchSettings. */
+  rollbackSettings(): Promise<WriteResult<SettingsWritten>>;
 }
 
 export function nowSeconds(): number {

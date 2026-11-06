@@ -1,0 +1,246 @@
+import type { Settings, SettingsAuditLine, SettingsChange, SettingsDevice, SettingsModel, SettingsRule, SettingsRunner } from "../api/client";
+import { serviceName, SEP, W } from "../words";
+
+/** The runner `lina worker` uses when the settings name none, and that is there even when not listed. */
+export const BUILTIN_RUNNER = "omo";
+/** A device's caps start at 1; the stepper stops at this many runs. */
+export const CAP_MIN = 1;
+export const CAP_MAX = 16;
+export const RULE_SIZES = ["S", "M", "L"] as const;
+export type RuleSize = (typeof RULE_SIZES)[number];
+export const ACCESS = ["read-only", "workspace-write", "full"] as const;
+export type Access = (typeof ACCESS)[number];
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** RFC 7396: an object merges key by key, null removes a key, anything else (an array too) replaces what is there. */
+export function mergePatch<T>(target: T, patch: unknown): T {
+  if (!isObject(patch)) return structuredClone(patch) as T;
+  const result: Record<string, unknown> = isObject(target) ? { ...target } : {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null) delete result[key];
+    else result[key] = mergePatch(result[key], value);
+  }
+  return result as T;
+}
+
+/** What changed between two settings, as the core's audit line names it: a path per leaf, a list as one value. */
+export function diffSettings(before: unknown, after: unknown, path = ""): SettingsChange[] {
+  if (isObject(before) && isObject(after)) {
+    const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])];
+    return keys.flatMap((key) => diffSettings(before[key], after[key], path ? `${path}.${key}` : key));
+  }
+  if (JSON.stringify(before) === JSON.stringify(after)) return [];
+  return [{ path, from: before ?? null, to: after ?? null }];
+}
+
+/** The runners as `lina worker` sees them: omo first, there even when not listed. */
+export function runnerTable(settings: Settings): [string, SettingsRunner][] {
+  const table = new Map<string, SettingsRunner>([[BUILTIN_RUNNER, { type: BUILTIN_RUNNER }]]);
+  for (const [name, runner] of Object.entries(settings.worker?.runners ?? {})) table.set(name, runner);
+  return [...table];
+}
+
+export function defaultRunner(settings: Settings): string {
+  return settings.worker?.default_runner || BUILTIN_RUNNER;
+}
+
+export function runnerOn(runner: SettingsRunner | undefined): boolean {
+  return runner?.on !== false;
+}
+
+export type DeviceRole = "work" | "files" | "person";
+
+export interface DeviceRow {
+  readonly name: string;
+  readonly device: SettingsDevice;
+  readonly role: DeviceRole;
+}
+
+export function devicesOf(settings: Settings): DeviceRow[] {
+  return Object.entries(settings.devices?.workers ?? {}).map(([name, device]) => ({ name, device, role: device.role ?? "work" }));
+}
+
+/** Runs a device takes from the bids; `cap` is 1 when the settings leave it out. */
+export function bidCap(device: SettingsDevice): number {
+  return device.cap ?? CAP_MIN;
+}
+
+/** Runs a device takes when a run names it (`--host`): its own cap, else the bid cap. */
+export function namedCap(device: SettingsDevice): number {
+  return device.named_cap ?? bidCap(device);
+}
+
+export interface ModelRef {
+  readonly provider: string;
+  readonly id: string;
+  readonly effort: string | null;
+}
+
+/** A model value: an alias of the settings, or `<provider>/<id>[:<effort>]`; anything else names no OCX model. */
+export function parseModel(value: string | undefined | null, settings: Settings): ModelRef | null {
+  if (!value) return null;
+  const alias = Object.entries(settings.worker?.models?.aliases ?? {}).find(([name]) => name.toLowerCase() === value.trim().toLowerCase())?.[1];
+  if (alias) return alias.provider && alias.id ? { provider: alias.provider, id: alias.id, effort: alias.thinking ?? null } : null;
+  const slash = value.indexOf("/");
+  if (slash <= 0) return null;
+  const [id, effort] = value.slice(slash + 1).split(":");
+  return id ? { provider: value.slice(0, slash), id, effort: effort || null } : null;
+}
+
+export function modelValue(model: Pick<SettingsModel, "provider" | "id">, effort: string | null): string {
+  return `${model.provider}/${model.id}${effort ? `:${effort}` : ""}`;
+}
+
+export function findModel(ref: ModelRef | null, models: readonly SettingsModel[]): SettingsModel | undefined {
+  return ref ? models.find((model) => model.provider === ref.provider && model.id === ref.id) : undefined;
+}
+
+export function modelName(model: SettingsModel): string {
+  return model.name || model.id;
+}
+
+/** How a model value reads: the OCX model's name, else the id it names, else the value itself (an alias). */
+export function modelLabel(value: string | undefined | null, settings: Settings, models: readonly SettingsModel[]): string {
+  if (!value) return W.defaultValue;
+  const ref = parseModel(value, settings);
+  const model = findModel(ref, models);
+  return model ? modelName(model) : (ref?.id ?? value);
+}
+
+/** The effort a model value runs at: its own, else the OCX model's default. */
+export function effortOf(value: string | undefined | null, settings: Settings, models: readonly SettingsModel[]): string | null {
+  const ref = parseModel(value, settings);
+  return ref?.effort ?? findModel(ref, models)?.defaultEffort ?? null;
+}
+
+export function effortWord(effort: string): string {
+  return Object.hasOwn(W.effortWord, effort) ? W.effortWord[effort] : effort;
+}
+
+/** A runner's line under its name: `<모델> · <생각 깊이>`. */
+export function runnerLine(runner: SettingsRunner, settings: Settings, models: readonly SettingsModel[]): string {
+  const effort = effortOf(runner.model, settings, models);
+  return [modelLabel(runner.model, settings, models), effort ? effortWord(effort) : null].filter(Boolean).join(SEP);
+}
+
+/** Choosing a model keeps the effort when the new model offers it. */
+export function pickModel(model: SettingsModel, current: string | undefined | null, settings: Settings): string {
+  const effort = parseModel(current, settings)?.effort ?? null;
+  return modelValue(model, effort && model.efforts.includes(effort) ? effort : null);
+}
+
+/** A model's quota on the right of its row: what is left and when it resets, or the one word in its place. */
+export function quotaWord(model: SettingsModel, now: number, until: (seconds: number) => string): { text: string; tone: "" | "is-red" | "is-grey" } {
+  if (model.state === "out_of_quota") return { text: W.usedUp, tone: "is-red" };
+  if (model.state === "no_account") return { text: W.noAccount, tone: "is-grey" };
+  if (model.state !== "ok" || model.left === null) return { text: W.quotaUnknown, tone: "is-grey" };
+  return { text: W.quotaLeft(model.left, model.resetAt === null ? null : until(model.resetAt - now)), tone: "" };
+}
+
+/** The models grouped by service, in the order OCX lists them. */
+export function modelGroups(models: readonly SettingsModel[]): { service: string; name: string; models: SettingsModel[] }[] {
+  const groups = new Map<string, SettingsModel[]>();
+  for (const model of models) groups.set(model.provider, [...(groups.get(model.provider) ?? []), model]);
+  return [...groups].map(([service, list]) => ({ service, name: serviceName(service), models: list }));
+}
+
+export function rulesOf(settings: Settings): SettingsRule[] {
+  return settings.worker?.routing ?? [];
+}
+
+/** A rule as the list reads it: its labels (its name when it has none) and its sizes. */
+export function ruleLabel(rule: SettingsRule): string {
+  const labels = rule.when?.runner_label ? [rule.when.runner_label] : (rule.when?.labels_any ?? []);
+  const sizes = rule.when?.size ?? [];
+  return [labels.length ? labels.join(", ") : rule.name, sizes.length ? sizes.join("/") : null].filter(Boolean).join(SEP);
+}
+
+const RULE_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,40}$/;
+
+/** A new rule's name: its label when that is a valid unused name, else the first free `rule-<n>`. */
+export function newRuleName(label: string, rules: readonly SettingsRule[]): string {
+  const taken = new Set(rules.map((rule) => rule.name));
+  if (RULE_NAME.test(label) && !taken.has(label)) return label;
+  let index = rules.length + 1;
+  while (taken.has(`rule-${index}`)) index += 1;
+  return `rule-${index}`;
+}
+
+export function newRule(label: string, size: RuleSize | null, runner: string, rules: readonly SettingsRule[]): SettingsRule {
+  return { name: newRuleName(label, rules), when: { labels_any: [label], ...(size ? { size: [size] } : {}) }, runner };
+}
+
+function onOff(on: unknown): string {
+  return on === false ? W.turnedOff : W.turnedOn;
+}
+
+/** One change in a few words: what it is about, then where it went when that fits in a word. */
+function changeWords(change: SettingsChange, settings: Settings, models: readonly SettingsModel[]): string {
+  const parts = change.path.split(".");
+  const to = change.to;
+  const model = (value: unknown) => (typeof value === "string" ? modelLabel(value, settings, models) : W.followDefault);
+  if (parts[0] === "worker" && parts[1] === "runners" && parts[2]) {
+    const name = parts[2];
+    switch (parts[3]) {
+      case "on":
+        return `${name} ${onOff(to)}`;
+      case "model":
+        return `${name} ${W.model} ${model(to)}`;
+      case "fallback_model":
+        return `${name} ${W.fallbackModel} ${model(to)}`;
+      case "access":
+        return `${name} ${W.access}`;
+      default:
+        return name;
+    }
+  }
+  if (change.path === "worker.default_runner") return `${W.defaultRunner} ${typeof to === "string" ? to : W.defaultValue}`;
+  if (change.path === "worker.models.fallback") return `${W.fallbackModel} ${model(to)}`;
+  if (parts[0] === "worker" && parts[1] === "routing") return W.rules;
+  if (parts[0] === "worker" && parts[1] === "models") return W.model;
+  if (parts[0] === "devices" && parts[1] === "workers" && parts[2]) {
+    const name = parts[2];
+    switch (parts[3]) {
+      case "off":
+        return `${name} ${onOff(to !== true)}`;
+      case "cap":
+        return `${name} ${W.bid} ${typeof to === "number" ? to : W.defaultValue}`;
+      case "named_cap":
+        return `${name} ${W.named} ${typeof to === "number" ? to : W.defaultValue}`;
+      case "no_repo":
+        return `${name} ${W.repoWork} ${onOff(to !== true)}`;
+      case "fast":
+        return `${name} ${W.fastDevice} ${onOff(to === true)}`;
+      default:
+        return name;
+    }
+  }
+  if (parts[0] === "devices") return W.devices;
+  if (parts[0] === "worker") return W.runners;
+  return change.path;
+}
+
+/** What a revision changed, in a few words: the first change, then how many more. */
+export function changesLine(line: SettingsAuditLine, settings: Settings, models: readonly SettingsModel[]): string {
+  if (!line.changes.length) return W.noChange;
+  const first = changeWords(line.changes[0], settings, models);
+  return line.changes.length > 1 ? `${first} ${W.more(line.changes.length - 1)}` : first;
+}
+
+/** `MM-DD HH:mm` in the page's own time zone. */
+export function stamp(at: number): string {
+  const date = new Date(at * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** One history row: `<MM-DD HH:mm> · <앱|CLI|바깥 편집|되돌리기> · <what changed>`, and who wrote it from where. */
+export function historyLine(line: SettingsAuditLine, settings: Settings, models: readonly SettingsModel[]): { title: string; who: string } {
+  return {
+    title: [stamp(line.at), W.byKind[line.by.kind] ?? line.by.kind, changesLine(line, settings, models)].join(SEP),
+    who: [line.by.principal, line.by.device].filter(Boolean).join(SEP),
+  };
+}

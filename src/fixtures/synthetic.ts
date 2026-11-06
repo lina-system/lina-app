@@ -8,6 +8,9 @@ import type {
   ModelsState,
   QuotaView,
   RunCard,
+  Settings,
+  SettingsAuditLine,
+  SettingsModel,
   StatusChecks,
   RunRecord,
   UsageRange,
@@ -19,6 +22,7 @@ import type {
   WorkInbox,
   WorkState,
 } from "../api/client";
+import { diffSettings } from "../model/settings";
 
 /**
  * The synthetic scene behind tests, captures and the verify skill. It is generated from a seed, never copied
@@ -66,6 +70,21 @@ export interface SceneOptions {
   readonly noRunning?: boolean;
   /** The writer of the checked lines has stopped (`&writer=stopped`): the screens say the summaries stopped. */
   readonly writerStopped?: boolean;
+  /** The work settings (`&settings=`): this device may only read them, or no revision was ever written. */
+  readonly settings?: SettingsVariant | null;
+}
+
+export type SettingsVariant = "readonly" | "empty";
+
+/** The work settings (lina-app#48) as the core keeps them; the synthetic source writes into it. */
+export interface SettingsScene {
+  readonly writable: boolean;
+  /** The settings of r0 (the empty start), r1, r2, …: the newest last. */
+  readonly revisions: Settings[];
+  /** One audit line per revision after r0, oldest first. */
+  readonly history: SettingsAuditLine[];
+  /** The models OCX has on; a model it has off is not in the list. */
+  readonly models: SettingsModel[];
 }
 
 export interface Scene {
@@ -89,6 +108,7 @@ export interface Scene {
   readonly runs: readonly RunCard[];
   /** Worker runs' own records (lina#201), by run id; a run without one answers 404. */
   readonly records: Record<string, RunRecord>;
+  readonly settings: SettingsScene;
 }
 
 const MIN = 60;
@@ -658,7 +678,55 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     inbox: { blocked: [], questions: [question] },
     runs: runCards,
     records: records(now),
+    settings: settingsScene(now, options.settings ?? null),
   };
+}
+
+/**
+ * The work settings: three runners (dsh's model is off in OCX, codex's out of quota, so two warnings show), two
+ * routing rules, two work machines, a file machine and a person's device, written in three revisions by the CLI,
+ * this app and an outside edit. OCX has three of the four models on, from two services.
+ */
+function settingsScene(now: number, variant: SettingsVariant | null): SettingsScene {
+  const models: SettingsModel[] = [
+    { provider: "anthropic", id: "model-a", name: null, namespaced: null, efforts: ["low", "medium", "high"], defaultEffort: "high", state: "ok", left: 72, resetAt: now + 3 * HOUR - 10 * MIN, accounts: 1 },
+    { provider: "anthropic", id: "model-b", name: null, namespaced: null, efforts: ["high"], defaultEffort: "high", state: "ok", left: 40, resetAt: now + 2 * DAY, accounts: 1 },
+    { provider: "openai", id: "model-c", name: null, namespaced: null, efforts: ["low", "medium", "high"], defaultEffort: "medium", state: "out_of_quota", left: 0, resetAt: now + 5 * HOUR, accounts: 1 },
+  ];
+  if (variant === "empty") return { writable: true, revisions: [{}], history: [], models };
+  const r1: Settings = {
+    devices: {
+      workers: {
+        "machine-a": { host: "machine-a", role: "work", cap: 1, named_cap: 2, fast: true },
+        "machine-b": { host: "machine-b", role: "work", cap: 1, no_repo: true },
+        "files-a": { host: "files-a", role: "files", named_cap: 1, no_repo: true },
+        "laptop-a": { role: "person" },
+      },
+    },
+    worker: {
+      default_runner: "omo",
+      models: { fallback: "anthropic/model-b" },
+      runners: {
+        omo: { type: "omo", on: true, model: "anthropic/model-a:high", access: "full" },
+        codex: { type: "command", argv: ["codex", "exec", "-"], on: true, model: "openai/model-c:low", fallback_model: "anthropic/model-b", access: "workspace-write" },
+        dsh: { type: "command", argv: ["dsh", "-"], on: true, model: "openai/model-d", access: "read-only" },
+      },
+      routing: [{ name: "docs", when: { labels_any: ["docs"] }, runner: "codex" }],
+    },
+  };
+  const r2: Settings = structuredClone(r1);
+  r2.worker!.runners!.codex.model = "openai/model-c:medium";
+  const r3: Settings = structuredClone(r2);
+  r3.worker!.routing!.push({ name: "quick", when: { labels_any: ["quick"], size: ["S"] }, runner: "dsh" });
+  r3.devices!.workers!["machine-a"].cap = 2;
+  const revisions = [{}, r1, r2, r3];
+  const by = [
+    { kind: "cli", principal: OWNER.id, device: "local", at: now - 3 * DAY },
+    { kind: "app", principal: OWNER.id, device: "laptop-a", at: now - DAY },
+    { kind: "outside", principal: "", device: "", at: now - 2 * HOUR },
+  ] as const;
+  const history = by.map(({ at, ...who }, index): SettingsAuditLine => ({ rev: `r${index + 1}`, base: `r${index}`, at, by: who, changes: diffSettings(revisions[index], revisions[index + 1]) }));
+  return { writable: variant !== "readonly", revisions, history, models };
 }
 
 /**

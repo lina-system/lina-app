@@ -1,10 +1,11 @@
 import { bootstrapOptions, HttpSource } from "./http-source";
 import { browserPushHost, type PushHost } from "../push";
 import type { Source } from "./source";
-import { SyntheticSource, type StreamScript, type TalkRefusal } from "./synthetic-source";
+import { SyntheticSource, type SettingsScript, type StreamScript, type TalkRefusal } from "./synthetic-source";
 
 const TALK_REFUSALS: readonly string[] = ["busy", "down", "none"] satisfies TalkRefusal[];
 const STREAM_SCRIPTS: readonly string[] = ["down", "drop", "resync", "token"] satisfies StreamScript[];
+const SETTINGS_SCRIPTS: readonly string[] = ["readonly", "empty", "stale"] satisfies SettingsScript[];
 
 /**
  * The core by default. `?source=synthetic` or the build flag `VITE_LINA_SOURCE=synthetic` selects the synthetic
@@ -12,7 +13,8 @@ const STREAM_SCRIPTS: readonly string[] = ["down", "drop", "resync", "token"] sa
  * `&running=none` one with no running card, `&writer=stopped` one whose writer of checked lines stopped,
  * `&talk=busy|down|none` one whose talk turns are refused (429, 503, 409), `&live=down|drop|resync|token` a change stream
  * that refuses every connection, drops once while another device writes, sends one resync, or restarts the core with a
- * new session token, `&push=off` a core without push.
+ * new session token, `&push=off` a core without push, `&settings=readonly|empty|stale` work settings this device only
+ * reads, that were never written, or that another device writes just before this page's first write (412).
  */
 export function chooseSource(location: Pick<Location, "search"> = window.location, flag: string | undefined = import.meta.env.VITE_LINA_SOURCE): Source {
   const params = new URLSearchParams(location.search);
@@ -20,6 +22,7 @@ export function chooseSource(location: Pick<Location, "search"> = window.locatio
   if (source === "synthetic") {
     const talk = params.get("talk");
     const live = params.get("live");
+    const settings = params.get("settings");
     const synthetic = new SyntheticSource({
       sourceError: params.get("error") === "quota",
       checksError: params.get("error") === "checks",
@@ -28,6 +31,7 @@ export function chooseSource(location: Pick<Location, "search"> = window.locatio
       talk: talk && TALK_REFUSALS.includes(talk) ? (talk as TalkRefusal) : null,
       live: live && STREAM_SCRIPTS.includes(live) ? (live as StreamScript) : "ok",
       pushOff: params.get("push") === "off",
+      settings: settings && SETTINGS_SCRIPTS.includes(settings) ? (settings as SettingsScript) : null,
     });
     // verify.mjs reads the synthetic copy after a write to check the record changed, not only the screen.
     if (typeof window !== "undefined") {
@@ -35,6 +39,8 @@ export function chooseSource(location: Pick<Location, "search"> = window.locatio
       // verify.mjs reads which connections the stream had and how many snapshot reads the page made.
       // verify.mjs reads the synthetic core's push subscriptions after the row turns push on or off.
       Object.defineProperty(window, "__linaPush", { configurable: true, get: () => ({ enabled: synthetic.push.enabled, subscriptions: [...synthetic.push.subscriptions.values()].map((body) => structuredClone(body)), saves: synthetic.push.saves, removes: synthetic.push.removes }) });
+      // verify.mjs reads the settings writes the page sent and the If-Match each carried.
+      Object.defineProperty(window, "__linaSettingsWrites", { configurable: true, get: () => structuredClone(synthetic.settingsWrites) });
       Object.defineProperty(window, "__linaStream", { configurable: true, get: () => ({ connections: structuredClone(synthetic.stream), reads: synthetic.reads, renewals: synthetic.renewals }) });
     }
     return synthetic;

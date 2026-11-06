@@ -1,4 +1,4 @@
-import { cardAnswerPath, EVENTS_PATH, NOTICES_READ_PATH, PUSH_KEY_PATH, PUSH_REMOVE_PATH, PUSH_SUBSCRIPTIONS_PATH, routePath, talkPath, writePath, type ActionResult, type AnswerRequest, type AnswerResult, type ChangeMessage, type CommentRequest, type DoneRequest, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type TalkEvent, type TalkRequest } from "../api/client";
+import { cardAnswerPath, EVENTS_PATH, NOTICES_READ_PATH, PUSH_KEY_PATH, PUSH_REMOVE_PATH, PUSH_SUBSCRIPTIONS_PATH, routePath, SETTINGS_PATH, SETTINGS_ROLLBACK_PATH, talkPath, writePath, type ActionResult, type AnswerRequest, type AnswerResult, type ChangeMessage, type CommentRequest, type DoneRequest, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest } from "../api/client";
 import { nowSeconds, type ChangeHandlers, type ChangeSocket, type ReadResult, type Renewal, type Source, type TalkResult, type WriteResult } from "./source";
 import { readSse } from "./sse";
 
@@ -230,13 +230,27 @@ export class HttpSource implements Source {
     return { ok: false, status: response.ok ? 0 : response.status, code: typeof error?.code === "string" ? error.code : null };
   }
 
+  /**
+   * The ETag of the settings this page read last goes back as If-Match. It stays the read's own: after a write the
+   * next read must answer with the new settings, not 304 against the write's tag.
+   */
+  patchSettings(patch: SettingsPatch): Promise<WriteResult<SettingsWritten>> {
+    return this.post(SETTINGS_PATH, patch, { method: "PATCH", contentType: "application/merge-patch+json", ifMatch: this.etags.get(`${this.basePath}${SETTINGS_PATH}`) });
+  }
+
+  rollbackSettings(): Promise<WriteResult<SettingsWritten>> {
+    return this.post(SETTINGS_ROLLBACK_PATH, undefined, { ifMatch: this.etags.get(`${this.basePath}${SETTINGS_PATH}`) });
+  }
+
   /** One write: JSON body, the session token like the reads, and `keepalive` so a write sent as the page goes still lands. */
-  private async post<T>(path: string, body: unknown): Promise<WriteResult<T>> {
-    const headers: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json" };
+  private async post<T>(path: string, body: unknown, options: { method?: "POST" | "PATCH"; contentType?: string; ifMatch?: string } = {}): Promise<WriteResult<T>> {
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (body !== undefined) headers["Content-Type"] = options.contentType ?? "application/json";
     if (this.token) headers["X-Hermes-Session-Token"] = this.token;
+    if (options.ifMatch) headers["If-Match"] = options.ifMatch;
     let response: Response;
     try {
-      response = await this.fetchImpl(`${this.basePath}${path}`, { method: "POST", headers, body: JSON.stringify(body), credentials: "same-origin", keepalive: true });
+      response = await this.fetchImpl(`${this.basePath}${path}`, { method: options.method ?? "POST", headers, body: body === undefined ? undefined : JSON.stringify(body), credentials: "same-origin", keepalive: true });
     } catch {
       return { ok: false, status: 0, detail: null };
     }

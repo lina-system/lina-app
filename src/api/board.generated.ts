@@ -329,10 +329,10 @@ export interface components {
             /** @description The store's own event kind (work event kind, worker receipt kind, kanban task event kind). */
             kind: string;
             /**
-             * @description work = the work record's event table; worker = a `lina worker` run state change (hub receipts); kanban = a kanban task event.
+             * @description work = the work record's event table; worker = a `lina worker` run state change (hub receipts); kanban = a kanban task event; settings = a work settings revision (`docs/api/settings-client.yaml`).
              * @enum {string}
              */
-            source: "work" | "worker" | "kanban";
+            source: "work" | "worker" | "kanban" | "settings";
         };
         /** @description A message of the change stream (lina#150). GET /api/lina/events is a WebSocket, not a JSON route (OpenAPI cannot describe it as a path): upgrade with the dashboard credential (?token=, as the other dashboard sockets) and optional since=<cursor>. Without since the first message is a ChangeBatch with the tail cursor and no events; with a kept since it is the missed events; otherwise one ChangeResync. Then a ChangeBatch whenever something changed, at most every 300 ms, and one ChangeResync when a store that was down when the cursor was taken reads again. */
         ChangeMessage: components["schemas"]["ChangeBatch"] | components["schemas"]["ChangeResync"];

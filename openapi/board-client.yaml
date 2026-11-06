@@ -1,4 +1,4 @@
-# Copied unchanged from lina-system/lina docs/api/board-client.yaml at dev commit c26a39fecf227ab21ff4dcf70033a34e26e25f5e.
+# Copied unchanged from lina-system/lina docs/api/board-client.yaml at dev commit 16d44e0618ce7512f1c89e07807254db2507c09e.
 # Board endpoints the app reads beyond docs/api/work-client.yaml (lina#112): the owner's to-dos, decisions and due
 # groups from the work record, `lina worker` runs that are not kanban work cards, devices, quota and the inbox
 # notices; each agent's goals and to-dos (lina#166); one worker run's record, round by round (lina#201); the owner's
@@ -1444,10 +1444,10 @@ components:
       properties:
         source:
           type: string
-          enum: [work, worker, kanban]
+          enum: [work, worker, kanban, settings]
           description: >
             work = the work record's event table; worker = a `lina worker` run state change (hub receipts);
-            kanban = a kanban task event.
+            kanban = a kanban task event; settings = a work settings revision (`docs/api/settings-client.yaml`).
         kind:
           type: string
           description: The store's own event kind (work event kind, worker receipt kind, kanban task event kind).

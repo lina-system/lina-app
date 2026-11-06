@@ -1231,6 +1231,222 @@ const drivers = {
     });
   },
 
+  // The work settings: every write control (switch, picker, stepper, rule edit, rollback), a stale write (412), a
+  // refused one (422) and a device that may only read. Writes land in the page's copy of the scene.
+  async settings(page, step) {
+    const wide = page.viewportSize().width >= 900;
+    const ORANGE = "rgb(255, 149, 0)";
+    const RED = "rgb(255, 59, 48)";
+    const rev = async () => (await page.getByTestId("settings-rev").innerText()).trim();
+    const latest = () => page.evaluate(() => window.__linaScene.settings.revisions.at(-1));
+    const writes = () => page.evaluate(() => window.__linaSettingsWrites);
+    const toggle = (name) => page.getByTestId("screen-settings").getByRole("switch", { name, exact: true });
+    const rows = (testid) => page.getByTestId(testid).locator("[data-testid=row]").evaluateAll((items) => items.map((item) => [item.querySelector(".title")?.textContent, item.querySelector(".sub")?.textContent].filter(Boolean).join(" / ")));
+    const rules = () => page.getByTestId("settings-rules").locator("[data-testid=rule] .title, [data-testid=rule-other] .title").allInnerTexts();
+    const firstHistory = async () => (await page.getByTestId("history-row").first().locator(".title").innerText()).trim();
+    const until = async (read, wanted, what) => {
+      const end = Date.now() + 10_000;
+      let seen = await read();
+      while (!wanted(seen) && Date.now() < end) {
+        await page.waitForTimeout(100);
+        seen = await read();
+      }
+      check(wanted(seen), what + ": " + JSON.stringify(seen));
+      return seen;
+    };
+    // Back to the settings the way a person goes: the sidebar line on a wide window, the back control on a phone.
+    const toSettings = async () => {
+      if (wide) await page.getByTestId("nav-settings").getByRole("link").click();
+      else
+        while (!(await page.getByTestId("screen-settings").isVisible())) {
+          await page.getByTestId("back").click();
+          await settled(page);
+        }
+      await page.getByTestId("screen-settings").waitFor();
+    };
+
+    await step("open 설정 from its line right under 기기·쿼터", async () => {
+      await openApp(page, wide ? "#/running" : "#/");
+      const order = await page.getByTestId("sidebar").locator("li[data-testid^=nav-]").evaluateAll((items) => items.map((item) => item.dataset.testid));
+      check(order.at(-2) === "nav-status" && order.at(-1) === "nav-settings", "the sidebar ends " + order.slice(-3).join(", "));
+      await page.getByTestId("nav-settings").getByRole("link").click();
+      await settled(page);
+      await page.getByTestId("screen-settings").waitFor();
+      check((await title(page)) === "설정", "the screen is titled " + (await title(page)));
+      return order.slice(-2).join(" > ") + "; " + (await title(page));
+    });
+    await step("read the groups: warnings, 기본값, 실행기, 배정 규칙, 기기, 모델 (OCX), 기록 and the revision", async () => {
+      const groups = await page.getByTestId("screen-settings").evaluate((element) => [...element.children].map((child) => child.dataset.testid).filter(Boolean));
+      check(JSON.stringify(groups) === JSON.stringify(["settings-warnings", "settings-defaults", "settings-runners", "settings-rules", "settings-devices", "settings-models", "settings-history", "settings-rev"]), "groups " + groups.join(", "));
+      const warnings = await page.getByTestId("settings-warning").evaluateAll((items) => items.map((item) => [item.textContent, getComputedStyle(item).color]));
+      check(warnings.length === 2 && warnings[0][0].startsWith("codex 모델의 쿼터가 다 찼습니다") && warnings[1][0].startsWith("dsh 모델이 꺼져 있습니다") && warnings.every(([, colour]) => colour === ORANGE), "warnings " + JSON.stringify(warnings));
+      const runners = await rows("settings-runners");
+      check(JSON.stringify(runners) === JSON.stringify(["omo / model-a · 높음", "codex / model-c · 보통", "dsh / model-d"]), "runners " + JSON.stringify(runners));
+      const order = await rules();
+      check(JSON.stringify(order) === JSON.stringify(["docs → codex", "quick · S → dsh", "그 외 → omo"]), "rules " + JSON.stringify(order));
+      const work = await rows("devices-work");
+      const files = await rows("devices-files");
+      const mine = await rows("devices-mine");
+      check(JSON.stringify(work) === JSON.stringify(["machine-a / 입찰 2 · 지정 2", "machine-b / 입찰 1 · 지정 1"]) && JSON.stringify(files) === JSON.stringify(["files-a / 지정 1"]), "machines " + JSON.stringify([work, files]));
+      check(JSON.stringify(mine) === JSON.stringify(["laptop-a / 상태만 봅니다"]), "my devices " + JSON.stringify(mine));
+      check((await page.getByTestId("devices-mine").locator("a, button, [role=switch]").count()) === 0, "a person's device has a control");
+      const models = (await page.getByTestId("settings-models").innerText()).replace(/\s+/g, " ");
+      check(models.includes("켜진 모델 3개") && models.includes("모델 켜고 끄기는 OCX에서 합니다"), "models " + models);
+      const history = await page.getByTestId("history-row").locator(".title").allInnerTexts();
+      check(history.length === 3 && / · 바깥 편집 · /.test(history[0]) && / · 앱 · codex 모델 model-c$/.test(history[1]) && / · CLI · /.test(history[2]) && history.every((line) => /^\d\d-\d\d \d\d:\d\d · /.test(line)), "history " + JSON.stringify(history));
+      const rollback = await page.getByTestId("rollback").evaluate((button) => getComputedStyle(button).color);
+      check(rollback === RED, "한 단계 되돌리기 is drawn " + rollback);
+      check((await rev()) === "설정 r3", "the revision reads " + (await rev()));
+      return [warnings.length + " warnings", runners.join(", "), order.join(", "), work.concat(files, mine).join(", "), history.length + " changes", await rev()].join("; ");
+    });
+    await step("a switch saves at once: machine-b off, a new revision written against the one read", async () => {
+      await toggle("machine-b 켜기").click();
+      check((await toggle("machine-b 켜기").getAttribute("aria-checked")) === "false", "machine-b did not turn off at once");
+      await until(rev, (line) => line === "설정 r4", "the revision after the switch");
+      const line = await until(firstHistory, (text) => / · 앱 · machine-b 끔$/.test(text), "the first history row");
+      const device = (await latest()).devices.workers["machine-b"];
+      check(device.off === true, "the settings copy has machine-b " + JSON.stringify(device));
+      const sent = (await writes()).at(-1);
+      check(sent.ifMatch === "r3" && sent.status === 200, "the write went " + JSON.stringify(sent));
+      return line + "; If-Match " + sent.ifMatch;
+    });
+    await step("a picker pushes a list of the models OCX serves and saves the choice", async () => {
+      await page.getByRole("link", { name: "codex · model-c · 보통" }).click();
+      await settled(page);
+      await page.getByRole("link", { name: "모델 · model-c" }).click();
+      await settled(page);
+      const picker = page.getByTestId("setting-page");
+      await picker.getByRole("radio").first().waitFor();
+      const services = await picker.locator("[data-testid=model-group] h2").allInnerTexts();
+      check(JSON.stringify(services) === JSON.stringify(["Claude", "ChatGPT"]), "services " + JSON.stringify(services));
+      const names = await picker.getByRole("radio").evaluateAll((items) => items.map((item) => item.getAttribute("aria-label")));
+      check(JSON.stringify(names) === JSON.stringify(["model-a · 남은 양 72% · 3시간 후", "model-b · 남은 양 40% · 2일 후", "model-c · 다 씀"]), "models " + JSON.stringify(names));
+      check(!(await picker.innerText()).includes("model-d"), "the picker offers model-d, which OCX has off");
+      const used = await picker.getByRole("radio", { name: "model-c · 다 씀" }).locator(".is-red").evaluate((item) => getComputedStyle(item).color);
+      check(used === RED, "다 씀 is drawn " + used);
+      await picker.getByRole("radio", { name: names[0] }).click();
+      check((await picker.getByRole("radio", { name: names[0] }).getAttribute("aria-checked")) === "true", "model-a is not checked");
+      await until(async () => (await latest()).worker.runners.codex.model, (model) => model === "anthropic/model-a:medium", "codex's model in the settings copy");
+      await toSettings();
+      const runners = await until(() => rows("settings-runners"), (list) => list[1] === "codex / model-a · 보통", "codex's row");
+      return services.join(", ") + ": " + names.join(" | ") + "; chose model-a, codex reads " + runners[1];
+    });
+    await step("a stepper and a machine's switches save each change", async () => {
+      await page.getByRole("link", { name: "machine-a · 입찰 2 · 지정 2" }).click();
+      await settled(page);
+      const machine = page.getByTestId("setting-page");
+      await machine.getByRole("button", { name: "동시 작업 (입찰) 늘리기" }).click();
+      check((await machine.getByTestId("stepper-value").first().innerText()).trim() === "3", "the bid cap does not read 3");
+      await until(async () => (await latest()).devices.workers["machine-a"].cap, (cap) => cap === 3, "machine-a's cap in the settings copy");
+      await machine.getByRole("switch", { name: "빠른 기기" }).click();
+      await until(async () => (await latest()).devices.workers["machine-a"].fast, (fast) => fast === undefined, "machine-a's 빠른 기기 in the settings copy");
+      check((await machine.getByRole("switch", { name: "빠른 기기" }).getAttribute("aria-checked")) === "false", "빠른 기기 is still on");
+      await toSettings();
+      const work = await until(() => rows("devices-work"), (list) => list[0] === "machine-a / 입찰 3 · 지정 2", "machine-a's row");
+      return "cap 3, 빠른 기기 off; " + work[0];
+    });
+    await step("편집 moves and deletes a rule, 규칙 추가 adds one last", async () => {
+      await page.getByTestId("rules-edit").click();
+      await page.getByRole("button", { name: "docs → codex 아래로" }).click();
+      await until(rules, (list) => list[0] === "quick · S → dsh" && list[1] === "docs → codex", "the rules after moving docs down");
+      await page.getByRole("button", { name: "quick · S → dsh 삭제" }).click();
+      await until(rules, (list) => JSON.stringify(list) === JSON.stringify(["docs → codex", "그 외 → omo"]), "the rules after deleting quick");
+      await page.getByRole("link", { name: "규칙 추가" }).click();
+      await settled(page);
+      const form = page.getByTestId("setting-page");
+      await form.getByRole("textbox", { name: "라벨" }).fill("review");
+      await form.getByRole("button", { name: "M", exact: true }).click();
+      await form.getByRole("radio", { name: "dsh", exact: true }).click();
+      await form.getByTestId("rule-save").click();
+      await settled(page);
+      await page.getByTestId("screen-settings").waitFor();
+      const list = await until(rules, (items) => items.at(-2) === "review · M → dsh", "the rules after adding review");
+      const routing = (await latest()).worker.routing;
+      check(JSON.stringify(routing.at(-1)) === JSON.stringify({ name: "review", when: { labels_any: ["review"], size: ["M"] }, runner: "dsh" }), "the new rule is " + JSON.stringify(routing.at(-1)));
+      return list.join(", ");
+    });
+    await step("a refused write (422) puts the switch back and shows the core's reason under its row", async () => {
+      await toggle("omo 켜기").click();
+      const row = page.getByTestId("settings-runners").locator("li", { has: page.getByRole("switch", { name: "omo 켜기", exact: true }) });
+      const reason = (await text(row.getByTestId("write-error"))).trim();
+      check(reason === "worker.default_runner: runner 'omo' is off", "the reason reads " + reason);
+      check((await toggle("omo 켜기").getAttribute("aria-checked")) === "true", "omo stayed off");
+      check((await writes()).at(-1).status === 422, "the write was not refused: " + JSON.stringify((await writes()).at(-1)));
+      return reason;
+    });
+    await step("한 단계 되돌리기 asks once; 취소 writes nothing, 되돌리기 writes a new revision", async () => {
+      const before = Number((await rev()).replace("설정 r", ""));
+      const sent = (await writes()).length;
+      await page.getByTestId("rollback").click();
+      const sheet = page.getByRole("dialog", { name: "한 단계 되돌리기" });
+      await sheet.waitFor();
+      await sheet.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+      const words = (await sheet.innerText()).replace(/\s+/g, " ").trim();
+      check(words === "이전 설정으로 되돌립니다. 되돌리기도 기록에 남습니다. 되돌리기 취소", "the sheet reads " + words);
+      let phone = "";
+      if (!wide) {
+        const box = await sheet.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          return { left: rect.left, right: rect.right, bottom: rect.bottom, width: innerWidth, height: innerHeight };
+        });
+        check(box.left === 0 && box.right === box.width && Math.abs(box.bottom - box.height) < 1, "the sheet is not at the bottom: " + JSON.stringify(box));
+        phone = "; " + (await phoneRules(page, "rollback sheet @390"));
+      }
+      await sheet.getByRole("button", { name: "취소" }).click();
+      await sheet.waitFor({ state: "detached" });
+      check((await writes()).length === sent, "취소 sent a write");
+      await page.getByTestId("rollback").click();
+      await sheet.getByRole("button", { name: "되돌리기" }).click();
+      await until(rev, (line) => line === "설정 r" + (before + 1), "the revision after the rollback");
+      const line = await until(firstHistory, (row) => / · 되돌리기 · /.test(row), "the first history row");
+      check((await writes()).at(-1).status === 200, "the rollback was refused: " + JSON.stringify((await writes()).at(-1)));
+      return "r" + before + " -> r" + (before + 1) + "; " + line + phone;
+    });
+    await step("a stale write (412): another device wrote first, the page reloads the settings and says so", async () => {
+      await openApp(page, "#/settings", "&settings=stale");
+      await page.getByTestId("screen-settings").waitFor();
+      await toggle("machine-a 켜기").click();
+      const toast = page.getByTestId("toast");
+      const said = (await text(toast)).trim();
+      check(said === "다른 곳에서 바뀌어 다시 불러옴", "the toast reads " + said);
+      check((await toast.getByRole("button").count()) === 0, "the toast offers 되돌리기");
+      await until(rev, (line) => line === "설정 r4", "the revision after the stale write");
+      check((await toggle("machine-a 켜기").getAttribute("aria-checked")) === "true", "machine-a stayed off");
+      const work = await until(() => rows("devices-work"), (list) => list[1] === "machine-b / 입찰 2 · 지정 2", "machine-b's row after the other device's write");
+      const sent = (await writes()).at(-1);
+      check(sent.status === 412 && sent.ifMatch === "r3", "the write went " + JSON.stringify(sent));
+      return said + "; " + work.join(", ") + "; " + (await rev());
+    });
+    await step("a device that may only read: every control disabled, one grey line, nothing sent", async () => {
+      await openApp(page, "#/settings", "&settings=readonly");
+      await page.getByTestId("screen-settings").waitFor();
+      const line = await page.getByTestId("read-only").evaluate((item) => [item.textContent, getComputedStyle(item).color]);
+      check(line[0] === "이 기기에서는 볼 수만 있습니다", "the line reads " + line[0]);
+      const controls = await page.getByTestId("screen-settings").locator("button").evaluateAll((buttons) => buttons.map((button) => button.disabled));
+      check(controls.length > 0 && controls.every(Boolean), (controls.length - controls.filter(Boolean).length) + " of " + controls.length + " buttons are enabled");
+      await toggle("machine-a 켜기").click({ force: true });
+      check((await writes()).length === 0, "a write was sent: " + JSON.stringify(await writes()));
+      return line.join(" ") + "; " + controls.length + " buttons disabled";
+    });
+    if (!wide) {
+      for (const [where, hash] of [
+        ["설정", "#/settings"],
+        ["a machine", "#/settings/device/machine-a"],
+        ["a runner", "#/settings/runner/codex"],
+        ["a model picker", "#/settings/runner/codex/model"],
+        ["a new rule", "#/settings/rule-new"],
+      ]) {
+        await step("at 390, " + where + ": every hit area is 44x44 and every text 13px or larger", async () => {
+          await openApp(page, hash);
+          await page.locator("[data-testid=screen-settings], [data-testid=setting-page] .rows").first().waitFor();
+          const lines = await rowLines(page);
+          check(lines.length === 0, "rows with more than two lines: " + lines.join("; "));
+          return phoneRules(page, where + " @390");
+        });
+      }
+    }
+  },
+
   // Every write control on the synthetic instance: what it changes on screen and in the page's copy of the record.
   async actions(page, step) {
     const scene = (pick) => page.evaluate(pick);

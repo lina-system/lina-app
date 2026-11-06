@@ -314,3 +314,104 @@ test("talk posts the message with the session token and reads the reply off the 
   expect(await source.talk("busy", { message: "안녕" })).toEqual({ ok: false, status: 429, code: null });
   expect(await source.talk("none", { message: "안녕" })).toEqual({ ok: false, status: 409, code: "no_owning_agent" });
 });
+
+const WRITTEN = { ok: true, changes: [{ path: "devices.workers.machine-a.cap", from: 1, to: 2 }], revision: { id: "r4", at: 1, base: "r3", by: { kind: "app", principal: "owner", device: "laptop-a" } } };
+
+test("a settings write is a merge patch (or a bare rollback) with the ETag of the settings read last as If-Match", async () => {
+  let tag = '"r3-aaa"';
+  const { calls, fetchImpl } = recordingFetch(() => {
+    if (calls.at(-1)?.method === "GET") return new Response(JSON.stringify({ settings: {} }), { status: 200, headers: { ETag: tag } });
+    return new Response(JSON.stringify(WRITTEN), { status: 200 });
+  });
+  const source = new HttpSource({ fetch: fetchImpl, token: "token-a", basePath: "/core" });
+  await source.read("settings");
+  const patch = { devices: { workers: { "machine-a": { cap: 2, fast: null } } } };
+  expect(await source.patchSettings(patch)).toEqual({ ok: true, data: WRITTEN });
+  tag = '"r4-bbb"';
+  await source.read("settings");
+  await source.rollbackSettings();
+  expect(calls.slice(1).filter((call) => call.method !== "GET")).toEqual([
+    {
+      url: "/core/api/lina/work/settings",
+      method: "PATCH",
+      headers: { Accept: "application/json", "Content-Type": "application/merge-patch+json", "X-Hermes-Session-Token": "token-a", "If-Match": '"r3-aaa"' },
+      body: patch,
+    },
+    {
+      url: "/core/api/lina/work/settings/rollback",
+      method: "POST",
+      headers: { Accept: "application/json", "X-Hermes-Session-Token": "token-a", "If-Match": '"r4-bbb"' },
+      body: undefined,
+    },
+  ]);
+  // The read after a write sends the read's own tag, so the core answers with the new revision.
+  expect(calls[2]).toMatchObject({ method: "GET", url: "/core/api/lina/work/settings", headers: { "If-None-Match": '"r3-aaa"' } });
+});
+
+test("the settings, their history by limit and the OCX model list are read on the settings schema's urls", async () => {
+  const { calls, fetchImpl } = recordingFetch(() => new Response("{}", { status: 200 }));
+  const source = new HttpSource({ fetch: fetchImpl });
+  await source.read("settingsHistory", "5");
+  await source.read("settingsHistory");
+  await source.read("settingsModels");
+  expect(calls.map((call) => call.url)).toEqual(["/api/lina/work/settings/history?limit=5", "/api/lina/work/settings/history?limit=5", "/api/lina/work/settings/models"]);
+});
+
+test("a refused settings write answers the core's status and detail: stale 412, invalid 422", async () => {
+  const stale = new HttpSource({ fetch: recordingFetch(() => new Response(JSON.stringify({ detail: "the settings changed since you read them (now r5): read again" }), { status: 412 })).fetchImpl });
+  expect(await stale.patchSettings({ worker: { default_runner: "codex" } })).toEqual({ ok: false, status: 412, detail: "the settings changed since you read them (now r5): read again" });
+  const invalid = new HttpSource({ fetch: recordingFetch(() => new Response(JSON.stringify({ detail: "worker.default_runner: runner 'omo' is off", errors: [{ path: "worker.default_runner", message: "runner 'omo' is off" }] }), { status: 422 })).fetchImpl });
+  expect(await invalid.rollbackSettings()).toEqual({ ok: false, status: 422, detail: "worker.default_runner: runner 'omo' is off" });
+});
+
+test("the synthetic core takes a settings write only against the revision the page read, and refuses an invalid one", async () => {
+  const source = new SyntheticSource();
+  expect(await source.patchSettings({ worker: { default_runner: "codex" } })).toMatchObject({ ok: false, status: 428 });
+  await source.read("settings");
+  expect(await source.patchSettings({ worker: { routing: [{ name: "docs", runner: "nobody" }] } })).toEqual({ ok: false, status: 422, detail: "worker.routing[0].runner: unknown runner 'nobody'" });
+  expect(await source.patchSettings({ devices: { workers: { "laptop-a": { cap: 2 } } } })).toMatchObject({ ok: false, status: 422, detail: "devices.workers.laptop-a.cap: a person device takes no work" });
+  const written = await source.patchSettings({ worker: { default_runner: "codex" } });
+  expect(written).toMatchObject({ ok: true, data: { changes: [{ path: "worker.default_runner", from: "omo", to: "codex" }], revision: { id: "r4", base: "r3", by: { kind: "app" } } } });
+  expect(await source.patchSettings({ worker: { default_runner: "omo" } })).toMatchObject({ ok: false, status: 412, detail: "the settings changed since you read them (now r4): read again" });
+  const after = await source.read("settings");
+  expect(after.kind === "data" ? after.data.settings.worker?.default_runner : null).toBe("codex");
+  const history = await source.read("settingsHistory", "2");
+  expect(history.kind === "data" ? history.data.revisions.map((line) => line.rev) : []).toEqual(["r4", "r3"]);
+});
+
+test("a synthetic rollback writes the revision before as a new one, and a second rollback undoes the first", async () => {
+  const source = new SyntheticSource();
+  const before = structuredClone(source.scene.settings.revisions[3]);
+  await source.read("settings");
+  expect(await source.rollbackSettings()).toMatchObject({ ok: true, data: { revision: { id: "r4", by: { kind: "rollback" } } } });
+  expect(source.scene.settings.history.at(-1)).toMatchObject({ rev: "r4", rollback_of: "r3" });
+  await source.read("settings");
+  await source.rollbackSettings();
+  expect(source.scene.settings.revisions[5]).toEqual(before);
+  const empty = new SyntheticSource({ settings: "empty" });
+  await empty.read("settings");
+  expect(await empty.rollbackSettings()).toMatchObject({ ok: false, status: 422 });
+});
+
+test("the synthetic models view warns for each runner whose model does not run now, in the core's words", async () => {
+  const source = new SyntheticSource();
+  const read = await source.read("settingsModels");
+  const view = read.kind === "data" ? read.data : null;
+  expect(view?.models.map((model) => `${model.provider}/${model.id}`)).toEqual(["anthropic/model-a", "anthropic/model-b", "openai/model-c"]);
+  expect(view?.runners.map((runner) => [runner.name, runner.state, runner.usable])).toEqual([
+    ["omo", "ok", true],
+    ["codex", "out_of_quota", false],
+    ["dsh", "off", false],
+  ]);
+  expect(view?.fallback).toMatchObject({ model: "anthropic/model-b", usable: true, warning: null });
+  expect(view?.warnings).toHaveLength(2);
+});
+
+test("a read that lands after another read of the same route keeps the data the first one brought", async () => {
+  const source = new SyntheticSource();
+  const store = new Store(source);
+  store.want([["settingsModels"]]);
+  await store.refresh();
+  expect(store.status("settingsModels")).toBe("ok");
+  expect(store.get("settingsModels")?.models).toHaveLength(3);
+});

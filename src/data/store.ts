@@ -18,8 +18,9 @@ export type LiveState = "connecting" | "open" | "down";
 
 const LIST_ROUTES: readonly RouteName[] = ["board", "items", "goals", "cards", "inbox"];
 /**
- * Machines, quota, usage, OCX's models and links and the hub's own checks change slowly: read on the same refresh
- * trigger, at most once a minute. Usage is one route per range, the route's id being the range.
+ * Machines, quota, usage, OCX's models and links, the hub's own checks and the settings' OCX model list change
+ * slowly: read on the same refresh trigger, at most once a minute. Usage is one route per range, the route's id
+ * being the range.
  */
 const SLOW_ROUTES: Want = [
   ["devices"],
@@ -27,6 +28,7 @@ const SLOW_ROUTES: Want = [
   ...USAGE_RANGES.map((range) => ["usage", range] as const),
   ["modelsState"],
   ["checks"],
+  ["settingsModels"],
 ];
 export const SLOW_REFRESH_S = 60;
 
@@ -76,8 +78,9 @@ export class Store {
 
   private async load(name: RouteName, id?: string): Promise<boolean> {
     const key = this.key(name, id);
-    const before = this.entries.get(key);
     const result = await this.source.read(name, id);
+    // What the store holds when the answer lands: another read of the route may have landed meanwhile.
+    const before = this.entries.get(key);
     if (result.kind === "data" || result.kind === "unchanged") this.setDenied(false);
     else if (result.kind === "failed" && result.denied) void this.credentialRefused();
     if (name === "board") {
@@ -282,8 +285,8 @@ export class Store {
     const failed: string[] = [];
     for (const [key, entry] of this.entries) {
       if (entry.status !== "failed") continue;
-      // A route with an id is a detail, except usage, whose id is the range it was read for.
-      failed.push(key.startsWith("usage:") ? "usage" : key.includes(":") ? "detail" : key);
+      // A route with an id is a detail, except usage and the settings' history, whose ids are what they were read for.
+      failed.push(key.startsWith("usage:") ? "usage" : key.startsWith("settingsHistory:") ? "settingsHistory" : key.includes(":") ? "detail" : key);
     }
     const usage: Partial<Record<UsageRange, UsageView>> = {};
     for (const range of USAGE_RANGES) {

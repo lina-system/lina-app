@@ -1,5 +1,6 @@
 import type { components as Board, paths as BoardPaths } from "./board.generated";
 import type { components as Push } from "./push.generated";
+import type { components as SettingsApi, paths as SettingsPaths } from "./settings.generated";
 import type { components as Talk, paths as TalkPaths } from "./talk.generated";
 import type { components as Work, paths as WorkPaths } from "./work.generated";
 
@@ -69,6 +70,25 @@ export type WorkCardSummary = Work["schemas"]["WorkCardSummary"];
 export type WorkCardDetail = Work["schemas"]["WorkCardDetail"];
 export type WorkInbox = Work["schemas"]["Inbox"];
 
+/** The work settings (settings-client.yaml, lina#256): the keys, their revisions, rollback and OCX's models. */
+export type Settings = SettingsApi["schemas"]["Settings"];
+export type SettingsView = SettingsApi["schemas"]["SettingsView"];
+export type SettingsDevice = SettingsApi["schemas"]["Device"];
+export type SettingsRunner = SettingsApi["schemas"]["Runner"];
+export type SettingsRule = SettingsApi["schemas"]["Rule"];
+export type SettingsRevision = SettingsApi["schemas"]["Revision"];
+export type SettingsHistory = SettingsApi["schemas"]["HistoryView"];
+export type SettingsAuditLine = SettingsApi["schemas"]["AuditLine"];
+export type SettingsChange = SettingsApi["schemas"]["Change"];
+export type SettingsModels = SettingsApi["schemas"]["ModelsView"];
+export type SettingsModel = SettingsApi["schemas"]["Model"];
+export type SettingsModelCheck = SettingsApi["schemas"]["ModelCheck"];
+export type SettingsWritten = SettingsApi["schemas"]["WriteResult"];
+export type SettingsInvalid = SettingsApi["schemas"]["ValidationError"];
+export type SettingsChangeEvent = SettingsApi["schemas"]["SettingsChangeEvent"];
+/** A JSON Merge Patch (RFC 7396) of the settings: null removes a key, an array replaces the one there. */
+export type SettingsPatch = { readonly [key: string]: unknown };
+
 type Json<T> = T extends { responses: { 200: { content: { "application/json": infer Body } } } } ? Body : never;
 
 export type Routes = {
@@ -87,6 +107,10 @@ export type Routes = {
   card: Json<WorkPaths["/work/cards/{id}"]["get"]>;
   inbox: Json<WorkPaths["/work/inbox"]["get"]>;
   record: Json<BoardPaths["/work/runs/{id}/record"]["get"]>;
+  settings: Json<SettingsPaths["/work/settings"]["get"]>;
+  /** The audit lines, newest first: the route's id is the `limit` (see routePath). */
+  settingsHistory: Json<SettingsPaths["/work/settings/history"]["get"]>;
+  settingsModels: Json<SettingsPaths["/work/settings/models"]["get"]>;
 };
 
 export type RouteName = keyof Routes;
@@ -102,6 +126,13 @@ export function writePath(route: WriteRoute, id: string): string {
 }
 
 export const NOTICES_READ_PATH = `${BOARD_BASE}/notices/read`;
+
+/** The settings' own address: GET reads them with their ETag, PATCH changes them with it as If-Match. */
+export const SETTINGS_PATH = `${BOARD_BASE}/work/settings`;
+export const SETTINGS_ROLLBACK_PATH = `${BOARD_BASE}/work/settings/rollback`;
+
+/** The history the settings screen reads: the last few on the screen, every kept line on its own page. */
+export const SETTINGS_HISTORY = { recent: "5", all: "500" } as const;
 
 /** The change stream's WebSocket; the credential goes as `?token=`, like the dashboard's other sockets. */
 export const EVENTS_PATH = `${BOARD_BASE}/events`;
@@ -166,5 +197,11 @@ export function routePath(name: RouteName, id?: string): string {
       return `${WORK_BASE}/work/inbox`;
     case "record":
       return `${BOARD_BASE}/work/runs/${enc}/record`;
+    case "settings":
+      return SETTINGS_PATH;
+    case "settingsHistory":
+      return `${SETTINGS_PATH}/history?limit=${encodeURIComponent(id ?? SETTINGS_HISTORY.recent)}`;
+    case "settingsModels":
+      return `${SETTINGS_PATH}/models`;
   }
 }

@@ -281,6 +281,28 @@ describe("the settings screen", () => {
     expect(synthetic.scene.settings.revisions[6].worker?.routing?.at(-1)).toEqual({ name: "review", when: { labels_any: ["review"], size: ["M"] }, runner: "dsh" });
   });
 
+  test("편집 turns into 완료, and the rules stay in edit mode across the lists they push until 완료 or leaving 설정", async () => {
+    for (const wide of [false, true]) {
+      const { view } = await open("#/settings", { wide });
+      const edit = () => view.getByTestId("rules-edit");
+      expect(edit().textContent).toBe(W.edit);
+      fireEvent.click(edit());
+      expect([edit().textContent, edit().getAttribute("aria-pressed")]).toEqual([W.editDone, "true"]);
+      for (const page of ["#/settings/rule-new", "#/settings/runner/codex", "#/settings"]) {
+        window.location.hash = page;
+        await waitFor(() => expect(view.container.querySelector(page === "#/settings" ? "[data-testid=screen-settings]" : "[data-testid=setting-page]")).not.toBeNull());
+      }
+      expect([edit().textContent, edit().getAttribute("aria-pressed")]).toEqual([W.editDone, "true"]);
+      expect(view.getByRole("button", { name: "docs → codex 삭제" })).toBeTruthy();
+      window.location.hash = "#/running";
+      await waitFor(() => expect(view.queryByTestId("screen-settings")).toBeNull());
+      window.location.hash = "#/settings";
+      await waitFor(() => expect(view.getByTestId("screen-settings")).toBeTruthy());
+      expect([edit().textContent, edit().getAttribute("aria-pressed")]).toEqual([W.edit, "false"]);
+      view.unmount();
+    }
+  });
+
   test("한 단계 되돌리기 asks once in a sheet; 취소 sends nothing, 되돌리기 writes the revision before as a new one", async () => {
     const { view, synthetic } = await open("#/settings");
     const rollback = vi.spyOn(synthetic, "rollbackSettings");
@@ -293,6 +315,8 @@ describe("the settings screen", () => {
     expect(rollback).not.toHaveBeenCalled();
 
     fireEvent.click(view.getByTestId("rollback"));
+    expect(view.getByTestId("rollback-confirm").textContent).toBe("이전 설정으로 되돌리기");
+    expect(within(view.getByTestId("rollback-sheet")).queryByRole("button", { name: W.undo })).toBeNull();
     fireEvent.click(view.getByTestId("rollback-confirm"));
     expect(view.queryByTestId("rollback-sheet")).toBeNull();
     await waitFor(() => expect(view.getByTestId("settings-rev").textContent).toBe("설정 r4"));

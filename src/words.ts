@@ -292,6 +292,7 @@ export const W = {
   modeDefault: (mode: string) => `${mode} 기본`,
   rollbackOne: "한 단계 되돌리기",
   rollbackQuestion: "이전 설정으로 되돌립니다. 되돌리기도 기록에 남습니다.",
+  rollbackConfirm: "이전 설정으로 되돌리기",
 };
 
 /**

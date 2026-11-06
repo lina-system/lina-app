@@ -1350,8 +1350,12 @@ const drivers = {
       const work = await until(() => rows("devices-work"), (list) => list[0] === "machine-a / 입찰 3 · 지정 2", "machine-a's row");
       return "cap 3, 빠른 기기 off; " + work[0];
     });
-    await step("편집 moves and deletes a rule, 규칙 추가 adds one last", async () => {
-      await page.getByTestId("rules-edit").click();
+    await step("편집 moves and deletes a rule, 규칙 추가 adds one last; edit mode lasts until 완료", async () => {
+      const edit = page.getByTestId("screen-settings").getByTestId("rules-edit");
+      const editState = async () => [(await edit.innerText()).trim(), await edit.getAttribute("aria-pressed")].join(" ");
+      check((await editState()) === "편집 false", "the rules' button reads " + (await editState()));
+      await edit.click();
+      check((await editState()) === "완료 true", "편집 did not turn into 완료: " + (await editState()));
       await page.getByRole("button", { name: "docs → codex 아래로" }).click();
       await until(rules, (list) => list[0] === "quick · S → dsh" && list[1] === "docs → codex", "the rules after moving docs down");
       await page.getByRole("button", { name: "quick · S → dsh 삭제" }).click();
@@ -1368,7 +1372,11 @@ const drivers = {
       const list = await until(rules, (items) => items.at(-2) === "review · M → dsh", "the rules after adding review");
       const routing = (await latest()).worker.routing;
       check(JSON.stringify(routing.at(-1)) === JSON.stringify({ name: "review", when: { labels_any: ["review"], size: ["M"] }, runner: "dsh" }), "the new rule is " + JSON.stringify(routing.at(-1)));
-      return list.join(", ");
+      const kept = await editState();
+      check(kept === "완료 true" && (await page.getByRole("button", { name: "review · M → dsh 삭제" }).count()) === 1, "edit mode ended on the way back from 규칙 추가: " + kept);
+      await edit.click();
+      check((await editState()) === "편집 false" && (await page.getByRole("button", { name: "review · M → dsh 삭제" }).count()) === 0, "완료 did not end edit mode: " + (await editState()));
+      return list.join(", ") + "; still " + kept.split(" ")[0] + " after 규칙 추가, 편집 after 완료";
     });
     await step("a refused write (422) puts the switch back and shows the core's reason under its row", async () => {
       await toggle("omo 켜기").click();
@@ -1379,7 +1387,7 @@ const drivers = {
       check((await writes()).at(-1).status === 422, "the write was not refused: " + JSON.stringify((await writes()).at(-1)));
       return reason;
     });
-    await step("한 단계 되돌리기 asks once; 취소 writes nothing, 되돌리기 writes a new revision", async () => {
+    await step("한 단계 되돌리기 asks once; 취소 writes nothing, 이전 설정으로 되돌리기 writes a new revision", async () => {
       const before = Number((await rev()).replace("설정 r", ""));
       const sent = (await writes()).length;
       await page.getByTestId("rollback").click();
@@ -1387,7 +1395,8 @@ const drivers = {
       await sheet.waitFor();
       await sheet.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
       const words = (await sheet.innerText()).replace(/\s+/g, " ").trim();
-      check(words === "이전 설정으로 되돌립니다. 되돌리기도 기록에 남습니다. 되돌리기 취소", "the sheet reads " + words);
+      check(words === "이전 설정으로 되돌립니다. 되돌리기도 기록에 남습니다. 이전 설정으로 되돌리기 취소", "the sheet reads " + words);
+      check((await sheet.getByRole("button", { name: "되돌리기", exact: true }).count()) === 0, "the sheet has a button named 되돌리기, the owner-record undo's name");
       let phone = "";
       if (!wide) {
         const box = await sheet.evaluate((element) => {
@@ -1401,7 +1410,7 @@ const drivers = {
       await sheet.waitFor({ state: "detached" });
       check((await writes()).length === sent, "취소 sent a write");
       await page.getByTestId("rollback").click();
-      await sheet.getByRole("button", { name: "되돌리기" }).click();
+      await sheet.getByRole("button", { name: "이전 설정으로 되돌리기", exact: true }).click();
       await until(rev, (line) => line === "설정 r" + (before + 1), "the revision after the rollback");
       const line = await until(firstHistory, (row) => / · 되돌리기 · /.test(row), "the first history row");
       check((await writes()).at(-1).status === 200, "the rollback was refused: " + JSON.stringify((await writes()).at(-1)));
@@ -1410,6 +1419,7 @@ const drivers = {
     await step("a stale write (412): another device wrote first, the page reloads the settings and says so", async () => {
       await openApp(page, "#/settings", "&settings=stale");
       await page.getByTestId("screen-settings").waitFor();
+      // Once: the reload puts machine-a back on, and a second press would go through against the new revision.
       await toggle("machine-a 켜기").click();
       const toast = page.getByTestId("toast");
       const said = (await text(toast)).trim();
@@ -1418,8 +1428,9 @@ const drivers = {
       await until(rev, (line) => line === "설정 r4", "the revision after the stale write");
       check((await toggle("machine-a 켜기").getAttribute("aria-checked")) === "true", "machine-a stayed off");
       const work = await until(() => rows("devices-work"), (list) => list[1] === "machine-b / 입찰 2 · 지정 2", "machine-b's row after the other device's write");
-      const sent = (await writes()).at(-1);
-      check(sent.status === 412 && sent.ifMatch === "r3", "the write went " + JSON.stringify(sent));
+      const all = await writes();
+      const sent = all.at(-1);
+      check(all.length === 1 && sent.status === 412 && sent.ifMatch === "r3", "the writes went " + JSON.stringify(all));
       return said + "; " + work.join(", ") + "; " + (await rev());
     });
     await step("changes queued behind a write go only against the revision they were drawn over", async () => {

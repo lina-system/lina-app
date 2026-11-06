@@ -30,7 +30,7 @@ This directory is the maintained source for verifying what people see and do in 
 ## Never press
 
 - On a disposable instance (`?source=synthetic`) every control may be pressed: writes go to the page's copy of the scene and a reload undoes them.
-- On a live core (a read-only pass after a deploy), never press `완료 표시` (a check box), `되돌리기`, `보내기` (in `댓글` or `대화`), `다시 시도`, `모두 읽음` or the `알림 받기` switch, and never choose a notice in the bell or an answer button. They write to the owner's record, and a read-only pass must leave it as it found it.
+- On a live core (a read-only pass after a deploy), never press `완료 표시` (a check box), `되돌리기`, `보내기` (in `댓글` or `대화`), `다시 시도`, `모두 읽음`, the `알림 받기` switch or `이전 설정으로 되돌리기` (설정's rollback sheet), and never choose a notice in the bell or an answer button. They write to the owner's record (`이전 설정으로 되돌리기` to the owner's work settings), and a read-only pass must leave it as it found it.
 
 ## Feature entry contract
 

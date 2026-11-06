@@ -297,12 +297,12 @@ function moved(rules: readonly SettingsRule[], index: number, by: number): Setti
 /** The rules in the order they are tried, then where everything else goes; 편집 reorders, deletes and adds. */
 function RulesGroup() {
   const { edits, settings, locked } = useSettings();
-  const [editing, setEditing] = useState(false);
+  const editing = edits.editingRules;
   const rules = rulesOf(settings);
   const save = (next: SettingsRule[]) => edits.change("rules", { worker: { routing: next } });
   const on = editing && !locked;
   const head = locked ? null : (
-    <button type="button" class="text-button settings-edit" aria-pressed={editing} onClick={() => setEditing(!editing)} data-testid="rules-edit">
+    <button type="button" class="text-button settings-edit" aria-pressed={editing} onClick={() => edits.editRules(!editing)} data-testid="rules-edit">
       {editing ? W.editDone : W.edit}
     </button>
   );
@@ -432,7 +432,7 @@ export function RollbackSheet() {
           onClick={() => void edits.rollback()}
           data-testid="rollback-confirm"
         >
-          {W.undo}
+          {W.rollbackConfirm}
         </button>
         <button type="button" class="settings-sheet-button" onClick={onClose} data-testid="rollback-cancel">
           {W.cancel}

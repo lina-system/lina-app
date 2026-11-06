@@ -39,6 +39,7 @@ export class SettingsEdits {
   private nextId = 1;
   private rolling = false;
   private asking = false;
+  private editing = false;
   /** The revision the changes on their way are drawn over, and how many are on their way. */
   private basis: string | null = null;
   private pending = 0;
@@ -69,6 +70,17 @@ export class SettingsEdits {
 
   askRollback(asking: boolean): void {
     this.asking = asking && this.writable && !this.rolling;
+    this.notify();
+  }
+
+  /** 편집 on the rules: on until 완료 or until the page leaves the settings, across the lists they push. */
+  get editingRules(): boolean {
+    return this.editing && this.writable;
+  }
+
+  editRules(editing: boolean): void {
+    if (this.editing === editing) return;
+    this.editing = editing;
     this.notify();
   }
 

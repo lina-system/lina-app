@@ -500,6 +500,9 @@ export function App({ store, pushHost }: { store: Store; pushHost?: PushHost }) 
 
   useEffect(() => startLive(store), [store]);
   useEffect(() => store.want(wantsFor(nav.route, store)), [nav.hash, version]);
+  useEffect(() => {
+    if (nav.route.name !== "settings" && nav.route.name !== "setting") settingsEdits.editRules(false);
+  }, [nav.route.name]);
 
   const context: AppContext = { model, store, now, wide, selected: isList(nav.route) ? null : nav.hash };
   return (

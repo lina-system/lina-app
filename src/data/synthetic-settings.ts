@@ -53,6 +53,9 @@ function check(who: string, value: string | undefined, fallback: string | null, 
   return { model: value, state, usable: false, fallback, warning: `${WARN[state]?.(who) ?? who}${tail}` };
 }
 
+/** What the core says when OCX does not answer and it serves the last good list. */
+const OCX_DOWN = { source: "ocx", message: "ocx did not answer; the models are the last good list" };
+
 /** OCX's models and, for each runner that is on, each mode's default and the fallback, whether it runs now. */
 export function modelsView(scene: SettingsScene, at: number): SettingsModels {
   const settings = currentSettings(scene);
@@ -63,7 +66,8 @@ export function modelsView(scene: SettingsScene, at: number): SettingsModels {
   const modes = Object.entries(settings.worker?.models?.defaults ?? {}).map(([mode, value]) => ({ mode, ...check(`${mode} 기본`, value, fallback, settings, scene) }));
   const fallbackCheck = check(FALLBACK_WHO, fallback ?? undefined, null, settings, scene);
   const warnings = [...runners, ...modes, fallbackCheck].map((each) => each.warning).filter((line): line is string => Boolean(line));
-  return { version: 1, at, errors: [], models: structuredClone(scene.models), runners, modes, fallback: fallbackCheck, warnings };
+  const down = scene.ocxReadAt !== null;
+  return { version: 1, at: down ? scene.ocxReadAt : at, errors: down ? [OCX_DOWN] : [], models: structuredClone(scene.models), runners, modes, fallback: fallbackCheck, warnings };
 }
 
 const RULE_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,40}$/;

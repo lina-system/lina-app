@@ -390,6 +390,17 @@ test("&settings=race: another device writes right after the page's first write l
   expect(source.settingsWrites).toEqual([{ kind: "patch", ifMatch: "r3", status: 200 }]);
 });
 
+test("&settings=ocx-down: the models view is the last good list, timed when it was read, with OCX's error", async () => {
+  const source = new SyntheticSource({ settings: "ocx-down" });
+  const read = await source.read("settingsModels");
+  const view = read.kind === "data" ? read.data : null;
+  expect(view?.errors).toEqual([{ source: "ocx", message: "ocx did not answer; the models are the last good list" }]);
+  expect(view?.at).toBe(source.scene.settings.ocxReadAt);
+  expect(view?.models).toHaveLength(3);
+  const fine = await new SyntheticSource().read("settingsModels");
+  expect(fine.kind === "data" ? fine.data.errors : null).toEqual([]);
+});
+
 test("a synthetic rollback writes the revision before as a new one, and a second rollback undoes the first", async () => {
   const source = new SyntheticSource();
   const before = structuredClone(source.scene.settings.revisions[3]);

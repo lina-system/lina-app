@@ -1387,6 +1387,26 @@ const drivers = {
       check((await writes()).at(-1).status === 422, "the write was not refused: " + JSON.stringify((await writes()).at(-1)));
       return reason;
     });
+    await step("a refused change drops the change queued behind it: it is not sent, one reason shows", async () => {
+      const before = (await writes()).length;
+      // Two taps in one go, so the second change waits behind the first write, which the core refuses (422).
+      await page.evaluate(() => {
+        const toggle = (name) => document.querySelector(`[data-testid=screen-settings] [role=switch][aria-label="${name}"]`);
+        toggle("omo 켜기").click();
+        toggle("files-a 켜기").click();
+      });
+      const row = page.getByTestId("settings-runners").locator("li", { has: page.getByRole("switch", { name: "omo 켜기", exact: true }) });
+      const reason = (await text(row.getByTestId("write-error"))).trim();
+      check(reason === "worker.default_runner: runner 'omo' is off", "the reason reads " + reason);
+      await until(async () => toggle("files-a 켜기").getAttribute("aria-checked"), (checked) => checked === "true", "files-a's switch back on");
+      await page.waitForTimeout(300);
+      const sent = (await writes()).slice(before);
+      check(sent.length === 1 && sent[0].status === 422, "the writes after the taps: " + JSON.stringify(sent));
+      check((await latest()).devices.workers["files-a"].off === undefined, "files-a was turned off in the settings copy");
+      const reasons = await page.getByTestId("screen-settings").getByTestId("write-error").count();
+      check(reasons === 1, reasons + " reasons show");
+      return reason + "; files-a stays on; " + sent.length + " write sent";
+    });
     await step("한 단계 되돌리기 asks once; 취소 writes nothing, 이전 설정으로 되돌리기 writes a new revision", async () => {
       const before = Number((await rev()).replace("설정 r", ""));
       const sent = (await writes()).length;
@@ -1451,6 +1471,33 @@ const drivers = {
       const list = await until(rules, (items) => JSON.stringify(items) === JSON.stringify(["quick · S → dsh", "docs → codex", "그 외 → omo"]), "the rules after the first change");
       const work = await until(() => rows("devices-work"), (items) => items[1] === "machine-b / 입찰 2 · 지정 2", "machine-b's row after the other device's write");
       return said + "; sent " + sent.map((write) => write.ifMatch + " " + write.status).join(", ") + "; " + list.join(", ") + "; " + work[1];
+    });
+    await step("OCX not read: one grey line with the list's time, every model 확인 못 함, warnings say how old", async () => {
+      await openApp(page, "#/settings", "&settings=ocx-down");
+      await page.getByTestId("screen-settings").waitFor();
+      const time = await page.evaluate(() => {
+        const date = new Date(window.__linaScene.settings.ocxReadAt * 1000);
+        return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0");
+      });
+      const line = page.getByTestId("models-stale");
+      const said = [(await text(line)).trim(), await line.evaluate((item) => getComputedStyle(item).color)];
+      check(said[0] === "OCX를 읽지 못했습니다 · 모델 상태는 " + time + " 기준", "the line reads " + said[0]);
+      const grey = await page.getByTestId("settings-rev").evaluate((item) => getComputedStyle(item).color);
+      check(said[1] === grey, "the line is drawn " + said[1] + ", not the grey of 설정 <rev> " + grey);
+      const first = await page.getByTestId("screen-settings").evaluate((element) => element.firstElementChild?.dataset.testid);
+      check(first === "models-stale", "the first line of the screen is " + first);
+      const warnings = await page.getByTestId("settings-warning").allInnerTexts();
+      check(warnings.length === 2 && warnings.every((each) => each.endsWith(" · " + time + " 기준")), "warnings " + JSON.stringify(warnings));
+      await page.getByRole("link", { name: /^codex · / }).click();
+      await settled(page);
+      await page.getByRole("link", { name: /^모델 · / }).click();
+      await settled(page);
+      const picker = page.getByTestId("setting-page");
+      await picker.getByRole("radio").first().waitFor();
+      check((await picker.getByTestId("models-stale").count()) === 1, "the model picker has no grey line");
+      const names = await picker.getByRole("radio").evaluateAll((items) => items.map((item) => item.getAttribute("aria-label")));
+      check(JSON.stringify(names) === JSON.stringify(["model-a · 확인 못 함", "model-b · 확인 못 함", "model-c · 확인 못 함"]), "models " + JSON.stringify(names));
+      return said[0] + "; " + warnings.length + " warnings as of " + time + "; picker " + names.join(" | ");
     });
     await step("a device that may only read: every control disabled, one grey line, nothing sent", async () => {
       await openApp(page, "#/settings", "&settings=readonly");

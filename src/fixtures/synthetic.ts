@@ -74,7 +74,7 @@ export interface SceneOptions {
   readonly settings?: SettingsVariant | null;
 }
 
-export type SettingsVariant = "readonly" | "empty";
+export type SettingsVariant = "readonly" | "empty" | "ocx-down";
 
 /** The work settings (lina-app#48) as the core keeps them; the synthetic source writes into it. */
 export interface SettingsScene {
@@ -85,6 +85,8 @@ export interface SettingsScene {
   readonly history: SettingsAuditLine[];
   /** The models OCX has on; a model it has off is not in the list. */
   readonly models: SettingsModel[];
+  /** `&settings=ocx-down`: OCX does not answer, and the models are the last good list, read at this time. */
+  readonly ocxReadAt: number | null;
 }
 
 export interface Scene {
@@ -693,7 +695,8 @@ function settingsScene(now: number, variant: SettingsVariant | null): SettingsSc
     { provider: "anthropic", id: "model-b", name: null, namespaced: null, efforts: ["high"], defaultEffort: "high", state: "ok", left: 40, resetAt: now + 2 * DAY, accounts: 1 },
     { provider: "openai", id: "model-c", name: null, namespaced: null, efforts: ["low", "medium", "high"], defaultEffort: "medium", state: "out_of_quota", left: 0, resetAt: now + 5 * HOUR, accounts: 1 },
   ];
-  if (variant === "empty") return { writable: true, revisions: [{}], history: [], models };
+  const ocxReadAt = variant === "ocx-down" ? now - 7 * MIN : null;
+  if (variant === "empty") return { writable: true, revisions: [{}], history: [], models, ocxReadAt };
   const r1: Settings = {
     devices: {
       workers: {
@@ -726,7 +729,7 @@ function settingsScene(now: number, variant: SettingsVariant | null): SettingsSc
     { kind: "outside", principal: "", device: "", at: now - 2 * HOUR },
   ] as const;
   const history = by.map(({ at, ...who }, index): SettingsAuditLine => ({ rev: `r${index + 1}`, base: `r${index}`, at, by: who, changes: diffSettings(revisions[index], revisions[index + 1]) }));
-  return { writable: variant !== "readonly", revisions, history, models };
+  return { writable: variant !== "readonly", revisions, history, models, ocxReadAt };
 }
 
 /**

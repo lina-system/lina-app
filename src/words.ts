@@ -280,6 +280,8 @@ export const W = {
   quotaLeft: (left: number, reset: string | null) => [`남은 양 ${Math.round(left)}%`, reset].filter(Boolean).join(SEP),
   usedUp: "다 씀",
   quotaUnknown: "확인 못 함",
+  ocxDown: (time: string) => `OCX를 읽지 못했습니다 · 모델 상태는 ${time} 기준`,
+  asOf: (time: string) => `${time} 기준`,
   noAccount: "계정 없음",
   history: "기록",
   allHistory: "모든 기록",

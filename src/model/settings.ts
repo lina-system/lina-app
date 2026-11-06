@@ -142,8 +142,12 @@ export function pickModel(model: SettingsModel, current: string | undefined | nu
   return modelValue(model, effort && model.efforts.includes(effort) ? effort : null);
 }
 
-/** A model's quota on the right of its row: what is left and when it resets, or the one word in its place. */
-export function quotaWord(model: SettingsModel, now: number, until: (seconds: number) => string): { text: string; tone: "" | "is-red" | "is-grey" } {
+/**
+ * A model's quota on the right of its row: what is left and when it resets, or the one word in its place. A list the
+ * core served from its last good read (`stale`) says 확인 못 함 for every model.
+ */
+export function quotaWord(model: SettingsModel, now: number, until: (seconds: number) => string, stale = false): { text: string; tone: "" | "is-red" | "is-grey" } {
+  if (stale) return { text: W.quotaUnknown, tone: "is-grey" };
   if (model.state === "out_of_quota") return { text: W.usedUp, tone: "is-red" };
   if (model.state === "no_account") return { text: W.noAccount, tone: "is-grey" };
   if (model.state !== "ok" || model.left === null) return { text: W.quotaUnknown, tone: "is-grey" };

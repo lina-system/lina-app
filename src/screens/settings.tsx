@@ -34,7 +34,7 @@ import {
   type RuleSize,
 } from "../model/settings";
 import { back, href, type Route } from "../router";
-import { until } from "../time";
+import { clock, until } from "../time";
 import { CheckIcon } from "../ui/icons";
 import { Disclosure, ErrorLine, Link, useApp } from "../ui/parts";
 import { ROLLBACK_KEY, useSettingsEdits } from "../ui/settings-edits";
@@ -84,7 +84,16 @@ function useSettings() {
   const app = useApp();
   const edits = useSettingsEdits();
   const modelsView = app.store.get("settingsModels");
-  return { ...app, edits, settings: edits.settings(), models: modelsView?.models ?? [], modelsView, locked: !edits.writable };
+  // A view with `errors` answered from the core's last good read (OCX did not answer): its `at` is how old it is.
+  const errored = modelsView?.errors.length ? modelsView : edits.view?.errors.length ? edits.view : undefined;
+  const staleAt = errored ? errored.at : null;
+  return { ...app, edits, settings: edits.settings(), models: modelsView?.models ?? [], modelsView, staleAt, locked: !edits.writable };
+}
+
+/** The pushed lists that show the models' state: the pickers and the models list. */
+function showsModels(page: string): boolean {
+  const [kind, , field] = page.split("/");
+  return kind === "fallback" || kind === "models" || (kind === "runner" && (field === "model" || field === "fallback"));
 }
 
 /** A runner's patch; omo is there without being listed, so writing it first gives it its type. */
@@ -226,6 +235,16 @@ function PlainRow({ title, sub, testid = "row" }: { title: string; sub?: string;
   );
 }
 
+/** One grey line when the models' state is the core's last good read, not now. */
+function StaleModelsLine() {
+  const { staleAt } = useSettings();
+  return staleAt === null ? null : (
+    <p class="settings-note" data-testid="models-stale">
+      {W.ocxDown(clock(staleAt))}
+    </p>
+  );
+}
+
 function ReadOnlyLine() {
   const { edits, locked } = useSettings();
   return edits.view && locked ? (
@@ -237,8 +256,9 @@ function ReadOnlyLine() {
 
 /** What the core says the settings or the models get wrong now: one orange line each, the first three. */
 function Warnings() {
-  const { edits, settings, modelsView } = useSettings();
-  const lines = [...(modelsView ? warningLines(modelsView, settings) : []), ...(edits.view?.warnings ?? []).map((warning) => (warning.path ? `${warning.path}: ${warning.message}` : warning.message))];
+  const { edits, settings, modelsView, staleAt } = useSettings();
+  const asOf = (line: string) => (staleAt === null ? line : [line, W.asOf(clock(staleAt))].join(SEP));
+  const lines = [...(modelsView ? warningLines(modelsView, settings).map(asOf) : []), ...(edits.view?.warnings ?? []).map((warning) => (warning.path ? `${warning.path}: ${warning.message}` : warning.message))];
   if (!lines.length) return null;
   return (
     <ul class="settings-warnings" data-testid="settings-warnings">
@@ -480,6 +500,7 @@ export function SettingsScreen() {
   if (!edits.view) return <Pending />;
   return (
     <div class="list settings" data-testid="screen-settings">
+      <StaleModelsLine />
       <Warnings />
       <ReadOnlyLine />
       <DefaultsGroup />
@@ -494,7 +515,7 @@ export function SettingsScreen() {
 
 /** OCX's models grouped by service, each with what is left and when it resets; `choose` makes it a picker. */
 function ModelList({ value, choose, followDefault }: { value?: string | null; choose?: (model: SettingsModel) => void; followDefault?: () => void }) {
-  const { settings, models, now, locked } = useSettings();
+  const { settings, models, now, locked, staleAt } = useSettings();
   const ref = parseModel(value, settings);
   if (!models.length) return <p class="empty">{W.empty}</p>;
   return (
@@ -507,7 +528,7 @@ function ModelList({ value, choose, followDefault }: { value?: string | null; ch
       {modelGroups(models).map((group) => (
         <Group key={group.service} title={group.name} testid="model-group">
           {group.models.map((model) => {
-            const quota = quotaWord(model, now, until);
+            const quota = quotaWord(model, now, until, staleAt !== null);
             if (!choose) return <ModelRow key={model.id} model={model} quota={quota} />;
             const chosen = ref?.provider === model.provider && ref.id === model.id;
             return <ChoiceRow key={model.id} title={modelName(model)} detail={quota.text} tone={quota.tone} chosen={chosen} disabled={locked} onChoose={() => choose(model)} />;
@@ -764,6 +785,7 @@ export function SettingPage({ page }: { page: string }) {
       <header class="detail-head">
         <h1 class="detail-title">{settingTitle(page)}</h1>
       </header>
+      {showsModels(page) ? <StaleModelsLine /> : null}
       <ReadOnlyLine />
       {edits.view ? <PageBody key={selected} page={page} /> : <Pending />}
     </article>

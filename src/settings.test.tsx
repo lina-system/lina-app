@@ -1,10 +1,12 @@
 import { fireEvent, render, waitFor, within } from "@testing-library/preact";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { App } from "./app";
-import type { SettingsAuditLine } from "./api/client";
+import type { SettingsAuditLine, SettingsWritten } from "./api/client";
+import type { WriteResult } from "./data/source";
 import { Store } from "./data/store";
 import { SyntheticSource, type SettingsScript } from "./data/synthetic-source";
 import { changesLine } from "./model/settings";
+import { clock } from "./time";
 import { W } from "./words";
 
 function setWide(wide: boolean) {
@@ -255,6 +257,27 @@ describe("the settings screen", () => {
     expect(view.getByTestId("settings-rev").textContent).toBe("설정 r3");
   });
 
+  test("a refused change (429) drops every change queued behind it: the rules end as the core has them, one reason shows", async () => {
+    const { view, synthetic } = await open("#/settings");
+    let answer: (result: WriteResult<SettingsWritten>) => void = () => {};
+    const patch = vi.spyOn(synthetic, "patchSettings").mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    fireEvent.click(view.getByTestId("rules-edit"));
+    fireEvent.click(view.getByRole("button", { name: "docs → codex 삭제" }));
+    await waitFor(() => expect(view.queryByRole("button", { name: "docs → codex 삭제" })).toBeNull());
+    fireEvent.click(view.getByRole("button", { name: "quick · S → dsh 삭제" }));
+    expect(patch).toHaveBeenCalledExactlyOnceWith({ worker: { routing: [expect.objectContaining({ name: "quick" })] } }, "r3");
+    answer({ ok: false, status: 429, detail: null });
+    const rules = () => [...view.getByTestId("settings-rules").querySelectorAll("[data-testid=rule] .title")].map((row) => row.textContent);
+    await waitFor(() => expect(rules()).toEqual(["docs → codex", "quick · S → dsh"]));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(patch).toHaveBeenCalledOnce();
+    expect(synthetic.settingsWrites).toEqual([]);
+    expect(synthetic.scene.settings.revisions).toHaveLength(4);
+    expect(view.getAllByTestId("write-error").map((line) => line.textContent)).toEqual([W.errTooMany]);
+    expect(view.getByTestId("settings-rules").contains(view.getByTestId("write-error"))).toBe(true);
+    expect(view.queryByTestId("toast")).toBeNull();
+  });
+
   test("rules: 편집 deletes and reorders, 규칙 추가 adds one last; each saves the whole list", async () => {
     const { view, synthetic } = await open("#/settings");
     const patch = vi.spyOn(synthetic, "patchSettings");
@@ -374,6 +397,43 @@ describe("the settings screen", () => {
     fireEvent.click(switchOf(view, "omo 켜기"));
     await waitFor(() => expect(view.getByTestId("write-error")).toBeTruthy());
     expect(patch).toHaveBeenCalledWith({ worker: { runners: { omo: { type: "omo", on: false } } } }, expect.any(String));
+  });
+
+  test("OCX not read: one grey line with the time of the last good list, every model 확인 못 함, the warnings say how old", async () => {
+    const synthetic = source("ocx-down");
+    const at = synthetic.scene.settings.ocxReadAt ?? 0;
+    const line = `OCX를 읽지 못했습니다 · 모델 상태는 ${clock(at)} 기준`;
+    const { view } = await open("#/settings", { source: synthetic });
+    await waitFor(() => expect(view.getByTestId("models-stale").textContent).toBe(line));
+    expect(view.getByTestId("screen-settings").firstElementChild?.getAttribute("data-testid")).toBe("models-stale");
+    expect(view.getAllByTestId("settings-warning").map((each) => each.textContent)).toEqual([
+      `codex 모델의 쿼터가 다 찼습니다 · 다음 실행은 model-b로 갑니다 · ${clock(at)} 기준`,
+      `dsh 모델이 꺼져 있습니다 · 다음 실행은 model-b로 갑니다 · ${clock(at)} 기준`,
+    ]);
+    view.unmount();
+    for (const page of ["#/settings/runner/codex/model", "#/settings/fallback", "#/settings/models"]) {
+      const pushed = await open(page, { source: again(synthetic) });
+      await waitFor(() => expect(pushed.view.getByTestId("models-stale").textContent).toBe(line));
+      const rows = pushed.view.getAllByTestId("choice");
+      expect(rows.map((row) => row.querySelector(".settings-value")?.textContent)).toEqual(["확인 못 함", "확인 못 함", "확인 못 함"]);
+      expect(pushed.view.getByTestId("setting-page").textContent).not.toMatch(/남은 양|다 씀/);
+      pushed.view.unmount();
+    }
+    const runner = await open("#/settings/runner/codex", { source: again(synthetic) });
+    expect(runner.view.queryByTestId("models-stale")).toBeNull();
+  });
+
+  test("a settings view with errors marks the models the same way, at the settings view's time", async () => {
+    const synthetic = source();
+    const read = synthetic.read.bind(synthetic);
+    vi.spyOn(synthetic, "read").mockImplementation(async (name, id) => {
+      const result = await read(name, id);
+      if (name === "settings" && result.kind === "data") return { ...result, data: { ...result.data, at: 1_800_000_000, errors: [{ source: "ocx", message: "down" }] } } as typeof result;
+      return result;
+    });
+    const { view } = await open("#/settings/runner/codex/model", { source: synthetic });
+    await waitFor(() => expect(view.getByTestId("models-stale").textContent).toBe(`OCX를 읽지 못했습니다 · 모델 상태는 ${clock(1_800_000_000)} 기준`));
+    expect(view.getAllByRole("radio").map((choice) => choice.getAttribute("aria-label"))).toEqual(["model-a · 확인 못 함", "model-b · 확인 못 함", "model-c · 확인 못 함"]);
   });
 
   test("a settings event from another device redraws the screen without a reload", async () => {

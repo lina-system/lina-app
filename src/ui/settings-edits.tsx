@@ -29,7 +29,9 @@ interface Edit {
  * by this page's own writes; a change goes only when the settings read last are still that revision, with their ETag.
  * A write the core takes reads the settings again before its patch stops being drawn; a stale one (412, or another
  * writer's revision read before the next change goes) drops every change not sent yet, reads the settings again and
- * says so in one toast; a refused one puts the control back and keeps the reason under its row.
+ * says so in one toast; any other refusal (422, 429, no answer) keeps the reason under its row and drops every change
+ * not sent yet the same way, since each was drawn over the refused one. A change goes only after every change before
+ * it was taken.
  */
 export class SettingsEdits {
   private edits: Edit[] = [];
@@ -144,16 +146,21 @@ export class SettingsEdits {
     } else if (result.status === 412) {
       await this.stale();
     } else {
-      sent();
       this.errors.set(key, settingsError(result));
+      await this.dropQueued();
     }
+  }
+
+  /** Every change not sent yet was drawn over a change the core did not take: none goes, and the settings are read again. */
+  private async dropQueued(): Promise<void> {
+    this.generation += 1;
+    this.edits = [];
+    await this.store.invalidate(SETTINGS_REVISED);
   }
 
   /** Every change not sent yet is dropped, the settings are read again, and one toast says so. */
   private async stale(): Promise<void> {
-    this.generation += 1;
-    this.edits = [];
-    await this.store.invalidate(SETTINGS_REVISED);
+    await this.dropQueued();
     this.actions.note(W.settingsStale);
   }
 

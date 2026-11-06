@@ -5,7 +5,7 @@ import { SyntheticSource, type SettingsScript, type StreamScript, type TalkRefus
 
 const TALK_REFUSALS: readonly string[] = ["busy", "down", "none"] satisfies TalkRefusal[];
 const STREAM_SCRIPTS: readonly string[] = ["down", "drop", "resync", "token"] satisfies StreamScript[];
-const SETTINGS_SCRIPTS: readonly string[] = ["readonly", "empty", "stale", "race"] satisfies SettingsScript[];
+const SETTINGS_SCRIPTS: readonly string[] = ["readonly", "empty", "stale", "race", "ocx-down"] satisfies SettingsScript[];
 
 /**
  * The core by default. `?source=synthetic` or the build flag `VITE_LINA_SOURCE=synthetic` selects the synthetic
@@ -13,9 +13,10 @@ const SETTINGS_SCRIPTS: readonly string[] = ["readonly", "empty", "stale", "race
  * `&running=none` one with no running card, `&writer=stopped` one whose writer of checked lines stopped,
  * `&talk=busy|down|none` one whose talk turns are refused (429, 503, 409), `&live=down|drop|resync|token` a change stream
  * that refuses every connection, drops once while another device writes, sends one resync, or restarts the core with a
- * new session token, `&push=off` a core without push, `&settings=readonly|empty|stale|race` work settings this device
- * only reads, that were never written, or that another device writes just before this page's first write (412) or
- * just after it lands (the changes queued behind it are dropped).
+ * new session token, `&push=off` a core without push, `&settings=readonly|empty|stale|race|ocx-down` work settings this
+ * device only reads, that were never written, that another device writes just before this page's first write (412) or
+ * just after it lands (the changes queued behind it are dropped), or whose models OCX did not answer for (the last
+ * good list, with an error).
  */
 export function chooseSource(location: Pick<Location, "search"> = window.location, flag: string | undefined = import.meta.env.VITE_LINA_SOURCE): Source {
   const params = new URLSearchParams(location.search);

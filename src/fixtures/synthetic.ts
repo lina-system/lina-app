@@ -5,10 +5,14 @@ import type {
   ItemDetail,
   ItemList,
   ItemSummary,
+  ModelsState,
   QuotaView,
   RunCard,
   StatusChecks,
   RunRecord,
+  UsageRange,
+  UsageRow,
+  UsageView,
   WorkCardDetail,
   WorkCardList,
   WorkGoal,
@@ -71,6 +75,10 @@ export interface Scene {
   readonly itemDetails: Readonly<Record<string, ItemDetail>>;
   readonly devices: DevicesView;
   readonly quota: QuotaView;
+  /** Usage per range (lina#232), the numbers the 사용량 panel shows. */
+  readonly usage: Readonly<Record<UsageRange, UsageView>>;
+  /** The models on and each machine's OCX link (lina#232): one link down. */
+  readonly modelsState: ModelsState;
   /** The hub's own checks (lina#233): three passing, one failing and one stale. */
   readonly checks: StatusChecks;
   readonly goals: GoalList;
@@ -441,24 +449,30 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     { name: machines[1], state: "warn", why: "disk", cpu: 35, memory: 58, disk: 91, temp: 55, load: 1.2, cores: 8, running: 1, cap: 4, freeGb: 18, metricsAt: now - 25 },
     { name: machines[2], state: "down", why: "unreachable", cpu: null, memory: null, disk: null, temp: null, load: null, cores: null, running: null, cap: 2, freeGb: null, metricsAt: now - 3 * HOUR },
   ];
-  // A window warns when its rate reaches 100% before it resets, the core's rule for `warn`.
+  // A window warns when its rate reaches 100% before it resets, the core's rule for `warn`; `left` is the rest.
   const quotaWindow = (key: string, percent: number, resetIn: number, ratePerHour: number | null) => ({
     key,
     percent,
+    left: Math.min(100, Math.max(0, 100 - percent)),
     resetAt: now + resetIn,
     ratePerHour,
     warn: ratePerHour !== null && percent + (ratePerHour * resetIn) / HOUR >= 100,
   });
-  const quotaAccount = (id: string, number: number, plan: string, mainWindow: string, windows: ReturnType<typeof quotaWindow>[], paused = false) => ({
+  const quotaAccount = (id: string, number: number, plan: string, mainWindow: string | null, windows: ReturnType<typeof quotaWindow>[], state: "ok" | "paused" | "reauth" = "ok", active = true) => ({
     id,
     number,
     plan,
-    paused,
+    paused: state === "paused",
+    active,
+    state,
     unavailable: false,
     mainWindow,
     warn: windows.some((window) => window.warn),
     windows,
   });
+  // The core's rule (lina_board_quota.quota_view): a service row's percent and rate are the mean over the accounts
+  // that are not paused and have a main window, so every service here keeps one such account and the row equals it.
+  // A reauth account holds no window at all, so nothing stale can be read off it.
   const quotaList: BoardSnapshot["quota"] = options.sourceError
     ? []
     : [
@@ -468,7 +482,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
           ratePerHour: 10,
           accounts: [
             quotaAccount("acct-a", 1, "pro", "fiveHour", [quotaWindow("fiveHour", 72, 3 * HOUR, 10), quotaWindow("weekly", 40, 4 * DAY, 0.5)]),
-            quotaAccount("acct-b", 2, "pro", "fiveHour", [quotaWindow("fiveHour", 18, 2 * HOUR, 3)]),
+            quotaAccount("acct-b", 2, "pro", null, [], "reauth", false),
           ],
         },
         {
@@ -481,9 +495,92 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
           service: SERVICE_NAMES[2],
           percent: 5,
           ratePerHour: null,
-          accounts: [quotaAccount("acct-d", 1, "basic", "monthly", [quotaWindow("monthly", 5, 12 * DAY, null)], true)],
+          accounts: [
+            quotaAccount("acct-d", 1, "basic", "monthly", [quotaWindow("monthly", 5, 12 * DAY, null)]),
+            quotaAccount("acct-e", 2, "basic", "monthly", [quotaWindow("monthly", 9, 26 * DAY, null)], "paused"),
+          ],
         },
       ];
+  // Usage (lina#232), invented small numbers: a few dollars and a few thousand tokens today, more in 7 and 30 days.
+  // byModel and byMachine are what the 사용량 panel's two lists read; byProvider and byAccount are not drawn.
+  const usageTokens = (input: number, output: number, cacheRead: number) => ({ total: input + output + cacheRead, input, output, cacheRead });
+  const usageRow = (requests: number, costUsd: number, tokens: [number, number, number], extra: { model?: string; provider?: string; machine?: string }): UsageRow => ({
+    requests,
+    tokens: usageTokens(...tokens),
+    costUsd,
+    ...extra,
+  });
+  const usage: Readonly<Record<UsageRange, UsageView>> = {
+    today: {
+      version: 1,
+      at: now,
+      range: "today",
+      generatedAt: now - MIN,
+      requests: 42,
+      tokens: usageTokens(9000, 2000, 1480),
+      costUsd: 3.42,
+      byModel: [
+        usageRow(18, 1.85, [4700, 1000, 500], { model: "haru", provider: "anthropic" }),
+        usageRow(14, 1.12, [3000, 800, 400], { model: "saeol", provider: "openai" }),
+        usageRow(10, 0.45, [1300, 200, 580], { model: "moru", provider: "openai" }),
+      ],
+      byProvider: [usageRow(18, 1.85, [4700, 1000, 500], { provider: "anthropic" }), usageRow(24, 1.57, [4300, 1000, 980], { provider: "openai" })],
+      byAccount: [],
+      byMachine: [usageRow(24, 2.05, [5000, 1200, 800], { machine: machines[0] }), usageRow(12, 1.01, [2800, 600, 400], { machine: machines[1] }), usageRow(6, 0.36, [1200, 200, 280], { machine: machines[2] })],
+    },
+    "7d": {
+      version: 1,
+      at: now,
+      range: "7d",
+      generatedAt: now - MIN,
+      requests: 310,
+      tokens: usageTokens(60000, 18000, 8400),
+      costUsd: 18.4,
+      byModel: [
+        usageRow(130, 9.8, [28000, 9000, 4200], { model: "haru", provider: "anthropic" }),
+        usageRow(104, 6.1, [21000, 6200, 3200], { model: "saeol", provider: "openai" }),
+        usageRow(76, 2.5, [11000, 2800, 1000], { model: "moru", provider: "openai" }),
+      ],
+      byProvider: [usageRow(130, 9.8, [28000, 9000, 4200], { provider: "anthropic" }), usageRow(180, 8.6, [32000, 9000, 4200], { provider: "openai" })],
+      byAccount: [],
+      byMachine: [usageRow(190, 11.2, [34000, 10000, 5000], { machine: machines[0] }), usageRow(80, 5.4, [18000, 5500, 2500], { machine: machines[1] }), usageRow(40, 1.8, [8000, 2500, 900], { machine: machines[2] })],
+    },
+    "30d": {
+      version: 1,
+      at: now,
+      range: "30d",
+      generatedAt: now - MIN,
+      requests: 1180,
+      tokens: usageTokens(300000, 80000, 40000),
+      costUsd: 63.1,
+      byModel: [
+        usageRow(480, 34.2, [135000, 36000, 19000], { model: "haru", provider: "anthropic" }),
+        usageRow(420, 19.9, [105000, 28000, 15000], { model: "saeol", provider: "openai" }),
+        usageRow(280, 9, [60000, 16000, 6000], { model: "moru", provider: "openai" }),
+      ],
+      byProvider: [usageRow(480, 34.2, [135000, 36000, 19000], { provider: "anthropic" }), usageRow(700, 28.9, [165000, 44000, 21000], { provider: "openai" })],
+      byAccount: [],
+      byMachine: [usageRow(720, 38.5, [170000, 45000, 25000], { machine: machines[0] }), usageRow(310, 17.6, [85000, 23000, 12000], { machine: machines[1] }), usageRow(150, 7, [45000, 12000, 3000], { machine: machines[2] })],
+    },
+  };
+  // OCX itself (lina#232): three models on, and two links of which one did not answer. The machines named here are the
+  // 기기 panel's own names, and the link that is not fine is the machine that panel draws as 꺼짐 (machines[2]), so one
+  // machine never carries two names on one screen.
+  const modelsState: ModelsState = {
+    version: 1,
+    at: now,
+    enabled: 3,
+    disabled: 2,
+    enabledModels: [
+      { provider: "anthropic", model: "haru" },
+      { provider: "openai", model: "saeol" },
+      { provider: "openai", model: "moru" },
+    ],
+    machines: [
+      { machine: machines[0], state: "connected", reportedAt: now - 30, ok: true },
+      { machine: machines[2], state: "failed", reportedAt: now - 2 * HOUR, ok: false },
+    ],
+  };
   // The hub's own checks (lina#233), newest `at` first. Only the failing and stale ones draw; the three that pass
   // fold into one count. Each name and line is invented Korean, with no machine name, person or path.
   const checks: StatusChecks = options.checksError
@@ -551,7 +648,9 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     items: { version: 1, at: now, errors: [], owner: { ...OWNER }, agents, items: listItems },
     itemDetails,
     devices: { version: 1, at: now, errors: [], machines: machineList },
-    quota: { version: 1, at: now, errors, quota: quotaList },
+    quota: { version: 1, at: now, errors, quota: quotaList, missing: options.sourceError ? null : ["Cursor"] },
+    usage,
+    modelsState,
     checks,
     goals: { goals: goalCards },
     cards: cardList,
@@ -634,6 +733,11 @@ export const SCENE_COUNTS = {
   machinesOk: 1,
   machinesWarn: 1,
   machinesDown: 1,
+  // OCX (lina#232): three models on, two links, one of them down; usage for each of the three ranges.
+  modelsEnabled: 3,
+  links: 2,
+  linksDown: 1,
+  usageRanges: 3,
   // 점검: three pass and fold into 정상 3; one failing and one stale stay open.
   checks: 5,
   checksOk: 3,

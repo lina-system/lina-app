@@ -93,7 +93,7 @@ const SCREENS: readonly { id: string; hash: string; query?: string; line?: strin
     id: "status-accounts",
     hash: "#/status",
     open: async (page) => {
-      await page.getByRole("list", { name: "쿼터" }).locator("summary").first().click();
+      await page.getByRole("list", { name: "쿼터", exact: true }).locator("summary").first().click();
       await expect(page.getByTestId("account").first()).toBeVisible();
     },
   },

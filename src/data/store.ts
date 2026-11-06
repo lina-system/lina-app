@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import type { RouteName, Routes } from "../api/client";
+import { USAGE_RANGES, type RouteName, type Routes, type UsageRange, type UsageView } from "../api/client";
 import type { ModelInput } from "../model";
 import { nowSeconds, type Source, type WriteResult } from "./source";
 
@@ -17,8 +17,17 @@ export type Want = readonly (readonly [RouteName, string?])[];
 export type LiveState = "connecting" | "open" | "down";
 
 const LIST_ROUTES: readonly RouteName[] = ["board", "items", "goals", "cards", "inbox"];
-/** Machines, quota and the hub's own checks change slowly: read on the same refresh trigger, at most once a minute. */
-const SLOW_ROUTES: readonly RouteName[] = ["devices", "quota", "checks"];
+/**
+ * Machines, quota, usage, OCX's models and links and the hub's own checks change slowly: read on the same refresh
+ * trigger, at most once a minute. Usage is one route per range, the route's id being the range.
+ */
+const SLOW_ROUTES: Want = [
+  ["devices"],
+  ["quota"],
+  ...USAGE_RANGES.map((range) => ["usage", range] as const),
+  ["modelsState"],
+  ["checks"],
+];
 export const SLOW_REFRESH_S = 60;
 
 /**
@@ -210,9 +219,12 @@ export class Store {
 
   private async readAll(): Promise<void> {
     const now = nowSeconds();
-    const slow = this.slowReadAt === null || now - this.slowReadAt >= SLOW_REFRESH_S - 1 ? SLOW_ROUTES : [];
+    const slow: Want = this.slowReadAt === null || now - this.slowReadAt >= SLOW_REFRESH_S - 1 ? SLOW_ROUTES : [];
     if (slow.length) this.slowReadAt = now;
-    const firstWave = await Promise.all([...LIST_ROUTES, ...slow].map((name) => this.load(name)));
+    const firstWave = await Promise.all([
+      ...LIST_ROUTES.map((name) => this.load(name)),
+      ...slow.map(([name, id]) => this.load(name, id)),
+    ]);
     const cardIds = (this.get("cards")?.cards ?? []).map((card) => card.id);
     const secondWave = await Promise.all([
       ...cardIds.map((id) => this.load("card", id)),
@@ -270,7 +282,13 @@ export class Store {
     const failed: string[] = [];
     for (const [key, entry] of this.entries) {
       if (entry.status !== "failed") continue;
-      failed.push(key.includes(":") ? "detail" : key);
+      // A route with an id is a detail, except usage, whose id is the range it was read for.
+      failed.push(key.startsWith("usage:") ? "usage" : key.includes(":") ? "detail" : key);
+    }
+    const usage: Partial<Record<UsageRange, UsageView>> = {};
+    for (const range of USAGE_RANGES) {
+      const view = this.get("usage", range);
+      if (view) usage[range] = view;
     }
     return {
       board: this.get("board"),
@@ -281,6 +299,8 @@ export class Store {
       inbox: this.get("inbox"),
       devices: this.get("devices"),
       quota: this.get("quota"),
+      usage,
+      modelsState: this.get("modelsState"),
       checks: this.get("checks"),
       cardDetails,
       failed: this.offline ? [] : failed,

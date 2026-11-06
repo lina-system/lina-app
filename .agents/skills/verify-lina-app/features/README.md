@@ -63,7 +63,7 @@ Keep implementation details out of the map. Name only user paths, stable handles
 - [할 일 detail](./item-detail.md) covers a to-do with its runs and comment thread.
 - [대화](./talk.md) covers talking with the agent that owns a goal or to-do, from its page.
 - [작업 detail](./card-detail.md) covers a work card or a worker run outside any card.
-- [기기·쿼터](./status.md) covers machines and quota.
+- [기기·쿼터](./status.md) covers machines, quota, each account's state, usage and OCX's own line.
 - [Owner actions](./actions.md) covers done, undo, done with open to-dos, answers and retry.
 - [Freshness](./freshness.md) covers the toolbar's freshness line and read failures.
 - [Live updates](./live.md) covers the change stream: changes from anywhere without a reload, drops, resyncs and the stale line.

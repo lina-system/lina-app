@@ -68,8 +68,8 @@ afterEach(() => {
 // The shared term table, written out here so a change to src/words.ts cannot widen it unnoticed.
 const STATES = ["예정", "진행 중", "대기", "중단됨", "완료"];
 const REASONS = ["결정 필요", "피드백", "검토 필요", "보류", "진행 대기", "응답 없음", "실패", "결과 누락"];
-// Latin words the term table allows on screen: the app name, CPU and the services' display names.
-const LATIN_WORDS = ["LINA", "CPU", "Claude", "ChatGPT", "Gemini", "Grok"];
+// Latin words the term table allows on screen: the app name, CPU, OCX and the services' display names.
+const LATIN_WORDS = ["LINA", "CPU", "OCX", "Claude", "ChatGPT", "Gemini", "Grok", "Cursor"];
 const STATE_LINE = new RegExp(`^(?:${STATES.join("|")})(?: · (?:${REASONS.join("|")}))?$`);
 
 describe.each([
@@ -94,8 +94,11 @@ describe.each([
     expect(text).not.toMatch(/\b(?:ulw|research|mass|omo|quick-issue|lina-worker|kanban|worker|session)\b/i);
     expect(text).not.toMatch(/\b\d+\s*(?:h|m|s|min)\b|\d+시간(?![째 전후])/);
     for (const word of BANNED_WORDS) expect(text).not.toContain(word);
-    const names = new Set(new SyntheticSource().scene.items.agents.map((agent) => agent.name));
-    const latin = (text.match(/[A-Za-z]{2,}/g) ?? []).filter((word) => !names.has(word) && !LATIN_WORDS.includes(word));
+    const scene = new SyntheticSource().scene;
+    // Data the screen shows may be Latin: the agents' invented names and the model and machine names usage lists.
+    const names = new Set([...scene.items.agents.map((agent) => agent.name), ...scene.usage.today.byModel.map((row) => row.model ?? ""), ...scene.usage.today.byMachine.map((row) => row.machine ?? "")]);
+    const latinData = new Set([...names].flatMap((name) => name.match(/[A-Za-z]{2,}/g) ?? []));
+    const latin = (text.match(/[A-Za-z]{2,}/g) ?? []).filter((word) => !latinData.has(word) && !LATIN_WORDS.includes(word));
     expect(latin).toEqual([]);
   });
 });
@@ -129,15 +132,16 @@ describe("machines, quota and checks", () => {
   test("one quota row per service with its accounts folded under it, known services by their display names", async () => {
     const view = await open("#/status", { wide: true });
     const list = view.getByRole("list", { name: "쿼터" });
-    const services = [...list.querySelectorAll(":scope > [data-testid=row]")];
+    const services = [...list.querySelectorAll(":scope > .quota-row")];
     expect(services.map((row) => row.querySelector("summary .title")?.textContent)).toEqual(["Claude", "ChatGPT", "가온셈"]);
     const labels = services.map((row) => row.querySelector("summary")?.getAttribute("aria-label") ?? "");
-    expect(labels).toEqual(["Claude · 72% · 시간당 +10% · 2시간 후 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후", "가온셈 · 5% · 12일 후"]);
-    expect(services.map((row) => row.querySelector("summary .sub")?.textContent)).toEqual(["72% · 시간당 +10% · 2시간 후", "31% · 시간당 +1% · 2일 후", "5% · 12일 후"]);
+    expect(labels).toEqual(["Claude · 72% · 시간당 +10% · 3시간 후 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후", "가온셈 · 5% · 12일 후"]);
+    expect(services.map((row) => row.querySelector("summary .sub")?.textContent)).toEqual(["72% · 시간당 +10% · 3시간 후", "31% · 시간당 +1% · 2일 후", "5% · 12일 후"]);
     expect(services.map((row) => (row.querySelector("details") as HTMLDetailsElement).open)).toEqual([false, false, false]);
-    expect(services.map((row) => row.querySelectorAll("[data-testid=account]").length)).toEqual([2, 1, 1]);
+    expect(services.map((row) => row.querySelectorAll("[data-testid=account]").length)).toEqual([2, 1, 2]);
+    // One convention, the service row's: the percent used, never "left".
     expect(services[0].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 72% · 시간당 +10% · 3시간 후 · 주의");
-    expect(services[2].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 일시 정지 · 5% · 12일 후");
+    expect(services[2].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 5% · 12일 후");
     expect(services[0].querySelector(".rate")?.getAttribute("title")).toBe("최근 5시간 평균");
     expect(services.filter((row) => row.querySelector("summary .warn-mark"))).toHaveLength(1);
   });
@@ -164,6 +168,78 @@ describe("machines, quota and checks", () => {
     expect(view.queryByRole("list", { name: "점검" })).toBeNull();
     await waitFor(() => expect(view.getByTestId("read-failed").textContent).toBe(" · 읽기 실패: 점검"));
     expect(view.getByRole("list", { name: "쿼터" })).toBeTruthy();
+  });
+});
+
+describe("usage, OCX and the accounts' quota", () => {
+  test("the 사용량 panel sits between 쿼터 and 점검 and reads today's totals and the costliest rows", async () => {
+    const view = await open("#/status", { wide: true });
+    const sections = [...view.getByTestId("screen-status").querySelectorAll(".list-section")].map((section) => section.getAttribute("data-testid"));
+    expect(sections).toEqual(["section-machines", "section-quota", "section-usage", "section-checks"]);
+    expect(view.getByTestId("usage-total").textContent).toBe("$3.42 · 토큰 1.2만");
+    const rows = (name: string) => [...view.getByRole("list", { name }).querySelectorAll(".usage-row")].map((row) => row.textContent);
+    expect(rows("모델별")).toEqual(["haru · $1.85 · 토큰 6,200", "saeol · $1.12 · 토큰 4,200", "moru · $0.45 · 토큰 2,080"]);
+    // 기기별 names the machines exactly as the 기기 panel above it does.
+    expect(rows("기기별")).toEqual(["모래톱 · $2.05 · 토큰 7,000", "솔방울 · $1.01 · 토큰 3,800", "물레방아 · $0.36 · 토큰 1,680"]);
+    const controls = [...view.container.querySelectorAll(".usage-range .choice")].map((button) => [button.textContent, button.getAttribute("aria-pressed")]);
+    expect(controls).toEqual([["오늘", "true"], ["7일", "false"], ["30일", "false"]]);
+  });
+
+  test("the range control reads that range's own route: 7일, then 30일, then back to 오늘", async () => {
+    const view = await open("#/status", { wide: true });
+    fireEvent.click(view.getByRole("button", { name: "7일" }));
+    expect(view.getByTestId("usage-total").textContent).toBe("$18.40 · 토큰 8.6만");
+    const rows = (name: string) => [...view.getByRole("list", { name }).querySelectorAll(".usage-row")].map((row) => row.textContent);
+    expect(rows("기기별")).toEqual(["모래톱 · $11.20 · 토큰 4.9만", "솔방울 · $5.40 · 토큰 2.6만", "물레방아 · $1.80 · 토큰 1.1만"]);
+    fireEvent.click(view.getByRole("button", { name: "30일" }));
+    expect(view.getByTestId("usage-total").textContent).toBe("$63.10 · 토큰 42만");
+    expect(rows("모델별")).toEqual(["haru · $34.20 · 토큰 19만", "saeol · $19.90 · 토큰 14.8만", "moru · $9.00 · 토큰 8.2만"]);
+    fireEvent.click(view.getByRole("button", { name: "오늘" }));
+    expect(view.getByTestId("usage-total").textContent).toBe("$3.42 · 토큰 1.2만");
+  });
+
+  test("a service with no account and OCX itself are rows in the quota list, not lines under it", async () => {
+    const view = await open("#/status", { wide: true });
+    const list = view.getByRole("list", { name: "쿼터" });
+    const rows = [...list.querySelectorAll(":scope > li")].map((row) => row.querySelector(".row-body")?.getAttribute("aria-label") ?? row.querySelector("summary")?.getAttribute("aria-label"));
+    expect(rows).toEqual(["Claude · 72% · 시간당 +10% · 3시간 후 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후", "가온셈 · 5% · 12일 후", "Cursor · 계정 없음", "OCX · 모델 3개 켜짐 · 연결 끊김: 물레방아"]);
+    // Every one of them is a row of the list, with the row look: a title line and a 44 px minimum height.
+    for (const row of list.querySelectorAll(":scope > li")) expect(row.querySelector(".title")).not.toBeNull();
+    expect(view.getByTestId("quota-missing").textContent).toBe("Cursor · 계정 없음");
+    expect(view.getByTestId("ocx-line").textContent).toBe("OCX · 모델 3개 켜짐 · 연결 끊김: 물레방아");
+  });
+
+  test("an account that needs signing in again reads only that, with no rate, reset or bar; a paused one keeps its reset", async () => {
+    const view = await open("#/status", { wide: true });
+    const accounts = [...view.getByRole("list", { name: "쿼터" }).querySelectorAll("[data-testid=account]")];
+    const labels = accounts.map((row) => row.getAttribute("aria-label"));
+    expect(labels).toContain("계정 2 · 다시 로그인 필요");
+    expect(labels).toContain("계정 2 · 일시 중지 · 26일 후");
+    const reauth = accounts.find((row) => row.getAttribute("aria-label") === "계정 2 · 다시 로그인 필요") as HTMLElement;
+    expect(reauth.querySelector(".sub .warn-mark")?.textContent).toBe("다시 로그인 필요");
+    expect(reauth.querySelector(".meter")).toBeNull();
+    expect(reauth.textContent).not.toMatch(/시간당|후$/);
+    const paused = accounts.find((row) => row.getAttribute("aria-label") === "계정 2 · 일시 중지 · 26일 후") as HTMLElement;
+    expect(paused.textContent).toContain("일시 중지");
+    expect(paused.textContent).toContain("26일 후");
+    expect(paused.textContent).not.toContain("시간당");
+  });
+
+  test("the quota list does not draw at all when the quota read failed, and usage still does", async () => {
+    const view = await open("#/status", { wide: true, source: new SyntheticSource({ sourceError: true }) });
+    expect(view.queryByRole("list", { name: "쿼터" })).toBeNull();
+    await waitFor(() => expect(view.getByTestId("read-failed").textContent).toContain("읽기 실패: 쿼터"));
+    expect(view.getByTestId("usage-total").textContent).toBe("$3.42 · 토큰 1.2만");
+  });
+
+  test("OCX's row names the machine whose link is down, and leaves links out when all are fine", async () => {
+    const view = await open("#/status", { wide: true });
+    expect(view.getByTestId("ocx-line").textContent).toBe("OCX · 모델 3개 켜짐 · 연결 끊김: 물레방아");
+    view.unmount();
+    const base = new SyntheticSource().scene;
+    const allOk = { ...base, modelsState: { ...base.modelsState, machines: base.modelsState.machines.map((link) => ({ ...link, ok: true, state: "connected" })) } };
+    const other = await open("#/status", { wide: true, source: new SyntheticSource({ scene: allOk }) });
+    expect(other.getByTestId("ocx-line").textContent).toBe("OCX · 모델 3개 켜짐");
   });
 });
 

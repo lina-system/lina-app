@@ -19,6 +19,8 @@ function model(input: Scene) {
       inbox: input.inbox,
       devices: input.devices,
       quota: input.quota,
+      usage: input.usage,
+      modelsState: input.modelsState,
       checks: input.checks,
       cardDetails: input.cardDetails,
       failed: [],
@@ -93,7 +95,7 @@ test("the scene holds what every screen needs", () => {
 
   expect(scene.devices.machines.map((machine) => machine.state).sort()).toEqual(["down", "ok", "warn"]);
   expect(scene.quota.quota).toHaveLength(3);
-  expect(scene.quota.quota.map((service) => service.accounts.length)).toEqual([2, 1, 1]);
+  expect(scene.quota.quota.map((service) => service.accounts.length)).toEqual([2, 1, 2]);
   // The core's rule: a window warns when its rate reaches 100% before it resets; an account warns when a window does.
   for (const account of scene.quota.quota.flatMap((service) => service.accounts)) {
     for (const window of account.windows) {
@@ -103,6 +105,28 @@ test("the scene holds what every screen needs", () => {
     expect(account.warn).toBe(account.windows.some((window) => window.warn));
   }
   expect(scene.quota.quota.filter((service) => service.accounts.some((account) => account.warn))).toHaveLength(1);
+  const accounts = scene.quota.quota.flatMap((service) => service.accounts);
+  for (const window of accounts.flatMap((account) => account.windows)) expect(window.left).toBe(Math.min(100, Math.max(0, 100 - window.percent)));
+  // One account needs signing in again, one is paused, and OCX holds no account for one service (lina#232). An account
+  // that must be signed in again holds no window, so none of its numbers can be stale.
+  expect(accounts.filter((account) => account.state === "reauth").map((account) => [account.windows.length, account.mainWindow])).toEqual([[0, null]]);
+  expect(accounts.filter((account) => account.state === "paused").map((account) => account.paused)).toEqual([true]);
+  expect(scene.quota.missing).toEqual(["Cursor"]);
+
+  // Usage (lina#232): one view per control, its lists adding up to its own totals.
+  expect(Object.keys(scene.usage)).toEqual(["today", "7d", "30d"]);
+  for (const view of Object.values(scene.usage)) {
+    const tokens = (rows: typeof view.byModel) => rows.reduce((total, row) => total + row.tokens.total, 0);
+    const cost = (rows: typeof view.byModel) => rows.reduce((total, row) => total + (row.costUsd ?? 0), 0);
+    for (const rows of [view.byModel, view.byProvider, view.byMachine]) {
+      expect(tokens(rows)).toBe(view.tokens.total);
+      expect(cost(rows)).toBeCloseTo(view.costUsd ?? 0, 6);
+    }
+    expect(view.byModel).toHaveLength(3);
+    expect(view.byMachine).toHaveLength(3);
+  }
+  expect(scene.modelsState.enabled).toBe(SCENE_COUNTS.modelsEnabled);
+  expect(scene.modelsState.machines.map((link) => link.ok)).toEqual([true, false]);
 
   expect(scene.checks.checks).toHaveLength(SCENE_COUNTS.checks);
   expect(scene.checks.checks.filter((check) => check.state === "ok")).toHaveLength(SCENE_COUNTS.checksOk);
@@ -137,6 +161,43 @@ test("the model's counts on the scene are the numbers doctor and the drivers exp
   expect(model(scene).running.rows).toHaveLength(SCENE_COUNTS.running + SCENE_COUNTS.stopped);
   expect(model(scene).checks).toMatchObject({ ok: SCENE_COUNTS.checksOk, total: SCENE_COUNTS.checks });
   expect(model(scene).checks.open).toHaveLength(SCENE_COUNTS.checksOpen);
+  expect(model(scene).usage.map((view) => view.range)).toEqual(["today", "7d", "30d"]);
+  expect(model(scene).quotaMissing).toEqual(["Cursor"]);
+  expect(model(scene).ocx).toEqual({ enabled: SCENE_COUNTS.modelsEnabled, down: [scene.devices.machines.find((machine) => machine.state === "down")?.name] });
+});
+
+// The core's rule (lina_board_quota.quota_view): a service row's percent and rate are the mean over the accounts that
+// are not paused and have a main window, and its reset and warning come from those same accounts.
+test("every service row equals the mean over the accounts that are not paused and have a main window", () => {
+  const main = (account: (typeof scene.quota.quota)[number]["accounts"][number]) => account.windows.find((window) => window.key === account.mainWindow);
+  const mean = (values: readonly number[]) => (values.length ? values.reduce((total, value) => total + value, 0) / values.length : null);
+  const resetsOf = (accounts: readonly (typeof scene.quota.quota)[number]["accounts"][number][]) =>
+    accounts.flatMap((account) => {
+      const reset = main(account)?.resetAt ?? null;
+      return reset === null ? [] : [reset];
+    });
+  for (const service of scene.quota.quota) {
+    const live = service.accounts.filter((account) => !account.paused && main(account) !== undefined);
+    // A service whose every account is paused or signed out would draw a row with no numbers at all.
+    expect(live.length).toBeGreaterThan(0);
+    expect({ service: service.service, percent: service.percent }).toEqual({ service: service.service, percent: mean(live.map((account) => main(account)?.percent ?? 0)) });
+    const rates = live.map((account) => main(account)?.ratePerHour ?? null).filter((rate): rate is number => rate !== null);
+    expect({ service: service.service, rate: service.ratePerHour }).toEqual({ service: service.service, rate: mean(rates) });
+    // The row's reset is the nearest of the live windows: a paused account's later reset never wins it.
+    const paused = resetsOf(service.accounts.filter((account) => account.paused));
+    if (paused.length) expect(Math.min(...resetsOf(live))).toBeLessThan(Math.min(...paused));
+  }
+});
+
+// One machine, one name: the 기기 panel, OCX's links and usage's 기기별 all name the same three machines.
+test("usage and OCX's links name the machines the 기기 panel names", () => {
+  const names = scene.devices.machines.map((machine) => machine.name);
+  const down = scene.devices.machines.filter((machine) => machine.state === "down").map((machine) => machine.name);
+  for (const view of Object.values(scene.usage)) {
+    expect(view.byMachine.map((row) => row.machine).sort()).toEqual([...names].sort());
+  }
+  for (const link of scene.modelsState.machines) expect(names).toContain(link.machine);
+  expect(scene.modelsState.machines.filter((link) => !link.ok).map((link) => link.machine)).toEqual(down);
 });
 
 test("names are invented and titles are Korean", () => {

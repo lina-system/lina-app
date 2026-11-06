@@ -1104,22 +1104,22 @@ const drivers = {
       return line;
     });
     await step("read the machines", async () => {
-      const names = await page.getByRole("list", { name: "기기" }).locator(".row-body").evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
+      const names = await page.getByRole("list", { name: "기기", exact: true }).locator(".row-body").evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
       check(names.length === 3, "expected 3 machines");
       const meters = "CPU (\\d+%|—) · 메모리 (\\d+%|—) · 디스크 (\\d+%|—) · 작업 (\\d+|—)/\\d+$";
       check(names.some((name) => new RegExp(" · 정상 · " + meters).test(name)), "no 정상 machine with its meters: " + names.join(" | "));
       check(names.some((name) => new RegExp(" · 경고 · 디스크 · " + meters).test(name)), "no 경고 machine with its reason word: " + names.join(" | "));
       check(names.some((name) => / · 꺼짐 · 연결 끊김 · CPU — · 메모리 — · 디스크 — · 작업 —\/\d+$/.test(name)), "no 꺼짐 machine reading 연결 끊김 and — meters: " + names.join(" | "));
-      const colours = await page.getByRole("list", { name: "기기" }).locator(".machine-state").evaluateAll((words) => words.map((word) => word.textContent + "=" + getComputedStyle(word).color));
+      const colours = await page.getByRole("list", { name: "기기", exact: true }).locator(".machine-state").evaluateAll((words) => words.map((word) => word.textContent + "=" + getComputedStyle(word).color));
       check(colours.includes("경고=rgb(255, 149, 0)") && colours.includes("꺼짐=rgb(255, 59, 48)"), "state colours " + colours.join(", "));
-      const bars = await page.getByRole("list", { name: "기기" }).locator(".mini-meter .meter").count();
+      const bars = await page.getByRole("list", { name: "기기", exact: true }).locator(".mini-meter .meter").count();
       check(bars === 6, "expected 6 thin bars on the two machines that report, got " + bars);
-      const loads = await page.getByRole("list", { name: "기기" }).locator(".trail").allInnerTexts();
+      const loads = await page.getByRole("list", { name: "기기", exact: true }).locator(".trail").allInnerTexts();
       check(loads.every((text) => /^작업 (\d+|—)\/\d+$/.test(text)), "loads read " + loads.join(", "));
       return names.join(" | ");
     });
-    await step("read the quota and unfold a service", async () => {
-      const list = page.getByRole("list", { name: "쿼터" });
+    await step("read the quota: service rows, then the service OCX has no account for and OCX itself as rows", async () => {
+      const list = page.getByRole("list", { name: "쿼터", exact: true });
       const names = await list.locator("summary").evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
       check(names.length === 3, "expected 3 services, got " + names.length);
       check(names[0].startsWith("Claude · ") && names[1].startsWith("ChatGPT · ") && names[2].startsWith("가온셈 · "), "service names " + names.join(" | "));
@@ -1130,24 +1130,81 @@ const drivers = {
       const warn = await list.locator("summary .warn-mark").evaluate((mark) => getComputedStyle(mark).color);
       check(warn === "rgb(255, 59, 48)", "주의 is drawn " + warn);
       check(!(await list.getByTestId("account").first().isVisible()), "accounts are not folded");
+      // The last two rows of the same list, with the service rows' look: the service with no account, then OCX itself.
+      const plain = await list.locator(":scope > li:not(.quota-row) .row-body").evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
+      check(JSON.stringify(plain) === JSON.stringify(["Cursor · 계정 없음", "OCX · 모델 3개 켜짐 · 연결 끊김: 물레방아"]), "the quota list's last rows read " + JSON.stringify(plain));
+      const insets = await list.evaluate((element) => {
+        const box = (body) => {
+          const rect = body.getBoundingClientRect();
+          return [Math.round(rect.left), Math.round(rect.right), Math.round(rect.height)];
+        };
+        const service = box(element.querySelector(":scope > .quota-row .row-body"));
+        return [...element.querySelectorAll(":scope > li:not(.quota-row) .row-body")].map((body) => {
+          const [left, right, height] = box(body);
+          return { left, right, height, service };
+        });
+      });
+      for (const row of insets) check(row.left === row.service[0] && row.right === row.service[1], "a last row is inset " + row.left + "-" + row.right + " px, the service rows " + row.service[0] + "-" + row.service[1]);
+      if (page.viewportSize().width < 900) for (const row of insets) check(row.height >= HIT, "a last row is " + row.height + " px tall on a phone");
       await list.locator("summary").first().click();
-      const accounts = await list.getByTestId("account").evaluateAll((rows) => rows.filter((row) => row.checkVisibility()).map((row) => row.getAttribute("aria-label")));
-      check(accounts.length === 2 && accounts.every((name) => /^계정 \d · \d+% · 시간당 \+\d+% · \d+(분|시간|일) 후( · 주의)?$/.test(name)), "Claude's accounts read " + accounts.join(" | "));
-      return names.join(" | ") + "; Claude: " + accounts.join(" | ");
+      const accounts = await list.getByTestId("account").evaluateAll((rows) => rows.filter((row) => row.checkVisibility()).map((row) => ({ name: row.getAttribute("aria-label"), bar: Boolean(row.querySelector(".meter")), word: row.querySelector(".sub .warn-mark")?.textContent ?? null, colour: row.querySelector(".sub .warn-mark") ? getComputedStyle(row.querySelector(".sub .warn-mark")).color : null })));
+      // The service row's percent, never "left": one convention in the panel.
+      check(accounts.length === 2 && /^계정 1 · \d+% · 시간당 \+\d+% · \d+(분|시간|일) 후(?: · 주의)?$/.test(accounts[0].name), "Claude's live account reads " + accounts[0].name);
+      check(!accounts[0].name.includes("남음"), "the account still reads what is left: " + accounts[0].name);
+      // OCX cannot read this one, so it says only that: no rate, no reset and no bar, in the warning colour.
+      check(accounts[1].name === "계정 2 · 다시 로그인 필요" && accounts[1].word === "다시 로그인 필요" && accounts[1].colour === "rgb(255, 59, 48)" && !accounts[1].bar, "the account to sign in again reads " + JSON.stringify(accounts[1]));
+      // A paused account keeps its reset, drops its rate and its bar stays only about the window.
+      await list.locator("summary").nth(2).click();
+      const paused = await list.getByTestId("account").evaluateAll((rows) => rows.filter((row) => row.checkVisibility()).map((row) => ({ name: row.getAttribute("aria-label"), rate: row.textContent.includes("시간당") })));
+      const pausedRow = paused.find((row) => row.name.includes("일시 중지"));
+      check(pausedRow && /^계정 \d · 일시 중지 · \d+(분|시간|일) 후$/.test(pausedRow.name) && !pausedRow.rate, "the paused account reads " + JSON.stringify(pausedRow));
+      return names.join(" | ") + "; " + plain.join(" | ") + "; Claude: " + accounts.map((row) => row.name).join(" | ") + "; " + pausedRow.name;
     });
-    await step("주의 follows the rule, resets read hours under a day and days over, no rate means no rate part", async () => {
-      const rows = await page.getByRole("list", { name: "쿼터", exact: true }).locator(":scope > li").evaluateAll((items) => items.map((item) => ({ name: item.querySelector("summary .title").textContent, sub: item.querySelector("summary .sub").textContent, warn: Boolean(item.querySelector("summary .warn-mark")) })));
+    await step("주의 follows the rule over the accounts that are not paused, resets read hours under a day and days over, no rate means no rate part", async () => {
+      const rows = await page.getByRole("list", { name: "쿼터", exact: true }).locator(":scope > .quota-row").evaluateAll((items) => items.map((item) => ({ name: item.querySelector("summary .title").textContent, sub: item.querySelector("summary .sub").textContent, warn: Boolean(item.querySelector("summary .warn-mark")) })));
       const scene = await page.evaluate(() => ({ at: Date.now() / 1000, quota: window.__linaScene.quota.quota }));
+      const main = (account) => account.windows.find((w) => w.key === account.mainWindow);
       for (const [index, service] of scene.quota.entries()) {
-        const reaches = service.accounts.some((account) => account.windows.some((w) => w.ratePerHour !== null && w.percent + (w.ratePerHour * (w.resetAt - scene.at)) / 3600 >= 100));
+        const live = service.accounts.filter((account) => !account.paused && main(account));
+        const reaches = live.some((account) => main(account).ratePerHour !== null && main(account).percent + (main(account).ratePerHour * (main(account).resetAt - scene.at)) / 3600 >= 100);
         check(reaches === rows[index].warn, rows[index].name + " shows 주의=" + rows[index].warn + " but its rate reaches 100% before reset=" + reaches);
-        const reset = Math.min(...service.accounts.map((account) => (account.windows.find((w) => w.key === account.mainWindow) ?? account.windows[0]).resetAt)) - scene.at;
+        const reset = Math.min(...live.map((account) => main(account).resetAt)) - scene.at;
         const word = rows[index].sub.split(" · ").at(-1);
         check(reset < 86400 ? /^\d+시간 후$/.test(word) : /^\d+일 후$/.test(word), rows[index].name + " resets in " + Math.round(reset) + " s but reads " + word);
         check(!/ · {2}| · $|^ · | ·  · /.test(rows[index].sub) && rows[index].sub.split(" · ").every(Boolean), rows[index].name + " has a gap: " + rows[index].sub);
         if (service.ratePerHour === null) check(!rows[index].sub.includes("시간당"), rows[index].name + " has no rate but reads " + rows[index].sub);
       }
       return rows.map((row) => row.name + ": " + row.sub + (row.warn ? " · 주의" : "")).join(" | ");
+    });
+    await step("read usage for today, then switch to 7 days and 30 days", async () => {
+      const panel = page.getByTestId("section-usage");
+      const total = async () => (await panel.getByTestId("usage-total").innerText()).trim();
+      const rows = async (name) => (await panel.getByRole("list", { name }).locator(".usage-row").allInnerTexts()).map((text) => text.trim());
+      // 기기별 names the machines exactly as the 기기 panel above it does: one machine, one name on the screen.
+      const machinesAbove = (await page.getByRole("list", { name: "기기", exact: true }).locator(".row-body .title").allInnerTexts()).map((text) => text.trim());
+      check(JSON.stringify(await rows("기기별")) === JSON.stringify(["모래톱 · $2.05 · 토큰 7,000", "솔방울 · $1.01 · 토큰 3,800", "물레방아 · $0.36 · 토큰 1,680"]), "today's machines read " + JSON.stringify(await rows("기기별")));
+      check((await rows("기기별")).every((row) => machinesAbove.includes(row.split(" · ")[0])), "기기별 names a machine the 기기 panel does not: " + machinesAbove.join(", "));
+      check((await total()) === "$3.42 · 토큰 1.2만", "today's total reads " + (await total()));
+      check(JSON.stringify(await rows("모델별")) === JSON.stringify(["haru · $1.85 · 토큰 6,200", "saeol · $1.12 · 토큰 4,200", "moru · $0.45 · 토큰 2,080"]), "today's models read " + JSON.stringify(await rows("모델별")));
+      await panel.getByRole("button", { name: "7일" }).click();
+      check((await panel.getByRole("button", { name: "7일" }).getAttribute("aria-pressed")) === "true", "7일 is not pressed");
+      check((await total()) === "$18.40 · 토큰 8.6만", "7 days' total reads " + (await total()));
+      check(JSON.stringify(await rows("기기별")) === JSON.stringify(["모래톱 · $11.20 · 토큰 4.9만", "솔방울 · $5.40 · 토큰 2.6만", "물레방아 · $1.80 · 토큰 1.1만"]), "7 days' machines read " + JSON.stringify(await rows("기기별")));
+      await panel.getByRole("button", { name: "30일" }).click();
+      check((await total()) === "$63.10 · 토큰 42만", "30 days' total reads " + (await total()));
+      check(JSON.stringify(await rows("모델별")) === JSON.stringify(["haru · $34.20 · 토큰 19만", "saeol · $19.90 · 토큰 14.8만", "moru · $9.00 · 토큰 8.2만"]), "30 days' models read " + JSON.stringify(await rows("모델별")));
+      await panel.getByRole("button", { name: "오늘" }).click();
+      check((await total()) === "$3.42 · 토큰 1.2만", "today's total after switching back reads " + (await total()));
+      // Phone rules (features/phone.md): each range control is a 44 pt tap target and no line is under 13 px.
+      let phone = "";
+      if (page.viewportSize().width < 900) {
+        const heights = await panel.locator(".usage-range .choice").evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().height));
+        check(heights.every((height) => height >= HIT), "range controls are " + heights.map(Math.round).join(", ") + " px tall on a phone");
+        const sizes = await panel.locator(".usage-head, .usage-total, .usage-row .title").evaluateAll((items) => items.map((item) => parseFloat(getComputedStyle(item).fontSize)));
+        check(sizes.every((size) => size >= MIN_TEXT), "usage text draws at " + sizes.join(", ") + " px on a phone");
+        phone = "; controls " + Math.round(Math.min(...heights)) + " px, text " + Math.min(...sizes) + " px";
+      }
+      return "오늘 $3.42 · 토큰 1.2만; 7일 $18.40 · 토큰 8.6만; 30일 $63.10 · 토큰 42만" + phone;
     });
     await step("read the checks", async () => {
       const list = page.getByRole("list", { name: "점검" });
@@ -1166,7 +1223,7 @@ const drivers = {
       check(rows[1]?.text === "대기 봇 · 소식이 끊김" && rows[1].state === "오래됨" && rows[1].time === "3시간 전" && rows[1].colour === "rgb(255, 149, 0)", "second open check " + JSON.stringify(rows[1]));
       for (const row of rows) check(!row.checkRow, row.text + " carries the to-do row's check-row class");
       // The same row layout as 기기: the trail (state word over time) ends at the row's right edge, not after the title.
-      const machineEdge = await page.getByRole("list", { name: "기기" }).locator(".machine-row .trail").first().evaluate((item) => item.getBoundingClientRect().right);
+      const machineEdge = await page.getByRole("list", { name: "기기", exact: true }).locator(".machine-row .trail").first().evaluate((item) => item.getBoundingClientRect().right);
       for (const row of rows) check(Math.abs(row.trail - machineEdge) <= 2, row.text + " has its trail at " + Math.round(row.trail) + " px, the 기기 rows' at " + Math.round(machineEdge) + " px");
       const folded = (await list.locator(".status-check-fold").innerText()).trim();
       check(folded === "정상 3", "the passing checks read " + folded);

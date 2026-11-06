@@ -2,7 +2,7 @@
  * Every fixed string the screens show, in one place: the shared term table.
  * Components never hold their own screen text; they read it from here.
  */
-import type { WorkState } from "./api/client";
+import type { UsageRange, WorkState } from "./api/client";
 
 export const STATE_WORD: Record<WorkState, string> = {
   planned: "예정",
@@ -42,6 +42,30 @@ export function stateLabel(state: WorkState, reason?: string | null): string {
 export const SEP = " · ";
 const NONE = "—";
 export const CRUMB = " › ";
+
+/** A count in grouped digits, for tokens under 만. */
+function grouped(count: number): string {
+  return String(Math.round(count)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+/** Tokens as `1.2만` or `3.4억` from ten thousand up, grouped digits under that. */
+function tokenCount(count: number): string {
+  const value = Number.isFinite(count) ? Math.max(0, Math.round(count)) : 0;
+  const scaled = (unit: number) => {
+    const amount = Math.round((value / unit) * 10) / 10;
+    return Number.isInteger(amount) ? String(amount) : amount.toFixed(1);
+  };
+  if (value >= 1e8) return `${scaled(1e8)}억`;
+  if (value >= 1e4) return `${scaled(1e4)}만`;
+  return grouped(value);
+}
+
+/** An estimated cost as `$3.42` under $100 and a whole `$128` from $100 up; `—` when OCX priced none of it. */
+function costValue(usd: number | null): string {
+  if (usd === null || !Number.isFinite(usd)) return NONE;
+  const rounded = Math.round(usd * 100) / 100;
+  return rounded >= 100 ? `$${Math.round(rounded)}` : `$${rounded.toFixed(2)}`;
+}
 
 export const W = {
   app: "LINA",
@@ -98,8 +122,22 @@ export const W = {
   rateTitle: "최근 5시간 평균",
   quotaWarn: "주의",
   quotaAccount: (n: number) => `계정 ${n}`,
-  quotaPaused: "일시 정지",
+  quotaPaused: "일시 중지",
+  quotaReauth: "다시 로그인 필요",
   quotaUnavailable: "사용 불가",
+  quotaMissing: (service: string) => `${service}${SEP}계정 없음`,
+
+  usage: "사용량",
+  usageRange: { today: "오늘", "7d": "7일", "30d": "30일" } as Readonly<Record<UsageRange, string>>,
+  usageByModel: "모델별",
+  usageByMachine: "기기별",
+  usageTotal: (cost: string, tokens: string) => `${cost}${SEP}토큰 ${tokens}`,
+  usageLine: (name: string, cost: string, tokens: string) => `${name}${SEP}${cost}${SEP}토큰 ${tokens}`,
+  cost: costValue,
+  tokens: tokenCount,
+
+  /** OCX's own row last in the quota list: the models on, then only the links that are down. */
+  ocxLine: (enabled: number, down: readonly string[]) => [`OCX`, `모델 ${enabled}개 켜짐`, ...(down.length ? [`연결 끊김: ${down.join(", ")}`] : [])].join(SEP),
 
   checks: "점검",
   checksEmpty: "점검 없음",
@@ -224,6 +262,8 @@ export const SOURCE_WORD: Readonly<Record<string, string>> = {
   devices: "기기",
   metrics: "기기 상태",
   quota: "쿼터",
+  usage: "사용량",
+  modelsState: "모델",
   checks: "점검",
   board: "현황",
   items: "목표",

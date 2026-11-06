@@ -20,6 +20,8 @@ test("reads each route on its schema's server url with the session token and the
   await source.read("board");
   await source.read("item", "a b");
   await source.read("checks");
+  await source.read("usage", "7d");
+  await source.read("modelsState");
 
   expect(calls.map((call) => call.url)).toEqual([
     "/core/api/plugins/kanban/work/goals",
@@ -27,6 +29,8 @@ test("reads each route on its schema's server url with the session token and the
     "/core/api/lina/board",
     "/core/api/lina/work/items/a%20b",
     "/core/api/lina/status/checks",
+    "/core/api/lina/usage?range=7d",
+    "/core/api/lina/models/state",
   ]);
   expect(calls[0].headers["X-Hermes-Session-Token"]).toBe("token-a");
   expect(calls[0].headers["If-None-Match"]).toBeUndefined();
@@ -60,7 +64,7 @@ test("&error=checks fails the checks read and leaves the other slow routes answe
   expect((await source.read("quota")).kind).toBe("data");
 });
 
-test("machines, quota and checks are read on the same refresh, at most once a minute", async () => {
+test("machines, quota, usage, OCX's state and checks are read on the same refresh, at most once a minute", async () => {
   vi.useFakeTimers({ toFake: ["Date"] });
   try {
     const reads: string[] = [];
@@ -75,19 +79,22 @@ test("machines, quota and checks are read on the same refresh, at most once a mi
       },
     });
     const store = new Store(source);
-    const slow = () => ["devices", "quota", "checks"].map((route) => reads.filter((name) => name === route).length);
+    // Usage is one route per range, so the three reads share the route name.
+    const slow = () => ["devices", "quota", "usage", "modelsState", "checks"].map((route) => reads.filter((name) => name === route).length);
     await store.refresh();
-    expect(slow()).toEqual([1, 1, 1]);
+    expect(slow()).toEqual([1, 1, 3, 1, 1]);
     expect(store.get("checks")?.checks).toHaveLength(SCENE_COUNTS.checks);
+    expect(store.input().usage).toMatchObject({ today: { range: "today" }, "7d": { range: "7d" }, "30d": { range: "30d" } });
+    expect(store.input().modelsState?.enabled).toBe(SCENE_COUNTS.modelsEnabled);
     for (let tick = 1; tick <= 5; tick += 1) {
       vi.advanceTimersByTime(10_000);
       await store.refresh();
     }
-    expect(slow()).toEqual([1, 1, 1]);
+    expect(slow()).toEqual([1, 1, 3, 1, 1]);
     expect(reads.filter((name) => name === "board")).toHaveLength(6);
     vi.advanceTimersByTime(10_000);
     await store.refresh();
-    expect(slow()).toEqual([2, 2, 2]);
+    expect(slow()).toEqual([2, 2, 6, 2, 2]);
   } finally {
     vi.useRealTimers();
   }

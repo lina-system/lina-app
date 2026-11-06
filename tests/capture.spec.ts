@@ -1,5 +1,5 @@
 import { mkdirSync } from "node:fs";
-import { expect, test, type Page } from "@playwright/test";
+import { chromium, expect, test, type Page } from "@playwright/test";
 import { TALK_FRAME_MS } from "../src/data/synthetic-source";
 
 // Every screen on the synthetic scene, at 1280 (light and dark) and 390. The app is served under /app/
@@ -219,9 +219,9 @@ const PUSH_ROWS: readonly { id: string; query?: string; userAgent?: string; gran
 ];
 
 test.describe("push row", () => {
-  test.use({ channel: "chromium" });
   for (const row of PUSH_ROWS) {
-    test(`capture push-row-${row.id}`, async ({ browser }, testInfo) => {
+    test(`capture push-row-${row.id}`, async ({}, testInfo) => {
+      const browser = await chromium.launch({ channel: "chromium" });
       const { viewport, colorScheme, hasTouch, isMobile, locale, baseURL } = testInfo.project.use;
       const context = await browser.newContext({ viewport, colorScheme, hasTouch, isMobile, locale, baseURL, deviceScaleFactor: 1, ...(row.userAgent ? { userAgent: row.userAgent } : {}), ...(row.granted ? { permissions: ["notifications"] } : {}) });
       const page = await context.newPage();
@@ -235,7 +235,7 @@ test.describe("push row", () => {
       await expect(shown).toHaveAttribute("data-state", row.id);
       await page.getByTestId("notices").evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
       await page.screenshot({ path: `captures/push-row-${row.id}-${suffix(testInfo.project.name)}.png`, fullPage: true, animations: "disabled" });
-      await context.close();
+      await browser.close();
     });
   }
 });

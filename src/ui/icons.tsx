@@ -51,6 +51,20 @@ export const DeviceIcon = () => (
   </Icon>
 );
 
+export const GearIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M6 18l1.6-1.6M16.4 7.6 18 6" />
+    <circle cx="12" cy="12" r="6.3" />
+  </Icon>
+);
+
+export const CheckIcon = () => (
+  <Icon size={18}>
+    <path d="m5.5 12.5 4 4 9-9" />
+  </Icon>
+);
+
 export const BellIcon = () => (
   <Icon>
     <path d="M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 1.5H5z" />

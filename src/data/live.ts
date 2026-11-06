@@ -1,4 +1,4 @@
-import type { ChangeEvent, ChangeMessage } from "../api/client";
+import { SETTINGS_HISTORY, type ChangeEvent, type ChangeMessage } from "../api/client";
 import type { ChangeSocket } from "./source";
 import type { Store, Want } from "./store";
 
@@ -12,9 +12,16 @@ export function backoffMs(attempt: number, random: () => number): number {
   return Math.round(cap * (0.5 + random() / 2));
 }
 
+/** The settings and their history (each limit only when a screen read it): a settings event, and the page shown again. */
+export const SETTINGS_ROUTES: Want = [["settings"], ["settingsHistory", SETTINGS_HISTORY.recent], ["settingsHistory", SETTINGS_HISTORY.all]];
+
+/** A new revision of the settings, written here or elsewhere: the settings, their history and the model list, whose warnings follow the settings. */
+export const SETTINGS_REVISED: Want = [...SETTINGS_ROUTES, ["settingsModels"]];
+
 /**
  * The routes one change touches. work: the record's to-dos and goals (board, items, the item); worker: a worker run
- * (board, and the cards that list it); kanban: a work card or goal card (cards, goals, inbox, the card, the goal).
+ * (board, and the cards that list it); kanban: a work card or goal card (cards, goals, inbox, the card, the goal);
+ * settings: a new revision of the work settings (the settings, their history and the model list).
  */
 export function routesFor(events: readonly ChangeEvent[], store: Pick<Store, "cardsWithRun">): Want {
   const routes: (readonly [Parameters<Store["get"]>[0], string?])[] = [];
@@ -29,6 +36,9 @@ export function routesFor(events: readonly ChangeEvent[], store: Pick<Store, "ca
         break;
       case "kanban":
         routes.push(["cards"], ["goals"], ["inbox"], ["card", event.id], ["goal", event.id]);
+        break;
+      case "settings":
+        routes.push(...SETTINGS_REVISED);
         break;
     }
   }
@@ -74,8 +84,14 @@ export class Live {
   /** Reads every snapshot and opens the stream; the returned function closes it for good. */
   start(): () => void {
     const onVisibility = () => {
-      if (this.host.document.visibilityState === "hidden") this.pause();
-      else this.resume();
+      if (this.host.document.visibilityState === "hidden") {
+        this.pause();
+        return;
+      }
+      // The core turns an edit made outside the app into a revision only when the settings are read: a page that read
+      // them reads them again when it is shown.
+      if (this.store.status("settings") !== "pending") void this.store.invalidate(SETTINGS_ROUTES);
+      this.resume();
     };
     const onResume = () => this.resume();
     this.host.document.addEventListener("visibilitychange", onVisibility);

@@ -1765,7 +1765,8 @@ html:has(.stack) body {
 
 /* Phone: no grey tap flash, no double-tap zoom delay, no text selection or callout on chrome and rows. */
 .stack,
-.stack ~ .toast-slot {
+.stack ~ .toast-slot,
+.stack ~ .settings-sheet {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   -webkit-user-select: none;
@@ -1775,6 +1776,7 @@ html:has(.stack) body {
 
 /* touch-action is not inherited: set it on every control and on each scroller between it and the page. */
 .stack :is(a, button, summary, input, textarea, [role="checkbox"]),
+.stack ~ .settings-sheet button,
 .stack .phone-main,
 .stack .popover {
   touch-action: manipulation;
@@ -1932,3 +1934,373 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   }
 }
 
+/* 설정: inset grouped rows on both widths, like the system's Settings. Each control saves as it changes. */
+
+.settings-group + .settings-group,
+.settings-warnings + .settings-group,
+.settings-note + .settings-group {
+  margin-top: 22px;
+}
+
+.settings .rows {
+  background: var(--bg);
+  border-radius: 10px;
+  margin-left: var(--inset);
+  margin-right: var(--inset);
+}
+
+.split .settings .rows {
+  border: var(--line) solid var(--separator);
+}
+
+.settings .rows .row > a,
+.settings .rows .row > .row-body,
+.settings .rows .row > .row-button {
+  min-height: var(--row);
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.settings .row > .write-error {
+  padding: 0 12px 8px;
+}
+
+.settings > .write-error,
+.settings-group > .write-error {
+  padding: 0 calc(var(--inset) + 12px);
+}
+
+.settings-head {
+  align-items: center;
+  padding: 0 calc(var(--inset) + 12px) 6px;
+}
+
+.settings-subgroup + .settings-subgroup {
+  margin-top: 14px;
+}
+
+.settings-subhead {
+  padding: 0 calc(var(--inset) + 12px) 4px;
+  font-size: var(--text-small);
+  font-weight: 400;
+  color: var(--label-2);
+}
+
+.settings-edit {
+  margin: -12px 0 -12px auto;
+  font-size: var(--text-small);
+}
+
+.settings-value {
+  flex: none;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--label-2);
+}
+
+.settings-value.is-red {
+  color: var(--red);
+}
+
+.settings-value.is-grey {
+  color: var(--label-2);
+}
+
+.settings-foot {
+  margin-top: 6px;
+  padding: 0 calc(var(--inset) + 12px);
+  font-size: var(--text-small);
+  color: var(--label-2);
+}
+
+.settings-rev {
+  margin-top: 18px;
+  text-align: center;
+}
+
+.settings-note {
+  margin: 0 calc(var(--inset) + 12px) 12px;
+  font-size: var(--text-small);
+  color: var(--label-2);
+}
+
+.settings-warnings {
+  display: grid;
+  gap: 4px;
+  margin: 0 calc(var(--inset) + 12px) 16px;
+}
+
+.settings-warning {
+  font-size: var(--text-small);
+  color: var(--orange);
+}
+
+/* A row with a control after its text: a switch, a stepper, a rule's buttons; the error line wraps under it. */
+.settings .row.has-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.settings .row.has-control > a,
+.settings .row.has-control > .row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--hit, 38px);
+  min-height: var(--hit, 38px);
+  /* The 38 px switch sits centred in its hit area: this puts its edge on the rows' 12 px padding. */
+  margin-right: calc(12px - (var(--hit, 38px) - 38px) / 2);
+}
+
+.settings-switch[aria-checked="true"] .switch {
+  background: var(--accent);
+}
+
+.settings-switch[aria-checked="true"] .switch::after {
+  transform: translateX(16px);
+}
+
+.settings-switch:disabled,
+.settings .stepper button:disabled,
+.settings-choice:disabled,
+.settings-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* A switch that cannot change loses its colour too, so on reads as a grey state rather than a dim green one. */
+.settings-switch:disabled .switch {
+  filter: grayscale(1);
+}
+
+.settings-switch:disabled .switch::after {
+  box-shadow: none;
+}
+
+.settings .stepper:has(button:disabled + button:disabled) {
+  opacity: 0.5;
+}
+
+.settings-choice {
+  color: var(--label);
+}
+
+.settings-check {
+  display: inline-flex;
+  flex: none;
+  width: 20px;
+  color: var(--accent);
+}
+
+.stepper {
+  display: inline-flex;
+  margin-right: 8px;
+  border-radius: 8px;
+  background: var(--fill);
+}
+
+.stepper button {
+  min-width: var(--hit, 32px);
+  min-height: 32px;
+  font-size: var(--text-body);
+  font-weight: 600;
+  color: var(--label);
+}
+
+.stepper button + button {
+  border-left: var(--line) solid var(--separator);
+}
+
+.settings-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: var(--hit, 32px);
+  min-height: var(--hit, 32px);
+  margin-left: 2px;
+}
+
+.settings-remove > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--red);
+  color: #ffffff;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.settings .row.has-control > .settings-remove + .row-body {
+  padding-left: 0;
+}
+
+.settings-moves {
+  display: inline-flex;
+  margin-right: 4px;
+}
+
+.settings-move {
+  min-width: var(--hit, 32px);
+  min-height: var(--hit, 32px);
+  color: var(--accent);
+  font-size: var(--text-body);
+}
+
+.settings-move:disabled {
+  color: var(--label-3);
+}
+
+.settings-argv {
+  font-size: var(--text-small);
+  color: var(--label-2);
+  overflow-wrap: anywhere;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.settings-danger {
+  justify-content: center;
+  color: var(--red);
+  font-size: var(--text-body);
+}
+
+.settings-field {
+  padding: 4px 12px;
+}
+
+.settings-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.settings .note.is-inline input:disabled {
+  opacity: 0.5;
+  background: var(--fill);
+  cursor: not-allowed;
+}
+
+.settings .choice:disabled,
+.settings .text-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.settings-sizes {
+  padding: 0 calc(var(--inset) + 12px);
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding: 0 calc(var(--inset) + 12px);
+}
+
+.settings-crumb {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: var(--accent);
+}
+
+.split .settings.list {
+  min-height: 100%;
+}
+
+.settings-page.detail {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.settings-page .detail-head,
+.settings-page .settings-crumb {
+  padding: 0 var(--inset);
+}
+
+/* The one question before a rollback: a bottom sheet on a phone, a small dialog in the middle of a wide window. */
+.settings-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.3);
+  animation: fade-in var(--motion);
+}
+
+.settings-sheet {
+  position: fixed;
+  z-index: 31;
+  left: 50%;
+  top: 50%;
+  display: grid;
+  gap: 8px;
+  width: min(340px, calc(100vw - 24px));
+  padding: 16px;
+  transform: translate(-50%, -50%);
+  border-radius: 14px;
+  background: var(--bg);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+
+.settings-sheet-text {
+  padding: 0 4px 6px;
+  font-size: var(--text-small);
+  color: var(--label-2);
+  text-align: center;
+}
+
+.settings-sheet-button {
+  min-height: var(--hit, var(--row));
+  border-radius: 10px;
+  background: var(--fill);
+  color: var(--accent);
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+.settings-sheet-button.is-red {
+  color: var(--red);
+}
+
+.stack ~ .settings-sheet {
+  left: 0;
+  right: 0;
+  top: auto;
+  bottom: 0;
+  width: auto;
+  padding: 16px calc(var(--inset) + var(--safe-right)) calc(12px + var(--safe-bottom)) calc(var(--inset) + var(--safe-left));
+  transform: none;
+  border-radius: 14px 14px 0 0;
+  animation: sheet-up var(--stack-motion);
+}
+
+.stack .settings-switch:active:not(:disabled),
+.stack .stepper button:active:not(:disabled),
+.stack .settings-remove:active,
+.stack .settings-move:active:not(:disabled),
+.stack ~ .settings-sheet .settings-sheet-button:active {
+  opacity: 0.4;
+  transition: none;
+}
+
+.stack .settings-choice:active:not(:disabled),
+.stack .settings-danger:active:not(:disabled) {
+  background: var(--fill);
+  transition: none;
+}
+
+.stack .stepper button {
+  min-height: var(--hit, 32px);
+}

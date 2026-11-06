@@ -1,14 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 
-export type ListName = "inbox" | "running" | "due" | "done" | "goals" | "status";
+export type ListName = "inbox" | "running" | "due" | "done" | "goals" | "status" | "settings";
 export type Route =
   | { readonly name: "home" }
   | { readonly name: Exclude<ListName, "done"> }
   /** 완료, optionally filtered to one agent: the filter lives in the address (`#/done?agent=<id>`), never in storage. */
   | { readonly name: "done"; readonly agent?: string }
-  | { readonly name: "agent" | "goal" | "item" | "card" | "run"; readonly id: string };
+  | { readonly name: "agent" | "goal" | "item" | "card" | "run"; readonly id: string }
+  /** A list the settings push (`#/settings/runner/codex/model`): `page` is the path after `settings/`. */
+  | { readonly name: "setting"; readonly page: string };
 
-const LISTS: readonly ListName[] = ["inbox", "running", "due", "done", "goals", "status"];
+const LISTS: readonly ListName[] = ["inbox", "running", "due", "done", "goals", "status", "settings"];
 const PATHS: Record<string, Route["name"]> = { agents: "agent", goals: "goal", items: "item", cards: "card", runs: "run" };
 const SEGMENT: Record<string, string> = { agent: "agents", goal: "goals", item: "items", card: "cards", run: "runs" };
 
@@ -21,6 +23,7 @@ export function parse(hash: string): Route {
     return agent ? { name: "done", agent } : { name: "done" };
   }
   if (parts.length === 1 && (LISTS as readonly string[]).includes(parts[0])) return { name: parts[0] as ListName };
+  if (parts[0] === "settings") return { name: "setting", page: parts.slice(1).join("/") };
   const name = PATHS[parts[0]];
   if (parts.length === 2 && name && name !== "home") return { name, id: parts[1] } as Route;
   return { name: "home" };
@@ -28,6 +31,7 @@ export function parse(hash: string): Route {
 
 export function href(route: Route): string {
   if (route.name === "home") return "#/";
+  if (route.name === "setting") return `#/settings/${route.page.split("/").map(encodeURIComponent).join("/")}`;
   if ("id" in route) return `#/${SEGMENT[route.name]}/${encodeURIComponent(route.id)}`;
   if (route.name === "done" && route.agent) return `#/done?${new URLSearchParams({ agent: route.agent })}`;
   return `#/${route.name}`;
@@ -48,6 +52,8 @@ export function defaultListFor(route: Route): Route {
       return { name: "goals" };
     case "item":
       return { name: "inbox" };
+    case "setting":
+      return { name: "settings" };
     default:
       return { name: "inbox" };
   }

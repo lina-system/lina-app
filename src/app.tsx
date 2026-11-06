@@ -9,9 +9,12 @@ import { slideMotion } from "./stack-motion";
 import { bindSwipeBack, isStandalone } from "./swipe-back";
 import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RunningScreen, StatusScreen } from "./screens/lists";
 import { CardScreen, GoalScreen, ItemScreen, RunScreen } from "./screens/details";
-import { BackIcon, BellIcon, CalendarIcon, DeviceIcon, DoneIcon, GoalIcon, InboxIcon, PlusIcon, RunningIcon } from "./ui/icons";
+import { RollbackSheet, SettingPage, settingParent, SettingsScreen, settingTitle } from "./screens/settings";
+import { SETTINGS_HISTORY } from "./api/client";
+import { BackIcon, BellIcon, CalendarIcon, DeviceIcon, DoneIcon, GearIcon, GoalIcon, InboxIcon, PlusIcon, RunningIcon } from "./ui/icons";
 import { AgentMark, CountPair, Ctx, Disclosure, useApp, type AppContext } from "./ui/parts";
 import { ActionsCtx, useActions, useActionsFor } from "./ui/actions";
+import { SettingsCtx, useSettingsEditsFor } from "./ui/settings-edits";
 import { browserPushHost, type OpenRequest, type PushHost } from "./push";
 import { PushCtx, PushRow, usePushFor } from "./ui/push-row";
 import { APP_VERSION } from "./version";
@@ -42,7 +45,10 @@ export function titleOf(route: Route, model: Model, store: Store): string {
     case "done":
     case "goals":
     case "status":
+    case "settings":
       return W[route.name];
+    case "setting":
+      return settingTitle(route.page);
     case "agent":
       return model.names.get(route.id) ?? W.agents;
     case "goal":
@@ -70,6 +76,11 @@ function wantsFor(route: Route, store: Store): Want {
       return [["card", route.id], ...(store.get("card", route.id)?.workerRuns ?? []).map((worker) => ["record", worker.id] as const)];
     case "run":
       return [["record", route.id]];
+    case "settings":
+    case "setting": {
+      const want: Want = [["settings"], ["settingsModels"], ["settingsHistory", SETTINGS_HISTORY.recent]];
+      return route.name === "setting" && route.page === "history" ? [...want, ["settingsHistory", SETTINGS_HISTORY.all]] : want;
+    }
     default:
       return [];
   }
@@ -91,6 +102,10 @@ function Screen({ route }: { route: Route }) {
       return <GoalsScreen />;
     case "status":
       return <StatusScreen />;
+    case "settings":
+      return <SettingsScreen />;
+    case "setting":
+      return <SettingPage page={route.page} />;
     case "agent":
       return <AgentScreen id={route.id} />;
     case "goal":
@@ -157,6 +172,7 @@ export function Sidebar({ current }: { current?: Route }) {
             {down ? <span class="is-red">{`${SEP}${devices.down}`}</span> : null}
           </span>
         </NavRow>
+        <NavRow to={{ name: "settings" }} icon={<GearIcon />} label={W.settings} current={is("settings")} testid="nav-settings" />
       </ul>
       <p class="version" data-testid="version">
         {APP_VERSION}
@@ -296,9 +312,11 @@ export function Toast() {
       {toast ? (
         <div class="toast" role="status" data-testid="toast" key={toast.id}>
           <span>{toast.text}</span>
-          <button type="button" class="toast-undo" onClick={() => actions.undoToast()}>
-            {W.undo}
-          </button>
+          {toast.onUndo ? (
+            <button type="button" class="toast-undo" onClick={() => actions.undoToast()}>
+              {W.undo}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -325,6 +343,7 @@ function parentOf(route: Route, stack: readonly string[]): Route {
   if (stack.length > 1) return parse(stack[stack.length - 2]);
   if (route.name === "home") return route;
   if (isList(route)) return { name: "home" };
+  if (route.name === "setting") return settingParent(route.page);
   return defaultListFor(route);
 }
 
@@ -457,6 +476,7 @@ export function App({ store, pushHost }: { store: Store; pushHost?: PushHost }) 
   const nav = useNav();
   const minute = Math.floor(now / 60);
   const actions = useActionsFor(store, (match) => host.close(match));
+  const settingsEdits = useSettingsEditsFor(store, actions);
   const model = useMemo(() => buildModel({ ...store.input(), pending: actions.pending() }, now), [version, minute, actions.version]);
   const latest = useRef(model);
   latest.current = model;
@@ -480,14 +500,20 @@ export function App({ store, pushHost }: { store: Store; pushHost?: PushHost }) 
 
   useEffect(() => startLive(store), [store]);
   useEffect(() => store.want(wantsFor(nav.route, store)), [nav.hash, version]);
+  useEffect(() => {
+    if (nav.route.name !== "settings" && nav.route.name !== "setting") settingsEdits.editRules(false);
+  }, [nav.route.name]);
 
   const context: AppContext = { model, store, now, wide, selected: isList(nav.route) ? null : nav.hash };
   return (
     <Ctx.Provider value={context}>
       <ActionsCtx.Provider value={actions}>
         <PushCtx.Provider value={push}>
-          {wide ? <WideShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} /> : <PhoneShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} />}
-          <Toast />
+          <SettingsCtx.Provider value={settingsEdits}>
+            {wide ? <WideShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} /> : <PhoneShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} />}
+            <Toast />
+            <RollbackSheet />
+          </SettingsCtx.Provider>
         </PushCtx.Provider>
       </ActionsCtx.Provider>
     </Ctx.Provider>

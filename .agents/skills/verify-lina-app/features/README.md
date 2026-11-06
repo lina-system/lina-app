@@ -7,7 +7,7 @@ This directory is the maintained source for verifying what people see and do in 
 - Dependencies are installed with `npm ci` and Chromium is available to Playwright (`npx playwright install chromium`).
 - Each run has its own id: `export VERIFY_RUN_ID=<short-id>`. The run directory is `verify-runs/$VERIFY_RUN_ID/` in the repository root.
 - Launch a disposable instance with `node .agents/skills/verify-lina-app/scripts/verify.mjs launch`. It builds the client into the run directory and serves it on a free port on `127.0.0.1`.
-- The instance serves the app under `/app/`, like the core does. Drives load `/app/?source=synthetic`, which draws the synthetic scene (`src/fixtures/synthetic.ts`) instead of reading a core: 3 agents with invented names, 수신함 `8`, 진행 중인 작업 `2` with a red `1`, 마감일 `5`, 완료 `3`, 목표 `5`, 알림 `5` (7 notices, 2 of them read), `기기 3 · 정상 1 · 경고 1 · 꺼짐 1`. `&error=quota` adds a failed quota source; `&running=none` takes the running cards out, leaving the stopped one; `&live=down|drop|resync|token` changes how the change stream behaves (see live.md); `&writer=stopped` stops the writer of the checked lines (see work-cards.md).
+- The instance serves the app under `/app/`, like the core does. Drives load `/app/?source=synthetic`, which draws the synthetic scene (`src/fixtures/synthetic.ts`) instead of reading a core: 3 agents with invented names, 수신함 `8`, 진행 중인 작업 `2` with a red `1`, 마감일 `5`, 완료 `3`, 목표 `5`, 알림 `5` (7 notices, 2 of them read), `기기 3 · 정상 1 · 경고 1 · 꺼짐 1`. `&error=quota` adds a failed quota source; `&running=none` takes the running cards out, leaving the stopped one; `&live=down|drop|resync|token` changes how the change stream behaves (see live.md); `&writer=stopped` stops the writer of the checked lines (see work-cards.md). `&settings=stale|race|readonly|empty|ocx-down|many-warnings` makes another device write the settings just before the page's first write or just after it lands, makes this device read-only, starts from settings never written, serves the models as the last good list because OCX did not answer, or leaves four models warned about (see settings.md); without it the settings are writable.
 - Run `verify.mjs doctor` and require `"healthy": true` before the first drive.
 - Never drive an instance this run did not start, and never point the app at the owner's live core.
 
@@ -30,7 +30,7 @@ This directory is the maintained source for verifying what people see and do in 
 ## Never press
 
 - On a disposable instance (`?source=synthetic`) every control may be pressed: writes go to the page's copy of the scene and a reload undoes them.
-- On a live core (a read-only pass after a deploy), never press `완료 표시` (a check box), `되돌리기`, `보내기` (in `댓글` or `대화`), `다시 시도`, `모두 읽음` or the `알림 받기` switch, and never choose a notice in the bell or an answer button. They write to the owner's record, and a read-only pass must leave it as it found it.
+- On a live core (a read-only pass after a deploy), never press `완료 표시` (a check box), `되돌리기`, `보내기` (in `댓글` or `대화`), `다시 시도`, `모두 읽음`, the `알림 받기` switch or `이전 설정으로 되돌리기` (설정's rollback sheet), and never choose a notice in the bell or an answer button. They write to the owner's record (`이전 설정으로 되돌리기` to the owner's work settings), and a read-only pass must leave it as it found it.
 
 ## Feature entry contract
 
@@ -64,6 +64,7 @@ Keep implementation details out of the map. Name only user paths, stable handles
 - [대화](./talk.md) covers talking with the agent that owns a goal or to-do, from its page.
 - [작업 detail](./card-detail.md) covers a work card or a worker run outside any card.
 - [기기·쿼터](./status.md) covers machines, quota, each account's state, usage and OCX's own line.
+- [설정](./settings.md) covers the work settings: runners, models, routing rules, machine caps, their history and the one-step rollback.
 - [Owner actions](./actions.md) covers done, undo, done with open to-dos, answers and retry.
 - [Freshness](./freshness.md) covers the toolbar's freshness line and read failures.
 - [Live updates](./live.md) covers the change stream: changes from anywhere without a reload, drops, resyncs and the stale line.

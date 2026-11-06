@@ -191,6 +191,80 @@ describe("what a change touches", () => {
     expect(routesFor([{ source: "worker", kind: "exec_end", id: "job-1", at: 1 }], store)).toEqual([["board"], ["record", "job-1"], ["card", "k-101"]]);
     expect(routesFor([{ source: "kanban", kind: "moved", id: "k-102", at: null }], store)).toEqual([["cards"], ["goals"], ["inbox"], ["card", "k-102"], ["goal", "k-102"]]);
   });
+
+  test("a settings event reads the settings, the history lists a screen read and the model list", () => {
+    const store = { cardsWithRun: () => [] };
+    expect(routesFor([{ source: "settings", kind: "revised", id: "r4", at: 1 }], store)).toEqual([["settings"], ["settingsHistory", "5"], ["settingsHistory", "500"], ["settingsModels"]]);
+  });
+});
+
+describe("the settings", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval", "setTimeout", "clearTimeout"] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("another device's write reaches the page as a settings event; only the history read so far is read again", async () => {
+    const source = new SyntheticSource();
+    const store = new Store(source);
+    const stop = new Live(store, tab().host).start();
+    await settle();
+    store.want([["settings"], ["settingsHistory", "5"]]);
+    await settle();
+    expect(store.get("settings")?.revision.id).toBe("r3");
+    const invalidate = vi.spyOn(store, "invalidate");
+    new SyntheticSource({ scene: source.scene }).settingsWrittenElsewhere();
+    await step(STREAM_TICK_MS);
+    expect(invalidate).toHaveBeenCalledWith([["settings"], ["settingsHistory", "5"], ["settingsHistory", "500"], ["settingsModels"]]);
+    await settle();
+    expect(store.get("settings")?.revision.id).toBe("r4");
+    expect(store.get("settingsHistory", "5")?.revisions[0].rev).toBe("r4");
+    expect(store.status("settingsHistory", "500")).toBe("pending");
+    stop();
+  });
+
+  test("another device's model change reaches the model list too, so its warnings follow the new settings", async () => {
+    const source = new SyntheticSource();
+    const store = new Store(source);
+    const stop = new Live(store, tab().host).start();
+    await settle();
+    store.want([["settings"], ["settingsModels"]]);
+    await settle();
+    const dsh = () => store.get("settingsModels")?.runners.find((runner) => runner.name === "dsh");
+    expect(dsh()).toMatchObject({ model: "openai/model-d", usable: false });
+    const other = new SyntheticSource({ scene: source.scene });
+    await other.read("settings");
+    expect(await other.patchSettings({ worker: { runners: { dsh: { model: "anthropic/model-a" } } } }, "r3")).toMatchObject({ ok: true });
+    await step(STREAM_TICK_MS);
+    await settle();
+    expect(store.get("settings")?.revision.id).toBe("r4");
+    expect(dsh()).toMatchObject({ model: "anthropic/model-a", usable: true, warning: null });
+    expect(store.get("settingsModels")?.warnings.some((line) => line.includes("dsh"))).toBe(false);
+    stop();
+  });
+
+  test("shown again, a page that read the settings reads them again; one that never did reads nothing more", async () => {
+    const source = new SyntheticSource();
+    const store = new Store(source);
+    const page = tab();
+    const stop = new Live(store, page.host).start();
+    await settle();
+    const read = vi.spyOn(source, "read");
+    page.show("hidden");
+    page.show("visible");
+    await settle();
+    expect(read.mock.calls.filter(([name]) => name === "settings")).toHaveLength(0);
+    store.want([["settings"]]);
+    await settle();
+    read.mockClear();
+    page.show("hidden");
+    page.show("visible");
+    await settle();
+    expect(read.mock.calls.filter(([name]) => name === "settings")).toHaveLength(1);
+    stop();
+  });
 });
 
 describe("the core's socket", () => {

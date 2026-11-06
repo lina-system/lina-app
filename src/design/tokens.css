@@ -47,7 +47,8 @@
 
 /* Phone: iOS text at its default Dynamic Type size (Body 17 pt, Footnote 13 pt); the large title keeps its size. */
 [data-layout="phone"],
-[data-layout="phone"] ~ .toast-slot {
+[data-layout="phone"] ~ .toast-slot,
+[data-layout="phone"] ~ .settings-sheet {
   --text-body: 17px;
   --text-small: 13px;
   --hit: 44px;

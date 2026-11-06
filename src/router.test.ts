@@ -18,6 +18,16 @@ describe("the 완료 filter lives in the address", () => {
   });
 });
 
+describe("설정 and the lists it pushes", () => {
+  test("#/settings is a list; what it pushes reads back as the same page", () => {
+    expect(parse("#/settings")).toEqual({ name: "settings" });
+    expect(href({ name: "settings" })).toBe("#/settings");
+    expect(parse("#/settings/runner/codex/model")).toEqual({ name: "setting", page: "runner/codex/model" });
+    expect(href({ name: "setting", page: "runner/codex/model" })).toBe("#/settings/runner/codex/model");
+    expect(parse(href({ name: "setting", page: "device/a b" }))).toEqual({ name: "setting", page: "device/a b" });
+  });
+});
+
 describe("stack direction", () => {
   test("a deeper stack is a push, a shallower one a pop, the same depth a plain swap", () => {
     expect(directionOf(["#/"], ["#/", "#/running"])).toBe("push");

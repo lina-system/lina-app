@@ -14,7 +14,8 @@ interface Toast {
   readonly text: string;
   /** The item whose done mark the toast can take back; the detail page hides its own 되돌리기 meanwhile. */
   readonly owner: string | null;
-  readonly onUndo: () => void;
+  /** Null for a toast that only says what happened. */
+  readonly onUndo: (() => void) | null;
   readonly onEnd: (() => void) | null;
   readonly timer: ReturnType<typeof setTimeout>;
 }
@@ -74,8 +75,13 @@ export class Actions {
     if (this.held.delete(id)) this.notify();
   }
 
-  get toast(): { readonly id: number; readonly text: string; readonly owner: string | null } | null {
+  get toast(): { readonly id: number; readonly text: string; readonly owner: string | null; readonly onUndo: (() => void) | null } | null {
     return this.current;
+  }
+
+  /** A toast that says what happened and offers nothing to take back. */
+  note(text: string): void {
+    this.showToast(text, null, null);
   }
 
   isDone(id: string, recordDone: boolean): boolean {
@@ -125,7 +131,7 @@ export class Actions {
     this.notify();
   }
 
-  private showToast(text: string, owner: string | null, onUndo: () => void, onEnd: (() => void) | null = null): void {
+  private showToast(text: string, owner: string | null, onUndo: (() => void) | null, onEnd: (() => void) | null = null): void {
     this.endToast();
     const id = this.nextToast++;
     const timer = this.timers.setTimeout(() => {
@@ -150,7 +156,7 @@ export class Actions {
     if (!toast) return;
     this.timers.clearTimeout(toast.timer);
     this.current = null;
-    toast.onUndo();
+    toast.onUndo?.();
     this.notify();
   }
 

@@ -67,20 +67,33 @@ async function onPush(data) {
   if (message.type === "close") for (const open of await self.registration.getNotifications({ tag: message.tag })) open.close();
 }
 
-// The app's open window goes to the item (focused, so the screen comes forward); with none open, a new one opens on it.
-async function openItem(data) {
+// The app's open window goes to the item (focused, so the screen comes forward). The message carries the notification's
+// tag, so that page can read-mark a reply. With no window open, a new one opens on the item and the tag rides in the
+// address (`?open=<tag>` before the hash). A browser may stop the worker before the page loads, so the tag cannot
+// live in a worker global; the page reads it once on start. An existing query on the scope, such as `source=synthetic`, stays.
+function openAddress(scope, hash, tag) {
+  const url = new URL(scope);
+  if (tag) url.searchParams.set("open", tag);
+  url.hash = hash;
+  return url.href;
+}
+
+async function openItem(notification) {
+  const data = notification && notification.data;
   const kind = data && data.kind;
   const target = (data && data.target) || "";
+  const tag = (notification && notification.tag) || "";
   const hash = routeOf(kind, target);
+  const message = { type: "lina-open", kind, target, hash, tag };
   const scope = self.registration.scope;
   const windows = (await self.clients.matchAll({ type: "window", includeUncontrolled: true })).filter((client) => client.url.startsWith(scope));
   const app = windows.find((client) => client.focused) || windows[0];
-  if (!app) {
-    await self.clients.openWindow(scope + hash);
+  if (app) {
+    app.postMessage(message);
+    await app.focus();
     return;
   }
-  app.postMessage({ type: "lina-open", kind, target, hash });
-  await app.focus();
+  await self.clients.openWindow(openAddress(scope, hash, tag));
 }
 
 async function closeMatching(tags, prefixes) {
@@ -108,7 +121,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  event.waitUntil(openItem(event.notification.data));
+  event.waitUntil(openItem(event.notification));
 });
 
 self.addEventListener("message", (event) => {

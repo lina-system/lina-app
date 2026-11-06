@@ -194,14 +194,61 @@ describe("notifications on this device", () => {
     const device = browser();
     await openBell(new SyntheticSource(), device.host, "#/due");
     for (const [request, hash] of [
-      [{ kind: "ask", target: "T2", hash: "#/inbox" }, "#/inbox"],
-      [{ kind: "reply", target: "T4", hash: "#/items/T4" }, "#/items/T4"],
-      [{ kind: "reply", target: "G2", hash: "#/items/G2" }, "#/goals/G2"],
-      [{ kind: "blocked", target: "k-101", hash: "#/cards/k-101" }, "#/cards/k-101"],
-      [{ kind: "question", target: "k-102", hash: "#/cards/k-102" }, "#/cards/k-102"],
+      [{ kind: "ask", target: "T2", hash: "#/inbox", tag: "ask:T2:1" }, "#/inbox"],
+      [{ kind: "reply", target: "T4", hash: "#/items/T4", tag: "reply:T4:n1" }, "#/items/T4"],
+      [{ kind: "reply", target: "G2", hash: "#/items/G2", tag: "reply:G2:n1" }, "#/goals/G2"],
+      [{ kind: "blocked", target: "k-101", hash: "#/cards/k-101", tag: "blocked:k-101" }, "#/cards/k-101"],
+      [{ kind: "question", target: "k-102", hash: "#/cards/k-102", tag: "question:k-102:7" }, "#/cards/k-102"],
     ] as const) {
       await act(async () => device.open(request));
       expect(window.location.hash).toBe(hash);
+    }
+  });
+
+  test("a start address with open=reply:T4:n1 read-marks once and the parameter is gone; an open=ask sends nothing", async () => {
+    const readNotices = vi.spyOn(Actions.prototype, "readNotices");
+    try {
+      setWide();
+      window.history.replaceState(null, "", "/app/?source=synthetic&open=reply%3AT4%3An1#/items/T4");
+      const reply = render(<App store={new Store(new SyntheticSource())} pushHost={browser().host} />);
+      await waitFor(() => expect(readNotices).toHaveBeenCalledTimes(1));
+      expect(readNotices).toHaveBeenCalledWith(["reply:T4:n1"]);
+      const left = new URL(window.location.href);
+      expect(left.searchParams.get("open")).toBeNull();
+      expect(left.searchParams.get("source")).toBe("synthetic");
+      expect(left.hash).toBe("#/items/T4");
+      reply.unmount();
+
+      window.history.replaceState(null, "", "/app/?open=ask%3AT2%3A1#/inbox");
+      const ask = render(<App store={new Store(new SyntheticSource())} pushHost={browser().host} />);
+      await waitFor(() => expect(ask.getByTestId("freshness-line").textContent).toBe("실시간"));
+      expect(readNotices).toHaveBeenCalledTimes(1);
+      expect(new URL(window.location.href).searchParams.get("open")).toBeNull();
+      ask.unmount();
+    } finally {
+      readNotices.mockRestore();
+    }
+  });
+
+  test("an open request for a reply calls readNotices with reply:<item>:<cid>; an ask, a stopped card or a question sends nothing", async () => {
+    const readNotices = vi.spyOn(Actions.prototype, "readNotices");
+    try {
+      const device = browser();
+      await openBell(new SyntheticSource(), device.host, "#/due");
+      await act(async () => device.open({ kind: "reply", target: "T4", hash: "#/items/T4", tag: "reply:T4:n1" }));
+      expect(window.location.hash).toBe("#/items/T4");
+      expect(readNotices).toHaveBeenCalledTimes(1);
+      expect(readNotices).toHaveBeenCalledWith(["reply:T4:n1"]);
+      for (const request of [
+        { kind: "ask", target: "T2", hash: "#/inbox", tag: "ask:T2:1" },
+        { kind: "blocked", target: "k-101", hash: "#/cards/k-101", tag: "blocked:k-101" },
+        { kind: "question", target: "k-102", hash: "#/cards/k-102", tag: "question:k-102:7" },
+      ] as const) {
+        await act(async () => device.open(request));
+      }
+      expect(readNotices).toHaveBeenCalledTimes(1);
+    } finally {
+      readNotices.mockRestore();
     }
   });
 });

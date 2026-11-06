@@ -2280,6 +2280,52 @@ const drivers = {
         await context.close();
         return routes.join(", ");
       });
+      await step("opening a reply read-marks it once on the synthetic core; a decision, a stopped card or a question does not", async () => {
+        const { context, tab } = await open({ permissions: ["notifications"] }, "#/due");
+        await tab.reload();
+        await tab.waitForFunction(async () => Boolean((await navigator.serviceWorker.getRegistration())?.active), null, { timeout: 15_000 });
+        const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent("serviceworker"));
+        // A successful read mark is what asks this device to close the tag; the synthetic core accepted the key.
+        await worker.evaluate(() => {
+          self.__closes = [];
+          self.addEventListener("message", (event) => {
+            if (event.data && event.data.type === "lina-close") self.__closes.push(event.data);
+          });
+        });
+        const click = async (kind, target, tag) => {
+          await worker.evaluate(
+            async ({ kind, target, tag }) => {
+              await self.registration.showNotification("항목", { tag, body: "", data: { kind, target } });
+              const [note] = await self.registration.getNotifications({ tag });
+              self.dispatchEvent(new NotificationEvent("notificationclick", { notification: note }));
+            },
+            { kind, target, tag },
+          );
+        };
+        const closes = () => worker.evaluate(() => self.__closes);
+        await click("reply", "T4", "reply:T4:n1");
+        await tab.waitForFunction(() => location.hash === "#/items/T4", null, { timeout: 5_000 }).catch(() => check(false, "the reply opened " + new URL(tab.url()).hash));
+        let seen = [];
+        for (let tries = 0; tries < 50; tries += 1) {
+          seen = await closes();
+          if (seen.some((message) => (message.tags || []).includes("reply:T4:n1"))) break;
+          await tab.waitForTimeout(100);
+        }
+        check(seen.length === 1 && JSON.stringify(seen[0].tags) === JSON.stringify(["reply:T4:n1"]), "the reply's read mark closed " + JSON.stringify(seen));
+        for (const [kind, target, tag, hash] of [
+          ["ask", "T2", "ask:T2:1", "#/inbox"],
+          ["blocked", "k-101", "blocked:k-101", "#/cards/k-101"],
+          ["question", "k-102", "question:k-102:7", "#/cards/k-102"],
+        ]) {
+          await click(kind, target, tag);
+          await tab.waitForFunction((hash) => location.hash === hash, hash, { timeout: 5_000 }).catch(() => check(false, kind + " opened " + new URL(tab.url()).hash));
+        }
+        await tab.waitForTimeout(1000);
+        seen = await closes();
+        check(seen.length === 1 && JSON.stringify(seen[0].tags) === JSON.stringify(["reply:T4:n1"]), "a decision, a stopped card or a question read-marked " + JSON.stringify(seen));
+        await context.close();
+        return "reply:T4:n1 read once; ask, blocked and question sent nothing";
+      });
     } finally {
       await full.close();
     }

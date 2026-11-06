@@ -25,6 +25,8 @@ export interface OpenRequest {
   readonly kind: string;
   readonly target: string;
   readonly hash: string;
+  /** The notification's tag: the core's key for a reply (`reply:<item>:<cid>`). */
+  readonly tag: string;
 }
 
 /** The browser around push: the platform, the permission, the push manager and the service worker. */
@@ -75,7 +77,9 @@ export function browserPushHost(host: Host = window as unknown as Host, manager?
       if (!worker) return () => {};
       const receive = (event: MessageEvent) => {
         const data = event.data as { type?: unknown } & Partial<OpenRequest>;
-        if (data?.type === "lina-open" && typeof data.hash === "string") listener({ kind: String(data.kind ?? ""), target: String(data.target ?? ""), hash: data.hash });
+        if (data?.type === "lina-open" && typeof data.hash === "string") {
+          listener({ kind: String(data.kind ?? ""), target: String(data.target ?? ""), hash: data.hash, tag: String(data.tag ?? "") });
+        }
       };
       worker.addEventListener("message", receive);
       return () => worker.removeEventListener("message", receive);

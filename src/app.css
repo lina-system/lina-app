@@ -852,7 +852,9 @@ button:disabled {
   color: var(--red);
 }
 
-/* 점검: only failing, stale and unreadable checks stay open, one row each; passing ones fold into one count. */
+/* 점검: only failing, stale and unreadable checks stay open, one row each; passing ones fold into one count. These
+   rows are `status-check-row`, not `check-row`: they take the plain row layout, inset like the 기기 and 쿼터 rows,
+   with the state word and time in the trail at the row's right edge. */
 .check-state.is-failing,
 .check-state.is-error {
   color: var(--red);

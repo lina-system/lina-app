@@ -462,12 +462,15 @@ function QuotaRow({ service }: { service: QuotaService }) {
   );
 }
 
-/** A failing, stale or unreadable check: one row, its name and line, then the state word and how long ago. */
+/**
+ * A failing, stale or unreadable check: one row, its name and line, then the state word and how long ago.
+ * Its own class, not `check-row`: that one indents a to-do row past its check box and lets the text size the row.
+ */
 function CheckRow({ check }: { check: OpenCheck }) {
   const { now } = useApp();
   const word = W.checkState[check.state] ?? "";
   return (
-    <li class={`row check-row is-${check.state}`} data-testid="row">
+    <li class={`row status-check-row is-${check.state}`} data-testid="row">
       <div class="row-body" aria-label={[check.name, check.line, word, ago(now - check.at)].filter(Boolean).join(SEP)}>
         <span class="lines">
           <span class="title one-line">{[check.name, check.line].filter(Boolean).join(SEP)}</span>
@@ -517,7 +520,7 @@ export function StatusScreen() {
               <CheckRow key={check.key} check={check} />
             ))}
             {model.checks.ok ? (
-              <li class="row check-fold" data-testid="row">
+              <li class="row status-check-fold" data-testid="row">
                 <div class="row-body" aria-label={W.checksOk(model.checks.ok)}>
                   <span class="lines">
                     <span class="sub">{W.checksOk(model.checks.ok)}</span>

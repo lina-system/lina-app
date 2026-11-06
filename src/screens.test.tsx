@@ -145,11 +145,14 @@ describe("machines, quota and checks", () => {
   test("the third panel keeps failing and stale checks open and folds the passing ones", async () => {
     const view = await open("#/status", { wide: true });
     const list = view.getByRole("list", { name: "점검" });
-    const rows = [...list.querySelectorAll(".check-row")];
+    const rows = [...list.querySelectorAll(".status-check-row")];
     expect(rows.map((row) => row.querySelector(".row-body")?.getAttribute("aria-label"))).toEqual(["백업 회선 · 응답 없음 · 실패 · 12분 전", "대기 봇 · 소식이 끊김 · 오래됨 · 3시간 전"]);
     expect(rows.map((row) => row.querySelector(".check-state")?.textContent)).toEqual(["실패", "오래됨"]);
-    expect(rows.map((row) => row.className)).toEqual(["row check-row is-failing", "row check-row is-stale"]);
-    const fold = list.querySelectorAll(".check-fold");
+    expect(rows.map((row) => row.className)).toEqual(["row status-check-row is-failing", "row status-check-row is-stale"]);
+    // `check-row` is the to-do row with a check box: it indents past the box and lets the title size the row, so a
+    // 점검 row must not carry it (the trail would no longer sit at the row's right edge).
+    for (const row of rows) expect(row.classList.contains("check-row")).toBe(false);
+    const fold = list.querySelectorAll(".status-check-fold");
     expect(fold).toHaveLength(1);
     expect(fold[0].textContent).toBe("정상 3");
     expect(view.queryByTestId("checks-empty")).toBeNull();

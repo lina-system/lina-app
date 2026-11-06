@@ -460,7 +460,12 @@ export function App({ store, pushHost }: { store: Store; pushHost?: PushHost }) 
   const model = useMemo(() => buildModel({ ...store.input(), pending: actions.pending() }, now), [version, minute, actions.version]);
   const latest = useRef(model);
   latest.current = model;
-  const push = usePushFor(store.source, host, (request) => navigate(pushHref(latest.current, request)));
+  const push = usePushFor(store.source, host, (request) => {
+    navigate(pushHref(latest.current, request));
+    // A reply's tag is the key the core read-marks, which closes that notification on every device. Opening a
+    // decision, a stopped card or a question sends nothing: those close when the owner answers or retries.
+    if (request.kind === "reply" && request.tag) void actions.readNotices([request.tag]);
+  });
 
   useEffect(() => startLive(store), [store]);
   useEffect(() => store.want(wantsFor(nav.route, store)), [nav.hash, version]);

@@ -19,6 +19,7 @@ The owner can get a notification on the iPhone Home Screen web app or a desktop 
 - A notification's title is the item's checked title; its body is `결정 필요`, `답글` or `멈춤 · 기다림`, then the core's sentence when it is a readable one (the timeline's rule). No ids, paths or English.
 - One notification per item: a later message for the same item replaces it; a `close` closes it; a `close` with nothing open shows nothing.
 - Choosing a notification brings the open app window to the item (`#/inbox` for a decision, the goal or to-do for a reply, the card for a stopped card); with none open, a new window opens there.
+- A reply closes everywhere when opened: the core marks that reply read, so its `close` reaches the owner's other devices. Opening a decision, a stopped card or a question does not mark it read; those close when the owner answers or retries.
 - A notice read in the bell, `모두 읽음`, or an answer closes the matching notification on this device at once; the core's `close` clears the other devices.
 - No quiet hours: when to stay silent is the device's Focus or Do Not Disturb.
 
@@ -30,6 +31,7 @@ The owner can get a notification on the iPhone Home Screen web app or a desktop 
 - `push-subscribe` turns push on and off for this device in the core
 - `push-show` shows, replaces by tag and closes notifications in the service worker
 - `push-open` routes a chosen notification to its item
+- `push-reply-read` closes a reply on every device when its notification is opened
 - `push-read-closes` closes a notification here when its notice is read
 
 ## How to get to it (user POV)
@@ -52,12 +54,13 @@ Preconditions:
 - **On and off.** With notifications granted, the switch turns on, `aria-checked="true"`, and `__linaPush.subscriptions` holds one `https://fcm.googleapis.com/…` endpoint; the switch again turns it off, the core keeps 0 and counted 1 removal.
 - **The service worker.** Messages sent through `ServiceWorker.deliverPushMessage` (DevTools protocol): a `show` draws one notification (`결정 필요` and the sentence); the same tag again replaces it (an unreadable sentence leaves the kind line only); another tag adds one; a `close` closes it; a `close` with nothing open changes nothing. One notification per unread notice, then the first unread notice chosen in the bell: its notification closes, the others stay.
 - **Choosing a notification.** A click on a decision, a reply on `T4` and a stopped `k-101` takes the open window from `#/due` to `#/inbox`, `#/items/T4` and `#/cards/k-101`.
+- **Opening a reply.** A click on a reply tagged `reply:T4:n1` read-marks that key once on the synthetic core, and this device closes that tag; a click on a decision, a stopped `k-101` or a question read-marks nothing.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/notifications-push/notifications-push-<width>.{png,aria.yml,json}`, and `notifications-push-{off,home,ready,on}-<width>.png` for the row in each state, at 1280 and 390.
 
 ## Gotchas
 
 - The headless shell (Playwright's default) reports `Notification.permission` as denied, so on the other drivers' pages the row reads `브라우저에서 알림 막힘`; that is the browser, not a defect.
-- A click dispatched from a script is not a user's: `clients.openWindow` is refused and `focus` may be. The driver proves the route in an open window; a new window on the item is held by `src/sw.test.ts` and needs a real device to see.
+- A click dispatched from a script is not a user's: `clients.openWindow` is refused and `focus` may be. The driver proves the route and the reply's read mark in an open window. A new window on the item receives that same open and read-marks a reply; `src/sw.test.ts` holds that path, and a real device is what shows it.
 - Headless Chromium has no push service, so `pushManager.subscribe` fails there; the synthetic scene swaps in its own push manager. A real subscription needs a real browser and the hub's key.
 - Safari revokes a subscription whose pushes show nothing (WebKit, "Meet Web Push"); a `close` with nothing to close is such a push. The core sends a `close` only for an item it showed.
 - Never turn the switch on against the owner's live core in a read-only pass: it stores a subscription there.

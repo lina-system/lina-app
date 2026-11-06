@@ -57,7 +57,7 @@ function worker(windows: { url: string; focused: boolean }[] = []) {
   return {
     push: (message: PushMessage | string) => dispatch("push", { data: { json: () => (typeof message === "string" ? JSON.parse(message) : message) } }),
     click: (note: Shown) => dispatch("notificationclick", { notification: note }),
-    message: (data: unknown) => dispatch("message", { data }),
+    message: (data: unknown) => dispatch("message", { data, source: { postMessage: (message: unknown) => posted.push(message) } }),
     shown: () => shown,
     shows: () => shows,
     opened,
@@ -159,6 +159,22 @@ describe("choosing a notification", () => {
     for (const note of sw.shown()) await sw.click(note);
     expect(sw.opened).toEqual([`${SCOPE}#/inbox`, `${SCOPE}#/items/G2`, `${SCOPE}#/cards/k-102`]);
     expect(sw.shown()).toEqual([]);
+    await sw.message({ type: "lina-ready" });
+    expect(sw.posted).toEqual([{ type: "lina-open", kind: "question", target: "k-102", hash: "#/cards/k-102", tag: "question:k-102:7" }]);
+    await sw.message({ type: "lina-ready" });
+    expect(sw.posted).toHaveLength(1);
+  });
+
+  test("a new window is told which reply opened it, once, so the page can read-mark that tag", async () => {
+    const sw = worker();
+    await sw.push(show({ kind: "reply", tag: "reply:T4:n1", target: "T4" }));
+    await sw.click(sw.shown()[0]);
+    expect(sw.opened).toEqual([`${SCOPE}#/items/T4`]);
+    expect(sw.posted).toEqual([]);
+    await sw.message({ type: "lina-ready" });
+    expect(sw.posted).toEqual([{ type: "lina-open", kind: "reply", target: "T4", hash: "#/items/T4", tag: "reply:T4:n1" }]);
+    await sw.message({ type: "lina-ready" });
+    expect(sw.posted).toHaveLength(1);
   });
 
   test("with the app open, its window (the focused one first) is brought forward and sent to the item", async () => {
@@ -171,6 +187,6 @@ describe("choosing a notification", () => {
     await sw.click(sw.shown()[0]);
     expect(sw.opened).toEqual([]);
     expect(sw.focused).toEqual([`${SCOPE}?source=synthetic#/running`]);
-    expect(sw.posted).toEqual([{ type: "lina-open", kind: "blocked", target: "k-101", hash: "#/cards/k-101" }]);
+    expect(sw.posted).toEqual([{ type: "lina-open", kind: "blocked", target: "k-101", hash: "#/cards/k-101", tag: "blocked:k-101" }]);
   });
 });

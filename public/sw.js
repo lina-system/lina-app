@@ -68,19 +68,27 @@ async function onPush(data) {
 }
 
 // The app's open window goes to the item (focused, so the screen comes forward); with none open, a new one opens on it.
-async function openItem(data) {
+// The message carries the notification's tag, so the page can read-mark a reply. A new page has no listener until it
+// loads: it asks with `lina-ready`, and this one open is handed over then (a second ask is not a second read mark).
+let pendingOpen = null;
+
+async function openItem(notification) {
+  const data = notification && notification.data;
   const kind = data && data.kind;
   const target = (data && data.target) || "";
+  const tag = (notification && notification.tag) || "";
   const hash = routeOf(kind, target);
+  const message = { type: "lina-open", kind, target, hash, tag };
   const scope = self.registration.scope;
   const windows = (await self.clients.matchAll({ type: "window", includeUncontrolled: true })).filter((client) => client.url.startsWith(scope));
   const app = windows.find((client) => client.focused) || windows[0];
-  if (!app) {
-    await self.clients.openWindow(scope + hash);
+  if (app) {
+    app.postMessage(message);
+    await app.focus();
     return;
   }
-  app.postMessage({ type: "lina-open", kind, target, hash });
-  await app.focus();
+  pendingOpen = message;
+  await self.clients.openWindow(scope + hash);
 }
 
 async function closeMatching(tags, prefixes) {
@@ -108,10 +116,15 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  event.waitUntil(openItem(event.notification.data));
+  event.waitUntil(openItem(event.notification));
 });
 
 self.addEventListener("message", (event) => {
   const data = event.data;
   if (data && data.type === "lina-close") event.waitUntil(closeMatching(data.tags || [], data.prefixes || []));
+  if (data && data.type === "lina-ready" && pendingOpen && event.source) {
+    const open = pendingOpen;
+    pendingOpen = null;
+    event.source.postMessage(open);
+  }
 });

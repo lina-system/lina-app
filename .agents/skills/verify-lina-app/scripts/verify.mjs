@@ -1090,6 +1090,36 @@ const drivers = {
       check(/^라운드 1 · (어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 작업 마침$/.test(head) && results === 0 && !text.includes("가린 문장") && !/benchmark|3f2a1c9/.test(text), "the run's timeline reads " + head + " / results " + results + " / " + text.replace(/\s+/g, " "));
       return new URL(page.url()).hash + " " + state + "; " + head + "; no result line";
     });
+    await step("a run names the model it used", async () => {
+      const noRevision = async () => check(!/\br\d+\b/.test(await page.locator("article.detail").innerText()), "the page shows a settings revision");
+      await openApp(page, "#/runs/r1");
+      await page.getByTestId("screen-run").waitFor();
+      const used = await text(page.locator(".detail-head").getByTestId("run-model"));
+      check(used === "model-a · 보통", "r1 reads " + used);
+      await noRevision();
+      await openApp(page, "#/cards/k-101");
+      await page.getByTestId("timeline").waitFor();
+      const rounds = await page.getByTestId("timeline").evaluate((root) =>
+        [...root.querySelectorAll("[data-testid=timeline-block]")].map((block) => ({
+          outcome: block.getAttribute("data-outcome"),
+          line: block.querySelector("[data-testid=run-model]")?.textContent ?? null,
+          inHead: Boolean(block.querySelector(".timeline-head")?.contains(block.querySelector("[data-testid=run-model]"))),
+        })),
+      );
+      const roundLines = rounds.filter((block) => block.outcome !== "comment");
+      check(roundLines.length === 3 && roundLines.every((block) => block.line === "model-a · 보통" && !block.inHead), "round lines " + JSON.stringify(rounds));
+      check(rounds.filter((block) => block.outcome === "comment").every((block) => block.line === null), "a comment block names a model");
+      await noRevision();
+      await openApp(page, "#/runs/r8");
+      const fallback = await text(page.locator(".detail-head").getByTestId("run-model"));
+      check(fallback === "model-b · 높음 · 대체 모델", "r8 reads " + fallback);
+      await noRevision();
+      await openApp(page, "#/runs/r6");
+      await page.getByTestId("timeline").waitFor();
+      check((await page.getByTestId("run-model").count()) === 0, "a run with no model drew a line");
+      await noRevision();
+      return "r1 model-a · 보통; r8 model-b · 높음 · 대체 모델; r6 none";
+    });
   },
 
   async status(page, step) {

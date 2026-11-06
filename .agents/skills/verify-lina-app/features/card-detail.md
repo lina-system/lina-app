@@ -20,6 +20,8 @@ A work card (`#/cards/<id>`) or a worker run outside any card (`#/runs/<id>`) op
 - A to-do the card covers is checked only when it is done; a card whose run is still going covers open to-dos.
 - `댓글` shows each comment with author and time.
 - A run outside any card opens at `#/runs/<id>` with its own state and the to-do it takes on.
+- A worker run's page shows one line under its head with the model that run used, named the way 설정 names it, and its effort (`model-a · 보통`). A run that started on the fallback model ends the line with `대체 모델` (`model-b · 높음 · 대체 모델`). A run with no model draws no line. The settings revision is not shown.
+- On 기록, each round whose worker run has a model shows that same line under the round's head, dim, once. A comment block shows none.
 - Only boxes that add something are drawn.
 
 ## Sub-features
@@ -28,6 +30,7 @@ A work card (`#/cards/<id>`) or a worker run outside any card (`#/runs/<id>`) op
 - `card-now` shows what it does now
 - `card-runs` dims the worker runs it started
 - `run-detail` opens a run outside any card, or a card's own worker run
+- `run-model` names the model a worker run used, under its head and under each round of 기록
 - `card-timeline` shows the run's own record round by round
 
 ## How to get to it (user POV)
@@ -48,6 +51,7 @@ Preconditions:
 - **Card question.** In 수신함 open `카드 번호는 앞 여섯 자리까지 보여 줄까요?` in place and choose its `목표 › 작업` link. The address is `#/cards/<id>` and the first box is `결정 필요` with that sentence, `질문` and `n일 전`.
 - **Open a run.** In 수신함 choose the 검토 필요 row. The address is `#/runs/<id>` and the state reads `대기 · 검토 필요 · n시간 전`.
 - **Timeline.** Driven in work-cards.md on `#/cards/k-101` and `#/runs/r1`; here `#/runs/r6`'s single round reads `라운드 1 · <hh:mm>–<hh:mm> · 작업 마침` and its raw result line is left out: no result line, no `가린 문장`.
+- **Model.** Open `#/runs/r1`: under the head, `model-a · 보통`. On `#/cards/k-101`, each round of 기록 shows `model-a · 보통` under its head, dim, once, and the comment blocks show none. Open `#/runs/r8`: `model-b · 높음 · 대체 모델`. Open `#/runs/r6`: no model line. None of these pages shows a settings revision.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/card-detail/card-detail-1280.{png,aria.yml,json}` and `card-detail-390.{png,aria.yml,json}`.
 
 ## Gotchas

@@ -95,8 +95,10 @@ describe.each([
     expect(text).not.toMatch(/\b\d+\s*(?:h|m|s|min)\b|\d+시간(?![째 전후])/);
     for (const word of BANNED_WORDS) expect(text).not.toContain(word);
     const scene = new SyntheticSource().scene;
-    // Data the screen shows may be Latin: the agents' invented names and the model and machine names usage lists.
-    const names = new Set([...scene.items.agents.map((agent) => agent.name), ...scene.usage.today.byModel.map((row) => row.model ?? ""), ...scene.usage.today.byMachine.map((row) => row.machine ?? "")]);
+    // Data the screen shows may be Latin: the agents' invented names, the model ids a run used (named as 설정 names
+    // them) and the model and machine names usage lists.
+    const modelIds = [...scene.runs.flatMap((run) => (run.model?.id ? [run.model.id] : [])), ...Object.values(scene.records).flatMap((record) => (record.model?.id ? [record.model.id] : []))];
+    const names = new Set([...scene.items.agents.map((agent) => agent.name), ...modelIds, ...scene.usage.today.byModel.map((row) => row.model ?? ""), ...scene.usage.today.byMachine.map((row) => row.machine ?? "")]);
     const latinData = new Set([...names].flatMap((name) => name.match(/[A-Za-z]{2,}/g) ?? []));
     const latin = (text.match(/[A-Za-z]{2,}/g) ?? []).filter((word) => !latinData.has(word) && !LATIN_WORDS.includes(word));
     expect(latin).toEqual([]);
@@ -1421,6 +1423,39 @@ describe("the run's own timeline", () => {
     expect(blocks[1].querySelector(".sub")?.textContent).toBe("나");
     expect(blocks[2].querySelector(".sub")?.textContent).toMatch(/^나 · (어제 )?\d\d:\d\d$/);
     expect(blocks[2].querySelector(".timeline-text")?.textContent).toBe("변경마다 한 줄 요약을 붙여 주세요");
+  });
+
+  test("a worker run's page names the model it used, a fallback, or nothing, and never the settings revision", async () => {
+    const used = await open("#/runs/r1", { wide: true });
+    await waitFor(() => expect(used.container.querySelector(".detail-head [data-testid=run-model]")?.textContent).toBe("model-a · 보통"));
+    expect(screenText(used.container)).not.toMatch(/\br\d+\b/);
+    used.unmount();
+    const fallback = await open("#/runs/r8", { wide: true });
+    await waitFor(() => expect(fallback.container.querySelector(".detail-head [data-testid=run-model]")?.textContent).toBe("model-b · 높음 · 대체 모델"));
+    expect(screenText(fallback.container)).not.toMatch(/\br\d+\b/);
+    fallback.unmount();
+    const none = await open("#/runs/r6", { wide: true });
+    await waitFor(() => expect(none.getByTestId("timeline")).toBeTruthy());
+    expect(none.container.querySelector("[data-testid=run-model]")).toBeNull();
+    expect(screenText(none.container)).not.toMatch(/\br\d+\b/);
+  });
+
+  test("each round of a card's 기록 names that round's model under its head, once, and a comment block does not", async () => {
+    const view = await open("#/cards/k-101", { wide: true });
+    await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
+    const blocks = view.getAllByTestId("timeline-block");
+    const rounds = blocks.filter((block) => block.getAttribute("data-outcome") !== "comment");
+    expect(rounds).toHaveLength(3);
+    for (const round of rounds) {
+      const line = round.querySelector("[data-testid=run-model]");
+      expect(line?.textContent).toBe("model-a · 보통");
+      expect(line?.classList.contains("timeline-model")).toBe(true);
+      expect(round.querySelector(".timeline-head")?.contains(line)).toBe(false);
+    }
+    for (const comment of blocks.filter((block) => block.getAttribute("data-outcome") === "comment")) {
+      expect(comment.querySelector("[data-testid=run-model]")).toBeNull();
+    }
+    expect(screenText(view.container)).not.toMatch(/\br\d+\b/);
   });
 
   test("a run's own page shows its timeline; a raw result line is left out and the round keeps its head", async () => {

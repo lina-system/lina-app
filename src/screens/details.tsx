@@ -10,7 +10,7 @@ import { ago, clockAt } from "../time";
 import { useActions } from "../ui/actions";
 import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, useApp } from "../ui/parts";
 import { KIND_TITLE, SEP, STATE_WORD, stateLabel, W } from "../words";
-import { Timeline } from "./timeline";
+import { RunModelLine, Timeline } from "./timeline";
 import { Comments } from "./comments";
 import { Talk } from "./talk";
 
@@ -449,7 +449,7 @@ function CardRunScreen({ id, cardId }: { id: string; cardId: string }) {
   return (
     <article class="detail" data-testid="screen-run">
       <CardHead work="code" title={null}>
-        {null}
+        <RunModelLine runId={id} />
       </CardHead>
       {card ? (
         <Box title={W.cards}>
@@ -477,6 +477,7 @@ export function RunScreen({ id }: { id: string }) {
     <article class="detail" data-testid="screen-run">
       <CardHead work={row.work} title={run.plain.title}>
         <StateTime state={run.state} reason={run.reason} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} />
+        <RunModelLine runId={id} />
       </CardHead>
       {run.plain.now && run.state === "in_progress" ? (
         <Box title={W.now}>

@@ -1,4 +1,4 @@
-import type { Settings, SettingsAuditLine, SettingsChange, SettingsDevice, SettingsModel, SettingsModels, SettingsRule, SettingsRunner } from "../api/client";
+import type { RunCard, Settings, SettingsAuditLine, SettingsChange, SettingsDevice, SettingsModel, SettingsModels, SettingsRule, SettingsRunner } from "../api/client";
 import { serviceName, SEP, W } from "../words";
 
 /** The runner `lina worker` uses when the settings name none, and that is there even when not listed. */
@@ -134,6 +134,19 @@ export function effortWord(effort: string): string {
 export function runnerLine(runner: SettingsRunner, settings: Settings, models: readonly SettingsModel[]): string {
   const effort = effortOf(runner.model, settings, models);
   return [modelLabel(runner.model, settings, models), effort ? effortWord(effort) : null].filter(Boolean).join(SEP);
+}
+
+/**
+ * The model a run used, named as the settings screen names one (`modelLabel`, which reads `modelName`): `<모델> ·
+ * <생각 깊이>`. A run that started on the fallback (`source` `fallback:…`) ends with `대체 모델`. No model draws nothing.
+ * The settings revision is never part of the line.
+ */
+export function runModelLine(model: RunCard["model"], settings: Settings, models: readonly SettingsModel[]): string | null {
+  if (!model?.id) return null;
+  const value = model.provider ? modelValue({ provider: model.provider, id: model.id }, model.thinking) : model.id;
+  const effort = model.thinking ? effortWord(model.thinking) : null;
+  const fallback = model.source.startsWith("fallback:") ? W.fallbackModel : null;
+  return [modelLabel(value, settings, models), effort, fallback].filter(Boolean).join(SEP);
 }
 
 /** Choosing a model keeps the effort when the new model offers it. */

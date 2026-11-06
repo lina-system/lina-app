@@ -1,11 +1,26 @@
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import type { RecordRow } from "../api/client";
+import type { RecordRow, Settings } from "../api/client";
 import { foldReason } from "../model/fold";
+import { runModelLine } from "../model/settings";
 import { timelineBlocks, type TimelineBlock } from "../model/timeline";
 import { clockAt } from "../time";
 import { agentName, Box, useApp } from "../ui/parts";
 import { SEP, W } from "../words";
+
+/** The model a worker run used: its record once the screen has read it, else the run card the board lists. */
+export function RunModelLine({ runId, class: className = "sub" }: { runId: string; class?: string }) {
+  const { model, store } = useApp();
+  const run = store.get("record", runId)?.model ?? model.runs.get(runId)?.model ?? null;
+  const settings: Settings = store.get("settings")?.settings ?? {};
+  const line = runModelLine(run, settings, store.get("settingsModels")?.models ?? []);
+  if (!line) return null;
+  return (
+    <p class={className} data-testid="run-model">
+      {line}
+    </p>
+  );
+}
 
 /** A line the screen may show as it is: no raw English, paths, commands or ids. */
 function clean(text: string | null): text is string {
@@ -69,6 +84,7 @@ function Block({ block, owner, link }: { block: TimelineBlock; owner: string; li
           title
         )}
       </summary>
+      {block.type === "round" ? <RunModelLine runId={block.runId} class="timeline-model" /> : null}
       {block.type === "round" && block.startUnknown ? <p class="timeline-row is-dim" data-testid="timeline-no-start">{W.noStart}</p> : null}
       {rows.length ? (
         <ul class="timeline-rows">

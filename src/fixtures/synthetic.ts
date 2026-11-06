@@ -25,6 +25,18 @@ import type {
 import { diffSettings } from "../model/settings";
 
 /**
+ * The model a run started with, and the settings revision it was submitted under. r1 used model-a at medium; r8
+ * started on the fallback model-b; r6 names no model. r6 still carries a revision so a screen that drew it would
+ * fail the no-ids test. Every other run is from before the field existed.
+ */
+function modelFields(id: string): Pick<RunCard, "model" | "settingsRevision"> {
+  if (id === "r1") return { model: { provider: "anthropic", id: "model-a", thinking: "medium", source: "runner:omo" }, settingsRevision: "r3" };
+  if (id === "r8") return { model: { provider: "anthropic", id: "model-b", thinking: "high", source: "fallback:off" }, settingsRevision: "r3" };
+  if (id === "r6") return { model: null, settingsRevision: "r3" };
+  return { model: null, settingsRevision: null };
+}
+
+/**
  * The synthetic scene behind tests, captures and the verify skill. It is generated from a seed, never copied
  * from a real home: agent and machine names are invented words, titles are invented Korean work phrases, and
  * every time is relative to the `now` it is generated for, so a capture always reads "12분째", never a date.
@@ -229,7 +241,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
   // Worker runs: r1-r5, r9 and r10 were started by work cards (r9, r1 and r10 are k-101's three rounds); r6, r7 and
   // r8 run outside any card. r7 and r8 are two jobs on one to-do that got one generated title: two cards. The raw
   // titles and live lines are what a worker records (file names, English topics); the screens never draw them.
-  const runCards: RunCard[] = [
+  const runCards: RunCard[] = ([
     { id: "r1", title: "release-notes: collect merged PRs (round 3)", state: "in_progress", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[0], startedAt: now - 12 * MIN, endedAt: null, now: "adding a one-line summary per merged PR in CHANGES.md", plain: plain("변경 목록 모으기", "변경마다 한 줄 요약을 붙이는 중") },
     { id: "r2", title: "card-form.tsx polish", state: "in_progress", reason: null, agent: agentId(1), kind: "ulw", todo: "T4", host: machines[1], startedAt: now - 2 * HOUR, endedAt: null, now: "editing src/payment/card-form.tsx", plain: NO_LINES },
     { id: "r3", title: "error-copy.json rewrite", state: "stopped", reason: "unresponsive", agent: agentId(1), kind: "ulw", todo: "T5", host: machines[2], startedAt: now - 58 * MIN, endedAt: null, now: null, plain: plain("오류 문구 바꾸기") },
@@ -240,7 +252,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     { id: "r8", title: "guide-draft.md pass", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T10", host: machines[0], startedAt: now - 2 * DAY - 40 * MIN, endedAt: now - 2 * DAY, now: null, plain: plain("가이드 초안 다듬기", null, "첫 화면 설명을 세 문장으로 줄임") },
     { id: "r9", title: "release-notes: collect merged PRs (round 1)", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[0], startedAt: now - 3 * HOUR, endedAt: now - 2 * HOUR - 40 * MIN, now: null, plain: plain("변경 목록 모으기", null, "병합된 변경 41개를 모음") },
     { id: "r10", title: "release-notes: collect merged PRs (round 2)", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[1], startedAt: now - HOUR, endedAt: now - 40 * MIN, now: null, plain: plain("변경 목록 모으기", null, "문서만 바뀐 변경을 따로 묶음") },
-  ];
+  ] satisfies Omit<RunCard, "model" | "settingsRevision">[]).map((run) => ({ ...run, ...modelFields(run.id) }));
 
   // k-101 is in its third follow-up round (one card); k-102's checked lines are all missing (nothing drawn for them).
   const cardSeeds = [
@@ -749,6 +761,7 @@ function records(now: number): Record<string, RunRecord> {
     r1: {
       id: "r1",
       at: now,
+      ...modelFields("r1"),
       rounds: [
         {
           run: 3,
@@ -786,6 +799,7 @@ function records(now: number): Record<string, RunRecord> {
     r6: {
       id: "r6",
       at: now,
+      ...modelFields("r6"),
       rounds: [{ run: 1, startedAt: now - 6 * HOUR, endedAt: now - 5 * HOUR, endKnown: true, startUnknown: false, result: "index-structure benchmark v2 done (3f2a1c9)", verdict: null, stopped: false, rows: [] }],
       comments: [],
       errors: [],

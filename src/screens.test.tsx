@@ -1425,13 +1425,18 @@ describe("the run's own timeline", () => {
     expect(blocks[2].querySelector(".timeline-text")?.textContent).toBe("변경마다 한 줄 요약을 붙여 주세요");
   });
 
-  test("a worker run's page names the model it used, a fallback, or nothing, and never the settings revision", async () => {
+  test("a worker run's page names the model it used once under its head, and its rounds draw no model line", async () => {
     const used = await open("#/runs/r1", { wide: true });
-    await waitFor(() => expect(used.container.querySelector(".detail-head [data-testid=run-model]")?.textContent).toBe("model-a · 보통"));
+    await waitFor(() => expect(used.getByTestId("timeline")).toBeTruthy());
+    expect(used.container.querySelector(".detail-head [data-testid=run-model]")?.textContent).toBe("model-a · 보통");
+    expect(used.container.querySelectorAll("[data-testid=run-model]")).toHaveLength(1);
+    expect(used.container.querySelector("[data-testid=timeline-block] [data-testid=run-model]")).toBeNull();
     expect(screenText(used.container)).not.toMatch(/\br\d+\b/);
     used.unmount();
     const fallback = await open("#/runs/r8", { wide: true });
     await waitFor(() => expect(fallback.container.querySelector(".detail-head [data-testid=run-model]")?.textContent).toBe("model-b · 높음 · 대체 모델"));
+    expect(fallback.container.querySelectorAll("[data-testid=run-model]")).toHaveLength(1);
+    expect(fallback.container.querySelector("[data-testid=timeline-block] [data-testid=run-model]")).toBeNull();
     expect(screenText(fallback.container)).not.toMatch(/\br\d+\b/);
     fallback.unmount();
     const none = await open("#/runs/r6", { wide: true });

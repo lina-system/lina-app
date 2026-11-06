@@ -107,11 +107,12 @@ function Block({ block, owner, link, modelRun }: { block: TimelineBlock; owner: 
 /**
  * The run's own timeline (lina#201): its rounds and the comments made between them, newest first, below a detail's
  * boxes. `link` names the page a round's head opens (a card's worker run), or null. `modelRun` names the worker
- * run a round was, whose model the round shows; it defaults to the record's own run, which is what a run's page
- * names. `fallback` is what stands when the record is not shown: under the one error line when its read failed,
- * or alone while there is no record.
+ * run a round was, whose model the round shows. It defaults to null, so a run's own page draws no model line on
+ * its rounds: that page names the model once, under its head. A card passes the worker run each round was.
+ * `fallback` is what stands when the record is not shown: under the one error line when its read failed, or
+ * alone while there is no record.
  */
-export function Timeline({ runs, live, link = () => null, modelRun = (runId) => runId, fallback = null }: { runs: readonly string[]; live: (runId: string) => boolean; link?: (runId: string, n: number) => string | null; modelRun?: (runId: string, n: number) => string; fallback?: ComponentChildren }) {
+export function Timeline({ runs, live, link = () => null, modelRun = () => null, fallback = null }: { runs: readonly string[]; live: (runId: string) => boolean; link?: (runId: string, n: number) => string | null; modelRun?: (runId: string, n: number) => string | null; fallback?: ComponentChildren }) {
   const { model, store, now } = useApp();
   if (runs.some((id) => store.status("record", id) === "failed"))
     return (

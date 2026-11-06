@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/models/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The models on and off, and for each machine whether its OCX link answered recently (lina#232). */
+        get: operations["getModelsState"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notices/read": {
         parameters: {
             query?: never;
@@ -81,6 +98,23 @@ export interface paths {
         };
         /** The hub's own health checks (lina#233): one row per `<LINA root>/status/*.json` file, newest `at` first. A missing folder is an empty list; a malformed file is one error row naming it, never a failed response. */
         get: operations["getStatusChecks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Tokens, estimated cost and requests of one range from OCX, by model, provider, account and machine (lina#232). No split by agent: every agent sends with the same OCX key, so OCX records none. */
+        get: operations["getUsage"];
         put?: never;
         post?: never;
         delete?: never;
@@ -500,6 +534,15 @@ export interface components {
             /** @description Goals only. */
             todos: components["schemas"]["TodoCount"] | null;
         };
+        LinkState: {
+            /** @description The link's alias in OCX. */
+            machine: string | null;
+            /** @description Connected and reported within the last 10 minutes. */
+            ok: boolean;
+            reportedAt: number | null;
+            /** @description OCX's link state (connected, failed, ...). */
+            state: string | null;
+        };
         Machine: {
             cap: number;
             cores: number | null;
@@ -525,6 +568,18 @@ export interface components {
             title: string;
             /** @description The to-do still waits on an open item, a hold or a wait sentence. */
             waiting: boolean;
+        };
+        ModelsState: {
+            at: number;
+            disabled: number;
+            enabled: number;
+            /** @description The models on, by provider and model name. */
+            enabledModels: {
+                model: string | null;
+                provider: string | null;
+            }[];
+            machines: components["schemas"]["LinkState"][];
+            version: number;
         };
         Notice: {
             at: number | null;
@@ -555,6 +610,8 @@ export interface components {
             title: string | null;
         };
         QuotaAccount: {
+            /** @description OCX's active account of its provider. */
+            active: boolean;
             /** @description A hash of the OCX account id. */
             id: string;
             mainWindow: string | null;
@@ -562,6 +619,11 @@ export interface components {
             number: number;
             paused: boolean;
             plan: string;
+            /**
+             * @description reauth when OCX needs the account signed in again, else paused when paused, else ok.
+             * @enum {string}
+             */
+            state: "ok" | "paused" | "reauth";
             unavailable: boolean;
             warn: boolean;
             windows: components["schemas"]["QuotaWindow"][];
@@ -575,12 +637,17 @@ export interface components {
         QuotaView: {
             at: number;
             errors: components["schemas"]["Errors"];
+            /** @description Services OCX holds no account for (null when OCX could not be read). */
+            missing: string[] | null;
             quota: components["schemas"]["QuotaService"][];
             version: number;
         };
         QuotaWindow: {
             /** @description weekly, fiveHour, monthly, or custom:<OCX label>. */
             key: string;
+            /** @description 100 - percent, clamped to 0..100. */
+            left: number;
+            /** @description The used share, as OCX reports it. */
             percent: number;
             /** @description Percent per hour over the last three hours of this reset period; null under 30 minutes of records. */
             ratePerHour: number | null;
@@ -697,6 +764,39 @@ export interface components {
             done: number;
             total: number;
         };
+        /** @description Requests, tokens and OCX's estimated cost in USD (null when OCX prices none of them). */
+        UsageRow: {
+            /** @description OCX's accountLogLabel as given (may be a hash). */
+            account?: string | null;
+            costUsd: number | null;
+            /** @description The name after `link:` of the machine's OCX access key. */
+            machine?: string;
+            model?: string | null;
+            provider?: string | null;
+            requests: number;
+            tokens: components["schemas"]["UsageTokens"];
+        };
+        UsageTokens: {
+            cacheRead: number;
+            input: number;
+            output: number;
+            total: number;
+        };
+        UsageView: {
+            at: number;
+            byAccount: components["schemas"]["UsageRow"][];
+            /** @description One row per OCX access key named `link:<machine>`. */
+            byMachine: components["schemas"]["UsageRow"][];
+            byModel: components["schemas"]["UsageRow"][];
+            byProvider: components["schemas"]["UsageRow"][];
+            costUsd: number | null;
+            generatedAt: number | null;
+            /** @enum {string} */
+            range: "today" | "7d" | "30d";
+            requests: number;
+            tokens: components["schemas"]["UsageTokens"];
+            version: number;
+        };
         /**
          * @description Same enum as work-client.yaml. For a worker run: planned (new, queued); in_progress (running); waiting (a finished run with no verdict yet, or a run that asked a person); stopped (failed, stalled, no result, cancelled, rejected); done (accepted).
          * @enum {string}
@@ -779,6 +879,43 @@ export interface operations {
             };
             /** @description Unchanged since the ETag sent. */
             304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getModelsState: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Models and links. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelsState"];
+                };
+            };
+            /** @description Unchanged since the ETag sent. */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description OCX could not be read. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -869,6 +1006,45 @@ export interface operations {
             };
             /** @description Unchanged since the ETag sent. */
             304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getUsage: {
+        parameters: {
+            query?: {
+                range?: "today" | "7d" | "30d";
+            };
+            header?: {
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Usage. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsageView"];
+                };
+            };
+            /** @description Unchanged since the ETag sent. */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description OCX could not be read (not running, not installed, or the external OCX's proxy is down). */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

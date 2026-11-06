@@ -1104,22 +1104,22 @@ const drivers = {
       return line;
     });
     await step("read the machines", async () => {
-      const names = await page.getByRole("list", { name: "기기" }).locator(".row-body").evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
+      const names = await page.getByRole("list", { name: "기기", exact: true }).locator(".row-body").evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
       check(names.length === 3, "expected 3 machines");
       const meters = "CPU (\\d+%|—) · 메모리 (\\d+%|—) · 디스크 (\\d+%|—) · 작업 (\\d+|—)/\\d+$";
       check(names.some((name) => new RegExp(" · 정상 · " + meters).test(name)), "no 정상 machine with its meters: " + names.join(" | "));
       check(names.some((name) => new RegExp(" · 경고 · 디스크 · " + meters).test(name)), "no 경고 machine with its reason word: " + names.join(" | "));
       check(names.some((name) => / · 꺼짐 · 연결 끊김 · CPU — · 메모리 — · 디스크 — · 작업 —\/\d+$/.test(name)), "no 꺼짐 machine reading 연결 끊김 and — meters: " + names.join(" | "));
-      const colours = await page.getByRole("list", { name: "기기" }).locator(".machine-state").evaluateAll((words) => words.map((word) => word.textContent + "=" + getComputedStyle(word).color));
+      const colours = await page.getByRole("list", { name: "기기", exact: true }).locator(".machine-state").evaluateAll((words) => words.map((word) => word.textContent + "=" + getComputedStyle(word).color));
       check(colours.includes("경고=rgb(255, 149, 0)") && colours.includes("꺼짐=rgb(255, 59, 48)"), "state colours " + colours.join(", "));
-      const bars = await page.getByRole("list", { name: "기기" }).locator(".mini-meter .meter").count();
+      const bars = await page.getByRole("list", { name: "기기", exact: true }).locator(".mini-meter .meter").count();
       check(bars === 6, "expected 6 thin bars on the two machines that report, got " + bars);
-      const loads = await page.getByRole("list", { name: "기기" }).locator(".trail").allInnerTexts();
+      const loads = await page.getByRole("list", { name: "기기", exact: true }).locator(".trail").allInnerTexts();
       check(loads.every((text) => /^작업 (\d+|—)\/\d+$/.test(text)), "loads read " + loads.join(", "));
       return names.join(" | ");
     });
-    await step("read the quota and unfold a service", async () => {
-      const list = page.getByRole("list", { name: "쿼터" });
+    await step("read the quota, unfold a service and read the service OCX has no account for", async () => {
+      const list = page.getByRole("list", { name: "쿼터", exact: true });
       const names = await list.locator("summary").evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
       check(names.length === 3, "expected 3 services, got " + names.length);
       check(names[0].startsWith("Claude · ") && names[1].startsWith("ChatGPT · ") && names[2].startsWith("가온셈 · "), "service names " + names.join(" | "));
@@ -1132,8 +1132,15 @@ const drivers = {
       check(!(await list.getByTestId("account").first().isVisible()), "accounts are not folded");
       await list.locator("summary").first().click();
       const accounts = await list.getByTestId("account").evaluateAll((rows) => rows.filter((row) => row.checkVisibility()).map((row) => row.getAttribute("aria-label")));
-      check(accounts.length === 2 && accounts.every((name) => /^계정 \d · \d+% · 시간당 \+\d+% · \d+(분|시간|일) 후( · 주의)?$/.test(name)), "Claude's accounts read " + accounts.join(" | "));
-      return names.join(" | ") + "; Claude: " + accounts.join(" | ");
+      check(accounts.length === 2 && accounts.every((name) => /^계정 \d · (?:\d+% 남음|다시 로그인 필요|일시 중지)(?: · 시간당 \+\d+%)? · \d+(분|시간|일) 후(?: · 주의)?$/.test(name)), "Claude's accounts read " + accounts.join(" | "));
+      check(accounts.some((name) => name.startsWith("계정 2 · 다시 로그인 필요")), "no account needs signing in again: " + accounts.join(" | "));
+      // The paused account is on the third service; unfold that one too.
+      await list.locator("summary").nth(2).click();
+      const paused = await list.getByTestId("account").evaluateAll((rows) => rows.filter((row) => row.checkVisibility()).map((row) => row.getAttribute("aria-label")));
+      check(paused.some((name) => name === "계정 1 · 일시 중지 · 12일 후"), "the paused account reads " + paused.join(" | "));
+      const missing = (await page.getByTestId("quota-missing").allInnerTexts()).map((line) => line.trim());
+      check(JSON.stringify(missing) === JSON.stringify(["Cursor 계정 없음"]), "the service with no account reads " + JSON.stringify(missing));
+      return names.join(" | ") + "; Claude: " + accounts.join(" | ") + "; " + paused.join(" | ") + "; " + missing.join(" | ");
     });
     await step("주의 follows the rule, resets read hours under a day and days over, no rate means no rate part", async () => {
       const rows = await page.getByRole("list", { name: "쿼터", exact: true }).locator(":scope > li").evaluateAll((items) => items.map((item) => ({ name: item.querySelector("summary .title").textContent, sub: item.querySelector("summary .sub").textContent, warn: Boolean(item.querySelector("summary .warn-mark")) })));
@@ -1148,6 +1155,38 @@ const drivers = {
         if (service.ratePerHour === null) check(!rows[index].sub.includes("시간당"), rows[index].name + " has no rate but reads " + rows[index].sub);
       }
       return rows.map((row) => row.name + ": " + row.sub + (row.warn ? " · 주의" : "")).join(" | ");
+    });
+    await step("read OCX's own line", async () => {
+      const line = (await page.getByTestId("ocx-line").innerText()).trim();
+      check(line === "모델 3개 켜짐 · 연결 끊김: machine-c", "OCX's line reads " + line);
+      return line;
+    });
+    await step("read usage for today, then switch to 7 days and 30 days", async () => {
+      const panel = page.getByTestId("section-usage");
+      const total = async () => (await panel.getByTestId("usage-total").innerText()).trim();
+      const rows = async (name) => (await panel.getByRole("list", { name }).locator(".usage-row").allInnerTexts()).map((text) => text.trim());
+      check((await total()) === "$3.42 · 토큰 1.2만", "today's total reads " + (await total()));
+      check(JSON.stringify(await rows("모델별")) === JSON.stringify(["haru · $1.85 · 토큰 6,200", "saeol · $1.12 · 토큰 4,200", "moru · $0.45 · 토큰 2,080"]), "today's models read " + JSON.stringify(await rows("모델별")));
+      check(JSON.stringify(await rows("기기별")) === JSON.stringify(["machine-a · $2.05 · 토큰 7,000", "machine-b · $1.01 · 토큰 3,800", "machine-c · $0.36 · 토큰 1,680"]), "today's machines read " + JSON.stringify(await rows("기기별")));
+      await panel.getByRole("button", { name: "7일" }).click();
+      check((await panel.getByRole("button", { name: "7일" }).getAttribute("aria-pressed")) === "true", "7일 is not pressed");
+      check((await total()) === "$18.40 · 토큰 8.6만", "7 days' total reads " + (await total()));
+      check(JSON.stringify(await rows("기기별")) === JSON.stringify(["machine-a · $11.20 · 토큰 4.9만", "machine-b · $5.40 · 토큰 2.6만", "machine-c · $1.80 · 토큰 1.1만"]), "7 days' machines read " + JSON.stringify(await rows("기기별")));
+      await panel.getByRole("button", { name: "30일" }).click();
+      check((await total()) === "$63.10 · 토큰 42만", "30 days' total reads " + (await total()));
+      check(JSON.stringify(await rows("모델별")) === JSON.stringify(["haru · $34.20 · 토큰 19만", "saeol · $19.90 · 토큰 14.8만", "moru · $9.00 · 토큰 8.2만"]), "30 days' models read " + JSON.stringify(await rows("모델별")));
+      await panel.getByRole("button", { name: "오늘" }).click();
+      check((await total()) === "$3.42 · 토큰 1.2만", "today's total after switching back reads " + (await total()));
+      // Phone rules (features/phone.md): each range control is a 44 pt tap target and no line is under 13 px.
+      let phone = "";
+      if (page.viewportSize().width < 900) {
+        const heights = await panel.locator(".usage-range .choice").evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().height));
+        check(heights.every((height) => height >= HIT), "range controls are " + heights.map(Math.round).join(", ") + " px tall on a phone");
+        const sizes = await panel.locator(".usage-head, .usage-total, .usage-row .title").evaluateAll((items) => items.map((item) => parseFloat(getComputedStyle(item).fontSize)));
+        check(sizes.every((size) => size >= MIN_TEXT), "usage text draws at " + sizes.join(", ") + " px on a phone");
+        phone = "; controls " + Math.round(Math.min(...heights)) + " px, text " + Math.min(...sizes) + " px";
+      }
+      return "오늘 $3.42 · 토큰 1.2만; 7일 $18.40 · 토큰 8.6만; 30일 $63.10 · 토큰 42만" + phone;
     });
     await step("read the checks", async () => {
       const list = page.getByRole("list", { name: "점검" });
@@ -1166,7 +1205,7 @@ const drivers = {
       check(rows[1]?.text === "대기 봇 · 소식이 끊김" && rows[1].state === "오래됨" && rows[1].time === "3시간 전" && rows[1].colour === "rgb(255, 149, 0)", "second open check " + JSON.stringify(rows[1]));
       for (const row of rows) check(!row.checkRow, row.text + " carries the to-do row's check-row class");
       // The same row layout as 기기: the trail (state word over time) ends at the row's right edge, not after the title.
-      const machineEdge = await page.getByRole("list", { name: "기기" }).locator(".machine-row .trail").first().evaluate((item) => item.getBoundingClientRect().right);
+      const machineEdge = await page.getByRole("list", { name: "기기", exact: true }).locator(".machine-row .trail").first().evaluate((item) => item.getBoundingClientRect().right);
       for (const row of rows) check(Math.abs(row.trail - machineEdge) <= 2, row.text + " has its trail at " + Math.round(row.trail) + " px, the 기기 rows' at " + Math.round(machineEdge) + " px");
       const folded = (await list.locator(".status-check-fold").innerText()).trim();
       check(folded === "정상 3", "the passing checks read " + folded);

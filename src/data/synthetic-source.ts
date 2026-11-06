@@ -14,6 +14,10 @@ function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
       return scene.devices;
     case "quota":
       return scene.quota;
+    case "usage":
+      return scene.usage[(id ?? "today") as keyof typeof scene.usage];
+    case "modelsState":
+      return scene.modelsState;
     case "checks":
       return scene.checks;
     case "goals":

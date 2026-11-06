@@ -1,8 +1,9 @@
 import type { ComponentChildren } from "preact";
-import type { Machine, QuotaAccount, QuotaService } from "../api/client";
+import { USAGE_RANGES, type Machine, type QuotaAccount, type QuotaService, type UsageRange } from "../api/client";
 import type { CardRow, DueRow, GoalRow, InboxRow } from "../model";
 import { agentView, doneFor } from "../model";
 import type { OpenCheck } from "../model/checks";
+import type { UsageLine } from "../model/usage";
 import { href, navigate } from "../router";
 import { ago, dayLabel, until } from "../time";
 import { useEffect, useState } from "preact/hooks";
@@ -394,9 +395,10 @@ function mainWindow(account: QuotaAccount): QuotaAccount["windows"][number] | un
   return account.windows.find((window) => window.key === account.mainWindow) ?? account.windows[0];
 }
 
-function QuotaParts({ line, now }: { line: QuotaLine; now: number }) {
+/** A quota line's parts: the percent (or the word that stands in its place), the rate and the reset. */
+function QuotaParts({ line, now, percent }: { line: QuotaLine; now: number; percent: string | null }) {
   const parts: ComponentChildren[] = [];
-  if (line.percent !== null) parts.push(<span key="p">{W.percent(line.percent)}</span>);
+  if (percent !== null) parts.push(<span key="p">{percent}</span>);
   if (line.rate !== null)
     parts.push(
       <span key="r" class="rate" title={W.rateTitle}>
@@ -431,7 +433,7 @@ function QuotaRow({ service }: { service: QuotaService }) {
           <span class="lines">
             <span class="title one-line">{name}</span>
             <span class="sub">
-              <QuotaParts line={line} now={now} />
+              <QuotaParts line={line} now={now} percent={line.percent !== null ? W.percent(line.percent) : null} />
             </span>
           </span>
           {line.warn ? <span class="trail warn-mark">{W.quotaWarn}</span> : null}
@@ -442,13 +444,27 @@ function QuotaRow({ service }: { service: QuotaService }) {
           {service.accounts.map((account) => {
             const window = mainWindow(account);
             const accountLine: QuotaLine = { percent: window?.percent ?? null, rate: window?.ratePerHour ?? null, resetAt: window?.resetAt ?? null, warn: account.warn };
-            const flags = [account.paused ? W.quotaPaused : null, account.unavailable ? W.quotaUnavailable : null].filter((flag): flag is string => Boolean(flag));
+            // An account OCX cannot use says so in place of its percent: signing in again, or paused. The rest read
+            // what is left of the main window, with the reset as it was.
+            const stateWord = account.state === "reauth" ? W.quotaReauth : account.state === "paused" ? W.quotaPaused : null;
+            const percent = stateWord ?? (window ? W.leftPercent(window.left) : null);
+            const flags = [account.unavailable ? W.quotaUnavailable : null].filter((flag): flag is string => Boolean(flag));
+            const spoken = [
+              W.quotaAccount(account.number),
+              ...flags,
+              percent,
+              accountLine.rate !== null ? W.ratePerHour(accountLine.rate) : null,
+              accountLine.resetAt !== null ? until(accountLine.resetAt - now) : null,
+              account.warn ? W.quotaWarn : null,
+            ]
+              .filter((part): part is string => Boolean(part))
+              .join(SEP);
             return (
-              <li key={account.id} class={`account-row${account.warn ? " is-warn" : ""}`} data-testid="account" aria-label={[W.quotaAccount(account.number), ...flags, ...quotaText(accountLine, now), account.warn ? W.quotaWarn : ""].filter(Boolean).join(SEP)}>
+              <li key={account.id} class={`account-row${account.warn ? " is-warn" : ""}`} data-testid="account" aria-label={spoken}>
                 <span class="lines">
                   <span class="title one-line">{[W.quotaAccount(account.number), ...flags].join(SEP)}</span>
                   <span class="sub">
-                    <QuotaParts line={accountLine} now={now} />
+                    <QuotaParts line={accountLine} now={now} percent={percent} />
                   </span>
                 </span>
                 {account.warn ? <span class="trail warn-mark">{W.quotaWarn}</span> : null}
@@ -484,6 +500,74 @@ function CheckRow({ check }: { check: OpenCheck }) {
   );
 }
 
+/** One line of the usage panel: a model or a machine, its estimated cost and its tokens. */
+function UsageRowView({ line }: { line: UsageLine }) {
+  const text = W.usageLine(line.name, W.cost(line.cost), W.tokens(line.tokens));
+  return (
+    <li class="row usage-row" data-testid="row">
+      <div class="row-body" aria-label={text}>
+        <span class="lines">
+          <span class="title one-line">{text}</span>
+        </span>
+      </div>
+    </li>
+  );
+}
+
+/**
+ * 사용량: one control per range (오늘 first), the range's totals, then its costliest models and machines. The core
+ * serves no per-agent split (lina#232), so the panel draws none and says nothing about agents.
+ */
+function UsagePanel() {
+  const { model } = useApp();
+  const [range, setRange] = useState<UsageRange>("today");
+  const view = model.usage.find((each) => each.range === range) ?? model.usage[0];
+  if (!view) return null;
+  return (
+    <section class="list-section" data-testid="section-usage">
+      <h2 class="section-head">
+        <span>{W.usage}</span>
+      </h2>
+      <div class="usage-range" role="group" aria-label={W.usage}>
+        {USAGE_RANGES.map((each) => (
+          <button key={each} type="button" class="choice usage-range-choice" aria-pressed={each === view.range} onClick={() => setRange(each)}>
+            {W.usageRange[each]}
+          </button>
+        ))}
+      </div>
+      <p class="usage-total" data-testid="usage-total">
+        {W.usageTotal(W.cost(view.cost), W.tokens(view.tokens))}
+      </p>
+      <h3 class="usage-head">{W.usageByModel}</h3>
+      <ul class="rows usage-list" aria-label={W.usageByModel}>
+        {view.models.map((line) => (
+          <UsageRowView key={line.name} line={line} />
+        ))}
+      </ul>
+      <h3 class="usage-head">{W.usageByMachine}</h3>
+      <ul class="rows usage-list" aria-label={W.usageByMachine}>
+        {view.machines.map((line) => (
+          <UsageRowView key={line.name} line={line} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** OCX's own line under the quota: the models on, then only the machines whose link is down (nothing when all are fine). */
+function OcxLine() {
+  const { model } = useApp();
+  if (!model.ocx) return null;
+  const models = W.ocxModels(model.ocx.enabled);
+  return (
+    <section class="list-section" data-testid="section-ocx">
+      <p class="ocx-line" data-testid="ocx-line">
+        {model.ocx.down.length ? `${models}${SEP}${W.ocxLinksDown(model.ocx.down)}` : models}
+      </p>
+    </section>
+  );
+}
+
 export function StatusScreen() {
   const { model } = useApp();
   return (
@@ -508,8 +592,15 @@ export function StatusScreen() {
               <QuotaRow key={service.service} service={service} />
             ))}
           </ul>
+          {model.quotaMissing.map((service) => (
+            <p key={service} class="quota-missing" data-testid="quota-missing">
+              {W.quotaMissing(serviceName(service))}
+            </p>
+          ))}
         </section>
       ) : null}
+      <OcxLine />
+      <UsagePanel />
       <section class="list-section" data-testid="section-checks">
         <h2 class="section-head">
           <span>{W.checks}</span>

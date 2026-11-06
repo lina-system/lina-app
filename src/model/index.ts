@@ -6,11 +6,14 @@ import type {
   ItemList,
   ItemSummary,
   Machine,
+  ModelsState,
   Notice,
   QuotaService,
   QuotaView,
   RunCard,
   StatusChecks,
+  UsageRange,
+  UsageView,
   WorkCardDetail,
   WorkCardList,
   WorkCardSummary,
@@ -21,6 +24,7 @@ import { CRUMB, KIND_TITLE, SOURCE_WORD, STATE_WORD, W } from "../words";
 import { href } from "../router";
 import { checksView, type ChecksView } from "./checks";
 import { cardKind, type CardKind } from "./kind";
+import { ocxView, usageViews, type OcxView, type UsageRangeView } from "./usage";
 
 export interface ModelInput {
   readonly board?: BoardSnapshot;
@@ -32,6 +36,10 @@ export interface ModelInput {
   readonly inbox?: WorkInbox;
   readonly devices?: DevicesView;
   readonly quota?: QuotaView;
+  /** Usage per range (lina#232); the screen shows the one its control picks. */
+  readonly usage?: Readonly<Partial<Record<UsageRange, UsageView>>>;
+  /** The models on and each machine's OCX link (lina#232). */
+  readonly modelsState?: ModelsState;
   readonly checks?: StatusChecks;
   readonly cardDetails: Readonly<Record<string, WorkCardDetail>>;
   readonly failed: readonly string[];
@@ -193,6 +201,12 @@ export interface Model {
   readonly machines: readonly Machine[];
   readonly devices: { readonly ok: readonly Machine[]; readonly warn: readonly Machine[]; readonly down: readonly Machine[] };
   readonly quota: readonly QuotaService[];
+  /** Services OCX holds no account for (the view's `missing`), one line each under the quota rows. */
+  readonly quotaMissing: readonly string[];
+  /** Usage for every range read so far, in the screen's order: today, 7 days, 30 days. */
+  readonly usage: readonly UsageRangeView[];
+  /** OCX's own line: the models on and the links down; null until its route answered. */
+  readonly ocx: OcxView | null;
   /** The hub's own checks, folded: only failing, stale and error rows stay open. */
   readonly checks: ChecksView;
   readonly notices: readonly Notice[];
@@ -424,6 +438,9 @@ export function buildModel(input: ModelInput, now: number): Model {
 
   const machines = input.devices?.machines ?? board?.machines ?? [];
   const quota = input.quota?.quota ?? board?.quota ?? [];
+  const quotaMissing = input.quota?.missing ?? [];
+  const usage = usageViews(input.usage);
+  const ocx = ocxView(input.modelsState);
   const checks = checksView(input.checks);
   const okMachines = machines.filter((machine) => machine.state === "ok");
   const warnMachines = machines.filter((machine) => machine.state === "warn");
@@ -473,6 +490,9 @@ export function buildModel(input: ModelInput, now: number): Model {
     machines,
     devices: { ok: okMachines, warn: warnMachines, down: downMachines },
     quota,
+    quotaMissing,
+    usage,
+    ocx,
     checks,
     notices,
     errors,

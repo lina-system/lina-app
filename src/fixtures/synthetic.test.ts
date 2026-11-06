@@ -19,6 +19,8 @@ function model(input: Scene) {
       inbox: input.inbox,
       devices: input.devices,
       quota: input.quota,
+      usage: input.usage,
+      modelsState: input.modelsState,
       checks: input.checks,
       cardDetails: input.cardDetails,
       failed: [],
@@ -103,6 +105,27 @@ test("the scene holds what every screen needs", () => {
     expect(account.warn).toBe(account.windows.some((window) => window.warn));
   }
   expect(scene.quota.quota.filter((service) => service.accounts.some((account) => account.warn))).toHaveLength(1);
+  const accounts = scene.quota.quota.flatMap((service) => service.accounts);
+  for (const window of accounts.flatMap((account) => account.windows)) expect(window.left).toBe(Math.min(100, Math.max(0, 100 - window.percent)));
+  // One account needs signing in again, one is paused, and OCX holds no account for one service (lina#232).
+  expect(accounts.filter((account) => account.state === "reauth")).toHaveLength(1);
+  expect(accounts.filter((account) => account.state === "paused").map((account) => account.paused)).toEqual([true]);
+  expect(scene.quota.missing).toEqual(["Cursor"]);
+
+  // Usage (lina#232): one view per control, its lists adding up to its own totals.
+  expect(Object.keys(scene.usage)).toEqual(["today", "7d", "30d"]);
+  for (const view of Object.values(scene.usage)) {
+    const tokens = (rows: typeof view.byModel) => rows.reduce((total, row) => total + row.tokens.total, 0);
+    const cost = (rows: typeof view.byModel) => rows.reduce((total, row) => total + (row.costUsd ?? 0), 0);
+    for (const rows of [view.byModel, view.byProvider, view.byMachine]) {
+      expect(tokens(rows)).toBe(view.tokens.total);
+      expect(cost(rows)).toBeCloseTo(view.costUsd ?? 0, 6);
+    }
+    expect(view.byModel).toHaveLength(3);
+    expect(view.byMachine).toHaveLength(3);
+  }
+  expect(scene.modelsState.enabled).toBe(SCENE_COUNTS.modelsEnabled);
+  expect(scene.modelsState.machines.map((link) => link.ok)).toEqual([true, false]);
 
   expect(scene.checks.checks).toHaveLength(SCENE_COUNTS.checks);
   expect(scene.checks.checks.filter((check) => check.state === "ok")).toHaveLength(SCENE_COUNTS.checksOk);
@@ -137,6 +160,9 @@ test("the model's counts on the scene are the numbers doctor and the drivers exp
   expect(model(scene).running.rows).toHaveLength(SCENE_COUNTS.running + SCENE_COUNTS.stopped);
   expect(model(scene).checks).toMatchObject({ ok: SCENE_COUNTS.checksOk, total: SCENE_COUNTS.checks });
   expect(model(scene).checks.open).toHaveLength(SCENE_COUNTS.checksOpen);
+  expect(model(scene).usage.map((view) => view.range)).toEqual(["today", "7d", "30d"]);
+  expect(model(scene).quotaMissing).toEqual(["Cursor"]);
+  expect(model(scene).ocx).toEqual({ enabled: SCENE_COUNTS.modelsEnabled, down: ["machine-c"] });
 });
 
 test("names are invented and titles are Korean", () => {

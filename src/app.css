@@ -852,6 +852,49 @@ button:disabled {
   color: var(--red);
 }
 
+/* A service OCX holds no account for: one line under that panel's service rows. */
+.quota-missing {
+  padding: 2px var(--inset) 0;
+  color: var(--label-2);
+  font-size: var(--text-small);
+}
+
+/* OCX's own line under the quota: the models on, and only the links that are down. */
+.ocx-line {
+  padding: 0 var(--inset);
+  color: var(--label-2);
+  font-size: var(--text-small);
+}
+
+/* 사용량: one control per range, the range's totals, then its costliest models and machines. */
+.usage-range {
+  display: flex;
+  gap: 8px;
+  padding: 0 var(--inset) 8px;
+}
+
+.usage-range .choice[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.usage-total {
+  padding: 0 var(--inset);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-head {
+  margin: 14px 0 0;
+  padding: 0 var(--inset) 6px;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.usage-row .row-body {
+  font-variant-numeric: tabular-nums;
+}
+
 /* 점검: only failing, stale and unreadable checks stay open, one row each; passing ones fold into one count. These
    rows are `status-check-row`, not `check-row`: they take the plain row layout, inset like the 기기 and 쿼터 rows,
    with the state word and time in the trail at the row's right edge. */
@@ -1484,6 +1527,16 @@ html:has(.stack) body {
 .stack .section-head,
 .stack .nav-head {
   padding: 0 calc(var(--inset) + 12px) 6px;
+}
+
+/* A phone's 쿼터 and 사용량 panels align their lines with the rows' text, inside the rows' own margin. */
+.stack .quota-missing,
+.stack .ocx-line,
+.stack .usage-range,
+.stack .usage-total,
+.stack .usage-head {
+  padding-left: calc(var(--inset) + 12px);
+  padding-right: calc(var(--inset) + 12px);
 }
 
 .stack .nav-group {

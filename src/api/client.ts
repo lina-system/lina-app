@@ -15,6 +15,15 @@ export type QuotaAccount = Board["schemas"]["QuotaAccount"];
 export type SourceError = Board["schemas"]["SourceError"];
 export type DevicesView = Board["schemas"]["DevicesView"];
 export type QuotaView = Board["schemas"]["QuotaView"];
+/** Tokens and estimated cost per model, provider, account and machine, for one range (lina#232). */
+export type UsageView = Board["schemas"]["UsageView"];
+export type UsageRow = Board["schemas"]["UsageRow"];
+/** The models on, and whether each machine's OCX link answered recently (lina#232). */
+export type ModelsState = Board["schemas"]["ModelsState"];
+export type LinkState = Board["schemas"]["LinkState"];
+/** The ranges the usage route serves, in the order the screen offers them; the screen reads every one of them. */
+export type UsageRange = UsageView["range"];
+export const USAGE_RANGES: readonly UsageRange[] = ["today", "7d", "30d"];
 /** The hub's own health checks (lina#233). */
 export type StatusCheck = Board["schemas"]["StatusCheck"];
 export type StatusChecks = Board["schemas"]["StatusChecks"];
@@ -67,6 +76,9 @@ export type Routes = {
   item: Json<BoardPaths["/work/items/{id}"]["get"]>;
   devices: Json<BoardPaths["/devices"]["get"]>;
   quota: Json<BoardPaths["/quota"]["get"]>;
+  /** Usage for one range: the route's id is the range (see routePath). */
+  usage: Json<BoardPaths["/usage"]["get"]>;
+  modelsState: Json<BoardPaths["/models/state"]["get"]>;
   checks: Json<BoardPaths["/status/checks"]["get"]>;
   goals: Json<WorkPaths["/work/goals"]["get"]>;
   goal: Json<WorkPaths["/work/goals/{id}"]["get"]>;
@@ -120,6 +132,11 @@ export function routePath(name: RouteName, id?: string): string {
       return `${BOARD_BASE}/devices`;
     case "quota":
       return `${BOARD_BASE}/quota`;
+    case "usage":
+      // The route's id is the range (`today`, `7d`, `30d`), the query the core reads.
+      return `${BOARD_BASE}/usage?range=${encodeURIComponent(id ?? "today")}`;
+    case "modelsState":
+      return `${BOARD_BASE}/models/state`;
     case "checks":
       return `${BOARD_BASE}/status/checks`;
     case "goals":

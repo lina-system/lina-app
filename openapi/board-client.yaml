@@ -1,4 +1,4 @@
-# Copied from lina-system/lina pull request #336 with RunnerCell.signingIn added; copied again from lina dev before merge.
+# Copied unchanged from lina-system/lina docs/api/board-client.yaml at dev commit 602f689aaf51e2cb21dd08104f25034eb275a07c.
 # Board endpoints the app reads beyond docs/api/work-client.yaml (lina#112): the owner's to-dos, decisions and due
 # groups from the work record, `lina worker` runs that are not kanban work cards, devices, quota and the inbox
 # notices; each agent's goals and to-dos (lina#166); one worker run's record, round by round (lina#201); the owner's
@@ -587,7 +587,9 @@ components:
         agents:
           type: object
           nullable: true
-          description: Running cards per agent (configured agents with none read 0).
+          description: >
+            Each agent's own work: its running cards plus its finished runs waiting for its verdict
+            (`waitingOn: agent:<name>`, never in the owner's inbox); configured agents with none read 0.
           additionalProperties:
             type: integer
             minimum: 0
@@ -631,6 +633,13 @@ components:
         agent:
           type: string
           nullable: true
+        waitingOn:
+          type: string
+          nullable: true
+          description: >
+            Who the run waits on: `agent:<name>` for a finished run waiting for the verdict of the agent that
+            handed it out. Such a run is counted under that agent in `counts.agents`, never in `inbox.review`, the
+            `review` notices or `counts.inbox`; null otherwise (shown as before).
         kind:
           type: string
           nullable: true

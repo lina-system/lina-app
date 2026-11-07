@@ -381,7 +381,7 @@ export interface components {
         /** @description The length of the list it labels; null when its source failed to read. */
         Count: number | null;
         Counts: {
-            /** @description Running cards per agent (configured agents with none read 0). */
+            /** @description Each agent's own work: its running cards plus its finished runs waiting for its verdict (`waitingOn: agent:<name>`, never in the owner's inbox); configured agents with none read 0. */
             agents: {
                 [key: string]: number;
             } | null;
@@ -784,6 +784,8 @@ export interface components {
             title: string;
             /** @description The work record to-do the run takes on. */
             todo: string | null;
+            /** @description Who the run waits on: `agent:<name>` for a finished run waiting for the verdict of the agent that handed it out. Such a run is counted under that agent in `counts.agents`, never in `inbox.review`, the `review` notices or `counts.inbox`; null otherwise (shown as before). */
+            waitingOn?: string | null;
         };
         /** @description The model the run started with (lina#257); null when it runs on the runner's own default. A follow-up keeps it. */
         RunModel: {

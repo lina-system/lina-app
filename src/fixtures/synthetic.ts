@@ -480,10 +480,111 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     later: open.filter((item) => (item.due ?? "") > weekEnd).map(row),
   };
 
+  // Runners (lina#234): one work node needs an update, one needs sign-in, one is unreachable, then the file node.
+  // Names stay Korean. type and fleet are not drawn. The file node is the machine name the three work nodes did not take.
+  const runner = (
+    name: string,
+    installed: string | null,
+    signIn: "signed_in" | "signed_out" | "api_key" | "ocx" | "unknown" | null,
+    why: "update" | "prepare" | "sign_in" | "unreachable" | "unknown" | null,
+    fleet: string | null = installed,
+  ) => ({ name, type: null, fleet, installed, signIn, signingIn: false, ready: why === null, why });
+  const filesName = MACHINE_NAMES.find((name) => !machines.includes(name)) ?? MACHINE_NAMES[0];
   const machineList: BoardSnapshot["machines"] = [
-    { name: machines[0], state: "ok", why: null, cpu: 22, memory: 41, disk: 37, temp: 48, load: 0.6, cores: 8, running: 2, cap: 4, freeGb: 210, metricsAt: now - 20 },
-    { name: machines[1], state: "warn", why: "disk", cpu: 35, memory: 58, disk: 91, temp: 55, load: 1.2, cores: 8, running: 1, cap: 4, freeGb: 18, metricsAt: now - 25 },
-    { name: machines[2], state: "down", why: "unreachable", cpu: null, memory: null, disk: null, temp: null, load: null, cores: null, running: null, cap: 2, freeGb: null, metricsAt: now - 3 * HOUR },
+    {
+      name: machines[0],
+      role: "work",
+      reachable: true,
+      state: "ok",
+      why: null,
+      cpu: 22,
+      memory: 41,
+      disk: 37,
+      temp: 48,
+      load: 0.6,
+      cores: 8,
+      running: 2,
+      cap: 4,
+      freeGb: 210,
+      metricsAt: now - 20,
+      runners: [runner("글결", "1.2", "signed_out", "sign_in", "1.4"), runner("탐색", "1.4", "signed_in", null)],
+    },
+    {
+      name: machines[1],
+      role: "work",
+      reachable: true,
+      state: "warn",
+      why: "disk",
+      cpu: 35,
+      memory: 58,
+      disk: 91,
+      temp: 55,
+      load: 1.2,
+      cores: 8,
+      running: 1,
+      cap: 4,
+      freeGb: 18,
+      metricsAt: now - 25,
+      runners: [runner("글결", "1.2", "signed_in", "update", "1.6"), runner("탐색", "1.4", "signed_in", null)],
+    },
+    {
+      name: machines[2],
+      role: "work",
+      reachable: false,
+      state: "down",
+      why: "unreachable",
+      cpu: null,
+      memory: null,
+      disk: null,
+      temp: null,
+      load: null,
+      cores: null,
+      running: null,
+      cap: 2,
+      freeGb: null,
+      metricsAt: now - 3 * HOUR,
+      runners: [runner("글결", null, null, "unreachable", "1.4"), runner("탐색", null, null, "unreachable", "1.4")],
+    },
+    {
+      name: filesName,
+      role: "files",
+      reachable: true,
+      state: "ok",
+      why: null,
+      cpu: 12,
+      memory: 30,
+      disk: 44,
+      temp: 40,
+      load: 0.2,
+      cores: 4,
+      running: 0,
+      cap: 2,
+      freeGb: 400,
+      metricsAt: now - 15,
+      runners: [runner("보관", "2.0", "signed_in", null)],
+    },
+  ];
+  const person: DevicesView["person"] = [
+    {
+      name: "나침반",
+      role: "person",
+      reachable: true,
+      checkedAt: now - 40,
+      tools: [
+        { name: "글결", fleet: "1.4", installed: "1.4" },
+        { name: "탐색", fleet: "1.4", installed: "1.1" },
+      ],
+    },
+    {
+      name: "먹물",
+      role: "person",
+      reachable: false,
+      checkedAt: now - 3 * HOUR,
+      tools: [
+        { name: "글결", fleet: "1.4", installed: "1.0" },
+        { name: "탐색", fleet: "1.4", installed: "1.1" },
+      ],
+    },
   ];
   // A window warns when its rate reaches 100% before it resets, the core's rule for `warn`; `left` is the rest.
   const quotaWindow = (key: string, percent: number, resetIn: number, ratePerHour: number | null) => ({
@@ -600,8 +701,8 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     },
   };
   // OCX itself (lina#232): three models on, and two links of which one did not answer. The machines named here are the
-  // 기기 panel's own names, and the link that is not fine is the machine that panel draws as 꺼짐 (machines[2]), so one
-  // machine never carries two names on one screen.
+  // work nodes, and the link that is not fine is the work node the panel draws as 꺼짐 (machines[2]). The file node
+  // is not an OCX link and is not in usage's 기기별.
   const modelsState: ModelsState = {
     version: 1,
     at: now,
@@ -683,7 +784,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     board,
     items: { version: 1, at: now, errors: [], owner: { ...OWNER }, agents, items: listItems },
     itemDetails,
-    devices: { version: 1, at: now, errors: [], machines: machineList },
+    devices: { version: 1, at: now, errors: [], machines: machineList, person },
     quota: { version: 1, at: now, errors, quota: quotaList, missing: options.sourceError ? null : ["Cursor"] },
     usage,
     modelsState,
@@ -821,8 +922,8 @@ export const SCENE_COUNTS = {
   stopped: 1,
   due: 5,
   done: 3,
-  machines: 3,
-  machinesOk: 1,
+  machines: 4,
+  machinesOk: 2,
   machinesWarn: 1,
   machinesDown: 1,
   // OCX (lina#232): three models on, two links, one of them down; usage for each of the three ranges.

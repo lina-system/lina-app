@@ -16,6 +16,9 @@ export type QuotaService = Board["schemas"]["QuotaService"];
 export type QuotaAccount = Board["schemas"]["QuotaAccount"];
 export type SourceError = Board["schemas"]["SourceError"];
 export type DevicesView = Board["schemas"]["DevicesView"];
+export type DeviceAction = Board["schemas"]["DeviceAction"];
+export type PersonDevice = Board["schemas"]["PersonDevice"];
+export type RunnerCell = Board["schemas"]["RunnerCell"];
 export type QuotaView = Board["schemas"]["QuotaView"];
 /** Tokens and estimated cost per model, provider, account and machine, for one range (lina#232). */
 export type UsageView = Board["schemas"]["UsageView"];

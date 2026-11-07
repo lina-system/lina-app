@@ -802,6 +802,77 @@ button:disabled {
   color: var(--label-2);
 }
 
+/* The restart control sits under the node row, so the load trail stays on the same edge as every other row. */
+.machine-restart {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 var(--inset) 8px;
+}
+
+/* Runners under a node: the name, then the version and the signed-in mark, or one reason word. */
+.runner-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 4px 12px;
+  padding: 0 var(--inset) 10px;
+}
+
+.runner-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.runner-name {
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+.runner-detail,
+.signed-mark {
+  font-size: var(--text-small);
+  color: var(--label-2);
+}
+
+.signed-mark {
+  color: var(--label);
+}
+
+.runner-cell .write-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.person-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  min-height: var(--row);
+  padding: 8px var(--inset);
+}
+
+.person-row + .person-row {
+  box-shadow: inset 0 var(--line) 0 var(--separator);
+}
+
+.person-name {
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+.person-state,
+.person-tool {
+  font-size: var(--text-small);
+  color: var(--label-2);
+}
+
+.person-state.is-off {
+  color: var(--red);
+}
+
 .quota-fold > summary {
   display: flex;
   align-items: center;
@@ -1579,6 +1650,13 @@ html:has(.stack) body {
 
 .stack .rows .row > a,
 .stack .rows .row > .row-body {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.stack .runner-grid,
+.stack .person-row,
+.stack .machine-restart {
   padding-left: 12px;
   padding-right: 12px;
 }

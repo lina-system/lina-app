@@ -28,10 +28,44 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The work devices (devices.workers) with readiness, load and, with a metrics reader, usage. */
+        /** The devices of devices.workers by role (lina#234): the nodes (work, files) with readiness, load, runners and, with a metrics reader, usage; the person devices with their status and tool versions only. */
         get: operations["getDevices"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devices/{name}/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The owner restarts a node's worker or OCX through the node's service layer (lina#234). Only from the owner's devices (the work settings' owner-device gate); logged to <LINA root>/board/device-actions.jsonl. */
+        post: operations["restartDeviceService"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devices/{name}/sign-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The owner starts a runner's sign-in on a node (lina#230's start function, lina#234). The start runs in the background: the answer is 202 at once, its end is a second line in device-actions.jsonl, and the app sees it in the node's runner signIn. No sign-in address, code or token is ever in a reply or the log. */
+        post: operations["startDeviceSignIn"];
         delete?: never;
         options?: never;
         head?: never;
@@ -347,7 +381,7 @@ export interface components {
         /** @description The length of the list it labels; null when its source failed to read. */
         Count: number | null;
         Counts: {
-            /** @description Running cards per agent (configured agents with none read 0). */
+            /** @description Each agent's own work: its running cards plus its finished runs waiting for its verdict (`waitingOn: agent:<name>`, never in the owner's inbox); configured agents with none read 0. */
             agents: {
                 [key: string]: number;
             } | null;
@@ -383,10 +417,21 @@ export interface components {
             recommended: string | null;
             text: string;
         };
+        DeviceAction: {
+            /** @enum {string} */
+            action: "restart" | "sign-in";
+            device: string;
+            ok: boolean;
+            reason: string | null;
+            /** @description restarted, or started for a sign-in. */
+            state: string;
+        };
         DevicesView: {
             at: number;
             errors: components["schemas"]["Errors"];
+            /** @description The nodes, work first, then files; in each, down, then warn, then ok. */
             machines: components["schemas"]["Machine"][];
+            person: components["schemas"]["PersonDevice"][];
             version: number;
         };
         DueGroups: {
@@ -553,6 +598,14 @@ export interface components {
             memory: number | null;
             metricsAt: number | null;
             name: string;
+            /** @description Whether ssh (or the local contact) reached the node. */
+            reachable: boolean;
+            /**
+             * @description work takes bid work; files takes named work only.
+             * @enum {string}
+             */
+            role: "work" | "files";
+            runners: components["schemas"]["RunnerCell"][];
             running: number | null;
             /** @enum {string} */
             state: "ok" | "warn" | "down";
@@ -602,6 +655,20 @@ export interface components {
         Person: {
             id: string;
             name: string;
+        };
+        /** @description An owner's own device (role person): never a node, never probed, never given work. Read only, at most every 15 minutes in the background: one ssh call prints each tool's --version; nothing on it is changed. */
+        PersonDevice: {
+            checkedAt: number | null;
+            name: string;
+            /** @description Null until the first read ends; false keeps the last versions read. */
+            reachable: boolean | null;
+            /** @enum {string} */
+            role: "person";
+            tools: {
+                fleet: string | null;
+                installed: string | null;
+                name: string;
+            }[];
         };
         /** @description Checked model-written lines (lina#151). A field that failed its check, or was never written, is null; the raw source text is never served in its place. */
         PlainLines: {
@@ -717,6 +784,8 @@ export interface components {
             title: string;
             /** @description The work record to-do the run takes on. */
             todo: string | null;
+            /** @description Who the run waits on: `agent:<name>` for a finished run waiting for the verdict of the agent that handed it out. Such a run is counted under that agent in `counts.agents`, never in `inbox.review`, the `review` notices or `counts.inbox`; null otherwise (shown as before). */
+            waitingOn?: string | null;
         };
         /** @description The model the run started with (lina#257); null when it runs on the runner's own default. A follow-up keeps it. */
         RunModel: {
@@ -727,6 +796,26 @@ export interface components {
             /** @description The effort (off, minimal, low, medium, high, xhigh, max), null for the model's own. */
             thinking: string | null;
         } | null;
+        /** @description One runner on a node, from its hello (lina#222, lina#218). A node that cannot be reached lists the runners the hub offers, each why unreachable; one whose hello has no runner rows yet lists them why update. */
+        RunnerCell: {
+            /** @description The hub's pinned version (pm/lina-deps.json; omo's own pin for omo); null for a runner LINA does not pin. lina#238 moves the fleet version to its own record later. */
+            fleet: string | null;
+            /** @description The version the node reports installed (omo, from the node's last `lina omo status`). */
+            installed: string | null;
+            name: string;
+            /** @description Null for a runner LINA does not pin. */
+            ready: boolean | null;
+            /** @enum {string|null} */
+            signIn: "signed_in" | "signed_out" | "api_key" | "ocx" | "unknown" | null;
+            /** @description True while a sign-in this hub started for this runner on this node is still running (POST /devices/{name}/sign-in); false otherwise. How it ended shows in signIn on a later read. */
+            signingIn: boolean;
+            type: string | null;
+            /**
+             * @description One reason when not ready. update also when the installed version is not the fleet version, whatever the node says; unknown when the node gave no reason or omo's status was not read yet.
+             * @enum {string|null}
+             */
+            why: "update" | "prepare" | "sign_in" | "unreachable" | "unknown" | null;
+        };
         RunRecord: {
             /** @description Snapshot time (left out of the ETag). */
             at: number;
@@ -898,6 +987,108 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    restartDeviceService: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    service: "worker" | "ocx";
+                };
+            };
+        };
+        responses: {
+            /** @description Restarted. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceAction"];
+                };
+            };
+            400: components["responses"]["Refused"];
+            403: components["responses"]["Refused"];
+            404: components["responses"]["Refused"];
+            /** @description A person device, which is never a node. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            429: components["responses"]["Refused"];
+            /** @description The node refused; detail is its reason. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+        };
+    };
+    startDeviceSignIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description A runner of worker.runners. */
+                    runner: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Started (state started). */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceAction"];
+                };
+            };
+            400: components["responses"]["Refused"];
+            403: components["responses"]["Refused"];
+            404: components["responses"]["Refused"];
+            /** @description A person device, or a sign-in of the same runner on the same device is already running. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
+            };
+            429: components["responses"]["Refused"];
+            /** @description This core has no sign-in start yet (lina#230). */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusal"];
+                };
             };
         };
     };

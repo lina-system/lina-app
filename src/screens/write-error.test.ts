@@ -37,3 +37,15 @@ test("a 429 reads as too many writes whatever its detail; an unknown 409 reads b
   expect(writeError("read", { ok: false, status: 503, detail: "quota: quota source did not answer" })).toBe("quota: quota source did not answer");
   expect(writeError("comment", { ok: false, status: 0, detail: null })).toBe(W.writeFailed);
 });
+
+test("a device refusal reads by status and never shows the core's line", () => {
+  expect(writeError("device", { ok: false, status: 403, detail: "not the owner's device" })).toBe(W.settingsReadOnly);
+  expect(writeError("device", { ok: false, status: 429, detail: "not the owner's device" })).toBe(W.errTooMany);
+  expect(writeError("device", { ok: false, status: 404, detail: "no such device" })).toBe(W.deviceMissing);
+  expect(writeError("device", { ok: false, status: 409, detail: "sign-in already running" })).toBe(W.deviceBusy);
+  expect(writeError("device", { ok: false, status: 501, detail: "sign-in is not on this core yet" })).toBe(W.deviceUnsupported);
+  expect(writeError("device", { ok: false, status: 502, detail: "the node refused" })).toBe(W.deviceRefused);
+  expect(writeError("device", { ok: false, status: 400, detail: "service must be worker or ocx" })).toBe(W.writeFailed);
+  expect(writeError("device", { ok: false, status: 500, detail: null })).toBe(W.writeFailed);
+  expect(writeError("comment", { ok: false, status: 429, detail: "not the owner's device" })).toBe(W.errTooMany);
+});

@@ -31,7 +31,7 @@ const viteBin = path.join(repo, "node_modules", "vite", "bin", "vite.js");
 // The synthetic scene (src/fixtures/synthetic.ts, SCENE_COUNTS). Doctor compares the sidebar and the bell
 // against it, so a page showing anything else is not this run's instance.
 const APP_PATH = "/app/?source=synthetic";
-const FIXTURE = { inbox: "8", running: "2", stopped: "1", due: "5", done: "3", goals: "5", bell: "알림 5", devices: "기기 3 · 정상 1 · 경고 1 · 꺼짐 1" };
+const FIXTURE = { inbox: "8", running: "2", stopped: "1", due: "5", done: "3", goals: "5", bell: "알림 5", devices: "기기 4 · 정상 2 · 경고 1 · 꺼짐 1" };
 const WIDTHS = [1280, 390];
 const H2S = [
   "Platforms",
@@ -1148,7 +1148,7 @@ const drivers = {
     await step("open 기기·쿼터 from the sidebar line", async () => {
       await openApp(page, "#/");
       const line = (await page.getByTestId("device-line").innerText()).trim();
-      check(line === "기기 3 · 정상 1 · 경고 1 · 꺼짐 1", "device line reads " + line);
+      check(line === "기기 4 · 정상 2 · 경고 1 · 꺼짐 1", "device line reads " + line);
       const colours = await page.getByTestId("device-line").evaluate((element) => [...element.querySelectorAll("span")].map((span) => span.textContent.trim() + "=" + getComputedStyle(span).color));
       check(colours.some((entry) => entry.endsWith("경고 1=rgb(255, 149, 0)")) && colours.some((entry) => entry.endsWith("꺼짐 1=rgb(255, 59, 48)")), "colours " + colours.join(", "));
       await page.getByTestId("device-line").click();
@@ -1157,7 +1157,7 @@ const drivers = {
     });
     await step("read the machines", async () => {
       const names = await page.getByRole("list", { name: "기기", exact: true }).locator(".row-body").evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
-      check(names.length === 3, "expected 3 machines");
+      check(names.length === 4, "expected 4 machines");
       const meters = "CPU (\\d+%|—) · 메모리 (\\d+%|—) · 디스크 (\\d+%|—) · 작업 (\\d+|—)/\\d+$";
       check(names.some((name) => new RegExp(" · 정상 · " + meters).test(name)), "no 정상 machine with its meters: " + names.join(" | "));
       check(names.some((name) => new RegExp(" · 경고 · 디스크 · " + meters).test(name)), "no 경고 machine with its reason word: " + names.join(" | "));
@@ -1165,10 +1165,108 @@ const drivers = {
       const colours = await page.getByRole("list", { name: "기기", exact: true }).locator(".machine-state").evaluateAll((words) => words.map((word) => word.textContent + "=" + getComputedStyle(word).color));
       check(colours.includes("경고=rgb(255, 149, 0)") && colours.includes("꺼짐=rgb(255, 59, 48)"), "state colours " + colours.join(", "));
       const bars = await page.getByRole("list", { name: "기기", exact: true }).locator(".mini-meter .meter").count();
-      check(bars === 6, "expected 6 thin bars on the two machines that report, got " + bars);
+      check(bars === 9, "expected 9 thin bars on the three machines that report, got " + bars);
       const loads = await page.getByRole("list", { name: "기기", exact: true }).locator(".trail").allInnerTexts();
       check(loads.every((text) => /^작업 (\d+|—)\/\d+$/.test(text)), "loads read " + loads.join(", "));
       return names.join(" | ");
+    });
+    await step("read the runners under each node", async () => {
+      const rows = page.getByRole("list", { name: "기기", exact: true }).locator(".machine-row");
+      check((await rows.count()) === 4, "expected 4 machine rows");
+      check((await rows.last().getAttribute("data-role")) === "files", "the last row is " + (await rows.last().getAttribute("data-role")));
+      const files = (await rows.last().getByTestId("runner-cell").innerText()).replace(/\s+/g, " ").trim();
+      check(files.includes("2.0") && !/업데이트 필요|준비 필요|로그인 필요|연결 끊김|확인 중/.test(files), "the file node reads " + files);
+      const down = await page.locator(".machine-row.is-down").getByTestId("runner-cell").allInnerTexts();
+      check(down.length > 0 && down.every((cell) => cell.includes("연결 끊김") && !/\d/.test(cell)), "down cells " + JSON.stringify(down));
+      const grid = await page.getByRole("list", { name: "기기", exact: true }).innerText();
+      check(grid.includes("업데이트 필요") && grid.includes("로그인 필요"), "the grid has no update or sign-in cell");
+      return "update, sign-in, unreachable; file node " + files;
+    });
+    // Phone checks run before 로그인 is pressed, and the viewport comes back to the drive width for the proof shot.
+    // The push into this screen is still sliding for a moment; a press during it misses the button.
+    if (page.viewportSize().width < 900) {
+      await settled(page);
+      const driveSize = page.viewportSize();
+      await step("at 390 and 430, the sign-in button and the restart menu keep the hit area, type and press", async () => {
+        const press = async (locator) => {
+          await locator.scrollIntoViewIfNeeded();
+          const box = await locator.boundingBox();
+          check(box && box.width >= HIT - 0.5 && box.height >= HIT - 0.5, "hit area " + JSON.stringify(box));
+          const rest = await locator.evaluate((element) => getComputedStyle(element).opacity);
+          await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+          await page.mouse.down();
+          const down = await locator.evaluate((element) => ({ opacity: getComputedStyle(element).opacity, running: element.getAnimations().length }));
+          await page.mouse.move(1, 1);
+          await page.mouse.up();
+          check(down.opacity !== rest, "pressed opacity stays " + rest);
+          check(down.running === 0, "the pressed state waits on a transition");
+          return Math.round(box.width) + "x" + Math.round(box.height);
+        };
+        const at = async (width) => {
+          await page.setViewportSize({ width, height: driveSize.height });
+          const signBox = await press(page.getByRole("button", { name: "로그인", exact: true }));
+          const restartBox = await press(page.getByRole("button", { name: /다시 시작$/ }).first());
+          const fonts = await page.locator(".runner-name, .runner-detail").evaluateAll((items) => items.slice(0, 6).map((item) => ({ kind: item.className, size: parseFloat(getComputedStyle(item).fontSize) })));
+          check(fonts.some((item) => item.kind.includes("runner-name") && item.size === 17), width + ": runner names " + JSON.stringify(fonts));
+          check(fonts.filter((item) => item.kind.includes("runner-detail")).every((item) => item.size >= MIN_TEXT), width + ": runner details " + JSON.stringify(fonts));
+          await page.getByRole("button", { name: /다시 시작$/ }).first().click();
+          const dialog = page.getByRole("dialog", { name: "다시 시작" });
+          await dialog.waitFor();
+          await dialog.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+          const sheet = await dialog.evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+            return { left: rect.left, right: rect.right, bottom: rect.bottom, width: innerWidth, height: innerHeight };
+          });
+          check(Math.abs(sheet.left) < 1 && Math.abs(sheet.right - sheet.width) < 1, width + ": the menu spans " + sheet.left + "-" + sheet.right + " of " + sheet.width);
+          check(Math.abs(sheet.bottom - sheet.height) < 1, width + ": the menu ends at " + sheet.bottom + " of " + sheet.height);
+          const menu = dialog.getByRole("button", { name: "작업 실행기", exact: true });
+          const menuBox = await press(menu);
+          await menu.click();
+          const small = await dialog.locator(".settings-sheet-text").evaluate((element) => parseFloat(getComputedStyle(element).fontSize));
+          const confirmSize = await dialog.getByRole("button", { name: "다시 시작", exact: true }).evaluate((element) => parseFloat(getComputedStyle(element).fontSize));
+          check(small >= MIN_TEXT && confirmSize === 17, width + ": question " + small + "px, confirm " + confirmSize + "px");
+          await page.keyboard.press("Escape");
+          await dialog.waitFor({ state: "detached" });
+          return width + " sign-in " + signBox + ", restart " + restartBox + ", menu " + menuBox;
+        };
+        const notes = [await at(driveSize.width)];
+        if (driveSize.width !== 430) notes.push(await at(430));
+        await page.setViewportSize(driveSize);
+        return notes.join(" | ");
+      });
+    }
+    await step("press 로그인 and see the signed-in mark", async () => {
+      await settled(page);
+      const cell = page.getByTestId("runner-cell").filter({ has: page.getByRole("button", { name: "로그인", exact: true }) });
+      const handle = await cell.elementHandle();
+      const pending = page.waitForFunction((element) => element.textContent.includes("로그인 중") && !element.querySelector("button"), handle, { timeout: 4000 });
+      await cell.getByRole("button", { name: "로그인", exact: true }).click();
+      await pending;
+      await page.waitForFunction((element) => element.querySelector('[aria-label="로그인됨"]'), handle, { timeout: 4000 });
+      check((await page.getByRole("button", { name: "로그인", exact: true }).count()) === 0, "the sign-in button stayed");
+      return "로그인 중 with no button, then after the next read the signed-in mark";
+    });
+    await step("restart the worker from the row menu", async () => {
+      const row = page.locator(".machine-row[data-role=work]").first();
+      const name = (await row.locator(".title").first().innerText()).trim();
+      await row.getByRole("button", { name: name + " 다시 시작" }).click();
+      const dialog = page.getByRole("dialog", { name: "다시 시작" });
+      await dialog.waitFor();
+      await dialog.getByRole("button", { name: "작업 실행기", exact: true }).click();
+      await dialog.getByRole("button", { name: "다시 시작", exact: true }).click();
+      await dialog.waitFor({ state: "detached" });
+      check((await page.getByTestId("write-error").count()) === 0, "the restart showed an error");
+      return name + " restarted, nothing new";
+    });
+    await step("read 내 기기", async () => {
+      const list = page.getByRole("list", { name: "내 기기", exact: true });
+      const count = await list.locator(".person-row").count();
+      check(count === 2, "expected 2 person devices, got " + count);
+      const text = (await list.innerText()).replace(/\s+/g, " ").trim();
+      check(text.includes("연결됨") && text.includes("연결 끊김"), "states read " + text);
+      check((await list.getByRole("button").count()) === 0, "내 기기 has a button");
+      check(/\d+\.\d+/.test(text), "no tool version in " + text);
+      return text;
     });
     await step("read the quota: service rows, then the service OCX has no account for and OCX itself as rows", async () => {
       const list = page.getByRole("list", { name: "쿼터", exact: true });

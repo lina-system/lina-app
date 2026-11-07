@@ -28,13 +28,16 @@ export interface HttpOptions {
   readonly location?: Pick<Location, "href">;
 }
 
-/** The change stream's address on the page's own origin: ws(s), the base path, `?token=` and `since`. */
-export function eventsUrl(href: string, basePath: string, token: string | null, since: string | null): string {
+/** The change stream's address on the page's own origin, with a token or one-use ticket and `since`. */
+export function eventsUrl(href: string, basePath: string, credential: string | { readonly ticket: string } | null, since: string | null): string {
   const url = new URL(`${basePath}${EVENTS_PATH}`, href);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.hash = "";
   url.search = "";
-  if (token) url.searchParams.set("token", token);
+  if (credential) {
+    if (typeof credential === "string") url.searchParams.set("token", credential);
+    else url.searchParams.set("ticket", credential.ticket);
+  }
   if (since) url.searchParams.set("since", since);
   return url.toString();
 }
@@ -66,6 +69,8 @@ export class HttpSource implements Source {
   private token: string | null;
   /** No token in the page: the gated mode, where a cookie signs the page in and a 401 means signed out. */
   private readonly gated: boolean;
+  /** A refused ticket leaves no usable credential; let the store stop instead of retrying a gated renewal. */
+  private ticketDenied = false;
   private readonly webSocket: (url: string) => WebSocket;
   private readonly href: () => string;
 
@@ -91,35 +96,57 @@ export class HttpSource implements Source {
       ended = true;
       handlers.closed(refused);
     };
-    let socket: WebSocket;
-    try {
-      socket = this.webSocket(eventsUrl(this.href(), this.basePath, this.token, since));
-    } catch {
-      queueMicrotask(() => end(false));
-      return { close: () => void (ended = true) };
-    }
-    socket.onopen = () => {
-      opened = true;
-    };
-    socket.onmessage = (event: MessageEvent) => {
-      if (ended) return;
-      let message: ChangeMessage;
+    let socket: WebSocket | undefined;
+    const connect = async () => {
+      let credential: string | { readonly ticket: string } | null = this.token;
+      if (this.gated) {
+        const result = await this.post<unknown>("/api/auth/ws-ticket", undefined);
+        if (ended) return;
+        if (!result.ok) {
+          this.ticketDenied = result.status === 401 || result.status === 403;
+          end(this.ticketDenied);
+          return;
+        }
+        const data = result.data;
+        if (typeof data !== "object" || data === null || !("ticket" in data) || typeof data.ticket !== "string" || !data.ticket) {
+          end(false);
+          return;
+        }
+        this.ticketDenied = false;
+        credential = { ticket: data.ticket };
+      }
+      let connected: WebSocket;
       try {
-        message = JSON.parse(String(event.data)) as ChangeMessage;
+        connected = this.webSocket(eventsUrl(this.href(), this.basePath, credential, since));
       } catch {
-        socket.close();
-        end(false);
+        queueMicrotask(() => end(false));
         return;
       }
-      handlers.message(message);
+      socket = connected;
+      connected.onopen = () => {
+        opened = true;
+      };
+      connected.onmessage = (event: MessageEvent) => {
+        if (ended) return;
+        let message: ChangeMessage;
+        try {
+          message = JSON.parse(String(event.data)) as ChangeMessage;
+        } catch {
+          connected.close();
+          end(false);
+          return;
+        }
+        handlers.message(message);
+      };
+      // An error is always followed by a close, which carries the code; a refused upgrade never opened.
+      connected.onerror = () => connected.close();
+      connected.onclose = (event: CloseEvent) => end(!opened || REFUSED_CODES.has(event.code));
     };
-    // An error is always followed by a close, which carries the code; a refused upgrade never opened.
-    socket.onerror = () => socket.close();
-    socket.onclose = (event: CloseEvent) => end(!opened || REFUSED_CODES.has(event.code));
+    void connect();
     return {
       close: () => {
         ended = true;
-        socket.close();
+        socket?.close();
       },
     };
   }
@@ -196,6 +223,7 @@ export class HttpSource implements Source {
    * A page signed in by cookie has no token to renew and asks nothing. The token lives in this object only.
    */
   async renewCredential(): Promise<Renewal> {
+    if (this.ticketDenied) return "none";
     if (this.gated) return "gated";
     let html: string;
     try {

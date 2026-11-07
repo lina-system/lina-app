@@ -26,9 +26,28 @@ const CONFLICT: Partial<Record<WriteKind, string>> = {
   answer: W.errNoDecision,
 };
 
+/** A device write's refusal, by status. The core's detail is English and is never shown. 429 here is too many writes. */
+function deviceRefusal(status: number): string {
+  switch (status) {
+    case 403:
+      return W.settingsReadOnly;
+    case 429:
+      return W.errTooMany;
+    case 404:
+      return W.deviceMissing;
+    case 409:
+      return W.deviceBusy;
+    case 501:
+      return W.deviceUnsupported;
+    case 502:
+      return W.deviceRefused;
+    default:
+      return W.writeFailed;
+  }
+}
+
 export function writeError(kind: WriteKind, result: Extract<WriteResult<unknown>, { ok: false }>): string {
-  // A device refusal's 429 means "not the owner's device", so its one line stays; other writes still read as too many.
-  if (kind === "device") return result.detail ?? W.writeFailed;
+  if (kind === "device") return deviceRefusal(result.status);
   if (result.status === 429) return W.errTooMany;
   const known = result.detail ? REFUSALS.find(([pattern]) => pattern.test(result.detail ?? "")) : undefined;
   if (known) return known[1];

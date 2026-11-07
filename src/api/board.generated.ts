@@ -805,6 +805,8 @@ export interface components {
             ready: boolean | null;
             /** @enum {string|null} */
             signIn: "signed_in" | "signed_out" | "api_key" | "ocx" | "unknown" | null;
+            /** @description True while a sign-in this hub started for this runner on this node is still running (POST /devices/{name}/sign-in); false otherwise. How it ended shows in signIn on a later read. */
+            signingIn: boolean;
             type: string | null;
             /**
              * @description One reason when not ready. update also when the installed version is not the fleet version, whatever the node says; unknown when the node gave no reason or omo's status was not read yet.

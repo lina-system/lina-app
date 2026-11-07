@@ -400,39 +400,52 @@ function chooseRestart(step: "worker" | "ocx"): void {
   publishRestart();
 }
 
-/** A fine runner shows its installed version and the signed-in mark. A sign-in cell shows the reason and one button. */
+/**
+ * A fine runner shows its installed version and the signed-in mark. A sign-in cell shows the reason and one button.
+ * 로그인 중 has no button while the post is in flight or the core still reports signingIn. When that turns false,
+ * a signed-in runner shows the mark; any other result shows the reason and the button again.
+ */
 function RunnerCellView({ machine, runner }: { machine: Machine; runner: RunnerCell }) {
   const { store } = useApp();
-  const [signing, setSigning] = useState(false);
+  const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
-  const fine = !runner.why && (runner.signIn === "signed_in" || runner.signIn === "api_key" || runner.signIn === "ocx");
-  const pending = signing && runner.signIn !== "signed_in";
-  const needsSignIn = !fine && !pending && (runner.why === "sign_in" || runner.signIn === "signed_out");
+  const signingIn = posting || runner.signingIn;
+  // The read right after 202 shows signingIn. One more read is the one that can show the sign-in ended.
+  useEffect(() => {
+    if (!runner.signingIn) return;
+    void store.invalidate([["devices"]]);
+  }, [runner.signingIn, store]);
+  const fine = !signingIn && !runner.why && (runner.signIn === "signed_in" || runner.signIn === "api_key" || runner.signIn === "ocx");
+  const needsSignIn = !signingIn && (runner.why === "sign_in" || runner.signIn === "signed_out");
   const signIn = () => {
     setError(undefined);
-    setSigning(true);
+    // Leave the button through the click, then drop it. A click that unmounts its target is retried.
     void (async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      setPosting(true);
       const result = await store.source.signInDevice(machine.name, runner.name);
       if (result.ok) await store.invalidate([["devices"]]);
       else setError(writeError("device", result));
-      setSigning(false);
+      setPosting(false);
     })();
   };
   return (
     <div class="runner-cell" data-testid="runner-cell">
       <span class="runner-name">{runner.name}</span>
-      {fine ? (
+      {signingIn ? (
+        <span class="runner-detail">{W.signingIn}</span>
+      ) : fine ? (
         <>
           <span class="runner-detail">{runner.installed ?? W.none}</span>
           <span class="signed-mark" role="img" aria-label={W.signedIn}>
             ✓
           </span>
         </>
-      ) : pending || needsSignIn ? (
+      ) : needsSignIn ? (
         <>
-          {pending ? null : <span class="runner-detail">{W.runnerWhy.sign_in}</span>}
-          <button type="button" class="text-button" disabled={pending} onClick={pending ? undefined : signIn}>
-            {pending ? W.signingIn : W.signIn}
+          <span class="runner-detail">{W.runnerWhy.sign_in}</span>
+          <button type="button" class="text-button" onClick={signIn}>
+            {W.signIn}
           </button>
         </>
       ) : (

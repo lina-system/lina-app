@@ -164,7 +164,8 @@ describe("machines, quota and checks", () => {
     const button = view.getByRole("button", { name: "로그인" });
     const cell = button.closest("[data-testid=runner-cell]") as HTMLElement;
     fireEvent.click(button);
-    expect(within(cell).getByText("로그인 중")).toBeTruthy();
+    await waitFor(() => expect(within(cell).getByText("로그인 중")).toBeTruthy());
+    expect(within(cell).queryByRole("button")).toBeNull();
     await waitFor(() => expect(within(cell).getByRole("img", { name: "로그인됨" })).toBeTruthy());
     expect(view.queryByRole("button", { name: "로그인" })).toBeNull();
     expect(view.getAllByRole("img", { name: "로그인됨" })).toHaveLength(before + 1);
@@ -188,13 +189,13 @@ describe("machines, quota and checks", () => {
 
   test("a refused restart shows the core's line on the row", async () => {
     const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
-    source.restartDevice = async () => ({ ok: false as const, status: 502, detail: "노드가 거절했습니다" });
+    source.restartDevice = async () => ({ ok: false as const, status: 502, detail: "the node refused" });
     const view = await open("#/status", { wide: true, source });
     const machine = source.scene.devices.machines[0];
     fireEvent.click(view.getByRole("button", { name: `${machine.name} 다시 시작` }));
     fireEvent.click(view.getByRole("button", { name: "작업 실행기" }));
     fireEvent.click(view.getByRole("button", { name: "다시 시작" }));
-    await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("노드가 거절했습니다"));
+    await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("기기가 거절함"));
     expect(view.queryByRole("dialog", { name: "다시 시작" })).toBeNull();
   });
 

@@ -96,6 +96,7 @@ test("the scene holds what every screen needs", () => {
   expect(scene.devices.machines.map((machine) => machine.state).sort()).toEqual(["down", "ok", "ok", "warn"]);
   const workNodes = scene.devices.machines.filter((machine) => machine.role === "work");
   expect(workNodes.map((machine) => machine.runners.find((cell) => cell.name === "글결")?.why)).toEqual(["sign_in", "update", "unreachable"]);
+  expect(scene.devices.machines.every((machine) => machine.runners.every((cell) => cell.signingIn === false))).toBe(true);
   expect(workNodes[2].runners.every((cell) => cell.why === "unreachable" && cell.installed === null)).toBe(true);
   expect(scene.devices.machines.filter((machine) => machine.role === "files")).toHaveLength(1);
   expect(scene.devices.person).toHaveLength(2);

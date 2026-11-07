@@ -38,9 +38,14 @@ test("a 429 reads as too many writes whatever its detail; an unknown 409 reads b
   expect(writeError("comment", { ok: false, status: 0, detail: null })).toBe(W.writeFailed);
 });
 
-test("a device refusal keeps the core's one line, including a 429", () => {
-  expect(writeError("device", { ok: false, status: 429, detail: "이 기기의 주인이 아닙니다" })).toBe("이 기기의 주인이 아닙니다");
-  expect(writeError("device", { ok: false, status: 502, detail: "노드가 거절했습니다" })).toBe("노드가 거절했습니다");
-  expect(writeError("device", { ok: false, status: 501, detail: null })).toBe(W.writeFailed);
-  expect(writeError("comment", { ok: false, status: 429, detail: "이 기기의 주인이 아닙니다" })).toBe(W.errTooMany);
+test("a device refusal reads by status and never shows the core's line", () => {
+  expect(writeError("device", { ok: false, status: 403, detail: "not the owner's device" })).toBe(W.settingsReadOnly);
+  expect(writeError("device", { ok: false, status: 429, detail: "not the owner's device" })).toBe(W.errTooMany);
+  expect(writeError("device", { ok: false, status: 404, detail: "no such device" })).toBe(W.deviceMissing);
+  expect(writeError("device", { ok: false, status: 409, detail: "sign-in already running" })).toBe(W.deviceBusy);
+  expect(writeError("device", { ok: false, status: 501, detail: "sign-in is not on this core yet" })).toBe(W.deviceUnsupported);
+  expect(writeError("device", { ok: false, status: 502, detail: "the node refused" })).toBe(W.deviceRefused);
+  expect(writeError("device", { ok: false, status: 400, detail: "service must be worker or ocx" })).toBe(W.writeFailed);
+  expect(writeError("device", { ok: false, status: 500, detail: null })).toBe(W.writeFailed);
+  expect(writeError("comment", { ok: false, status: 429, detail: "not the owner's device" })).toBe(W.errTooMany);
 });

@@ -488,7 +488,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     signIn: "signed_in" | "signed_out" | "api_key" | "ocx" | "unknown" | null,
     why: "update" | "prepare" | "sign_in" | "unreachable" | "unknown" | null,
     fleet: string | null = installed,
-  ) => ({ name, type: null, fleet, installed, signIn, ready: why === null, why });
+  ) => ({ name, type: null, fleet, installed, signIn, signingIn: false, ready: why === null, why });
   const filesName = MACHINE_NAMES.find((name) => !machines.includes(name)) ?? MACHINE_NAMES[0];
   const machineList: BoardSnapshot["machines"] = [
     {

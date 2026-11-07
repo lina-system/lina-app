@@ -1239,12 +1239,12 @@ const drivers = {
       await settled(page);
       const cell = page.getByTestId("runner-cell").filter({ has: page.getByRole("button", { name: "로그인", exact: true }) });
       const handle = await cell.elementHandle();
-      const pending = page.waitForFunction((element) => element.textContent.includes("로그인 중"), handle, { timeout: 4000 });
+      const pending = page.waitForFunction((element) => element.textContent.includes("로그인 중") && !element.querySelector("button"), handle, { timeout: 4000 });
       await cell.getByRole("button", { name: "로그인", exact: true }).click();
       await pending;
       await page.waitForFunction((element) => element.querySelector('[aria-label="로그인됨"]'), handle, { timeout: 4000 });
       check((await page.getByRole("button", { name: "로그인", exact: true }).count()) === 0, "the sign-in button stayed");
-      return "로그인 중, then the signed-in mark";
+      return "로그인 중 with no button, then after the next read the signed-in mark";
     });
     await step("restart the worker from the row menu", async () => {
       const row = page.locator(".machine-row[data-role=work]").first();

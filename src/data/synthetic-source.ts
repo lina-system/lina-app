@@ -311,8 +311,10 @@ export class SyntheticSource implements Source {
   readonly settingsWrites: { kind: "patch" | "rollback"; ifMatch: string | null; status: number }[] = [];
   /** Restarts and sign-ins this page sent and the core took, for the tests. */
   readonly deviceWrites: { device: string; action: "restart" | "sign-in"; service?: "worker" | "ocx"; runner?: string }[] = [];
-  /** Sign-ins the core has taken and not yet folded into the next devices read. */
+  /** Sign-ins taken, waiting for the next devices read to show signingIn. */
   private readonly signIns = new Set<string>();
+  /** Sign-ins already shown as signingIn; the devices read after that one shows them signed in. */
+  private readonly signInsRunning = new Set<string>();
   /** Sign-ins whose answer has not come back yet. */
   private readonly signing = new Set<string>();
 
@@ -608,8 +610,8 @@ export class SyntheticSource implements Source {
   }
 
   /**
-   * Starts sign-in. The cell stays as it was until the next devices read, which is what the screen waits on:
-   * the button reads 로그인 중 for the hold, then the read brings the signed-in mark.
+   * Starts sign-in and answers 202 while it is still running, as the core does. The next devices read shows that
+   * cell signingIn; the read after that shows it signed in.
    */
   async signInDevice(name: string, runner: string): Promise<WriteResult<DeviceAction>> {
     const machine = this.scene.devices.machines.find((item) => item.name === name);
@@ -620,7 +622,7 @@ export class SyntheticSource implements Source {
     const cell = machine.runners.find((item) => item.name === runner);
     if (!cell) return fail(404, "실행기를 찾을 수 없습니다");
     const key = `${name}\0${runner}`;
-    if (this.signing.has(key) || this.signIns.has(key)) return fail(409, "로그인이 이미 진행 중입니다");
+    if (this.signing.has(key) || this.signIns.has(key) || this.signInsRunning.has(key) || cell.signingIn) return fail(409, "로그인이 이미 진행 중입니다");
     if (cell.signIn === "signed_in" && !cell.why) return fail(409, "이미 로그인되어 있습니다");
     this.signing.add(key);
     await new Promise((resolve) => setTimeout(resolve, SIGN_IN_HOLD_MS));
@@ -630,19 +632,37 @@ export class SyntheticSource implements Source {
     return { ok: true, data: { ok: true, device: name, action: "sign-in", state: "started", reason: null } };
   }
 
-  /** Fold queued sign-ins into the scene so this devices read is the one that shows the mark. */
+  /**
+   * The next devices read after a sign-in shows signingIn. The read after that one shows the runner signed in.
+   * A read with nothing queued leaves the scene alone.
+   */
   private applySignIns(): void {
-    if (!this.signIns.size) return;
-    for (const key of this.signIns) {
+    const cellFor = (key: string) => {
       const [name, runner] = key.split("\0");
-      const cell = this.scene.devices.machines.find((item) => item.name === name)?.runners.find((item) => item.name === runner);
-      if (!cell) continue;
-      cell.signIn = "signed_in";
-      cell.why = null;
-      cell.ready = true;
+      return this.scene.devices.machines.find((item) => item.name === name)?.runners.find((item) => item.name === runner);
+    };
+    let moved = false;
+    for (const key of this.signInsRunning) {
+      const cell = cellFor(key);
+      if (cell) {
+        cell.signingIn = false;
+        cell.signIn = "signed_in";
+        cell.why = null;
+        cell.ready = true;
+        moved = true;
+      }
+    }
+    this.signInsRunning.clear();
+    for (const key of this.signIns) {
+      const cell = cellFor(key);
+      if (cell) {
+        cell.signingIn = true;
+        this.signInsRunning.add(key);
+        moved = true;
+      }
     }
     this.signIns.clear();
-    this.changed();
+    if (moved) this.changed();
   }
 
   /** A JSON Merge Patch over the settings, refused like the core: read-only device, stale If-Match, invalid result. */

@@ -445,7 +445,7 @@ test("restart and sign-in post to the device's routes with the session token", a
   expect(calls.every((call) => call.headers["X-Hermes-Session-Token"] === "token-a")).toBe(true);
 });
 
-test("sign-in waits, then the next devices read shows the runner signed in", async () => {
+test("sign-in waits, then the next devices read shows signingIn and the one after shows signed in", async () => {
   const source = new SyntheticSource();
   const machine = source.scene.devices.machines.find((item) => item.runners.some((cell) => cell.why === "sign_in"));
   expect(machine).toBeTruthy();
@@ -457,11 +457,16 @@ test("sign-in waits, then the next devices read shows the runner signed in", asy
   expect(await source.signInDevice(machine?.name ?? "", runner?.name ?? "")).toMatchObject({ ok: false, status: 409 });
   expect(await first).toMatchObject({ ok: true, data: { action: "sign-in", state: "started" } });
   expect(Date.now() - started).toBeGreaterThanOrEqual(150);
-  expect(runner?.signIn).not.toBe("signed_in");
-  const read = await source.read("devices");
-  expect(read.kind).toBe("data");
-  const after = source.scene.devices.machines.find((item) => item.name === machine?.name)?.runners.find((cell) => cell.name === runner?.name);
-  expect(after).toMatchObject({ signIn: "signed_in", why: null, ready: true });
+  expect(runner).toMatchObject({ signingIn: false, signIn: "signed_out" });
+  const reading = await source.read("devices");
+  expect(reading.kind).toBe("data");
+  const pending = reading.kind === "data" ? reading.data.machines.find((item) => item.name === machine?.name)?.runners.find((cell) => cell.name === runner?.name) : undefined;
+  expect(pending).toMatchObject({ signingIn: true, signIn: "signed_out", why: "sign_in" });
+  expect(await source.signInDevice(machine?.name ?? "", runner?.name ?? "")).toMatchObject({ ok: false, status: 409 });
+  const done = await source.read("devices");
+  expect(done.kind).toBe("data");
+  const after = done.kind === "data" ? done.data.machines.find((item) => item.name === machine?.name)?.runners.find((cell) => cell.name === runner?.name) : undefined;
+  expect(after).toMatchObject({ signingIn: false, signIn: "signed_in", why: null, ready: true });
   expect(await source.signInDevice(machine?.name ?? "", runner?.name ?? "")).toMatchObject({ ok: false, status: 409 });
   const person = source.scene.devices.person[0];
   expect(await source.signInDevice(person.name, runner?.name ?? "")).toMatchObject({ ok: false, status: 409 });

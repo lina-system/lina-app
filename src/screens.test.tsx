@@ -158,6 +158,34 @@ describe("machines, quota and checks", () => {
     expect(view.getByTestId("section-machines").contains(people)).toBe(false);
   });
 
+  test("a signed-out runner shows the sign-in button only when it has no reason of its own", async () => {
+    const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
+    const machine = source.scene.devices.machines.find((item) => item.role === "work" && item.state === "ok");
+    const base = machine?.runners[0];
+    expect(base).toBeTruthy();
+    const cell = (name: string, why: NonNullable<typeof base>["why"]) => ({ ...base!, name, signIn: "signed_out" as const, signingIn: false, why, ready: why === null });
+    machine!.runners = [cell("고침", "update"), cell("마련", "prepare"), cell("단절", "unreachable"), cell("빈칸", null)];
+    const view = await open("#/status", { wide: true, source });
+    const row = view.container.querySelector(".machine-row.is-ok[data-role=work]") as HTMLElement;
+    const find = (name: string) => {
+      const found = [...row.querySelectorAll("[data-testid=runner-cell]")].find((item) => item.querySelector(".runner-name")?.textContent === name) as HTMLElement;
+      expect(found).toBeTruthy();
+      return found;
+    };
+    for (const [name, reason] of [
+      ["고침", "업데이트 필요"],
+      ["마련", "준비 필요"],
+      ["단절", "연결 끊김"],
+    ] as const) {
+      const node = find(name);
+      expect(node.textContent).toContain(reason);
+      expect(within(node).queryByRole("button", { name: "로그인" })).toBeNull();
+    }
+    const openCell = find("빈칸");
+    expect(openCell.textContent).toContain("로그인 필요");
+    expect(within(openCell).getByRole("button", { name: "로그인" })).toBeTruthy();
+  });
+
   test("the sign-in button reads 로그인 중 and then the signed-in mark", async () => {
     const view = await open("#/status", { wide: true });
     const before = view.getAllByRole("img", { name: "로그인됨" }).length;

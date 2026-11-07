@@ -401,9 +401,10 @@ function chooseRestart(step: "worker" | "ocx"): void {
 }
 
 /**
- * A fine runner shows its installed version and the signed-in mark. A sign-in cell shows the reason and one button.
+ * A fine runner shows its installed version and the signed-in mark.
+ * The sign-in button shows only for why sign_in, or for a signed-out runner with no why. Any other why shows its reason.
  * 로그인 중 has no button while the post is in flight or the core still reports signingIn. When that turns false,
- * a signed-in runner shows the mark; any other result shows the reason and the button again.
+ * a signed-in runner shows the mark; a sign-in cell shows the reason and the button again.
  */
 function RunnerCellView({ machine, runner }: { machine: Machine; runner: RunnerCell }) {
   const { store } = useApp();
@@ -416,7 +417,7 @@ function RunnerCellView({ machine, runner }: { machine: Machine; runner: RunnerC
     void store.invalidate([["devices"]]);
   }, [runner.signingIn, store]);
   const fine = !signingIn && !runner.why && (runner.signIn === "signed_in" || runner.signIn === "api_key" || runner.signIn === "ocx");
-  const needsSignIn = !signingIn && (runner.why === "sign_in" || runner.signIn === "signed_out");
+  const needsSignIn = !signingIn && (runner.why === "sign_in" || (runner.signIn === "signed_out" && runner.why == null));
   const signIn = () => {
     setError(undefined);
     // Leave the button through the click, then drop it. A click that unmounts its target is retried.

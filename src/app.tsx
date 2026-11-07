@@ -7,7 +7,7 @@ import { buildModel, runRow, type Model } from "./model";
 import { back, defaultListFor, href, isList, linkClick, navigate, onSaveScroll, onStackMotion, parse, useNav, type Route } from "./router";
 import { slideMotion } from "./stack-motion";
 import { bindSwipeBack, isStandalone } from "./swipe-back";
-import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RunningScreen, StatusScreen } from "./screens/lists";
+import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RestartSheet, RunningScreen, StatusScreen } from "./screens/lists";
 import { CardScreen, GoalScreen, ItemScreen, RunScreen } from "./screens/details";
 import { RollbackSheet, SettingPage, settingParent, SettingsScreen, settingTitle } from "./screens/settings";
 import { SETTINGS_HISTORY } from "./api/client";
@@ -513,6 +513,7 @@ export function App({ store, pushHost }: { store: Store; pushHost?: PushHost }) 
             {wide ? <WideShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} /> : <PhoneShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} />}
             <Toast />
             <RollbackSheet />
+            <RestartSheet />
           </SettingsCtx.Provider>
         </PushCtx.Provider>
       </ActionsCtx.Provider>

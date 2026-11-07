@@ -93,7 +93,14 @@ test("the scene holds what every screen needs", () => {
   expect(scene.board.writer.state).toBe("ok");
   expect(generateScene(SYNTHETIC_SEED, { now: NOW, writerStopped: true }).board.writer.state).toBe("stopped");
 
-  expect(scene.devices.machines.map((machine) => machine.state).sort()).toEqual(["down", "ok", "warn"]);
+  expect(scene.devices.machines.map((machine) => machine.state).sort()).toEqual(["down", "ok", "ok", "warn"]);
+  const workNodes = scene.devices.machines.filter((machine) => machine.role === "work");
+  expect(workNodes.map((machine) => machine.runners.find((cell) => cell.name === "글결")?.why)).toEqual(["sign_in", "update", "unreachable"]);
+  expect(scene.devices.machines.every((machine) => machine.runners.every((cell) => cell.signingIn === false))).toBe(true);
+  expect(workNodes[2].runners.every((cell) => cell.why === "unreachable" && cell.installed === null)).toBe(true);
+  expect(scene.devices.machines.filter((machine) => machine.role === "files")).toHaveLength(1);
+  expect(scene.devices.person).toHaveLength(2);
+  expect(scene.devices.person.filter((device) => device.reachable).length).toBe(1);
   expect(scene.quota.quota).toHaveLength(3);
   expect(scene.quota.quota.map((service) => service.accounts.length)).toEqual([2, 1, 2]);
   // The core's rule: a window warns when its rate reaches 100% before it resets; an account warns when a window does.
@@ -189,14 +196,21 @@ test("every service row equals the mean over the accounts that are not paused an
   }
 });
 
-// One machine, one name: the 기기 panel, OCX's links and usage's 기기별 all name the same three machines.
-test("usage and OCX's links name the machines the 기기 panel names", () => {
-  const names = scene.devices.machines.map((machine) => machine.name);
+// Usage and OCX name the work nodes only. The file node is on the 기기 panel and in neither list.
+test("usage and OCX's links name the work machines the 기기 panel names", () => {
+  const work = scene.devices.machines.filter((machine) => machine.role === "work").map((machine) => machine.name);
+  const files = scene.devices.machines.filter((machine) => machine.role === "files").map((machine) => machine.name);
   const down = scene.devices.machines.filter((machine) => machine.state === "down").map((machine) => machine.name);
+  expect(work).toHaveLength(3);
+  expect(files).toHaveLength(1);
   for (const view of Object.values(scene.usage)) {
-    expect(view.byMachine.map((row) => row.machine).sort()).toEqual([...names].sort());
+    expect(view.byMachine.map((row) => row.machine).sort()).toEqual([...work].sort());
+    expect(view.byMachine.map((row) => row.machine)).not.toContain(files[0]);
   }
-  for (const link of scene.modelsState.machines) expect(names).toContain(link.machine);
+  for (const link of scene.modelsState.machines) {
+    expect(work).toContain(link.machine);
+    expect(files).not.toContain(link.machine);
+  }
   expect(scene.modelsState.machines.filter((link) => !link.ok).map((link) => link.machine)).toEqual(down);
 });
 

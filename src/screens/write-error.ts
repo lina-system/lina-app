@@ -1,7 +1,7 @@
 import type { WriteResult } from "../data/source";
 import { W } from "../words";
 
-export type WriteKind = "comment" | "answer" | "done" | "undo" | "retry" | "read";
+export type WriteKind = "comment" | "answer" | "done" | "undo" | "retry" | "read" | "device";
 
 /**
  * Every refusal the core sends (hermes_cli/lina_board_write.py and the `lina work` messages it passes on, in the
@@ -26,7 +26,28 @@ const CONFLICT: Partial<Record<WriteKind, string>> = {
   answer: W.errNoDecision,
 };
 
+/** A device write's refusal, by status. The core's detail is English and is never shown. 429 here is too many writes. */
+function deviceRefusal(status: number): string {
+  switch (status) {
+    case 403:
+      return W.settingsReadOnly;
+    case 429:
+      return W.errTooMany;
+    case 404:
+      return W.deviceMissing;
+    case 409:
+      return W.deviceBusy;
+    case 501:
+      return W.deviceUnsupported;
+    case 502:
+      return W.deviceRefused;
+    default:
+      return W.writeFailed;
+  }
+}
+
 export function writeError(kind: WriteKind, result: Extract<WriteResult<unknown>, { ok: false }>): string {
+  if (kind === "device") return deviceRefusal(result.status);
   if (result.status === 429) return W.errTooMany;
   const known = result.detail ? REFUSALS.find(([pattern]) => pattern.test(result.detail ?? "")) : undefined;
   if (known) return known[1];

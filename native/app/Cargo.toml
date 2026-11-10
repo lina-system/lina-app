@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "lina-native-app"
+description = "GPUI screens for the LINA native apps; platform entry points live in src/entry/."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "lina_ui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "lina-proto"
+path = "src/entry/mac.rs"
+
+[dependencies]
+lina-core.workspace = true
+gpui.workspace = true
+unicode-segmentation.workspace = true

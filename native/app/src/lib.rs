@@ -31,6 +31,8 @@ pub struct LaunchOptions {
     pub window: Option<((f32, f32), (f32, f32))>,
     /// Scroll the open conversation to its end by itself and log frame gaps.
     pub bench: bool,
+    /// Open this view at start (on a phone: the view screen instead of the conversation).
+    pub open_view: Option<String>,
     /// Log the text field's content and marked (IME) range on every change.
     pub log_input: bool,
     /// Post one system notification at start and log that it was posted.
@@ -67,6 +69,7 @@ pub fn launch(cx: &mut App, options: LaunchOptions) {
         draft: options.draft,
         bench: options.bench,
         log_input: options.log_input,
+        open_view: options.open_view,
         started: options.started,
         font_family: options.font_family,
     };

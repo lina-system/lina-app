@@ -7,11 +7,17 @@ fn main() {
     use lina_core::synthetic::{self, SyntheticSource};
     use lina_ui::{LaunchOptions, launch};
 
+    let args: Vec<String> = std::env::args().collect();
+    let open_view = args
+        .iter()
+        .position(|arg| arg == "--open-view")
+        .and_then(|index| args.get(index + 1).cloned());
     let options = LaunchOptions {
         state: synthetic::seed(),
         source: Box::new(SyntheticSource::new()),
         conversation: Some("c-archive".into()),
         draft: None,
+        open_view,
         window: None,
         bench: false,
         log_input: true,

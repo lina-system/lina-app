@@ -7,6 +7,7 @@
 pub mod api;
 pub mod cache;
 pub mod event;
+pub mod follow;
 pub mod model;
 pub mod store;
 pub mod synthetic;

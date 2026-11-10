@@ -6,6 +6,7 @@ use gpui::{
     AnyElement, Context, Entity, FocusHandle, Focusable, FontWeight, ScrollHandle, Subscription, Task, Window, div,
     point, px,
 };
+use lina_core::follow::on_store_change;
 use lina_core::{Author, Message};
 
 use crate::bench::ScrollBench;
@@ -24,19 +25,39 @@ pub struct Root {
     started: Option<Instant>,
     font_family: Option<gpui::SharedString>,
     show_list: bool,
+    view_page: bool,
+    seen_messages: usize,
     bench: Option<ScrollBench>,
     _bench_task: Option<Task<()>>,
     _subscriptions: Vec<Subscription>,
 }
 
-/// Below this width the screen shows one column: the list or one conversation.
+/// Below this width the screen shows one column: the list, one conversation, or one view.
 const NARROW: f32 = 760.;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NarrowScreen {
+    List,
+    Conversation,
+    View,
+}
+
+pub(crate) fn narrow_screen(show_list: bool, view_page: bool, has_view: bool) -> NarrowScreen {
+    if show_list {
+        NarrowScreen::List
+    } else if view_page && has_view {
+        NarrowScreen::View
+    } else {
+        NarrowScreen::Conversation
+    }
+}
 
 pub struct RootOptions {
     pub conversation: Option<String>,
     pub draft: Option<String>,
     pub bench: bool,
     pub log_input: bool,
+    pub open_view: Option<String>,
     pub started: Option<Instant>,
     pub font_family: Option<gpui::SharedString>,
 }
@@ -52,24 +73,28 @@ impl Root {
             .filter(|id| core.read(cx).store().conversation(id).is_some())
             .or_else(|| core.read(cx).store().conversations().first().map(|c| c.id.clone()))
             .unwrap_or_default();
-        let open_view = core
-            .read(cx)
-            .store()
-            .messages(&selected)
-            .iter()
-            .rev()
-            .find_map(|message| message.view_id.clone());
+        let view_page = options.open_view.is_some();
+        let open_view = options
+            .open_view
+            .filter(|id| core.read(cx).store().view(id).is_some())
+            .or_else(|| {
+                core.read(cx)
+                    .store()
+                    .messages(&selected)
+                    .iter()
+                    .rev()
+                    .find_map(|message| message.view_id.clone())
+            });
+        let seen_messages = core.read(cx).store().messages(&selected).len();
         let messages_scroll = ScrollHandle::new();
         let subscriptions = vec![
-            cx.observe(&core, |this: &mut Self, _, cx| {
-                this.messages_scroll.scroll_to_bottom();
-                cx.notify();
-            }),
+            cx.observe(&core, |this: &mut Self, _, cx| this.on_core_change(cx)),
             cx.subscribe_in(&input, window, |this: &mut Self, _, Submit(text), _, cx| {
                 let selected = this.selected.clone();
                 let sent = this.core.update(cx, |core, cx| core.send_message(&selected, text, cx));
-                if let Err(error) = sent {
-                    eprintln!("lina-ui: not sent: {error}");
+                match sent {
+                    Ok(()) => this.messages_scroll.scroll_to_bottom(),
+                    Err(error) => eprintln!("lina-ui: not sent: {error}"),
                 }
             }),
         ];
@@ -105,6 +130,8 @@ impl Root {
             started: options.started,
             font_family: options.font_family,
             show_list: false,
+            view_page,
+            seen_messages,
             bench: None,
             _bench_task: bench_task,
             _subscriptions: subscriptions,
@@ -143,10 +170,30 @@ impl Root {
         window.focus(&self.input.focus_handle(cx), cx);
     }
 
+    /// Follow new messages only when the reader is at the bottom; keep the open
+    /// conversation read.
+    fn on_core_change(&mut self, cx: &mut Context<Self>) {
+        let now = self.core.read(cx).store().messages(&self.selected).len();
+        let max = self.messages_scroll.max_offset().y;
+        let at_bottom = -self.messages_scroll.offset().y >= max - px(4.);
+        let follow = on_store_change(self.seen_messages, now, at_bottom);
+        self.seen_messages = now;
+        if follow.scroll_to_bottom {
+            self.messages_scroll.scroll_to_bottom();
+        }
+        if follow.mark_read {
+            let selected = self.selected.clone();
+            self.core.update(cx, |core, cx| core.mark_read(&selected, cx));
+        }
+        cx.notify();
+    }
+
     fn select(&mut self, id: String, cx: &mut Context<Self>) {
         self.core.update(cx, |core, cx| core.mark_read(&id, cx));
+        self.seen_messages = self.core.read(cx).store().messages(&id).len();
         self.selected = id;
         self.show_list = false;
+        self.view_page = false;
         self.messages_scroll.scroll_to_bottom();
         cx.notify();
     }
@@ -249,6 +296,7 @@ impl Root {
                     .child(view_card(spec))
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.open_view = Some(view_id.clone());
+                        this.view_page = true;
                         cx.notify();
                     })),
             )
@@ -361,34 +409,53 @@ impl Root {
             .into_any_element()
     }
 
-    fn view_panel(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+    fn view_panel(&self, narrow: bool, cx: &mut Context<Self>) -> Option<AnyElement> {
         let view_id = self.open_view.as_ref()?;
         let spec = self.core.read(cx).store().view(view_id)?;
+        let back = if narrow {
+            div()
+                .id("back-to-conversation")
+                .text_size(theme::TEXT_SMALL)
+                .text_color(theme::accent())
+                .cursor_pointer()
+                .child("‹ 대화로")
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.view_page = false;
+                    cx.notify();
+                }))
+        } else {
+            div()
+                .id("close-view")
+                .text_size(theme::TEXT_SMALL)
+                .text_color(theme::accent())
+                .cursor_pointer()
+                .child("닫기")
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.open_view = None;
+                    cx.notify();
+                }))
+        };
         Some(
             div()
                 .id("view-panel")
                 .flex()
                 .flex_col()
                 .gap_3()
-                .w(px(460.))
+                .map(|panel| {
+                    if narrow {
+                        panel.w_full()
+                    } else {
+                        panel.w(px(460.)).border_l_1().border_color(theme::line())
+                    }
+                })
                 .h_full()
                 .p_4()
                 .overflow_y_scroll()
-                .border_l_1()
-                .border_color(theme::line())
                 .child(
-                    div().flex().justify_end().child(
-                        div()
-                            .id("close-view")
-                            .text_size(theme::TEXT_SMALL)
-                            .text_color(theme::accent())
-                            .cursor_pointer()
-                            .child("닫기")
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.open_view = None;
-                                cx.notify();
-                            })),
-                    ),
+                    div()
+                        .flex()
+                        .map(|row| if narrow { row.justify_start() } else { row.justify_end() })
+                        .child(back),
                 )
                 .child(render_view(spec))
                 .into_any_element(),
@@ -404,10 +471,11 @@ impl Render for Root {
         }
         let size = window.bounds().size;
         let narrow = size.width < px(NARROW);
+        let screen = narrow_screen(self.show_list, self.view_page, self.open_view.is_some());
         if self.frames <= 3 || self.frames.is_multiple_of(100) {
             let store = self.core.read(cx).store();
             eprintln!(
-                "lina-ui: frame {} at v{} ({} messages in {}, view open: {}, narrow: {narrow}, window {:?})",
+                "lina-ui: frame {} at v{} ({} messages in {}, view open: {}, narrow: {narrow}, screen: {screen:?}, window {:?})",
                 self.frames,
                 store.version(),
                 store.messages(&self.selected).len(),
@@ -432,20 +500,33 @@ impl Render for Root {
             .text_size(theme::TEXT_BODY)
             .when_some(self.font_family.clone(), |root, family| root.font_family(family));
         if narrow {
-            return if self.show_list {
-                root.child(self.sidebar(true, cx))
-            } else {
-                root.child(self.conversation(true, cx))
+            return match screen {
+                NarrowScreen::List => root.child(self.sidebar(true, cx)),
+                NarrowScreen::Conversation => root.child(self.conversation(true, cx)),
+                NarrowScreen::View => root.children(self.view_panel(true, cx)),
             };
         }
         root.child(self.sidebar(false, cx))
             .child(self.conversation(false, cx))
-            .children(self.view_panel(cx))
+            .children(self.view_panel(false, cx))
     }
 }
 
 impl Focusable for Root {
     fn focus_handle(&self, cx: &gpui::App) -> FocusHandle {
         self.input.focus_handle(cx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{NarrowScreen, narrow_screen};
+
+    #[test]
+    fn narrow_screen_shows_the_view_after_its_card_is_opened() {
+        assert_eq!(narrow_screen(false, true, true), NarrowScreen::View);
+        assert_eq!(narrow_screen(false, false, true), NarrowScreen::Conversation);
+        assert_eq!(narrow_screen(false, true, false), NarrowScreen::Conversation);
+        assert_eq!(narrow_screen(true, true, true), NarrowScreen::List);
     }
 }

@@ -40,6 +40,7 @@ mod web {
                     source: Box::new(SyntheticSource::new()),
                     conversation: Some("c-archive".into()),
                     draft: None,
+                    open_view: None,
                     window: None,
                     bench: false,
                     log_input: true,

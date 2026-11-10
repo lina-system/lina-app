@@ -2,7 +2,7 @@
 //! macOS entry point. The iOS (`ios.rs`) and web (`native/web/`) entry points
 //! call the same `lina_ui::launch`.
 //!
-//! Flags: `--conversation <id>`, `--draft <text>`, `--bench` (1,000 extra
+//! Flags: `--conversation <id>`, `--draft <text>`, `--open-view <view id>`, `--bench` (1,000 extra
 //! messages, no live events, automatic scroll), `--log-input`, `--notify-test`.
 
 use std::time::Instant;
@@ -37,6 +37,7 @@ fn main() {
         source,
         conversation,
         draft: flag(&args, "--draft"),
+        open_view: flag(&args, "--open-view"),
         window: Some(((40., 60.), (1280., 800.))),
         bench,
         log_input: has("--log-input"),

@@ -39,7 +39,7 @@ export interface ScanReport {
 const ALLOWED_GITHUB_ACCOUNTS = new Set(["code-yeongyu", "lina-system", "nousresearch", "sponsors"]);
 const ALLOWED_EMAILS = new Set(["git@github.com", "noreply@github.com"]);
 // Public Rust crates in native/Cargo.lock whose names end like a device.
-const ALLOWED_CRATE_NAMES = new Set(["io-surface", "winapi-i686-pc"]);
+const ALLOWED_CRATE_NAMES = new Set(["io-surface", "objc2-io-surface", "winapi-i686-pc"]);
 
 const BASE_RULES: Rule[] = [
   {

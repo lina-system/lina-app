@@ -54,7 +54,7 @@ cleanup() {
   kill "$keepawake" 2>/dev/null
   pkill -x lina-proto 2>/dev/null
   [ -n "${server_pid:-}" ] && kill "$server_pid" 2>/dev/null
-  [ -n "${leased:-}" ] && lina-helperctl cua.release --arg holder=sion-gpui >/dev/null 2>&1
+  [ -n "${leased:-}" ] && lina-helperctl cua.release --arg holder=gpui-proto-pass >/dev/null 2>&1
   log "cleanup done"
 }
 trap cleanup EXIT
@@ -139,7 +139,7 @@ echo "native rss_kb_after_${IDLE_SECS}s $(ps -o rss= -p "$app_pid")" | tee -a "$
 # 3. Korean input through cua-driver (keys of the 2-set layout: dkssudgktpdy = 안녕하세요).
 launch app-ime --conversation c-weekly --log-input
 info="$(window_info "LINA Proto")"; set -- $info; window_id="${1:-0}"
-if lina-helperctl cua.lease --arg holder=sion-gpui > "$OUT/cua-lease.json" 2>&1; then leased=1; fi
+if lina-helperctl cua.lease --arg holder=gpui-proto-pass > "$OUT/cua-lease.json" 2>&1; then leased=1; fi
 cua() { "$CUA" call "$1" "$2" >> "$OUT/cua.log" 2>&1; }
 key() { cua press_key "{\"pid\":$app_pid,\"window_id\":$window_id,\"key\":\"$1\",\"delivery_mode\":\"foreground\"}"; }
 last_input() { grep "lina-ui: input text=" "$OUT/app-ime.log" | tail -1; }
@@ -164,7 +164,7 @@ echo "ime after backspace in syllable (expect 하 marked): $(last_input)" | tee 
 capture 07-ime-candidate-position "LINA Proto"
 cua hotkey "{\"pid\":$app_pid,\"window_id\":$window_id,\"keys\":[\"ctrl\",\"space\"],\"delivery_mode\":\"foreground\"}"
 log "input source switched back with ctrl+space (check it is the original)"
-[ -n "${leased:-}" ] && lina-helperctl cua.release --arg holder=sion-gpui >/dev/null 2>&1 && leased=
+[ -n "${leased:-}" ] && lina-helperctl cua.release --arg holder=gpui-proto-pass >/dev/null 2>&1 && leased=
 
 # 4. Accessibility tree, menu bar, system notification.
 launch app-a11y --conversation c-archive --notify-test

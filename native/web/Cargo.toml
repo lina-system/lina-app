@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# The web entry point. It is its own workspace so that its nightly toolchain
+# (rust-toolchain.toml in this folder) never applies to the Mac and iOS builds.
+
+[workspace]
+
+[package]
+name = "lina-web"
+version = "0.0.1"
+edition = "2024"
+license = "AGPL-3.0-only"
+publish = false
+
+[[bin]]
+name = "lina-web"
+path = "src/main.rs"
+
+[dependencies]
+lina-core = { path = "../core" }
+lina-native-app = { path = "../app" }
+gpui = { package = "gpui-pre", version = "=0.3.12" }
+gpui_web = { package = "gpui-pre-web", version = "=0.3.12", default-features = false }
+wasm-bindgen = "=0.2.129"
+log = "=0.4.35"

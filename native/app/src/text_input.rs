@@ -13,6 +13,7 @@
 
 use std::ops::Range;
 
+use gpui::TextAlign;
 use gpui::{
     App, Bounds, ClipboardItem, Context, CursorStyle, ElementId, ElementInputHandler, Entity, EntityInputHandler,
     EventEmitter, FocusHandle, Focusable, GlobalElementId, KeyBinding, LayoutId, MouseButton, MouseDownEvent,
@@ -74,12 +75,14 @@ pub struct TextInput {
     last_layout: Option<ShapedLine>,
     last_bounds: Option<Bounds<Pixels>>,
     is_selecting: bool,
+    log_changes: bool,
+    last_logged: Option<(SharedString, Option<Range<usize>>)>,
 }
 
 impl EventEmitter<Submit> for TextInput {}
 
 impl TextInput {
-    pub fn new(placeholder: impl Into<SharedString>, cx: &mut Context<Self>) -> Self {
+    pub fn new(placeholder: impl Into<SharedString>, log_changes: bool, cx: &mut Context<Self>) -> Self {
         TextInput {
             focus_handle: cx.focus_handle(),
             content: SharedString::default(),
@@ -90,6 +93,19 @@ impl TextInput {
             last_layout: None,
             last_bounds: None,
             is_selecting: false,
+            log_changes,
+            last_logged: None,
+        }
+    }
+
+    fn log_if_changed(&mut self) {
+        if !self.log_changes {
+            return;
+        }
+        let state = (self.content.clone(), self.marked_range.clone());
+        if self.last_logged.as_ref() != Some(&state) {
+            eprintln!("lina-ui: input text={:?} marked={:?}", state.0.as_ref(), state.1);
+            self.last_logged = Some(state);
         }
     }
 
@@ -563,7 +579,7 @@ impl Element for TextElement {
         let Some(line) = prepaint.line.take() else {
             return;
         };
-        if let Err(error) = line.paint(bounds.origin, window.line_height(), window, cx) {
+        if let Err(error) = line.paint(bounds.origin, window.line_height(), TextAlign::Left, None, window, cx) {
             eprintln!("lina-ui: text field paint failed: {error}");
         }
         if focus_handle.is_focused(window)
@@ -580,6 +596,7 @@ impl Element for TextElement {
 
 impl Render for TextInput {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.log_if_changed();
         div()
             .flex()
             .key_context(CONTEXT)

@@ -1,15 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Shared GPUI screens. Platform entry points (`src/entry/`) only open the app
-//! with [`launch`]; everything drawn is in this crate, and every data rule is in
-//! `lina-core`.
+//! Shared GPUI screens. Platform entry points (`src/entry/`, `web/`) only open
+//! the app with [`launch`]; everything drawn is in this crate, and every data
+//! rule is in `lina-core`.
 
+mod bench;
 mod core_model;
 mod root;
 mod text_input;
 mod theme;
 mod view_render;
 
-use gpui::{App, AppContext, Bounds, KeyBinding, TitlebarOptions, WindowBounds, WindowOptions, point, px, size};
+use std::time::Instant;
+
+use gpui::{
+    App, AppContext, Bounds, KeyBinding, Menu, MenuItem, SharedString, SystemNotification, TitlebarOptions,
+    WindowBounds, WindowOptions, point, px, size,
+};
 use lina_core::{EventSource, State};
 
 pub use core_model::CoreModel;
@@ -21,8 +27,18 @@ pub struct LaunchOptions {
     pub source: Box<dyn EventSource>,
     pub conversation: Option<String>,
     pub draft: Option<String>,
-    pub window_origin: (f32, f32),
-    pub window_size: (f32, f32),
+    /// `None` lets the platform size the window (phone, browser canvas).
+    pub window: Option<((f32, f32), (f32, f32))>,
+    /// Scroll the open conversation to its end by itself and log frame gaps.
+    pub bench: bool,
+    /// Log the text field's content and marked (IME) range on every change.
+    pub log_input: bool,
+    /// Post one system notification at start and log that it was posted.
+    pub notify_test: bool,
+    /// Process start, for the first-frame time; `None` where `Instant` is unavailable.
+    pub started: Option<Instant>,
+    /// Font family for all text, where the platform has no system font (web).
+    pub font_family: Option<SharedString>,
 }
 
 gpui::actions!(lina, [Quit]);
@@ -31,25 +47,40 @@ pub fn launch(cx: &mut App, options: LaunchOptions) {
     bind_text_input_keys(cx);
     cx.bind_keys([KeyBinding::new("cmd-q", Quit, None)]);
     cx.on_action(|_: &Quit, cx| cx.quit());
+    cx.set_menus([Menu::new("LINA").items([MenuItem::action("LINA 종료", Quit)])]);
+    if options.notify_test {
+        cx.show_system_notification(SystemNotification {
+            tag: "lina-proto-notify-test".into(),
+            title: "LINA".into(),
+            body: "알림 시험".into(),
+            actions: Vec::new(),
+        });
+        eprintln!("lina-ui: system notification posted");
+    }
 
     let core = cx.new(|cx| CoreModel::start(options.state, options.source, cx));
-    let bounds = Bounds::new(
-        point(px(options.window_origin.0), px(options.window_origin.1)),
-        size(px(options.window_size.0), px(options.window_size.1)),
-    );
-    let conversation = options.conversation;
-    let draft = options.draft;
+    let window_bounds = options.window.map(|((x, y), (width, height))| {
+        WindowBounds::Windowed(Bounds::new(point(px(x), px(y)), size(px(width), px(height))))
+    });
+    let root_options = root::RootOptions {
+        conversation: options.conversation,
+        draft: options.draft,
+        bench: options.bench,
+        log_input: options.log_input,
+        started: options.started,
+        font_family: options.font_family,
+    };
     let window = cx
         .open_window(
             WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
+                window_bounds,
                 titlebar: Some(TitlebarOptions {
                     title: Some("LINA".into()),
                     ..Default::default()
                 }),
                 ..Default::default()
             },
-            |window, cx| cx.new(|cx| root::Root::new(core, conversation, draft, window, cx)),
+            |window, cx| cx.new(|cx| root::Root::new(core, root_options, window, cx)),
         )
         .expect("open the main window");
     window

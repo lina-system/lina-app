@@ -16,9 +16,11 @@ rust-version = "1.99.1"
 lina-core = { path = "core" }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.154"
-# GPUI from crates.io, pinned. Default features keep the Linux backends in the
-# lock file; the app is only built on macOS in this round.
-gpui = "=0.2.2"
+# GPUI comes from the gpui-pre snapshots of Zed's crates on crates.io (0.3.12 is
+# zed@d2a4fb6); crates.io `gpui` 0.2.2 has no iOS or web backend. Pin the exact
+# snapshot: the API changes between snapshots.
+gpui = { package = "gpui-pre", version = "=0.3.12" }
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", default-features = false, features = ["font-kit"] }
 unicode-segmentation = "=1.13.3"
 
 [profile.release]

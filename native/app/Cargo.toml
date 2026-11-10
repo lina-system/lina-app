@@ -16,7 +16,12 @@ path = "src/lib.rs"
 name = "lina-proto"
 path = "src/entry/mac.rs"
 
+[[bin]]
+name = "lina-proto-ios"
+path = "src/entry/ios.rs"
+
 [dependencies]
 lina-core.workspace = true
 gpui.workspace = true
+gpui_platform.workspace = true
 unicode-segmentation.workspace = true

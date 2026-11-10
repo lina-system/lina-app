@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 //! Draws a view spec with the component set. Values and labels come from
 //! `lina-core`; this file only lays them out.
 

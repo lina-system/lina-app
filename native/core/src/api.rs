@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 //! The client API model: the requests a screen sends to the core and what it
 //! gets back. A network client will carry the same shapes later.
 

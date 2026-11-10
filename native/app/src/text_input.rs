@@ -1,6 +1,15 @@
-// SPDX-License-Identifier: Apache-2.0
-//! One-line text field with IME support (marked text), adapted from GPUI's
-//! `examples/input.rs` (Apache-2.0). Enter emits [`Submit`].
+// SPDX-License-Identifier: AGPL-3.0-only AND Apache-2.0
+//
+// Adapted from GPUI's `crates/gpui/examples/input.rs` in Zed
+// (https://github.com/zed-industries/zed), Copyright 2022 - 2025 Zed Industries, Inc.,
+// licensed under the Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
+// Changes from the original: Enter emits `Submit` and is ignored while text is marked;
+// the IME selection inside marked text is converted relative to the marked range;
+// key bindings are scoped to the field; the field uses the app's design tokens;
+// the demo window, reset button and keystroke log are removed.
+// The changes are licensed under AGPL-3.0-only.
+
+//! One-line text field with IME support (marked text). Enter emits [`Submit`].
 
 use std::ops::Range;
 

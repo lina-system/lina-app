@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-only
 # Wraps the release binary into an app bundle and signs it with a Developer ID
 # from the login keychain. The identity is passed in, never stored in the repo:
 #   LINA_SIGN_IDENTITY=<sha1 or name> app/macos/bundle.sh   (run from native/)

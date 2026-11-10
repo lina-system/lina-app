@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 //! Local cache: the last known state as one JSON file, so a screen can draw
 //! before the live stream answers.
 

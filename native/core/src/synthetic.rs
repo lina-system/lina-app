@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 //! Synthetic data for the prototype: made-up agents and folders only.
 
 use std::collections::BTreeMap;

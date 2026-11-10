@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-only
 [package]
 name = "lina-core"
 description = "Platform-free core for the LINA native apps: client API model, live updates, local cache and the view spec model."

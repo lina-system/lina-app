@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 //! Shared GPUI screens. Platform entry points (`src/entry/`) only open the app
 //! with [`launch`]; everything drawn is in this crate, and every data rule is in
 //! `lina-core`.

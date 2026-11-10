@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 //! Platform-free core for the LINA native apps (lina-app#76).
 //!
 //! Screens read state from a [`Store`] and redraw when it reports a [`Change`];

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 use lina_core::view_spec::{Part, Progress, Refresh, Tile, format_number};
 use lina_core::{ViewSpec, synthetic};
 

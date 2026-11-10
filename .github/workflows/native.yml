@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-only
 name: Native
 
 # Build, test and lint the Rust workspace in native/ (lina-app#76) on macOS.

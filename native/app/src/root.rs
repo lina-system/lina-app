@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 use gpui::prelude::*;
 use gpui::{
     AnyElement, Context, Entity, FocusHandle, Focusable, FontWeight, ScrollHandle, Subscription, Window, div, px,

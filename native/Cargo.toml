@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-only
 # Rust workspace for the native apps (lina-app#76): a platform-free core and a GPUI app.
 
 [workspace]
@@ -8,7 +8,7 @@ members = ["core", "app"]
 [workspace.package]
 version = "0.0.1"
 edition = "2024"
-license = "Apache-2.0"
+license = "AGPL-3.0-only"
 publish = false
 rust-version = "1.99.1"
 

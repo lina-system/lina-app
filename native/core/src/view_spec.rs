@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: AGPL-3.0-only
 //! The view spec of lina-app#66: one JSON document per agent-built view.
 //!
 //! This round covers `id`, `version`, `title`, `owner`, one view-level `refresh`

@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Rust workspace for the native apps (lina-app#76): a platform-free core and a GPUI app.
+
+[workspace]
+resolver = "3"
+members = ["core", "app"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+license = "AGPL-3.0-only"
+publish = false
+rust-version = "1.99.1"
+
+[workspace.dependencies]
+lina-core = { path = "core" }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
+# GPUI comes from the gpui-pre snapshots of Zed's crates on crates.io (0.3.12 is
+# zed@d2a4fb6); crates.io `gpui` 0.2.2 has no iOS or web backend. Pin the exact
+# snapshot: the API changes between snapshots.
+gpui = { package = "gpui-pre", version = "=0.3.12" }
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", default-features = false, features = ["font-kit"] }
+unicode-segmentation = "=1.13.3"
+
+[profile.release]
+debug = false

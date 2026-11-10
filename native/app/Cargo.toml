@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+[package]
+name = "lina-native-app"
+description = "GPUI screens for the LINA native apps; platform entry points live in src/entry/."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "lina_ui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "lina-proto"
+path = "src/entry/mac.rs"
+
+[[bin]]
+name = "lina-proto-ios"
+path = "src/entry/ios.rs"
+
+[dependencies]
+lina-core.workspace = true
+gpui.workspace = true
+gpui_platform.workspace = true
+unicode-segmentation.workspace = true

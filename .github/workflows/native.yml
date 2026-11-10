@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+name: Native
+
+# Build, test and lint the Rust workspace in native/ (lina-app#76) on macOS.
+# The toolchain comes from native/rust-toolchain.toml.
+
+on:
+  pull_request:
+    branches: [dev, main]
+    paths: ["native/**", ".github/workflows/native.yml"]
+  push:
+    branches: [dev]
+    paths: ["native/**", ".github/workflows/native.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  native:
+    name: Build, test and lint native/
+    runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: native
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Metal toolchain
+        run: xcrun metal --version || xcodebuild -downloadComponent MetalToolchain
+
+      - name: Rust toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - name: Build
+        run: cargo build --locked
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Format
+        run: cargo fmt --check

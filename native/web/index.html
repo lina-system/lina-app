@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=0" />
+    <title>LINA (GPUI web prototype)</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #ffffff;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      import init from "./lina_web.js";
+      init().then(
+        () => console.log("lina-web: wasm started"),
+        (error) => console.error("lina-web: wasm failed", error),
+      );
+    </script>
+  </body>
+</html>

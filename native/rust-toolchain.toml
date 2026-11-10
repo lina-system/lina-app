@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# The one place that picks the Rust toolchain for native/. gpui 0.2.2 is edition
+# 2024 and builds on stable; no nightly is needed.
+[toolchain]
+channel = "1.99.1"
+profile = "minimal"
+components = ["clippy", "rustfmt"]

@@ -166,6 +166,22 @@ fn api_save_view_bumps_version_and_refuses_unknown_parts() {
 }
 
 #[test]
+fn bulk_messages_fill_one_conversation_and_quiet_source_stays_silent() {
+    let mut state = synthetic::seed();
+    let before = state.messages["c-weekly"].len();
+    assert_eq!(synthetic::add_bulk_messages(&mut state, "c-weekly", 1000), 1000);
+    assert_eq!(synthetic::add_bulk_messages(&mut state, "c-missing", 5), 0);
+    let store = Store::new(state);
+    let messages = store.messages("c-weekly");
+    assert_eq!(messages.len(), before + 1000);
+    let mut ids: Vec<u64> = store.state().messages.values().flatten().map(|m| m.id).collect();
+    ids.sort_unstable();
+    ids.dedup();
+    assert_eq!(ids.len() as u64, store.state().next_message_id);
+    assert!(synthetic::QuietSource.poll().is_empty());
+}
+
+#[test]
 fn cache_round_trips_the_state() {
     let mut store = Store::new(synthetic::seed());
     store.send_message("c-archive", "캐시 확인").unwrap();

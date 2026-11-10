@@ -143,6 +143,50 @@ pub fn seed() -> State {
     state
 }
 
+/// Adds `count` alternating messages to one conversation, for scroll and
+/// memory measurements. Returns how many were added.
+pub fn add_bulk_messages(state: &mut State, conversation_id: &str, count: usize) -> usize {
+    let Some(conversation) = state.conversations.iter().find(|c| c.id == conversation_id) else {
+        return 0;
+    };
+    let agent = conversation.agent.clone();
+    let start = state.now;
+    let messages = state.messages.entry(conversation_id.into()).or_default();
+    for index in 0..count {
+        let id = state.next_message_id;
+        state.next_message_id += 1;
+        let author = if index % 3 == 0 {
+            Author::Me
+        } else {
+            Author::Agent(agent.clone())
+        };
+        messages.push(Message {
+            id,
+            conversation_id: conversation_id.into(),
+            author,
+            text: format!(
+                "측정용 메시지 {}번입니다. 긴 줄도 섞어 둡니다: {}",
+                index + 1,
+                "가나다라 ".repeat(index % 7)
+            ),
+            at: start + index as u64,
+            view_id: None,
+        });
+    }
+    state.now = start + count as u64;
+    count
+}
+
+/// A source that never pushes anything, for idle measurements.
+#[derive(Debug, Default)]
+pub struct QuietSource;
+
+impl EventSource for QuietSource {
+    fn poll(&mut self) -> Vec<Event> {
+        Vec::new()
+    }
+}
+
 /// Pushes one agent message and one progress step per poll; the host polls it
 /// once a second.
 #[derive(Debug, Default)]

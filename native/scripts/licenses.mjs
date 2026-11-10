@@ -63,7 +63,7 @@ const row = (pkg) => {
     (reviewOnly ? review : failures).push(`${pkg.name} ${pkg.version}: ${license}`);
   }
   const url = pkg.repository ?? pkg.homepage ?? `https://crates.io/crates/${pkg.name}`;
-  return `| ${pkg.name} | ${pkg.version} | ${license.replace(/\|/g, "\\|")} | ${url} |`;
+  return `| ${pkg.name} | ${pkg.version} | ${license.replace(/\\/g, "\\\\").replace(/\|/g, "\\|")} | ${url} |`;
 };
 
 const lines = [

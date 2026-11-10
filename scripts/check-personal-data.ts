@@ -38,6 +38,8 @@ export interface ScanReport {
 // Public project and funding accounts are not personal accounts.
 const ALLOWED_GITHUB_ACCOUNTS = new Set(["code-yeongyu", "lina-system", "nousresearch", "sponsors"]);
 const ALLOWED_EMAILS = new Set(["git@github.com", "noreply@github.com"]);
+// Public Rust crates in native/Cargo.lock whose names end like a device.
+const ALLOWED_CRATE_NAMES = new Set(["io-surface", "winapi-i686-pc"]);
 
 const BASE_RULES: Rule[] = [
   {
@@ -52,6 +54,7 @@ const BASE_RULES: Rule[] = [
     name: "machine-hostname",
     pattern:
       /\b(?:[a-z0-9][a-z0-9-]{0,62}\.(?:local|lan|internal|home\.arpa)|[a-z0-9][a-z0-9-]*(?:-(?:macbook|imac|mac-mini|mac-studio|thinkpad|surface|laptop|desktop|workstation|server|pc))|DESKTOP-[A-Z0-9]{7}|[a-z0-9][a-z0-9-]*\.[a-z0-9-]+\.ts\.net)\b/i,
+    allow: (match) => !ALLOWED_CRATE_NAMES.has(match[0].toLowerCase()),
   },
   {
     name: "email",

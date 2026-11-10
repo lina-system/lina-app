@@ -48,6 +48,12 @@ test("flags a machine name with a device suffix", () => {
   ]);
 });
 
+test("allows public crate names that end like a device, but not a machine with the same suffix", () => {
+  const text = ['name = "io-surface"', '"winapi-i686-pc-windows-gnu",', joined("zzyzx", "-surface")].join("\n");
+
+  expect(scanText(text, "native/Cargo.lock", "").map((finding) => finding.line)).toEqual([3]);
+});
+
 test("allows public project accounts and service addresses", () => {
   const text = [
     "https://github.com/lina-system",

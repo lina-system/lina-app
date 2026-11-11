@@ -257,8 +257,9 @@ export function cardName(title: string | null, work: CardKind, ownTitle: string 
 
 function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, receivedAt: number, runCards: ReadonlyMap<string, RunCard>): CardRow {
   const runs = detail?.runs ?? [];
-  const lastBeat = maxOf(runs.map((run) => run.lastHeartbeatAt));
-  const ended = maxOf(runs.map((run) => run.endedAt));
+  // The list row's own times first (lina#577); a core without them leaves them out, and the detail's runs stand in.
+  const lastBeat = card.lastHeartbeatAt ?? maxOf(runs.map((run) => run.lastHeartbeatAt));
+  const ended = card.endedAt ?? maxOf(runs.map((run) => run.endedAt));
   const base = receivedAt - card.elapsedSeconds;
   // A card with no checked title is named by its own title when that may be drawn; its kind is read from that same
   // text, so a card showing its own title is not guessed as code when it is a documents card.
@@ -277,8 +278,7 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
     reason: card.reason,
     startedAt: card.state === "in_progress" ? base : null,
     stateAt: card.state === "stopped" ? (lastBeat ?? base) : card.state === "done" ? null : base,
-    // A finished card's end is on its detail's runs only; before that detail is read (the card opened) it is unknown,
-    // not "just now" (lina-app#100).
+    // With neither the row's end nor a read detail, a finished card's end is unknown, not "just now" (lina-app#100).
     endedAt: card.state === "done" ? (ended ?? (detail ? receivedAt : null)) : null,
     totalSeconds: card.state === "done" ? card.elapsedSeconds : null,
     now: card.plain.now,

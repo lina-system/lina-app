@@ -1,4 +1,5 @@
-# Copied unchanged from lina-system/lina docs/api/work-client.yaml at dev commit df3b9926391eb9c04f5451dbd5679b12ed3f2c05.
+# Copied unchanged from lina-system/lina docs/api/work-client.yaml at dev commit df3b9926391eb9c04f5451dbd5679b12ed3f2c05,
+# plus the optional WorkCardSummary/WorkCardDetail fields endedAt and lastHeartbeatAt that lina#577 adds (lina-app#100).
 # Work endpoints the app reads: goals, work cards, their worker runs and the owner inbox.
 # Served by plugins/kanban/dashboard/work_api.py under /api/plugins/kanban/work, behind the
 # dashboard auth gate (session token). lina-app's scripts/generate-client.mjs can point
@@ -216,6 +217,14 @@ components:
           description: The latest comment or heartbeat note, plain text.
         plain:
           $ref: "#/components/schemas/PlainLines"
+        endedAt:
+          type: integer
+          nullable: true
+          description: When a done card completed (completed_at, epoch seconds); null otherwise (lina#577).
+        lastHeartbeatAt:
+          type: integer
+          nullable: true
+          description: The card's last heartbeat (epoch seconds); null when it has none (lina#577).
     WorkCardList:
       type: object
       additionalProperties: false
@@ -342,6 +351,14 @@ components:
           maxLength: 120
         plain:
           $ref: "#/components/schemas/PlainLines"
+        endedAt:
+          type: integer
+          nullable: true
+          description: When a done card completed (completed_at, epoch seconds); null otherwise (lina#577).
+        lastHeartbeatAt:
+          type: integer
+          nullable: true
+          description: The card's last heartbeat (epoch seconds); null when it has none (lina#577).
         todos:
           type: array
           items:

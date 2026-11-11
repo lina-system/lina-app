@@ -22,6 +22,16 @@ function manyCards(): SyntheticSource {
   return new SyntheticSource({ scene: { ...scene, cards: { cards: [...scene.cards.cards, ...extra] }, cardDetails: { ...scene.cardDetails, ...details } } });
 }
 
+type Scene = SyntheticSource["scene"];
+type Times = { endedAt?: number | null; lastHeartbeatAt?: number | null };
+
+/** The synthetic scene with every work card's list row and detail passed through `edit`. */
+function editedCards(edit: <C extends Times & { id: string }>(card: C) => C): SyntheticSource {
+  const { scene } = new SyntheticSource();
+  const cardDetails: Scene["cardDetails"] = Object.fromEntries(Object.entries(scene.cardDetails).map(([id, detail]) => [id, edit(detail)]));
+  return new SyntheticSource({ scene: { ...scene, cards: { cards: scene.cards.cards.map(edit) }, cardDetails } });
+}
+
 /** Routes the fake core serves, by their path on the core. */
 const SERVED: readonly (readonly [RouteName, string?])[] = [["board"], ["items"], ["goals"], ["cards"], ["inbox"], ["devices"], ["quota"], ...USAGE_RANGES.map((range) => ["usage", range] as const), ["modelsState"], ["checks"], ["settingsModels"]];
 
@@ -62,6 +72,14 @@ function homeCards(view: ReturnType<typeof render>): number {
   return view.container.querySelectorAll('[data-testid=screen-running] a[href^="#/cards/"]').length;
 }
 
+function rowSub(view: ReturnType<typeof render>, id: string): string | null | undefined {
+  return view.container.querySelector(`[data-testid=screen-running] li:has(> a[href="#/cards/${id}"]) .sub`)?.textContent;
+}
+
+function sectionTimes(view: ReturnType<typeof render>, id: string): (string | null)[] {
+  return [...view.getByTestId(`section-${id}`).querySelectorAll(".sub")].map((line) => line.textContent);
+}
+
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -78,6 +96,37 @@ test(`the first load of ${CARDS} work cards reads the lists once and no card's d
   window.location.hash = "#/cards/k-1100";
   await waitFor(() => expect(view.getByTestId("screen-card").querySelector("[data-testid=detail-loading]")).toBeNull());
   expect(core.details()).toEqual(["k-1100"]);
+});
+
+test("unopened cards take their times from the list row: a finished card's end, a stopped card's last beat", async () => {
+  // k-103 stopped 52 minutes into its work; its last beat is moved to 20 minutes ago, apart from that elapsed time.
+  const core = fakeCore(editedCards((card) => (card.id === "k-103" && card.lastHeartbeatAt ? { ...card, lastHeartbeatAt: card.lastHeartbeatAt + 32 * 60 } : card)));
+  const { store, view } = mount("#/running", core);
+  await waitFor(() => expect(store.refreshes).toBeGreaterThan(0));
+  await waitFor(() => expect(rowSub(view, "k-105")).toBeTruthy());
+  expect.soft(rowSub(view, "k-105")).toBe("완료 · 2시간 전");
+  expect.soft(sectionTimes(view, "recent")).toEqual(["완료 · 30분 전", "완료 · 2시간 전"]);
+  expect.soft(sectionTimes(view, "older")).toEqual(["완료 · 2일 전"]);
+  expect.soft(rowSub(view, "k-103")).toBe("중단됨 · 응답 없음 · 20분 전");
+  expect(core.details()).toEqual([]);
+});
+
+test("a core whose rows carry neither time: an unopened finished card has no time and stands with the older ones", async () => {
+  const core = fakeCore(
+    editedCards((card) => {
+      const bare = { ...card };
+      delete bare.endedAt;
+      delete bare.lastHeartbeatAt;
+      return bare;
+    }),
+  );
+  const { store, view } = mount("#/running", core);
+  await waitFor(() => expect(store.refreshes).toBeGreaterThan(0));
+  await waitFor(() => expect(rowSub(view, "k-105")).toBe("완료"));
+  expect(sectionTimes(view, "recent")).toEqual(["완료 · 30분 전"]);
+  expect(sectionTimes(view, "older")).toEqual(["완료 · 2일 전", "완료"]);
+  expect(rowSub(view, "k-103")).toBe("중단됨 · 응답 없음 · 52분 전");
+  expect(core.details()).toEqual([]);
 });
 
 test("the lists draw while a card's detail takes 30 seconds; the open card shows its row, then fills in", async () => {

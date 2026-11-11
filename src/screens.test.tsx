@@ -1376,9 +1376,9 @@ describe("work cards", () => {
     expect(view.getByTestId("home-decisions").textContent).toContain(String(SCENE_COUNTS.decisions));
     const names = (label: string) => [...(screen.querySelector(`[aria-label="${label}"]`)?.querySelectorAll(":scope > li > a") ?? [])].map((link) => link.getAttribute("aria-label") ?? "");
     expect(names("진행 중인 작업")[0]).toMatch(/중단됨 · 응답 없음$/);
-    // k-105's end is on its detail only, read when it opens (lina-app#100): until then it stands with the older ones.
-    expect(names("24시간 안에 끝남")).toHaveLength(1);
-    expect(names("이전에 끝남")).toHaveLength(2);
+    // k-105 is never opened here: its list row's own end (lina#577) places it.
+    expect(names("24시간 안에 끝남")).toHaveLength(2);
+    expect(names("이전에 끝남")).toHaveLength(1);
     for (const id of ["waiting", "recent", "older"]) {
       const section = view.getByTestId(`section-${id}`);
       expect(rowsIn(section)).toBe(count(section.querySelector("[data-testid=count]")));
@@ -1616,11 +1616,8 @@ describe("work cards, round 5", () => {
   test("a finished card says when it ended on the home and the agent screen; how long it took is in its detail", async () => {
     const view = await open("#/running", { wide: true });
     const times = (id: string) => [...view.getByTestId(`section-${id}`).querySelectorAll(".sub")].map((line) => line.textContent);
-    // k-105 ended 2 hours ago, which only its detail says: it shows no time until it opens (lina-app#100).
-    expect(times("recent")).toEqual(["완료 · 30분 전"]);
-    expect(times("older")).toEqual(["완료 · 2일 전", "완료"]);
-    window.location.hash = "#/cards/k-105";
-    await waitFor(() => expect(times("recent")).toEqual(["완료 · 30분 전", "완료 · 2시간 전"]));
+    // k-105's detail is not read on the home; its list row's own end (lina#577) says when it ended.
+    expect(times("recent")).toEqual(["완료 · 30분 전", "완료 · 2시간 전"]);
     expect(times("older")).toEqual(["완료 · 2일 전"]);
     view.unmount();
     const agent = await open("#/done?agent=ag-1", { wide: true });

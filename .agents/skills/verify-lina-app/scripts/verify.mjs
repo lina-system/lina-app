@@ -2546,8 +2546,7 @@ const drivers = {
       const recent = await page.getByTestId("section-recent").locator(".sub").allInnerTexts();
       const older = await page.getByTestId("section-older").locator(".sub").allInnerTexts();
       check(recent.every((line) => /^완료 · \d+(분|시간) 전$/.test(line)), "the last 24 hours read " + recent.join(", "));
-      // A work card's end is on its detail, read when it opens (lina-app#100): k-105, not opened yet, reads 완료 alone.
-      check(older.every((line) => /^완료 · \d+일 전$/.test(line) || line === "완료"), "older cards read " + older.join(", "));
+      check(older.every((line) => /^완료 · \d+일 전$/.test(line)), "older cards read " + older.join(", "));
       return words + " " + grey + " / " + red + "; " + recent.join(", ") + "; " + older.join(", ");
     });
     await step("a comment with a path, a hash or a cut-off fragment is one folded entry; it opens on demand", async () => {

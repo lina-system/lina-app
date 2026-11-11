@@ -46,6 +46,8 @@ function fakeCore(scene: SyntheticSource, delayMs = 0) {
     if (!route) return new Response("{}", { status: 404 });
     if (card && delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
     const result = await scene.read(route[0], route[1]);
+    // A route read again with nothing new: the core answers 304, never 404.
+    if (result.kind === "unchanged") return new Response(null, { status: 304 });
     if (result.kind !== "data") return new Response("{}", { status: 404 });
     return new Response(JSON.stringify(result.data), { status: 200 });
   }) as typeof fetch;
@@ -127,6 +129,64 @@ test("a core whose rows carry neither time: an unopened finished card has no tim
   expect(sectionTimes(view, "older")).toEqual(["완료 · 2일 전", "완료"]);
   expect(rowSub(view, "k-103")).toBe("중단됨 · 응답 없음 · 52분 전");
   expect(core.details()).toEqual([]);
+});
+
+/** The run page's boxes by their head, in order. */
+function runBoxes(view: ReturnType<typeof render>): (string | null)[] {
+  return [...view.getByTestId("screen-run").querySelectorAll(":scope > .box > .box-head")].map((head) => head.textContent);
+}
+
+test("a card's worker run opened on its own reads its card: r1 goes on inside its card's box, and never reads 완료 기록 없음 meanwhile", async () => {
+  vi.useFakeTimers(TIMERS);
+  const core = fakeCore(new SyntheticSource(), DETAIL_DELAY_MS);
+  const { view } = mount("#/runs/r1", core);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1_000);
+  });
+  // The record is in, the card is still being read: nothing on the page says whether the run goes on.
+  const waiting = view.getByTestId("screen-run");
+  expect(waiting.textContent).not.toContain("완료 기록 없음");
+  expect(waiting.querySelector("[data-testid=detail-loading]")?.textContent).toBe("불러오는 중");
+  expect(core.details()).toEqual(["k-101"]);
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(DETAIL_DELAY_MS);
+  });
+  const run = view.getByTestId("screen-run");
+  expect(run.querySelector("[data-testid=detail-loading]")).toBeNull();
+  expect(run.querySelector(".timeline-head")?.textContent).toMatch(/^라운드 3 · (어제 )?\d\d:\d\d · 진행 중$/);
+  expect(runBoxes(view)).toEqual(["작업", "기록"]);
+  expect(run.querySelector('a[href="#/cards/k-101"]')).not.toBeNull();
+  expect(core.details()).toEqual(["k-101"]);
+});
+
+test.each([
+  ["r9", "k-101"],
+  ["r10", "k-101"],
+  ["r2", "k-102"],
+])("a card's worker run %s opened on its own stands as a run page inside its card %s, not 찾을 수 없음", async (runId, cardId) => {
+  const core = fakeCore(new SyntheticSource());
+  const { view } = mount(`#/runs/${runId}`, core);
+  await waitFor(() => expect(view.getByTestId("screen-run").querySelector(`a[href="#/cards/${cardId}"]`)).not.toBeNull());
+  expect(view.container.textContent).not.toContain("찾을 수 없음");
+  expect(runBoxes(view)[0]).toBe("작업");
+  expect(core.details()).toEqual([cardId]);
+});
+
+test("the first load reads no card's detail on any screen but a card's run page, which reads its one card", async () => {
+  for (const hash of ["#/", "#/running", "#/inbox", "#/done", "#/goals/G2", "#/items/T4", "#/runs/r6"]) {
+    const core = fakeCore(new SyntheticSource());
+    const { store, view } = mount(hash, core);
+    await waitFor(() => expect(store.refreshes).toBeGreaterThan(0));
+    if (hash === "#/runs/r6") await waitFor(() => expect(store.status("record", "r6")).toBe("ok"));
+    await waitFor(() => expect(view.container.querySelector("[data-testid=detail-loading]")).toBeNull());
+    expect(core.details(), hash).toEqual([]);
+    view.unmount();
+  }
+  const core = fakeCore(new SyntheticSource());
+  const { view } = mount("#/runs/r1", core);
+  await waitFor(() => expect(view.getByTestId("screen-run").querySelector('a[href="#/cards/k-101"]')).not.toBeNull());
+  expect(core.details()).toEqual(["k-101"]);
 });
 
 test("the lists draw while a card's detail takes 30 seconds; the open card shows its row, then fills in", async () => {

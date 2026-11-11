@@ -860,6 +860,8 @@ function settingsScene(now: number, variant: SettingsVariant | null): SettingsSc
  * line with a path, a sentence said three times in a row), an earlier round the owner sent back with its note, a
  * round whose start fell out of the kept history with only its result, and two comments made between rounds. r6 has one
  * finished round whose result line is raw text. Raw text here fails the screens' no-raw-text tests if drawn as is.
+ * Every worker run a card started has a record naming its card, as the core serves it: r2 (k-102's one run) has its
+ * round going now; r9 and r10 (k-101's first two rounds, which r1's record already holds) have none of their own.
  */
 function records(now: number): Record<string, RunRecord> {
   const row = (at: number, kind: RunRecord["comments"][number]["kind"], text: string | null, count = 1) => ({ at, kind, text, count });
@@ -867,6 +869,7 @@ function records(now: number): Record<string, RunRecord> {
     r1: {
       id: "r1",
       at: now,
+      cardId: "k-101",
       ...modelFields("r1"),
       rounds: [
         {
@@ -902,9 +905,21 @@ function records(now: number): Record<string, RunRecord> {
       comments: [row(now - 90 * MIN, "comment", "문서만 바뀐 변경은 따로 묶어 주세요."), row(now - 25 * MIN, "comment", "변경 목록은 표로 보여 주세요")],
       errors: [],
     },
+    r9: { id: "r9", at: now, cardId: "k-101", ...modelFields("r9"), rounds: [], comments: [], errors: [] },
+    r10: { id: "r10", at: now, cardId: "k-101", ...modelFields("r10"), rounds: [], comments: [], errors: [] },
+    r2: {
+      id: "r2",
+      at: now,
+      cardId: "k-102",
+      ...modelFields("r2"),
+      rounds: [{ run: 1, startedAt: now - 2 * HOUR, endedAt: null, endKnown: false, startUnknown: false, result: null, verdict: null, stopped: false, rows: [] }],
+      comments: [],
+      errors: [],
+    },
     r6: {
       id: "r6",
       at: now,
+      cardId: null,
       ...modelFields("r6"),
       rounds: [{ run: 1, startedAt: now - 6 * HOUR, endedAt: now - 5 * HOUR, endKnown: true, startUnknown: false, result: "index-structure benchmark v2 done (3f2a1c9)", verdict: null, stopped: false, rows: [] }],
       comments: [],

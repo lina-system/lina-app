@@ -80,8 +80,11 @@ function wantsFor(route: Route, store: Store): Want {
     case "card":
       // A card's detail and the records of its worker runs (the timeline).
       return [["card", route.id], ...(store.get("card", route.id)?.workerRuns ?? []).map((worker) => ["record", worker.id] as const)];
-    case "run":
-      return [["record", route.id]];
+    case "run": {
+      // The card that started the run, named by its record: a run page opened on its own still finds its card.
+      const cardId = store.get("record", route.id)?.cardId;
+      return cardId ? [["record", route.id], ["card", cardId]] : [["record", route.id]];
+    }
     case "settings":
     case "setting": {
       const want: Want = [["settings"], ["settingsModels"], ["settingsHistory", SETTINGS_HISTORY.recent]];

@@ -467,8 +467,18 @@ export function CardScreen({ id }: { id: string }) {
 }
 
 /** A worker run a card started: the board does not list it, so its page is its card and its own record. */
-function CardRunScreen({ id, cardId }: { id: string; cardId?: string }) {
+function CardRunScreen({ id, cardId, cardLoading = false }: { id: string; cardId?: string; cardLoading?: boolean }) {
   const { model } = useApp();
+  // While its card is read, whether the run still goes is not known: its rounds wait rather than read 완료 기록 없음.
+  if (cardLoading)
+    return (
+      <article class="detail" data-testid="screen-run">
+        <CardHead work="code" title={null}>
+          <RunModelLine runId={id} />
+        </CardHead>
+        <Loading />
+      </article>
+    );
   const card = cardId ? model.cards.get(cardId) : undefined;
   return (
     <article class="detail" data-testid="screen-run">
@@ -492,9 +502,10 @@ export function RunScreen({ id }: { id: string }) {
   const run = model.runs.get(id);
   const cardId = model.runOwner.get(id);
   if (!run && cardId) return <CardRunScreen id={id} cardId={cardId} />;
-  // A card's worker run opened before its card was: the card is known only from the card's detail, which is read
-  // when the card opens (lina-app#100), so the page stands on the run's own record.
-  if (!run && store.get("record", id)) return <CardRunScreen id={id} />;
+  // A card's worker run opened before its card was: its record names the card, read now (wantsFor), and the page
+  // stands on the record meanwhile. A card that cannot be read leaves the page on the record alone.
+  const record = store.get("record", id);
+  if (!run && record) return <CardRunScreen id={id} cardLoading={record.cardId ? store.status("card", record.cardId) === "pending" : false} />;
   if (!run) return model.ready && store.status("record", id) !== "pending" ? <Missing /> : <Loading />;
   const row = runRow(run);
   const todo = run.todo ? model.items.get(run.todo) : undefined;

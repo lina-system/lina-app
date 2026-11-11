@@ -173,6 +173,22 @@ test.each([
   expect(core.details()).toEqual([cardId]);
 });
 
+test.each(["r4", "r5"])("a card's worker run %s with no record, opened on its own, stands as a run page with one read-failed line, never 찾을 수 없음", async (runId) => {
+  const core = fakeCore(new SyntheticSource());
+  const { store, view } = mount(`#/runs/${runId}`, core);
+  // Every text the page ever shows, so a passing 찾을 수 없음 is caught too.
+  const seen: string[] = [];
+  const observer = new MutationObserver(() => seen.push(view.container.textContent ?? ""));
+  observer.observe(view.container, { childList: true, subtree: true, characterData: true });
+  await waitFor(() => expect(store.status("record", runId)).toBe("missing"));
+  await waitFor(() => expect(view.getByTestId("screen-run").textContent).toContain("읽기 실패: 기록"));
+  observer.disconnect();
+  expect(view.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("코드 작업");
+  expect(seen.filter((text) => text.includes("찾을 수 없음"))).toEqual([]);
+  expect(view.container.textContent).not.toContain("찾을 수 없음");
+  expect(core.details()).toEqual([]);
+});
+
 test("the first load reads no card's detail on any screen but a card's run page, which reads its one card", async () => {
   for (const hash of ["#/", "#/running", "#/inbox", "#/done", "#/goals/G2", "#/items/T4", "#/runs/r6"]) {
     const core = fakeCore(new SyntheticSource());

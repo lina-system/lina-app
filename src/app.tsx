@@ -4,10 +4,11 @@ import { startLive } from "./data/live";
 import { nowSeconds } from "./data/source";
 import { useClock, useStore, type Store, type Want } from "./data/store";
 import { buildModel, runRow, type Model } from "./model";
-import { back, defaultListFor, href, isList, linkClick, navigate, onSaveScroll, onStackMotion, parse, useNav, type Route } from "./router";
+import { back, defaultListFor, href, isList, linkClick, navigate, onSaveScroll, onStackMotion, parse, tabOf, tabRoot, TABS, useNav, type Route, type Tab } from "./router";
 import { slideMotion } from "./stack-motion";
 import { bindSwipeBack, isStandalone } from "./swipe-back";
-import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RestartSheet, RunningScreen, StatusScreen } from "./screens/lists";
+import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RestartSheet, RunningScreen, StatusScreen, TodayScreen } from "./screens/lists";
+import { AgentCard, AgentTalk, TalkAgents } from "./screens/talk";
 import { CardScreen, GoalScreen, ItemScreen, RunScreen } from "./screens/details";
 import { RollbackSheet, SettingPage, settingParent, SettingsScreen, settingTitle } from "./screens/settings";
 import { SETTINGS_HISTORY } from "./api/client";
@@ -38,7 +39,7 @@ function useWide(): boolean {
 export function titleOf(route: Route, model: Model, store: Store): string {
   switch (route.name) {
     case "home":
-      return W.app;
+      return W.tabWork;
     case "inbox":
     case "running":
     case "due":
@@ -46,7 +47,12 @@ export function titleOf(route: Route, model: Model, store: Store): string {
     case "goals":
     case "status":
     case "settings":
+    case "today":
       return W[route.name];
+    case "talks":
+      return W.talk;
+    case "talk":
+      return model.names.get(route.id) ?? W.talk;
     case "setting":
       return settingTitle(route.page);
     case "agent":
@@ -90,6 +96,16 @@ function Screen({ route }: { route: Route }) {
   switch (route.name) {
     case "home":
       return <Sidebar />;
+    case "today":
+      return <TodayScreen />;
+    case "talks":
+      return <TalkAgents />;
+    case "talk":
+      return (
+        <AgentTalk key={route.id} agent={route.id} titled>
+          <AgentCard agent={route.id} folded />
+        </AgentTalk>
+      );
     case "inbox":
       return <InboxScreen />;
     case "running":
@@ -134,14 +150,104 @@ function NavRow({ to, icon, label, count, stopped, current, testid, children }: 
   );
 }
 
-export function Sidebar({ current }: { current?: Route }) {
+const TAB_WORD: Record<Tab, string> = { talk: W.tabTalk, work: W.tabWork, status: W.tabStatus };
+
+/** The three tabs at the top. Each opens its own first screen; the tab of the screen shown is the current one. */
+export function Tabs({ current }: { current: Tab }) {
+  return (
+    <nav class="tabs" aria-label={W.tabs} data-testid="tabs">
+      {TABS.map((tab) => (
+        <a key={tab} href={href(tabRoot(tab))} onClick={linkClick} class={`tab${tab === current ? " is-current" : ""}`} aria-current={tab === current ? "page" : undefined} data-testid={`tab-${tab}`}>
+          {TAB_WORD[tab]}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
+/** `기기 n · 정상 n · 경고 n · 꺼짐 n`, 경고 orange and 꺼짐 red, each only when not 0. */
+function DeviceLine({ class: className }: { class: string }) {
   const { model } = useApp();
-  const is = (name: string, id?: string) => Boolean(current && current.name === name && (id === undefined || ("id" in current && current.id === id)));
+  const { all, ok, warn, down } = model.counts.devices;
+  const devices = W.deviceLine(all, ok, warn, down);
+  return (
+    <span class={className} data-testid="device-line">
+      {devices.all}
+      {SEP}
+      {devices.ok}
+      {warn ? <span class="is-orange">{`${SEP}${devices.warn}`}</span> : null}
+      {down ? <span class="is-red">{`${SEP}${devices.down}`}</span> : null}
+    </span>
+  );
+}
+
+/** The sidebar of 상태: the machines line and 설정. */
+function StatusRows({ current }: { current?: Route }) {
+  const { model } = useApp();
+  const is = (name: string) => Boolean(current && current.name === name);
   const { all, ok, warn, down } = model.counts.devices;
   const devices = W.deviceLine(all, ok, warn, down);
   const deviceParts = [devices.all, devices.ok, warn ? devices.warn : "", down ? devices.down : ""].filter(Boolean);
   return (
+    <>
+      <h2 class="nav-head">{W.status}</h2>
+      <ul class="nav-group" aria-label={W.status}>
+        <NavRow to={{ name: "status" }} icon={<DeviceIcon />} label={deviceParts.join(SEP)} current={is("status")} testid="nav-status">
+          <DeviceLine class="nav-label one-line" />
+        </NavRow>
+        <NavRow to={{ name: "settings" }} icon={<GearIcon />} label={W.settings} current={is("settings") || is("setting")} testid="nav-settings" />
+      </ul>
+    </>
+  );
+}
+
+/** 설정 under the machines and quota on a phone, where 상태 opens straight on them. */
+function StatusMore() {
+  return (
+    <nav class="sidebar-list status-more" aria-label={W.sidebar}>
+      <ul class="nav-group">
+        <NavRow to={{ name: "settings" }} icon={<GearIcon />} label={W.settings} current={false} testid="nav-settings" />
+      </ul>
+    </nav>
+  );
+}
+
+/** The sidebar of 대화: one row per agent. Choosing one opens its window and its card. */
+function TalkRows({ current }: { current?: Route }) {
+  const { model } = useApp();
+  return (
     <nav class="sidebar-list" aria-label={W.sidebar} data-testid="sidebar">
+      <h2 class="nav-head">{W.agents}</h2>
+      <ul class="nav-group" aria-label={W.agents}>
+        {model.agents.map((agent) => (
+          <NavRow key={agent.id} to={{ name: "talk", id: agent.id }} icon={<AgentMark id={agent.id} />} label={agent.name} count={model.counts.agents[agent.id]?.running} stopped={model.counts.agents[agent.id]?.stopped} current={Boolean(current && current.name === "talk" && current.id === agent.id)} testid={`nav-talk-${agent.index}`} />
+        ))}
+      </ul>
+      <p class="version" data-testid="version">
+        {APP_VERSION}
+      </p>
+    </nav>
+  );
+}
+
+export function Sidebar({ current, tab = "work" }: { current?: Route; tab?: Tab }) {
+  const { model } = useApp();
+  const is = (name: string, id?: string) => Boolean(current && current.name === name && (id === undefined || ("id" in current && current.id === id)));
+  if (tab === "talk") return <TalkRows current={current} />;
+  if (tab === "status")
+    return (
+      <nav class="sidebar-list" aria-label={W.sidebar} data-testid="sidebar">
+        <StatusRows current={current} />
+        <p class="version" data-testid="version">
+          {APP_VERSION}
+        </p>
+      </nav>
+    );
+  return (
+    <nav class="sidebar-list" aria-label={W.sidebar} data-testid="sidebar">
+      <ul class="nav-group">
+        <NavRow to={{ name: "today" }} icon={<CalendarIcon />} label={W.today} current={is("today")} testid="nav-today" />
+      </ul>
       <ul class="nav-group">
         <NavRow to={{ name: "inbox" }} icon={<InboxIcon />} label={W.inbox} count={model.counts.inbox} current={is("inbox")} testid="nav-inbox" />
         <NavRow to={{ name: "running" }} icon={<RunningIcon />} label={W.running} count={model.counts.running} stopped={model.counts.stopped} current={is("running")} testid="nav-running" />
@@ -160,19 +266,6 @@ export function Sidebar({ current }: { current?: Route }) {
       ) : null}
       <ul class="nav-group">
         <NavRow to={{ name: "goals" }} icon={<GoalIcon />} label={W.goals} count={model.counts.goals} current={is("goals")} testid="nav-goals" />
-      </ul>
-      <h2 class="nav-head">{W.status}</h2>
-      <ul class="nav-group" aria-label={W.status}>
-        <NavRow to={{ name: "status" }} icon={<DeviceIcon />} label={deviceParts.join(SEP)} current={is("status")} testid="nav-status">
-          <span class="nav-label one-line" data-testid="device-line">
-            {devices.all}
-            {SEP}
-            {devices.ok}
-            {warn ? <span class="is-orange">{`${SEP}${devices.warn}`}</span> : null}
-            {down ? <span class="is-red">{`${SEP}${devices.down}`}</span> : null}
-          </span>
-        </NavRow>
-        <NavRow to={{ name: "settings" }} icon={<GearIcon />} label={W.settings} current={is("settings")} testid="nav-settings" />
       </ul>
       <p class="version" data-testid="version">
         {APP_VERSION}
@@ -331,18 +424,24 @@ function QuickAdd() {
   );
 }
 
-function lastListIn(stack: readonly string[]): Route | null {
+/** The last list in the stack that belongs to `tab`: a list of another tab never stands beside this tab's detail. */
+function lastListIn(stack: readonly string[], tab: Tab): Route | null {
   for (let index = stack.length - 2; index >= 0; index -= 1) {
     const route = parse(stack[index]);
-    if (isList(route)) return route;
+    if (isList(route) && tabOf(route) === tab) return route;
   }
   return null;
 }
 
+/** The first screen of each tab: on a phone it shows the tabs and no back control. */
+function isTabRoot(route: Route): boolean {
+  return route.name === "home" || route.name === "talks" || route.name === "status";
+}
+
 function parentOf(route: Route, stack: readonly string[]): Route {
   if (stack.length > 1) return parse(stack[stack.length - 2]);
-  if (route.name === "home") return route;
-  if (isList(route)) return { name: "home" };
+  if (isTabRoot(route)) return route;
+  if (isList(route)) return tabRoot(tabOf(route));
   if (route.name === "setting") return settingParent(route.page);
   return defaultListFor(route);
 }
@@ -372,9 +471,47 @@ function useScrollKeeping(panes: Panes, keys: Record<keyof Panes, string>, saved
   }, [keys.list, keys.detail, keys.main]);
 }
 
+/** 대화 on a wide window: the agents, the chosen agent's window in the middle and its card on the right. */
+function TalkShell({ route }: { route: Route }) {
+  const { model, store } = useApp();
+  const agent = route.name === "talk" ? route.id : null;
+  return (
+    <div class="split is-talk" data-layout="wide" data-tab="talk">
+      <aside class="sidebar">
+        <Sidebar tab="talk" current={route} />
+      </aside>
+      <div class="content">
+        <header class="toolbar">
+          <div class="toolbar-title">
+            <h1 class="toolbar-name" data-testid="screen-title">
+              {titleOf(route, model, store)}
+            </h1>
+            <Freshness />
+          </div>
+          <Tabs current="talk" />
+          <div class="toolbar-tools">
+            <Bell />
+          </div>
+        </header>
+        <div class="talk-panes" data-testid="panes">
+          <section class="pane talk-pane" aria-label={titleOf(route, model, store)}>
+            {agent ? <AgentTalk key={agent} agent={agent} /> : <p class="empty" data-testid="pick-agent">{W.pickAgent}</p>}
+          </section>
+          {agent ? (
+            <aside class="pane card-pane" aria-label={W.agentCard} data-testid="card-pane">
+              <AgentCard agent={agent} />
+            </aside>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WideShell({ route, stack, scroll }: { route: Route; stack: readonly string[]; scroll: Readonly<Record<string, number>> }) {
   const { model, store } = useApp();
-  const listRoute: Route = route.name === "home" ? { name: "running" } : isList(route) ? route : (lastListIn(stack) ?? defaultListFor(route));
+  const tab = tabOf(route);
+  const listRoute: Route = route.name === "home" ? { name: "running" } : isList(route) ? route : (lastListIn(stack, tabOf(route)) ?? defaultListFor(route));
   const detailRoute = isList(route) || route.name === "home" ? null : route;
   const listRef = useRef<HTMLElement>(null);
   const detailRef = useRef<HTMLElement>(null);
@@ -382,7 +519,7 @@ function WideShell({ route, stack, scroll }: { route: Route; stack: readonly str
   return (
     <div class="split" data-layout="wide">
       <aside class="sidebar">
-        <Sidebar current={listRoute} />
+        <Sidebar tab={tab} current={listRoute} />
       </aside>
       <div class="content">
         <header class="toolbar">
@@ -392,6 +529,7 @@ function WideShell({ route, stack, scroll }: { route: Route; stack: readonly str
             </h1>
             <Freshness />
           </div>
+          <Tabs current={tab} />
           <div class="toolbar-tools">
             <Bell />
             <QuickAdd />
@@ -419,7 +557,7 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
   // when the swap finally renders.
   useScrollKeeping({ main: mainRef }, { list: "", detail: "", main: href(route) }, scroll);
   const parent = parentOf(route, stack);
-  const isRoot = route.name === "home";
+  const isRoot = isTabRoot(route);
   const large = isRoot || isList(route);
   const goBack = () => {
     if (stack.length > 1) back();
@@ -453,10 +591,17 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
       <main class="phone-main" ref={mainRef}>
         {large ? (
           <h1 class="large-title" data-testid="screen-title">
-            {titleOf(route, model, store)}
+            {isRoot ? TAB_WORD[tabOf(route)] : titleOf(route, model, store)}
           </h1>
         ) : null}
+        {isRoot ? <Tabs current={tabOf(route)} /> : null}
+        {route.name === "status" ? (
+          <p class="status-sum">
+            <DeviceLine class="one-line" />
+          </p>
+        ) : null}
         <Screen route={route} />
+        {route.name === "status" ? <StatusMore /> : null}
       </main>
       <footer class="bottombar">
         <span />
@@ -510,7 +655,7 @@ export function App({ store, pushHost }: { store: Store; pushHost?: PushHost }) 
       <ActionsCtx.Provider value={actions}>
         <PushCtx.Provider value={push}>
           <SettingsCtx.Provider value={settingsEdits}>
-            {wide ? <WideShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} /> : <PhoneShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} />}
+            {wide && tabOf(nav.route) === "talk" ? <TalkShell route={nav.route} /> : wide ? <WideShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} /> : <PhoneShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} />}
             <Toast />
             <RollbackSheet />
             <RestartSheet />

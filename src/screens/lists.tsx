@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { USAGE_RANGES, type Machine, type PersonDevice, type QuotaAccount, type QuotaService, type RunnerCell, type UsageRange } from "../api/client";
 import type { CardRow, DueRow, GoalRow, InboxRow } from "../model";
-import { agentView, doneFor } from "../model";
+import { agentView, doneFor, localDay } from "../model";
 import type { OpenCheck } from "../model/checks";
 import type { UsageLine } from "../model/usage";
 import { href, navigate } from "../router";
@@ -264,7 +264,7 @@ export function DoneScreen({ agent }: { agent?: string }) {
   );
 }
 
-function GoalLine({ goal, showAgent }: { goal: GoalRow; showAgent: boolean }) {
+export function GoalLine({ goal, showAgent }: { goal: GoalRow; showAgent: boolean }) {
   const { model, selected } = useApp();
   const actions = useActions();
   const closed = goal.allDone;
@@ -287,6 +287,42 @@ function GoalLine({ goal, showAgent }: { goal: GoalRow; showAgent: boolean }) {
       </Link>
       {closed ? <ErrorLine line={actions.error(`done:${goal.id}`)?.line} /> : null}
     </li>
+  );
+}
+
+/**
+ * 오늘, the first row of 작업: one line per list the owner reads today, each the count of that list and a link to it.
+ * The lists themselves stay where they are.
+ */
+export function TodayScreen() {
+  const { model } = useApp();
+  const decide = model.inbox.rows.filter((row) => row.type === "decide").length;
+  const dueToday = model.due.sections.find((section) => section.id === "today")?.rows.length ?? 0;
+  const doneToday = model.done.filter((card) => card.endedAt !== null && localDay(card.endedAt) === model.today).length;
+  const rows: { id: string; to: string; text: string; stopped?: number }[] = [
+    { id: "decide", to: href({ name: "inbox" }), text: W.todayDecide(decide) },
+    { id: "running", to: href({ name: "running" }), text: W.todayRunning(model.counts.running), stopped: model.counts.stopped },
+    { id: "due", to: href({ name: "due" }), text: W.todayDue(dueToday) },
+    { id: "done", to: href({ name: "done" }), text: W.todayDone(doneToday) },
+  ];
+  return (
+    <div class="list" data-testid="screen-today">
+      <ul class="rows" aria-label={W.today}>
+        {rows.map((row) => (
+          <li key={row.id} class="row" data-testid={`today-${row.id}`}>
+            <Link href={row.to} label={[row.text, row.stopped ? W.stoppedCount(row.stopped) : ""].filter(Boolean).join(SEP)}>
+              <span class="lines">
+                <span class="title">
+                  {row.text}
+                  {row.stopped ? <span class="is-red">{`${SEP}${W.stoppedCount(row.stopped)}`}</span> : null}
+                </span>
+              </span>
+              <Disclosure />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

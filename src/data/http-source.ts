@@ -1,11 +1,11 @@
-import { BOARD_BASE, cardAnswerPath, EVENTS_PATH, NOTICES_READ_PATH, PUSH_KEY_PATH, PUSH_REMOVE_PATH, PUSH_SUBSCRIPTIONS_PATH, routePath, SETTINGS_PATH, SETTINGS_ROLLBACK_PATH, talkPath, writePath, type ActionResult, type AnswerRequest, type AnswerResult, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest } from "../api/client";
-import { nowSeconds, type ChangeHandlers, type ChangeSocket, type ReadResult, type Renewal, type Source, type TalkResult, type WriteResult } from "./source";
+import { agentTalkPath, BOARD_BASE, cardAnswerPath, EVENTS_PATH, NOTICES_READ_PATH, PUSH_KEY_PATH, PUSH_REMOVE_PATH, PUSH_SUBSCRIPTIONS_PATH, routePath, SETTINGS_PATH, SETTINGS_ROLLBACK_PATH, talkPath, writePath, type ActionResult, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest } from "../api/client";
+import { nowSeconds, type AgentTalkResult, type ChangeHandlers, type ChangeSocket, type ReadResult, type Renewal, type Source, type TalkResult, type WriteResult } from "./source";
 import { readSse } from "./sse";
 
 /** Each frame's JSON `data` with its `event` name; a frame whose data is not JSON ends the turn as failed. */
-export async function* talkEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<TalkEvent> {
+export async function* talkEvents<E = TalkEvent>(body: ReadableStream<Uint8Array>): AsyncGenerator<E> {
   for await (const frame of readSse(body)) {
-    yield { event: frame.event, data: JSON.parse(frame.data) } as TalkEvent;
+    yield { event: frame.event, data: JSON.parse(frame.data) } as E;
   }
 }
 
@@ -241,16 +241,31 @@ export class HttpSource implements Source {
   }
 
   /** POST, not EventSource: the reply is read off the fetch body as it streams. */
-  async talk(id: string, body: TalkRequest, signal?: AbortSignal): Promise<TalkResult> {
+  talk(id: string, body: TalkRequest, signal?: AbortSignal): Promise<TalkResult> {
+    return this.turn<TalkEvent>(talkPath(id), body, signal);
+  }
+
+  agentTalk(agent: string, body: TalkRequest, signal?: AbortSignal): Promise<AgentTalkResult> {
+    return this.turn<AgentTalkEvent>(agentTalkPath(agent), body, signal);
+  }
+
+  /** Always a full read: a window that opens again has nothing to compare a 304 with. */
+  agentTalkHistory(agent: string): Promise<ReadResult<AgentTalkHistory>> {
+    const url = `${this.basePath}${agentTalkPath(agent)}`;
+    this.etags.delete(url);
+    return this.get<AgentTalkHistory>(url);
+  }
+
+  private async turn<E>(path: string, body: TalkRequest, signal?: AbortSignal): Promise<TalkResult<E>> {
     const headers: Record<string, string> = { Accept: "text/event-stream", "Content-Type": "application/json" };
     if (this.token) headers["X-Hermes-Session-Token"] = this.token;
     let response: Response;
     try {
-      response = await this.fetchImpl(`${this.basePath}${talkPath(id)}`, { method: "POST", headers, body: JSON.stringify(body), credentials: "same-origin", signal });
+      response = await this.fetchImpl(`${this.basePath}${path}`, { method: "POST", headers, body: JSON.stringify(body), credentials: "same-origin", signal });
     } catch {
       return { ok: false, status: 0, code: null };
     }
-    if (response.ok && response.body) return { ok: true, events: talkEvents(response.body) };
+    if (response.ok && response.body) return { ok: true, events: talkEvents<E>(response.body) };
     let json: unknown = null;
     try {
       json = await response.json();

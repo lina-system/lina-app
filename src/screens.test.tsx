@@ -4,7 +4,7 @@ import { useEffect, useState } from "preact/hooks";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { RouteName } from "./api/client";
 import { App } from "./app";
-import { STREAM_TICK_MS, SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS } from "./data/synthetic-source";
+import { AGENT_REPLY_DELTAS, STREAM_TICK_MS, SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS } from "./data/synthetic-source";
 import type { ReadResult, Source } from "./data/source";
 import { BACKOFF_MAX_MS } from "./data/live";
 import { Store } from "./data/store";
@@ -32,6 +32,9 @@ const SCREENS = [
   "#/cards/k-103",
   "#/runs/r6",
   "#/status",
+  "#/today",
+  "#/talk",
+  "#/talk/ag-1",
 ] as const;
 
 function setWide(wide: boolean) {
@@ -490,7 +493,7 @@ describe("phone navigation", () => {
     fireEvent.click(view.getByTestId("nav-running").querySelector("a") as HTMLElement);
     await waitFor(() => expect(view.getByTestId("screen-title").textContent).toBe("진행 중인 작업"));
     expect(window.location.hash).toBe("#/running");
-    expect(view.getByTestId("back").textContent).toBe("LINA");
+    expect(view.getByTestId("back").textContent).toBe("작업");
     const row = view.getByTestId("screen-running").querySelector("[data-testid=row] a") as HTMLElement;
     fireEvent.click(row);
     await waitFor(() => expect(view.container.querySelector("[data-testid=screen-card], [data-testid=screen-run]")).not.toBeNull());
@@ -997,6 +1000,163 @@ describe("lists while a write is in flight", () => {
     expect(rows[0].classList.contains("is-stopped")).toBe(true);
     expect(view.getByRole("button", { name: /다시 시도$/ })).toBeTruthy();
     expect(view.getByTestId("nav-running").querySelector("[data-testid=nav-stopped]")?.textContent).toBe("1");
+  });
+});
+
+describe("tabs", () => {
+  test("대화 · 작업 · 상태 sit at the top on both widths; each opens its own screens and sidebar", async () => {
+    for (const wide of [true, false]) {
+      for (const [hash, tab] of [["#/talk", "talk"], ["#/", "work"], ["#/status", "status"]] as const) {
+        const view = await open(hash, { wide });
+        const tabs = view.getByTestId("tabs");
+        expect([...tabs.querySelectorAll("a")].map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+          ["대화", "#/talk"],
+          ["작업", "#/"],
+          ["상태", "#/status"],
+        ]);
+        expect(tabs.querySelector("[aria-current=page]")?.getAttribute("data-testid")).toBe(`tab-${tab}`);
+        if (!wide) expect(view.queryByTestId("back")).toBeNull();
+        if (tab === "talk") expect(view.container.querySelectorAll(wide ? "[data-testid^=nav-talk-]" : "[data-testid^=talk-agent-]")).toHaveLength(3);
+        if (tab === "work" && (wide || hash === "#/")) {
+          const rows = [...view.getByTestId("sidebar").querySelectorAll("li[data-testid^=nav-]")].map((row) => row.getAttribute("data-testid"));
+          expect(rows.slice(0, 5)).toEqual(["nav-today", "nav-inbox", "nav-running", "nav-due", "nav-done"]);
+          expect(rows).not.toContain("nav-status");
+        }
+        if (tab === "status") {
+          expect(view.getByTestId("screen-status")).toBeTruthy();
+          expect(view.getByTestId("nav-settings")).toBeTruthy();
+        }
+        view.unmount();
+      }
+    }
+  });
+
+  test("choosing a tab opens its first screen", async () => {
+    const view = await open("#/inbox", { wide: true });
+    fireEvent.click(view.getByTestId("tab-talk"));
+    await waitFor(() => expect(view.getByTestId("pick-agent")).toBeTruthy());
+    expect(window.location.hash).toBe("#/talk");
+    fireEvent.click(view.getByTestId("tab-status"));
+    await waitFor(() => expect(view.getByTestId("screen-status")).toBeTruthy());
+    expect(window.location.hash).toBe("#/status");
+  });
+
+  test("오늘 under 작업 reads the counts of the lists it links to", async () => {
+    const view = await open("#/today", { wide: true });
+    const screen = view.getByTestId("screen-today");
+    expect(within(screen).getByTestId("today-decide").querySelector("a")?.getAttribute("href")).toBe("#/inbox");
+    expect(within(screen).getByTestId("today-running").textContent).toBe(`진행 중 ${count(view.getByTestId("nav-running").querySelector("[data-testid=nav-count]"))} · 중단됨 ${count(view.getByTestId("nav-running").querySelector("[data-testid=nav-stopped]"))}`);
+    expect(within(screen).getByTestId("today-decide").textContent).toMatch(/^결정 필요 [1-9]/);
+  });
+});
+
+describe("agent talk", () => {
+  function parts(view: ReturnType<typeof render>) {
+    const box = within(view.getByTestId("agent-talk"));
+    return { box, field: box.getByRole("textbox", { name: "메시지" }) as HTMLInputElement, send: box.getByRole("button", { name: "보내기" }) as HTMLButtonElement };
+  }
+
+  test("choosing an agent shows its earlier turns in the middle and its goals on the right; a sent message streams the reply and is kept", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SyntheticSource();
+      const view = await open("#/talk/ag-1", { wide: true, source });
+      const { box, field, send } = parts(view);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(box.getByTestId("agent-talk-name").textContent).toBe(source.scene.items.agents[0].name);
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?"]);
+      expect(box.getAllByTestId("talk-reply")).toHaveLength(1);
+      const card = view.getByTestId("card-pane");
+      const goals = [...card.querySelectorAll("[data-testid=section-goals] [data-testid=row] .title")].map((title) => title.textContent);
+      expect(goals).toContain("릴리스 노트 정리");
+      expect(goals).not.toContain("결제 화면 개편");
+      field.value = "오늘 어디까지 했어요?";
+      fireEvent.input(field);
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 4);
+      });
+      expect(box.getAllByTestId("talk-mine").at(-1)?.textContent).toBe("오늘 어디까지 했어요?");
+      expect(box.getByTestId("talk-live")).toBeTruthy();
+      expect(send.disabled).toBe(true);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 10);
+      });
+      expect(box.getAllByTestId("talk-reply").at(-1)?.querySelector(".talk-bubble")?.textContent).toBe(AGENT_REPLY_DELTAS.join(""));
+      expect(box.queryByTestId("talk-live")).toBeNull();
+      expect(source.agentTalks.get("ag-1")?.map((message) => message.role)).toEqual(["user", "assistant", "user", "assistant"]);
+      expect(source.agentTalks.get("ag-1")?.[2].content).toBe("[LINA app]\n오늘 어디까지 했어요?");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("on a phone the card sits folded above a window with no turns yet, and opens to the goals", async () => {
+    const view = await open("#/talk/ag-2", { wide: false });
+    await waitFor(() => expect(view.getByTestId("no-turns").textContent).toBe("아직 나눈 대화 없음"));
+    expect(view.getByTestId("back").textContent).toBe("대화");
+    // The phone's window has a screen title like every other screen: the agent's name.
+    expect(view.getAllByTestId("screen-title").map((title) => title.textContent)).toEqual([view.getByTestId("agent-talk-name").textContent]);
+    const card = view.getByTestId("agent-card");
+    expect(card.querySelector("[data-testid=section-goals]")).toBeNull();
+    fireEvent.click(within(card).getByRole("button"));
+    await waitFor(() => expect(card.querySelector("[data-testid=section-goals]")).not.toBeNull());
+    expect([...card.querySelectorAll("[data-testid=section-goals] [data-testid=row] .title")].map((title) => title.textContent)).toContain("결제 화면 개편");
+  });
+
+  test("a goal chosen on the card opens under 작업 with the goals beside it, not the agents", async () => {
+    const view = await open("#/talk", { wide: true });
+    fireEvent.click(view.getByTestId("nav-talk-0").querySelector("a") as HTMLElement);
+    await waitFor(() => expect(view.getByTestId("card-pane")).toBeTruthy());
+    fireEvent.click(view.getByTestId("card-pane").querySelector("[data-testid=section-goals] [data-testid=row] a") as HTMLElement);
+    await waitFor(() => expect(view.container.querySelector("article.detail")).not.toBeNull());
+    expect(view.getByTestId("tabs").querySelector("[aria-current=page]")?.getAttribute("data-testid")).toBe("tab-work");
+    expect(view.container.querySelector(".list-pane [data-testid=screen-goals]")).not.toBeNull();
+    expect(view.container.querySelector(".list-pane [data-testid=talk-agents]")).toBeNull();
+    expect(view.getByTestId("screen-title").textContent).toBe("목표");
+  });
+
+  test("a message sent before the earlier turns arrive shows once, even when they already hold it", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      let release = () => {};
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      class SlowHistory extends SyntheticSource {
+        override async agentTalkHistory(agent: string) {
+          await gate;
+          return super.agentTalkHistory(agent);
+        }
+      }
+      const source = new SlowHistory();
+      const view = await open("#/talk/ag-2", { wide: true, source });
+      const { box, field } = parts(view);
+      field.value = "오늘 어디까지 했어요?";
+      fireEvent.input(field);
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 12);
+      });
+      release();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 12);
+      });
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["오늘 어디까지 했어요?"]);
+      expect(box.getAllByTestId("talk-reply").map((line) => line.querySelector(".talk-bubble")?.textContent)).toEqual([AGENT_REPLY_DELTAS.join("")]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a refused turn shows one line and keeps the message in the field", async () => {
+    const view = await open("#/talk/ag-1", { wide: true, source: new SyntheticSource({ talk: "busy" }) });
+    const { field, send } = parts(view);
+    field.value = "오늘 어디까지 했어요?";
+    fireEvent.input(field);
+    fireEvent.click(send);
+    await waitFor(() => expect(within(view.getByTestId("agent-talk")).getByTestId("write-error").textContent).toBe("에이전트가 바쁨"));
+    expect(field.value).toBe("오늘 어디까지 했어요?");
   });
 });
 

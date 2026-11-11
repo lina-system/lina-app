@@ -4,6 +4,30 @@
  */
 
 export interface paths {
+    "/agents/{agent}/talk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description One of the record's agents (`work.agents`), by profile name.
+                 * @example alpha
+                 */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        /** The earlier turns of the owner's app conversation with the agent, oldest first. */
+        get: operations["agentTalkHistory"];
+        put?: never;
+        /** One turn in the owner's app window on the agent; the reply streams as server-sent events. */
+        post: operations["talkWithAgent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/work/items/{item_id}/talk": {
         parameters: {
             query?: never;
@@ -25,6 +49,29 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description One frame of the owner's window on an agent, as {event, data}. */
+        AgentTalkEvent: components["schemas"]["AgentTalkStartedEvent"] | components["schemas"]["RunStartedEvent"] | components["schemas"]["MessageStartedEvent"] | components["schemas"]["AssistantDeltaEvent"] | components["schemas"]["AssistantCompletedEvent"] | components["schemas"]["RunEndedEvent"] | components["schemas"]["ProgressEvent"] | components["schemas"]["ErrorEvent"] | components["schemas"]["DoneEvent"];
+        AgentTalkHistory: {
+            agent: string;
+            messages: {
+                /** @description As stored; the owner's turns start with the app's first line. */
+                content: string;
+                /** @enum {string} */
+                role: "user" | "assistant";
+                timestamp: number | null;
+            }[];
+            /** @description The agent's app conversation; null before its first turn. */
+            session_id: string | null;
+        };
+        AgentTalkStartedEvent: {
+            data: {
+                agent: string;
+                /** @description The agent's app conversation on its gateway. */
+                session_id: string;
+            };
+            /** @enum {string} */
+            event: "talk.started";
+        };
         AssistantCompletedEvent: {
             data: components["schemas"]["GatewayFrame"] & {
                 /** @description The whole reply. */
@@ -132,7 +179,17 @@ export interface components {
             event: "talk.started";
         };
     };
-    responses: never;
+    responses: {
+        /** @description The agent's gateway refused the key (`gateway_refused_key`, message "the gateway refused the key for <agent>"); the key itself is never in the body. */
+        RefusedKey: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+    };
     parameters: never;
     requestBodies: never;
     headers: never;
@@ -140,6 +197,121 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    agentTalkHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description One of the record's agents (`work.agents`), by profile name.
+                 * @example alpha
+                 */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The owner's and the agent's messages, every page of the gateway's and the turns a compaction archived included; none (and no session) before the first turn. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentTalkHistory"];
+                };
+            };
+            /** @description No such agent (`unknown_agent`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            502: components["responses"]["RefusedKey"];
+            /** @description The agent's gateway is unreachable (`gateway_unreachable`), or its own 503. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    talkWithAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description One of the record's agents (`work.agents`), by profile name.
+                 * @example alpha
+                 */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TalkRequest"];
+            };
+        };
+        responses: {
+            /** @description The turn's events, one SSE frame each, as for a to-do; `talk.started` carries no item and there is no `talk.carried`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": components["schemas"]["AgentTalkEvent"];
+                };
+            };
+            /** @description The message is empty (`empty_message`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No such agent (`unknown_agent`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description The message is longer than 4000 characters (`message_too_long`). */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description The agent's gateway is busy; its own response body, as it answered. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            502: components["responses"]["RefusedKey"];
+            /** @description The agent's gateway is unreachable (`gateway_unreachable`), or its own 503. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     talkWithItemAgent: {
         parameters: {
             query?: never;
@@ -208,6 +380,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            502: components["responses"]["RefusedKey"];
             /** @description The agent's gateway is unreachable (`gateway_unreachable`), or its own 503. */
             503: {
                 headers: {

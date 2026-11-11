@@ -16,6 +16,10 @@ async function talk(page: Page, message: string): Promise<void> {
 // `line`: the freshness line the screen is ready at (실시간 once the change stream is open).
 const SCREENS: readonly { id: string; hash: string; query?: string; line?: string; wideOnly?: boolean; phoneOnly?: boolean; clock?: boolean; open?: (page: Page) => Promise<void> }[] = [
   { id: "menu", hash: "#/", phoneOnly: true },
+  // The three tabs: 대화 with its agents, one agent's window with its card, and 오늘 under 작업.
+  { id: "talk-agents", hash: "#/talk" },
+  { id: "talk-agent", hash: "#/talk/ag-1", open: async (page) => void (await page.getByTestId("talk-mine").first().waitFor()) },
+  { id: "today", hash: "#/today" },
   { id: "inbox", hash: "#/inbox" },
   { id: "live-stale", hash: "#/inbox", query: "&live=down", line: "갱신 지연" },
   { id: "running", hash: "#/running" },

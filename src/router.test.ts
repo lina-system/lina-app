@@ -1,7 +1,7 @@
 import { act, cleanup, render } from "@testing-library/preact";
 import { h } from "preact";
 import { afterEach, describe, expect, test } from "vitest";
-import { back, directionOf, href, navigate, onSaveScroll, onStackMotion, parse, useNav, type Direction } from "./router";
+import { back, defaultListFor, directionOf, href, navigate, onSaveScroll, onStackMotion, parse, tabOf, tabRoot, TABS, useNav, type Direction } from "./router";
 
 // Preact runs a passive effect's cleanup after paint; unmounting inside act flushes it before the test ends, so no
 // timer outlives the test environment (and no old listener sees the next test's history).
@@ -25,6 +25,20 @@ describe("설정 and the lists it pushes", () => {
     expect(parse("#/settings/runner/codex/model")).toEqual({ name: "setting", page: "runner/codex/model" });
     expect(href({ name: "setting", page: "runner/codex/model" })).toBe("#/settings/runner/codex/model");
     expect(parse(href({ name: "setting", page: "device/a b" }))).toEqual({ name: "setting", page: "device/a b" });
+  });
+});
+
+describe("the three tabs", () => {
+  test("#/talk lists the agents and #/talk/<id> opens one agent's window; every screen belongs to one tab", () => {
+    expect(parse("#/talk")).toEqual({ name: "talks" });
+    expect(parse("#/talk/ag-1")).toEqual({ name: "talk", id: "ag-1" });
+    expect(href({ name: "talks" })).toBe("#/talk");
+    expect(href({ name: "talk", id: "a b" })).toBe("#/talk/a%20b");
+    expect(parse("#/talks")).toEqual({ name: "home" });
+    expect(defaultListFor({ name: "talk", id: "ag-1" })).toEqual({ name: "talks" });
+    expect(TABS.map((tab) => href(tabRoot(tab)))).toEqual(["#/talk", "#/", "#/status"]);
+    const tabs = ["#/talk", "#/talk/ag-1", "#/", "#/today", "#/inbox", "#/agents/ag-1", "#/goals/G1", "#/cards/k-1", "#/status", "#/settings", "#/settings/runner/codex"].map((hash) => tabOf(parse(hash)));
+    expect(tabs).toEqual(["talk", "talk", "work", "work", "work", "work", "work", "work", "status", "status", "status"]);
   });
 });
 

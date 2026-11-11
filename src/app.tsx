@@ -424,10 +424,11 @@ function QuickAdd() {
   );
 }
 
-function lastListIn(stack: readonly string[]): Route | null {
+/** The last list in the stack that belongs to `tab`: a list of another tab never stands beside this tab's detail. */
+function lastListIn(stack: readonly string[], tab: Tab): Route | null {
   for (let index = stack.length - 2; index >= 0; index -= 1) {
     const route = parse(stack[index]);
-    if (isList(route)) return route;
+    if (isList(route) && tabOf(route) === tab) return route;
   }
   return null;
 }
@@ -510,7 +511,7 @@ function TalkShell({ route }: { route: Route }) {
 function WideShell({ route, stack, scroll }: { route: Route; stack: readonly string[]; scroll: Readonly<Record<string, number>> }) {
   const { model, store } = useApp();
   const tab = tabOf(route);
-  const listRoute: Route = route.name === "home" ? { name: "running" } : isList(route) ? route : (lastListIn(stack) ?? defaultListFor(route));
+  const listRoute: Route = route.name === "home" ? { name: "running" } : isList(route) ? route : (lastListIn(stack, tabOf(route)) ?? defaultListFor(route));
   const detailRoute = isList(route) || route.name === "home" ? null : route;
   const listRef = useRef<HTMLElement>(null);
   const detailRef = useRef<HTMLElement>(null);

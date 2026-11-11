@@ -1106,6 +1106,18 @@ describe("agent talk", () => {
     expect([...card.querySelectorAll("[data-testid=section-goals] [data-testid=row] .title")].map((title) => title.textContent)).toContain("결제 화면 개편");
   });
 
+  test("a goal chosen on the card opens under 작업 with the goals beside it, not the agents", async () => {
+    const view = await open("#/talk", { wide: true });
+    fireEvent.click(view.getByTestId("nav-talk-0").querySelector("a") as HTMLElement);
+    await waitFor(() => expect(view.getByTestId("card-pane")).toBeTruthy());
+    fireEvent.click(view.getByTestId("card-pane").querySelector("[data-testid=section-goals] [data-testid=row] a") as HTMLElement);
+    await waitFor(() => expect(view.container.querySelector("article.detail")).not.toBeNull());
+    expect(view.getByTestId("tabs").querySelector("[aria-current=page]")?.getAttribute("data-testid")).toBe("tab-work");
+    expect(view.container.querySelector(".list-pane [data-testid=screen-goals]")).not.toBeNull();
+    expect(view.container.querySelector(".list-pane [data-testid=talk-agents]")).toBeNull();
+    expect(view.getByTestId("screen-title").textContent).toBe("목표");
+  });
+
   test("a refused turn shows one line and keeps the message in the field", async () => {
     const view = await open("#/talk/ag-1", { wide: true, source: new SyntheticSource({ talk: "busy" }) });
     const { field, send } = parts(view);

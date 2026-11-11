@@ -49,6 +49,8 @@ async function open(hash: string, options: { wide: boolean; source?: Source }) {
   await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("실시간"));
   if (/^#\/(goals|items|cards|runs)\//.test(hash)) {
     await waitFor(() => expect(view.container.querySelector("article.detail")).not.toBeNull());
+    // A card opens on its list row and fills in when its detail answers.
+    await waitFor(() => expect(view.container.querySelector("[data-testid=detail-loading]")).toBeNull());
   }
   return view;
 }
@@ -1374,8 +1376,9 @@ describe("work cards", () => {
     expect(view.getByTestId("home-decisions").textContent).toContain(String(SCENE_COUNTS.decisions));
     const names = (label: string) => [...(screen.querySelector(`[aria-label="${label}"]`)?.querySelectorAll(":scope > li > a") ?? [])].map((link) => link.getAttribute("aria-label") ?? "");
     expect(names("진행 중인 작업")[0]).toMatch(/중단됨 · 응답 없음$/);
-    expect(names("24시간 안에 끝남")).toHaveLength(2);
-    expect(names("이전에 끝남")).toHaveLength(1);
+    // k-105's end is on its detail only, read when it opens (lina-app#100): until then it stands with the older ones.
+    expect(names("24시간 안에 끝남")).toHaveLength(1);
+    expect(names("이전에 끝남")).toHaveLength(2);
     for (const id of ["waiting", "recent", "older"]) {
       const section = view.getByTestId(`section-${id}`);
       expect(rowsIn(section)).toBe(count(section.querySelector("[data-testid=count]")));
@@ -1390,10 +1393,17 @@ describe("work cards", () => {
       ...source.scene.board.cards.flatMap((run) => [run.title, run.now ?? ""]),
       ...source.scene.cards.cards.map((card) => card.now ?? ""),
     ].filter(Boolean);
-    for (const hash of ["#/running", "#/done", "#/inbox", "#/cards/k-102", "#/cards/k-101", "#/runs/r2", "#/agents/ag-2"]) {
+    for (const hash of ["#/running", "#/done", "#/inbox", "#/cards/k-102", "#/cards/k-101", "#/agents/ag-2"]) {
       const view = await open(hash, { wide: true, source: new SyntheticSource({ scene: source.scene }) });
       const text = screenText(view.container);
       for (const line of raw) expect(text).not.toContain(line);
+      if (hash === "#/cards/k-102") {
+        // Its worker run opens from the card, which tells the run's page whose run it is.
+        window.location.hash = "#/runs/r2";
+        await waitFor(() => expect(view.queryByTestId("screen-run")).not.toBeNull());
+        const runText = screenText(view.container);
+        for (const line of raw) expect(runText).not.toContain(line);
+      }
       view.unmount();
     }
     const view = await open("#/cards/k-102", { wide: true });
@@ -1479,7 +1489,7 @@ describe("work cards", () => {
     expect(ok.queryByTestId("summaries-stopped")).toBeNull();
   });
 
-  test("a card's checked lines land in place from its kanban event: only its summary and detail are read", async () => {
+  test("a card's checked lines land in place from its kanban event: only its summary is read while its detail is not open", async () => {
     vi.useFakeTimers(TIMERS);
     try {
       const source = new WritingSource();
@@ -1500,8 +1510,8 @@ describe("work cards", () => {
       expect(row()?.querySelector(".now")?.textContent).toBe("보안 코드 칸을 맞추는 중");
       expect(row()).toBe(before);
       const routes = new Set(read.mock.calls.map(([name, id]) => (id ? `${name}:${id}` : name)));
-      expect(routes.has("cards") && routes.has("card:k-102")).toBe(true);
-      expect([...routes].filter((route) => route.startsWith("card:"))).toEqual(["card:k-102"]);
+      expect(routes.has("cards")).toBe(true);
+      expect([...routes].filter((route) => route.startsWith("card:"))).toEqual([]);
       expect(routes.has("board") || routes.has("items")).toBe(false);
     } finally {
       vi.useRealTimers();
@@ -1606,7 +1616,11 @@ describe("work cards, round 5", () => {
   test("a finished card says when it ended on the home and the agent screen; how long it took is in its detail", async () => {
     const view = await open("#/running", { wide: true });
     const times = (id: string) => [...view.getByTestId(`section-${id}`).querySelectorAll(".sub")].map((line) => line.textContent);
-    expect(times("recent")).toEqual(["완료 · 30분 전", "완료 · 2시간 전"]);
+    // k-105 ended 2 hours ago, which only its detail says: it shows no time until it opens (lina-app#100).
+    expect(times("recent")).toEqual(["완료 · 30분 전"]);
+    expect(times("older")).toEqual(["완료 · 2일 전", "완료"]);
+    window.location.hash = "#/cards/k-105";
+    await waitFor(() => expect(times("recent")).toEqual(["완료 · 30분 전", "완료 · 2시간 전"]));
     expect(times("older")).toEqual(["완료 · 2일 전"]);
     view.unmount();
     const agent = await open("#/done?agent=ag-1", { wide: true });
@@ -1769,11 +1783,16 @@ describe("the run's own timeline", () => {
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const link = view.getByTestId("timeline").querySelector('a[href="#/runs/r1"]') as HTMLAnchorElement;
     expect(link.textContent).toMatch(/^라운드 3 · /);
+    fireEvent.click(link);
+    await waitFor(() => expect(view.queryByTestId("screen-run")).not.toBeNull());
+    await waitFor(() => expect(view.getByTestId("screen-run").querySelector("[data-testid=timeline]")).not.toBeNull());
+    expect(view.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("코드 작업");
+    expect(view.getByTestId("screen-run").querySelector('a[href="#/cards/k-101"]')).not.toBeNull();
     view.unmount();
+    // Opened on its own, before its card: the page stands on the run's record; the card is not known until it opens.
     const run = await open("#/runs/r1", { wide: true });
     await waitFor(() => expect(run.getByTestId("timeline")).toBeTruthy());
     expect(run.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("코드 작업");
-    expect(run.getByTestId("screen-run").querySelector('a[href="#/cards/k-101"]')).not.toBeNull();
   });
 
   test("a worker change event refetches that run's record in place: the new line shows, the blocks and their open state stay", async () => {

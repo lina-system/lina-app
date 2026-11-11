@@ -19,7 +19,11 @@ function Missing() {
 }
 
 function Loading() {
-  return <p class="empty">{W.loading}</p>;
+  return (
+    <p class="empty" data-testid="detail-loading">
+      {W.loading}
+    </p>
+  );
 }
 
 function Header({ title, children }: { title: string; children?: ComponentChildren }) {
@@ -360,8 +364,25 @@ function runLive(model: Model, runId: string): boolean {
 export function CardScreen({ id }: { id: string }) {
   const { model, store, now } = useApp();
   const detail = store.get("card", id);
-  if (!detail) return store.status("card", id) === "missing" ? <Missing /> : <Loading />;
   const row = model.cards.get(id);
+  if (!detail) {
+    if (store.status("card", id) === "missing") return <Missing />;
+    if (!row) return <Loading />;
+    // The card's detail is read only now that it is open: its list row's head and now line show while it comes.
+    return (
+      <article class="detail" data-testid="screen-card">
+        <CardHead work={row.work} title={row.title}>
+          <StateTime state={row.state} reason={row.reason} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} />
+        </CardHead>
+        {row.now && row.state === "in_progress" ? (
+          <Box title={W.now} testid="card-now">
+            <p class="box-text">{row.now}</p>
+          </Box>
+        ) : null}
+        <Loading />
+      </article>
+    );
+  }
   const questions = (store.get("inbox")?.questions ?? []).filter((question) => question.cardId === id);
   const { rounds, outside } = workerRounds(detail);
   // The worker run a round was: the same run its head opens. A card's 기록 holds several runs' rounds in one record.
@@ -446,9 +467,9 @@ export function CardScreen({ id }: { id: string }) {
 }
 
 /** A worker run a card started: the board does not list it, so its page is its card and its own record. */
-function CardRunScreen({ id, cardId }: { id: string; cardId: string }) {
+function CardRunScreen({ id, cardId }: { id: string; cardId?: string }) {
   const { model } = useApp();
-  const card = model.cards.get(cardId);
+  const card = cardId ? model.cards.get(cardId) : undefined;
   return (
     <article class="detail" data-testid="screen-run">
       <CardHead work="code" title={null}>
@@ -467,11 +488,14 @@ function CardRunScreen({ id, cardId }: { id: string; cardId: string }) {
 }
 
 export function RunScreen({ id }: { id: string }) {
-  const { model, now } = useApp();
+  const { model, store, now } = useApp();
   const run = model.runs.get(id);
   const cardId = model.runOwner.get(id);
   if (!run && cardId) return <CardRunScreen id={id} cardId={cardId} />;
-  if (!run) return model.ready ? <Missing /> : <Loading />;
+  // A card's worker run opened before its card was: the card is known only from the card's detail, which is read
+  // when the card opens (lina-app#100), so the page stands on the run's own record.
+  if (!run && store.get("record", id)) return <CardRunScreen id={id} />;
+  if (!run) return model.ready && store.status("record", id) !== "pending" ? <Missing /> : <Loading />;
   const row = runRow(run);
   const todo = run.todo ? model.items.get(run.todo) : undefined;
   const owner = model.runOwner.get(run.id);

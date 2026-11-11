@@ -506,7 +506,20 @@ export function RunScreen({ id }: { id: string }) {
   // stands on the record meanwhile. A card that cannot be read leaves the page on the record alone.
   const record = store.get("record", id);
   if (!run && record) return <CardRunScreen id={id} cardLoading={record.cardId ? store.status("card", record.cardId) === "pending" : false} />;
-  if (!run) return model.ready && store.status("record", id) !== "pending" ? <Missing /> : <Loading />;
+  if (!run && (!model.ready || store.status("record", id) === "pending")) return <Loading />;
+  // A card's worker run with no record to read (an older run the core has none for): nothing names its card before
+  // the card opens (the card list carries no worker runs), so the page keeps its head and says the record failed.
+  if (!run)
+    return (
+      <article class="detail" data-testid="screen-run">
+        <CardHead work="code" title={null}>
+          {null}
+        </CardHead>
+        <p class="write-error" role="alert" data-testid="timeline-error">
+          {W.readFailed(W.record)}
+        </p>
+      </article>
+    );
   const row = runRow(run);
   const todo = run.todo ? model.items.get(run.todo) : undefined;
   const owner = model.runOwner.get(run.id);

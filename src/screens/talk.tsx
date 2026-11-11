@@ -192,11 +192,13 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
   const nextKey = useRef(1);
   const running = useRef<AbortController | null>(null);
   const end = useRef<HTMLLIElement>(null);
+  /** Settles once the earlier turns are read (or failed): a turn sent before then would also come back in them. */
+  const historyRead = useRef<Promise<void>>(Promise.resolve());
   const name = agentName(model, agent) || agent;
 
   useEffect(() => {
     let live = true;
-    void store.source.agentTalkHistory(agent).then((result) => {
+    historyRead.current = store.source.agentTalkHistory(agent).then((result) => {
       if (!live) return;
       if (result.kind === "data") setLines((shown) => [...keptLines(result.data), ...(shown ?? [])]);
       else {
@@ -221,6 +223,9 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
     running.current = controller;
     setBusy(true);
     setError(null);
+    // Send only after the earlier turns are in, so the history cannot already hold this turn when it lands.
+    await historyRead.current;
+    if (controller.signal.aborted) return;
     const result = await store.source.agentTalk(agent, { message }, controller.signal);
     if (controller.signal.aborted) return;
     if (!result.ok) {

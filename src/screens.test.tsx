@@ -1118,6 +1118,37 @@ describe("agent talk", () => {
     expect(view.getByTestId("screen-title").textContent).toBe("목표");
   });
 
+  test("a message sent before the earlier turns arrive shows once, even when they already hold it", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      let release = () => {};
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      class SlowHistory extends SyntheticSource {
+        override async agentTalkHistory(agent: string) {
+          await gate;
+          return super.agentTalkHistory(agent);
+        }
+      }
+      const source = new SlowHistory();
+      const view = await open("#/talk/ag-2", { wide: true, source });
+      const { box, field } = parts(view);
+      field.value = "오늘 어디까지 했어요?";
+      fireEvent.input(field);
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 12);
+      });
+      release();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 12);
+      });
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["오늘 어디까지 했어요?"]);
+      expect(box.getAllByTestId("talk-reply").map((line) => line.querySelector(".talk-bubble")?.textContent)).toEqual([AGENT_REPLY_DELTAS.join("")]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("a refused turn shows one line and keeps the message in the field", async () => {
     const view = await open("#/talk/ag-1", { wide: true, source: new SyntheticSource({ talk: "busy" }) });
     const { field, send } = parts(view);

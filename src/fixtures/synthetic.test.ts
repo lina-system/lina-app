@@ -283,14 +283,17 @@ test("a record's comments and its card's 댓글 are one set: the owner's words, 
       expect(twin?.author).toBe(owner);
       compared += 1;
     }
-    // Every comment the owner made on the card is in the record: in the round going at its time, else between rounds.
-    for (const comment of card?.comments.filter((candidate) => candidate.author === owner) ?? []) {
-      const going = record.rounds.find((round) => holds({ start: round.startedAt, end: round.endedAt }, comment.createdAt));
-      const rows = going ? going.rows : record.comments;
-      expect(
-        rows.some((row) => row.kind === "comment" && row.at === comment.createdAt && row.text === comment.body),
-        `${id}: "${comment.body}" is in ${going ? `round ${going.run ?? "?"}` : "the comments between rounds"}`,
-      ).toBe(true);
+  }
+  // Every comment the owner made on a card is in its worker runs' records together (the card's 기록), exactly once:
+  // in the round going at its time, else between rounds.
+  for (const card of Object.values(scene.cardDetails)) {
+    const records = Object.values(scene.records).filter((record) => cardOf(record.id)?.id === card.id);
+    for (const comment of records.length ? card.comments.filter((candidate) => candidate.author === owner) : []) {
+      const places = records.map((record) => {
+        const going = record.rounds.find((round) => holds({ start: round.startedAt, end: round.endedAt }, comment.createdAt));
+        return (going ? going.rows : record.comments).filter((row) => row.kind === "comment" && row.at === comment.createdAt && row.text === comment.body).length;
+      });
+      expect(places.reduce((sum, n) => sum + n, 0), `${card.id}: "${comment.body}" is in its records once`).toBe(1);
     }
   }
   expect(compared).toBe(3);

@@ -819,6 +819,8 @@ export interface components {
         RunRecord: {
             /** @description Snapshot time (left out of the ETag). */
             at: number;
+            /** @description The work card that started the run (its id as in /work/cards), null when no card did. */
+            cardId: string | null;
             /** @description Comments made while no round was going, newest first; each stands on its own. */
             comments: components["schemas"]["RecordRow"][];
             errors: components["schemas"]["Errors"];

@@ -1786,10 +1786,11 @@ describe("the run's own timeline", () => {
     expect(view.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("코드 작업");
     expect(view.getByTestId("screen-run").querySelector('a[href="#/cards/k-101"]')).not.toBeNull();
     view.unmount();
-    // Opened on its own, before its card: the page stands on the run's record; the card is not known until it opens.
+    // Opened on its own, before its card: the run's record names its card, which the page reads and shows.
     const run = await open("#/runs/r1", { wide: true });
     await waitFor(() => expect(run.getByTestId("timeline")).toBeTruthy());
     expect(run.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("코드 작업");
+    expect(run.getByTestId("screen-run").querySelector('a[href="#/cards/k-101"]')).not.toBeNull();
   });
 
   test("a worker change event refetches that run's record in place: the new line shows, the blocks and their open state stay", async () => {

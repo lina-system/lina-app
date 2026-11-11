@@ -185,7 +185,11 @@ async function checkInstance(state) {
       done: await count("nav-done"),
       goals: await count("nav-goals"),
       bell: await page.getByTestId("bell").getAttribute("aria-label"),
-      devices: (await page.getByTestId("device-line").textContent())?.trim(),
+      // The machines line lives under 상태, not in 작업's sidebar.
+      devices: await (async () => {
+        await page.getByTestId("tab-status").click();
+        return (await page.getByTestId("device-line").textContent({ timeout: 10_000 }))?.trim();
+      })(),
     };
     if (JSON.stringify(counts) !== JSON.stringify(FIXTURE)) {
       problems.push(`page counts ${JSON.stringify(counts)} are not the fixture's ${JSON.stringify(FIXTURE)}; this is not the disposable fixture instance`);
@@ -1145,8 +1149,12 @@ const drivers = {
   },
 
   async status(page, step) {
-    await step("open 기기·쿼터 from the sidebar line", async () => {
+    await step("open 기기·쿼터 from the 상태 tab and read its machines line", async () => {
       await openApp(page, "#/");
+      await page.getByTestId("tab-status").click();
+      await settled(page);
+      // A selected sidebar row draws its text white; read the colours with 설정 selected instead.
+      if (page.viewportSize().width >= 900) await page.getByTestId("nav-settings").getByRole("link").click();
       const line = (await page.getByTestId("device-line").innerText()).trim();
       check(line === "기기 4 · 정상 2 · 경고 1 · 꺼짐 1", "device line reads " + line);
       const colours = await page.getByTestId("device-line").evaluate((element) => [...element.querySelectorAll("span")].map((span) => span.textContent.trim() + "=" + getComputedStyle(span).color));
@@ -1420,14 +1428,17 @@ const drivers = {
     };
 
     await step("open 설정 from its line right under 기기·쿼터", async () => {
-      await openApp(page, wide ? "#/running" : "#/");
-      const order = await page.getByTestId("sidebar").locator("li[data-testid^=nav-]").evaluateAll((items) => items.map((item) => item.dataset.testid));
-      check(order.at(-2) === "nav-status" && order.at(-1) === "nav-settings", "the sidebar ends " + order.slice(-3).join(", "));
+      // 상태's sidebar on a wide window; on a phone 상태 opens on the machines with 설정 under them.
+      await openApp(page, "#/status");
+      if (wide) {
+        const order = await page.getByTestId("sidebar").locator("li[data-testid^=nav-]").evaluateAll((items) => items.map((item) => item.dataset.testid));
+        check(order.join(",") === "nav-status,nav-settings", "상태's sidebar is " + order.join(", "));
+      }
       await page.getByTestId("nav-settings").getByRole("link").click();
       await settled(page);
       await page.getByTestId("screen-settings").waitFor();
       check((await title(page)) === "설정", "the screen is titled " + (await title(page)));
-      return order.slice(-2).join(" > ") + "; " + (await title(page));
+      return (wide ? "nav-status > nav-settings" : "설정 under the machines") + "; " + (await title(page));
     });
     await step("read the groups: warnings, 기본값, 실행기, 배정 규칙, 기기, 모델 (OCX), 기록 and the revision", async () => {
       const groups = await page.getByTestId("screen-settings").evaluate((element) => [...element.children].map((child) => child.dataset.testid).filter(Boolean));
@@ -2155,19 +2166,19 @@ const drivers = {
     }
     await step("the first screen is the menu with a large title", async () => {
       await openApp(page, "#/");
-      check((await title(page)) === "LINA", "large title is not LINA");
-      return "LINA";
+      check((await title(page)) === "작업", "large title is not 작업");
+      return "작업";
     });
     await step("a row pushes the next screen; back names the screen it returns to", async () => {
       await page.getByRole("link", { name: /^진행 중인 작업/ }).click();
       await page.waitForFunction(() => location.hash === "#/running");
       const back = (await page.getByTestId("back").innerText()).trim();
-      check(back === "LINA", "back reads " + back);
+      check(back === "작업", "back reads " + back);
       await page.getByRole("list", { name: "진행 중인 작업" }).getByRole("link").first().click();
       await page.getByTestId("screen-card").waitFor();
       const back2 = (await page.getByTestId("back").innerText()).trim();
       check(back2 === "진행 중인 작업", "back reads " + back2);
-      return "LINA → 진행 중인 작업 → card";
+      return "작업 → 진행 중인 작업 → card";
     });
     await step("the browser back button restores the screen and its scroll", async () => {
       await page.goBack();
@@ -2179,8 +2190,9 @@ const drivers = {
       await page.evaluate(() => document.querySelector(".phone-main").scrollTo(0, 120));
       const before = await page.evaluate(() => document.querySelector(".phone-main").scrollTop);
       check(before === 120, "the menu scrolled to " + before + ", not 120");
-      await page.getByRole("link", { name: /^목표/ }).click();
-      await page.waitForFunction(() => location.hash === "#/goals");
+      // 완료 is in view at 120 (the tabs and 오늘 sit above the lists), so the click scrolls nothing itself.
+      await page.getByRole("link", { name: /^완료/ }).click();
+      await page.waitForFunction(() => location.hash === "#/done");
       await page.goBack();
       await page.waitForFunction(() => location.hash === "#/");
       const after = await page.evaluate(() => document.querySelector(".phone-main").scrollTop);
@@ -2204,14 +2216,14 @@ const drivers = {
         };
         requestAnimationFrame(frame);
       });
-      await page.getByRole("link", { name: /^목표/ }).click();
-      await page.waitForFunction(() => location.hash === "#/goals" && !document.documentElement.dataset.nav);
+      await page.getByRole("link", { name: /^완료/ }).click();
+      await page.waitForFunction(() => location.hash === "#/done" && !document.documentElement.dataset.nav);
       await page.getByTestId("back").click();
       await page.waitForFunction(() => location.hash === "#/" && !document.documentElement.dataset.nav);
       await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       const { nav, frames } = await page.evaluate(() => ({ nav: window.__nav, frames: window.__frames }));
       check(nav.includes("push") && nav.includes("pop"), "the stack set " + JSON.stringify(nav) + ", not a push and a pop");
-      const menu = frames.filter((frame, index) => frame.title === "LINA" && frames.slice(0, index).some((seen) => seen.hash === "#/goals"));
+      const menu = frames.filter((frame, index) => frame.title === "작업" && frames.slice(0, index).some((seen) => seen.hash === "#/done"));
       check(menu.length > 0, "no frame of the menu after back");
       const off = menu.filter((frame) => frame.scroll !== 120 || frame.rows === 0);
       check(off.length === 0, off.length + " frame(s) of the menu after back without its scroll or rows: " + JSON.stringify(off[0]));
@@ -2862,6 +2874,55 @@ const drivers = {
       check(seen.state === "off", "the row is " + JSON.stringify(seen));
       return "row " + seen.state + "; state shots in " + path.relative(repo, shots);
     });
+  },
+
+  "talk-tab": async (page, step) => {
+    const wide = page.viewportSize().width >= 900;
+    const box = () => page.getByTestId("agent-talk");
+    await step("open 대화 from the tabs: the agents, no window on all of them", async () => {
+      // The tabs show on each tab's first screen on a phone, and on every screen on a wide window.
+      await openApp(page, wide ? "#/inbox" : "#/");
+      await page.getByTestId("tab-talk").click();
+      await settled(page);
+      await page.waitForFunction(() => location.hash === "#/talk");
+      const current = await page.getByTestId("tabs").locator("[aria-current=page]").innerText();
+      check(current.trim() === "대화", "the current tab is " + current);
+      const agents = await page.locator(wide ? "[data-testid^=nav-talk-]" : "[data-testid^=talk-agent-]").count();
+      check(agents === 3, "the agents listed: " + agents);
+      if (wide) check((await text(page.getByTestId("pick-agent"))) === "에이전트를 고르면 대화가 열림", "the middle does not ask to choose an agent");
+      return agents + " agents";
+    });
+    await step("choose the first agent: its earlier turns, the window says it is not the messenger chat, its card holds its goals", async () => {
+      await page.locator(wide ? "[data-testid=nav-talk-0] a" : "[data-testid=talk-agent-0] a").click();
+      await settled(page);
+      await box().getByTestId("talk-mine").first().waitFor({ timeout: 10_000 });
+      const mine = await box().getByTestId("talk-mine").allInnerTexts();
+      check(JSON.stringify(mine) === JSON.stringify(["어디까지 왔어요?"]), "the earlier turns read " + JSON.stringify(mine));
+      check((await box().innerText()).includes("앱 대화 · 메신저 대화와 따로 남음"), "the window does not say it is apart from the messenger chat");
+      const card = page.getByTestId("agent-card");
+      if (!wide) await card.getByRole("button").first().click();
+      const goals = await card.locator("[data-testid=section-goals] [data-testid=row] .title").allInnerTexts();
+      check(goals.includes("릴리스 노트 정리") && !goals.includes("결제 화면 개편"), "the card's goals read " + JSON.stringify(goals));
+      return new URL(page.url()).hash + "; goals " + goals.join(", ");
+    });
+    await step("send: the message on the right, the reply streams in on the left and stays", async () => {
+      const field = box().getByRole("textbox", { name: "메시지" });
+      await field.fill("오늘 어디까지 했어요?");
+      await field.press("Enter");
+      await box().getByTestId("talk-live").waitFor({ timeout: 5_000 });
+      await box().getByTestId("talk-reply").last().filter({ hasText: "알려 드릴게요." }).waitFor({ timeout: 10_000 });
+      check((await box().getByTestId("talk-live").count()) === 0, "the live dot stayed");
+      check((await field.inputValue()) === "", "the field kept " + (await field.inputValue()));
+      return "reply: " + (await box().getByTestId("talk-reply").last().locator(".talk-bubble").innerText());
+    });
+    if (!wide) {
+      await step("phone: the field and 보내기 are 44 px tall and back reads 대화", async () => {
+        const heights = await box().locator(".agent-talk-form input, .agent-talk-form button").evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().height)));
+        check(heights.every((height) => height >= 44), "heights " + heights.join(", "));
+        check((await text(page.getByTestId("back"))) === "대화", "back reads " + (await text(page.getByTestId("back"))));
+        return heights.join(", ") + " px";
+      });
+    }
   },
 
   async install(page, step) {

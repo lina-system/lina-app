@@ -10,7 +10,7 @@
 
 ## Intended behavior
 
-- The sidebar line adds up: `기기 n · 정상 n · 경고 n · 꺼짐 n`. `경고` (orange) and `꺼짐` (red) show only when not 0. It counts nodes only, work then the file node, never the owner's own Macs.
+- The machines line (`상태`'s sidebar on a wide window, above the machines on the phone's `상태`) adds up: `기기 n · 정상 n · 경고 n · 꺼짐 n`. `경고` (orange) and `꺼짐` (red) show only when not 0. It counts nodes only, work then the file node, never the owner's own Macs.
 - One row per node, work nodes first and the file node last: name, state word `정상` / `경고` (orange) / `꺼짐` (red), the one reason word (`연결 끊김`, `디스크`, `메모리`, `CPU`, `온도`, `실행기`, `작업 초과`, `응답 없음`), thin CPU, 메모리 and 디스크 bars (`—` when the core has no reading), and `작업 n/상한` (`작업 —/상한` when unknown). A row that is fine shows nothing extra.
 - Under each node, a grid of its runners. A fine runner shows its installed version and a signed-in mark (`로그인됨`). Any other cell shows one reason word: `업데이트 필요`, `준비 필요`, `로그인 필요`, `연결 끊김` or `확인 중`.
 - A `로그인 필요` cell has one `로그인` button. While the post is in flight, and while the core reports that runner `signingIn`, the cell reads `로그인 중` and shows no button. When `signingIn` turns false, a signed-in runner shows the mark; otherwise the reason and the `로그인` button return. A refusal shows one Korean line by status in the warning colour, in the cell, never the core's English detail: `이 기기에서는 볼 수만 있습니다` (403), `쓰기가 너무 많음` (429), `기기를 찾을 수 없음` (404), `이미 진행 중` (409), `아직 지원하지 않음` (501), `기기가 거절함` (502), or `보내지 못함`.
@@ -39,7 +39,7 @@
 
 ## How to get to it (user POV)
 
-- Choose the `기기` line under `기기·쿼터` in the sidebar or on the phone's first screen.
+- Choose `상태` in the tabs: a phone opens on this screen, a wide window on its `기기` line under `기기·쿼터`.
 - Address `/app/#/status`.
 
 ## Driving it with verify.mjs
@@ -49,7 +49,7 @@ Preconditions:
 - `verify.mjs doctor` reports `"healthy": true` for this run.
 - The page is `/app/?source=synthetic`, the synthetic scene; the drive opens it fresh for each width.
 
-- **Open the screen.** Choose the device line. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive status`. The line reads `기기 4 · 정상 2 · 경고 1 · 꺼짐 1`, with `경고 1` orange and `꺼짐 1` red.
+- **Open the screen.** Choose `상태` in the tabs. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive status`. The line reads `기기 4 · 정상 2 · 경고 1 · 꺼짐 1`, with `경고 1` orange and `꺼짐 1` red.
 - **Machines.** Read the list `기기`. 4 rows: `정상` with its three meters, `경고 · 디스크` with `경고` orange, `꺼짐 · 연결 끊김` with `꺼짐` red and `CPU — · 메모리 — · 디스크 —`, and the file node last, also `정상` with meters; 9 thin bars in all; loads read `작업 n/n` or `작업 —/n`.
 - **Runners.** Under the rows, one work node reads `업데이트 필요`, one reads `로그인 필요` with one `로그인` button, and the `꺼짐` node's cells all read `연결 끊김` with no version. The file node's cell shows a version and the signed-in mark, and no reason word. A fine runner shows nothing but its version and the mark.
 - **Phone.** At 390 and at 430, the `로그인` button and `다시 시작` are at least 44×44, runner names are 17px and the reason or version is at least 13px. Pressing the button and a menu item changes at once, with no running animation. `다시 시작` opens a bottom sheet that spans the width and ends at the bottom of the window. These checks run before `로그인` is pressed. Then the viewport returns to the drive width.

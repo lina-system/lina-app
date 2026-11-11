@@ -1,6 +1,6 @@
 # Navigation
 
-On a phone the app is a navigation stack: the first screen is the menu, a row pushes the next screen in from the right with a back control that names the screen it returns to, and the back control, the browser back button or, in the installed app, a swipe from the left edge slides it out again. On a wide window it is a split view: sidebar, list and detail side by side.
+On a phone the app is a navigation stack under three tabs (`대화 · 작업 · 상태`): each tab's first screen shows the tabs under its large title (`작업`'s is the menu), a row pushes the next screen in from the right with a back control that names the screen it returns to, and the back control, the browser back button or, in the installed app, a swipe from the left edge slides it out again. On a wide window it is a split view: sidebar, list and detail side by side.
 
 ## Platforms
 
@@ -14,7 +14,7 @@ On a phone the app is a navigation stack: the first screen is the menu, a row pu
 - Back (the control, the browser button or the edge swipe) restores the screen, the selection and the scroll, and no frame shows the screen before its scroll is back.
 - On a phone a push slides the next screen in from the right, and the back control or the edge swipe slides the top one out to the right (same-document View Transitions, direction set before the swap). Without `startViewTransition` or under reduced motion the screen swaps at once. The browser's own back or forward (its button, Safari's swipe in a tab) swaps at once, with the scroll back before the next frame, since the browser already draws that step.
 - In the installed Home Screen app, a swipe from within 20 px of the left edge, at least 72 px to the right and mostly sideways, goes back like the back control. It does nothing in a browser tab (the browser's own swipe goes back there), on the menu, or for a mostly vertical gesture.
-- On a phone, lists have a large title; the back control reads the title of the screen it returns to (`LINA` from a list, the list's name from a detail).
+- On a phone, lists have a large title; the back control reads the title of the screen it returns to (the tab's name, `작업` from a work list, from a list; the list's name from a detail).
 - On a wide window (900 px and up) the sidebar, the list and the detail sit side by side; the open row is an accent rounded rect with white text. With nothing selected the detail pane folds away and the list takes the width.
 - On a phone the nav row and the bottom bar keep clear of the status bar and the home indicator (`env(safe-area-inset-*)`), so a Home Screen app on an iPhone puts neither under them.
 
@@ -39,10 +39,10 @@ Preconditions:
 - `verify.mjs doctor` reports `"healthy": true` for this run.
 - The page is `/app/?source=synthetic`, the synthetic scene; the drive opens it fresh for each width.
 
-- **Menu.** At 390, open `/app/?source=synthetic#/`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive phone-nav`. The large title reads `LINA`.
-- **Push.** Choose `진행 중인 작업`, then the first card. Back reads `LINA`, then `진행 중인 작업`.
-- **Back and scroll.** Go back in the browser. The list returns. In a 480 px tall window, scroll the menu to 120, open `목표` and go back in the browser as soon as the address changes: the menu is at 120 again as soon as the address is back, on every run.
-- **Slide.** In a 480 px tall window, scroll the menu to 120, open `목표`, then press back. The root carries `data-nav="push"`, then `data-nav="pop"`; every animation frame that shows the menu after back has its rows and scroll 120.
+- **Menu.** At 390, open `/app/?source=synthetic#/`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive phone-nav`. The large title reads `작업`.
+- **Push.** Choose `진행 중인 작업`, then the first card. Back reads `작업`, then `진행 중인 작업`.
+- **Back and scroll.** Go back in the browser. The list returns. In a 480 px tall window, scroll the menu to 120, open `완료` and go back in the browser as soon as the address changes: the menu is at 120 again as soon as the address is back, on every run.
+- **Slide.** In a 480 px tall window, scroll the menu to 120, open `완료`, then press back. The root carries `data-nav="push"`, then `data-nav="pop"`; every animation frame that shows the menu after back has its rows and scroll 120.
 - **Reduced motion.** Emulate `prefers-reduced-motion: reduce` and open `목표`: the root never carries `data-nav`.
 - **Edge swipe.** In a touch context with `navigator.standalone` set (the installed app), open `진행 중인 작업` from the menu, wait for the slide to end, and send synthetic touches from x 6 to x 200: the page returns to `#/`. From x 120, mostly vertical, shorter than 72 px, on the menu, or in a plain tab, the same touches leave the page where it was and call no history back.
 - **Split view.** At 1280, open a card from 진행 중인 작업. The menu, the list and the detail show together with one selected row; browser back clears the selection and folds the detail pane, and the list takes the full width.
@@ -60,5 +60,5 @@ Preconditions:
 
 ## Not goals
 
-- No tab bar.
+- No bottom tab bar: the three tabs sit under the large title of each tab's first screen, not at the bottom (see talk-tab.md).
 - No restoring of folded or opened boxes on back.

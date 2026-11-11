@@ -41,14 +41,20 @@ afterEach(() => {
 });
 
 describe("the settings screen", () => {
-  test("설정 is one line right under 기기·쿼터 in the sidebar and on the phone's first screen", async () => {
+  test("설정 is one line right under 기기·쿼터 in 상태's sidebar, and under the machines on the phone's 상태", async () => {
     for (const wide of [true, false]) {
       setWide(wide);
-      window.history.replaceState(null, "", wide ? "/app/#/running" : "/app/#/");
+      window.history.replaceState(null, "", "/app/#/status");
       const view = render(<App store={new Store(source())} />);
       await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("실시간"));
-      const rows = [...view.getByTestId("sidebar").querySelectorAll("li[data-testid^=nav-]")].map((row) => row.getAttribute("data-testid"));
-      expect(rows.slice(-2)).toEqual(["nav-status", "nav-settings"]);
+      if (wide) {
+        const rows = [...view.getByTestId("sidebar").querySelectorAll("li[data-testid^=nav-]")].map((row) => row.getAttribute("data-testid"));
+        expect(rows).toEqual(["nav-status", "nav-settings"]);
+      } else {
+        const main = view.container.querySelector(".phone-main") as HTMLElement;
+        expect(main.lastElementChild?.contains(view.getByTestId("nav-settings"))).toBe(true);
+        expect(main.querySelector("[data-testid=screen-status]")?.compareDocumentPosition(view.getByTestId("nav-settings"))).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      }
       expect(view.getByTestId("nav-settings").querySelector("a")?.getAttribute("href")).toBe("#/settings");
       expect(view.getByTestId("nav-settings").textContent).toContain(W.settings);
       view.unmount();

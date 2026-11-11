@@ -11,6 +11,8 @@
 # `npm run build`, served under /app/). Results go to <run-dir>/gui-pass/.
 #   1 captures   2 measurements   3 Korean input   4 accessibility, menu, notification
 #   5 the web build in Safari
+# ONLY=<comma list> runs some steps: captures, measure, ime, a11y, notify, web
+# (default: all), e.g. ONLY=ime,a11y,notify.
 set -u
 
 RUN="$(cd "${1:?usage: mac-gui-pass.sh <run-dir>}" && pwd)"
@@ -30,6 +32,9 @@ if [ ! -x "$STATE_BIN" ]; then
   swiftc -O "$RUN/native/scripts/mac-screen-state.swift" -o "$STATE_BIN" || { log "swiftc failed"; exit 4; }
 fi
 need "$BIN"
+CUA_SOCK="$HOME/Library/Application Support/LINA Helper/run/cua.sock"
+HOLDER=gpui-proto-pass
+want() { case ",${ONLY:-captures,measure,ime,a11y,notify,web}," in *",$1,"*) return 0;; esac; return 1; }
 
 screen_state() { "$STATE_BIN" 2>/dev/null; }
 
@@ -45,7 +50,8 @@ while :; do
   fi
   sleep 10
 done
-log "screen unlocked; starting"
+log "screen unlocked; starting (ONLY=${ONLY:-all})"
+log "system windows on screen: $(osascript -l JavaScript -e "ObjC.import('CoreGraphics'); const l = ObjC.deepUnwrap(ObjC.castRefToObject(\$.CGWindowListCopyWindowInfo(\$.kCGWindowListOptionOnScreenOnly, 0))); l.filter(w => /SecurityAgent|Continuity|Onboarding|UserNotification|NotificationCenter|CoreServicesUIAgent/.test(String(w.kCGWindowOwnerName))).map(w => w.kCGWindowOwnerName + '@' + w.kCGWindowLayer).join(', ') || 'none';" 2>&1)"
 
 # Keep the display awake while the pass runs.
 ( while :; do caffeinate -u -t 25; done ) &
@@ -101,6 +107,7 @@ launch() { # $1 log name, rest: app flags
 }
 
 # 1. Captures (synthetic data only; window-only capture)
+if want captures; then
 launch app-captures --conversation c-archive --log-input
 capture 01-list-conversation-view "LINA Proto"
 sleep 10
@@ -109,8 +116,10 @@ launch app-captures-draft --conversation c-weekly --draft "안녕하세요, 이�
 capture 03-conversation-input "LINA Proto"
 sleep 6
 capture 04-conversation-after-6s "LINA Proto"
+fi
 
 # 2. Measurements: start time, 1,000-message scroll, memory at idle and after IDLE_SECS.
+if want measure; then
 launch app-bench --bench
 for _ in $(seq 1 60); do grep -q "lina-bench: scroll done" "$OUT/app-bench.log" && break; sleep 2; done
 grep -E "lina-bench" "$OUT/app-bench.log" | tee -a "$OUT/measure.txt"
@@ -135,12 +144,18 @@ log "idle for $IDLE_SECS s before the second memory reading"
 sleep "$IDLE_SECS"
 echo "native rss_kb_after_${IDLE_SECS}s $(ps -o rss= -p "$app_pid")" | tee -a "$OUT/measure.txt"
 [ -n "${server_pid:-}" ] && echo "webapp safari_webcontent_rss_kb_after_${IDLE_SECS}s $(webcontent_rss)" | tee -a "$OUT/measure.txt"
+fi
 
 # 3. Korean input through cua-driver (keys of the 2-set layout: dkssudgktpdy = 안녕하세요).
+# Calls go to the Helper's gate socket and carry the lease holder as `session`.
+if want ime; then
 launch app-ime --conversation c-weekly --log-input
 info="$(window_info "LINA Proto")"; set -- $info; window_id="${1:-0}"
-if lina-helperctl cua.lease --arg holder=gpui-proto-pass > "$OUT/cua-lease.json" 2>&1; then leased=1; fi
-cua() { "$CUA" call "$1" "$2" >> "$OUT/cua.log" 2>&1; }
+if lina-helperctl cua.lease --arg holder=$HOLDER > "$OUT/cua-lease.json" 2>&1; then leased=1; fi
+cua() {
+  echo "call $1" >> "$OUT/cua.log"
+  "$CUA" call --socket "$CUA_SOCK" "$1" "{\"session\":\"$HOLDER\",${2#\{}" >> "$OUT/cua.log" 2>&1
+}
 key() { cua press_key "{\"pid\":$app_pid,\"window_id\":$window_id,\"key\":\"$1\",\"delivery_mode\":\"foreground\"}"; }
 last_input() { grep "lina-ui: input text=" "$OUT/app-ime.log" | tail -1; }
 cua bring_to_front "{\"pid\":$app_pid,\"window_id\":$window_id}"
@@ -165,18 +180,22 @@ capture 07-ime-candidate-position "LINA Proto"
 cua hotkey "{\"pid\":$app_pid,\"window_id\":$window_id,\"keys\":[\"ctrl\",\"space\"],\"delivery_mode\":\"foreground\"}"
 log "input source switched back with ctrl+space (check it is the original)"
 [ -n "${leased:-}" ] && lina-helperctl cua.release --arg holder=gpui-proto-pass >/dev/null 2>&1 && leased=
+fi
 
 # 4. Accessibility tree, menu bar, system notification.
-launch app-a11y --conversation c-archive --notify-test
-lina-helperctl ax.tree --arg bundle_id=system.lina.proto --out "$OUT/ax-tree.json" >/dev/null 2>&1 \
-  || lina-helperctl ax.tree --arg bundle_id=system.lina.proto > "$OUT/ax-tree.json" 2>&1
-echo "ax tree bytes: $(wc -c < "$OUT/ax-tree.json"); LINA 종료 menu item: $(grep -c 'LINA 종료' "$OUT/ax-tree.json")" | tee -a "$OUT/a11y.txt"
+if want a11y || want notify; then
+if want notify; then launch app-a11y --conversation c-archive --notify-test; else launch app-a11y --conversation c-archive; fi
+if want a11y; then
+  lina-helperctl ax.tree --json '{"app":"system.lina.proto","max_nodes":2000}' > "$OUT/ax-tree.json" 2>&1
+  echo "ax tree bytes: $(wc -c < "$OUT/ax-tree.json"); LINA 종료 menu item: $(grep -c 'LINA 종료' "$OUT/ax-tree.json")" | tee -a "$OUT/a11y.txt"
+fi
 grep "system notification" "$OUT/app-a11y.log" | tee -a "$OUT/a11y.txt"
 capture 08-after-notification "LINA Proto"
 pkill -x lina-proto
+fi
 
 # 5. The GPUI web build in Safari.
-if [ -d "$RUN/web-dist" ]; then
+if want web && [ -d "$RUN/web-dist" ]; then
   python3 "$RUN/native/web/serve.py" "$RUN/web-dist" 8766 > "$OUT/web-http.log" 2>&1 &
   web_server=$!
   sleep 1

@@ -278,6 +278,8 @@ export function Disclosure() {
   );
 }
 
+/** A list with no rows: 없음, or 불러오는 중 while the first read of the lists has not answered yet. */
 export function Empty() {
-  return <p class="empty">{W.empty}</p>;
+  const { store } = useApp();
+  return <p class="empty">{store.version === 0 ? W.loading : W.empty}</p>;
 }

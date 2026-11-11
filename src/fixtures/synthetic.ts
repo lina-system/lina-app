@@ -297,6 +297,9 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       todoProgress: { done, total: card.todos.length },
       now: card.now,
       plain: card.plain,
+      // The core's own times on the row (lina#577): the end of a done card, the last beat of a card that has run.
+      endedAt: card.state === "done" ? card.lastBeat : null,
+      lastHeartbeatAt: card.runs.length ? card.lastBeat : null,
       todos: card.todos.map(([id, isDone], index) => ({ id: `check-${index + 1}`, title: todoTitle(id) || id, kind: "check", done: isDone })),
       workerRuns: card.runs.map((id) => {
         const run = runCards.find((candidate) => candidate.id === id);

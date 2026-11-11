@@ -181,9 +181,9 @@ export class Store {
   }
 
   /**
-   * Reads again only the routes a change touched: list routes always, a detail only when a screen has read it. A
-   * changed card list also reads the details of cards it did not list before. Unchanged routes answer 304 and keep
-   * their objects, so rows, selection and scroll stay.
+   * Reads again only the routes a change touched: list routes always, a detail only when a screen has read it. A card
+   * the list names for the first time is not read until a screen opens it (lina-app#100). Unchanged routes answer 304
+   * and keep their objects, so rows, selection and scroll stay.
    */
   invalidate(routes: Want): Promise<void> {
     const run = async () => {
@@ -194,10 +194,6 @@ export class Store {
       }
       if (!keys.size) return;
       const changes = await Promise.all([...keys.values()].map(([name, id]) => this.load(name, id)));
-      if (keys.has("cards")) {
-        const added = (this.get("cards")?.cards ?? []).map((card) => card.id).filter((id) => !this.entries.has(this.key("card", id)));
-        changes.push(...(await Promise.all(added.map((id) => this.load("card", id)))));
-      }
       if (changes.some(Boolean)) this.changed();
       else this.notify();
     };
@@ -215,7 +211,11 @@ export class Store {
     return ids;
   }
 
-  /** One read of every list route, every work card's detail and whatever the open screen wants. */
+  /**
+   * One read of every list route, then whatever the open screen wants. The lists are drawn as soon as they answer; a
+   * work card's detail is read only while a screen shows it (lina-app#100: one read per card held the first screen
+   * for a minute).
+   */
   refresh(): Promise<void> {
     return this.queue(() => this.readAll());
   }
@@ -228,14 +228,14 @@ export class Store {
       ...LIST_ROUTES.map((name) => this.load(name)),
       ...slow.map(([name, id]) => this.load(name, id)),
     ]);
-    const cardIds = (this.get("cards")?.cards ?? []).map((card) => card.id);
-    const secondWave = await Promise.all([
-      ...cardIds.map((id) => this.load("card", id)),
-      ...this.wanted.filter(([name, id]) => !(name === "card" && id && cardIds.includes(id))).map(([name, id]) => this.load(name, id)),
-    ]);
+    const listed = firstWave.some(Boolean) || this.version === 0;
+    if (listed) this.changed();
+    // A route the open screen asked for and is still reading for the first time is not asked again.
+    const reread = this.wanted.filter(([name, id]) => this.entries.get(this.key(name, id))?.status !== "pending");
+    const secondWave = await Promise.all(reread.map(([name, id]) => this.load(name, id)));
     this.refreshes += 1;
-    if ([...firstWave, ...secondWave].some(Boolean) || this.version === 0) this.changed();
-    else this.notify();
+    if (secondWave.some(Boolean)) this.changed();
+    else if (!listed) this.notify();
   }
 
   /**
@@ -263,6 +263,8 @@ export class Store {
     this.wanted = routes;
     const missing = routes.filter(([name, id]) => !this.entries.has(this.key(name, id)));
     if (!missing.length) return;
+    // Held as pending while the read is out, so a redraw meanwhile does not ask for it again.
+    for (const [name, id] of missing) this.entries.set(this.key(name, id), { status: "pending" });
     void Promise.all(missing.map(([name, id]) => this.load(name, id))).then((changes) => {
       if (changes.some(Boolean)) this.changed();
     });

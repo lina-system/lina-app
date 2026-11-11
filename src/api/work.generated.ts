@@ -207,9 +207,13 @@ export interface components {
             agent: string | null;
             comments: components["schemas"]["Comment"][];
             elapsedSeconds: number;
+            /** @description When a done card completed (completed_at, epoch seconds); null otherwise (lina#577). */
+            endedAt?: number | null;
             /** @description The latest result per gate command. */
             gates: components["schemas"]["GateResult"][];
             id: string;
+            /** @description The card's last heartbeat (epoch seconds); null when it has none (lina#577). */
+            lastHeartbeatAt?: number | null;
             now: string | null;
             plain: components["schemas"]["PlainLines"];
             reason: components["schemas"]["Reason"];
@@ -226,7 +230,11 @@ export interface components {
         WorkCardSummary: {
             agent: string | null;
             elapsedSeconds: number;
+            /** @description When a done card completed (completed_at, epoch seconds); null otherwise (lina#577). */
+            endedAt?: number | null;
             id: string;
+            /** @description The card's last heartbeat (epoch seconds); null when it has none (lina#577). */
+            lastHeartbeatAt?: number | null;
             /** @description The latest comment or heartbeat note, plain text. */
             now: string | null;
             plain: components["schemas"]["PlainLines"];

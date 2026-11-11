@@ -1,9 +1,9 @@
-import { SETTINGS_HISTORY, type ActionResult, type AnswerRequest, type AnswerResult, type BoardSnapshot, type ChangeEvent, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemDetail, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type Settings, type SettingsAuditLine, type SettingsModel, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest, type WorkState } from "../api/client";
+import { SETTINGS_HISTORY, type ActionResult, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type BoardSnapshot, type ChangeEvent, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemDetail, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type Settings, type SettingsAuditLine, type SettingsModel, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest, type WorkState } from "../api/client";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type Scene, type SettingsVariant } from "../fixtures/synthetic";
 import { mergePatch } from "../model/settings";
 import { currentSettings, historyView, invalidDetail, modelsView, revisionOf, settingsView, validate, writeRevision } from "./synthetic-settings";
 import { base64UrlBytes, type PushManagerLike, type PushSubscriptionLike } from "../push";
-import { nowSeconds, type ChangeHandlers, type ChangeSocket, type ReadResult, type Renewal, type Source, type TalkResult, type WriteResult } from "./source";
+import { nowSeconds, type AgentTalkResult, type ChangeHandlers, type ChangeSocket, type ReadResult, type Renewal, type Source, type TalkResult, type WriteResult } from "./source";
 
 function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
   switch (name) {
@@ -123,6 +123,30 @@ export function syntheticTalkFrames(item: { id: string; title: string }, agent: 
     ...TALK_REPLY_DELTAS.map((delta): TalkEvent => ({ event: "assistant.delta", data: { ...frame(), message_id: messageId, delta } })),
     { event: "assistant.completed", data: { ...frame(), message_id: messageId, content: TALK_REPLY_DELTAS.join("") } },
     { event: "talk.carried", data: { agent, item: item.id } },
+    { event: "run.completed", data: { ...frame(), message_id: messageId } },
+    { event: "done", data: frame() },
+  ];
+}
+
+/** The synthetic agent's reply in the owner's own window on it, in the pieces it streams. */
+export const AGENT_REPLY_DELTAS = ["네, 보고 있어요. ", "지금 하는 일을 ", "정리해서 바로 ", "알려 드릴게요."] as const;
+
+/** The first line the core puts on the owner's turns in that window (lina#482). */
+export const APP_FIRST_LINE = "[LINA app]";
+
+/** The frames of one turn in the owner's window on an agent: like a to-do's, with no item and nothing carried. */
+export function syntheticAgentTalkFrames(agent: string, message: string, ts: number): AgentTalkEvent[] {
+  const session = `app-${agent}`;
+  const run = `run-${agent}-${ts}`;
+  const messageId = `msg-${agent}-${ts}`;
+  let seq = 0;
+  const frame = () => ({ session_id: session, run_id: run, seq: (seq += 1), ts });
+  return [
+    { event: "talk.started", data: { agent, session_id: session } },
+    { event: "run.started", data: { ...frame(), user_message: { role: "user", content: message } } },
+    { event: "message.started", data: { ...frame(), message: { id: messageId, role: "assistant" } } },
+    ...AGENT_REPLY_DELTAS.map((delta): AgentTalkEvent => ({ event: "assistant.delta", data: { ...frame(), message_id: messageId, delta } })),
+    { event: "assistant.completed", data: { ...frame(), message_id: messageId, content: AGENT_REPLY_DELTAS.join("") } },
     { event: "run.completed", data: { ...frame(), message_id: messageId } },
     { event: "done", data: frame() },
   ];
@@ -286,6 +310,8 @@ export class SyntheticSource implements Source {
   /** The last record per item: the owner's own done mark, or null once anything else was written after it. */
   private readonly marks = new Map<string, DoneMark | null>();
   private readonly talkRefusal: TalkRefusal | null;
+  /** The owner's window on each agent, as its gateway keeps it: the first agent has two earlier turns, the rest none. */
+  readonly agentTalks = new Map<string, AgentTalkHistory["messages"]>();
   private readonly connections = new Set<Connection>();
   private readonly script: StreamScript;
   /** `&error=checks`: the hub's checks route does not answer, while every other route still does. */
@@ -479,6 +505,49 @@ export class SyntheticSource implements Source {
       }
     }
     return { ok: true, events: events() };
+  }
+
+  /** A turn in the owner's window on an agent: the same refusals as the core, then the frames on timers. */
+  async agentTalk(agent: string, body: TalkRequest, signal?: AbortSignal): Promise<AgentTalkResult> {
+    if (!this.scene.items.agents.some((each) => each.id === agent)) return { ok: false, status: 404, code: "unknown_agent" };
+    const message = body.message.trim();
+    if (!message) return { ok: false, status: 400, code: "empty_message" };
+    if (message.length > 4000) return { ok: false, status: 413, code: "message_too_long" };
+    if (this.talkRefusal === "busy" || this.talkRefusal === "down") return { ok: false, ...TALK_REFUSED[this.talkRefusal] };
+    const at = nowSeconds();
+    const frames = syntheticAgentTalkFrames(agent, message, at);
+    const kept = this.agentHistory(agent);
+    async function* events(): AsyncGenerator<AgentTalkEvent> {
+      for (const frame of frames) {
+        await wait(TALK_FRAME_MS, signal);
+        if (frame.event === "assistant.completed") kept.push({ role: "user", content: `${APP_FIRST_LINE}\n${message}`, timestamp: at }, { role: "assistant", content: frame.data.content, timestamp: nowSeconds() });
+        yield frame;
+      }
+    }
+    return { ok: true, events: events() };
+  }
+
+  async agentTalkHistory(agent: string): Promise<ReadResult<AgentTalkHistory>> {
+    const at = nowSeconds();
+    if (!this.scene.items.agents.some((each) => each.id === agent)) return { kind: "missing", at };
+    const messages = this.agentHistory(agent);
+    return { kind: "data", data: { agent, session_id: messages.length ? `app-${agent}` : null, messages: structuredClone(messages) }, at };
+  }
+
+  private agentHistory(agent: string): AgentTalkHistory["messages"] {
+    let kept = this.agentTalks.get(agent);
+    if (!kept) {
+      const day = Math.floor(nowSeconds()) - 86_400;
+      kept =
+        agent === this.scene.items.agents[0]?.id
+          ? [
+              { role: "user", content: `${APP_FIRST_LINE}\n어디까지 왔어요?`, timestamp: day },
+              { role: "assistant", content: "변경 목록을 모으는 중이에요. 배포 순서는 답을 기다려요.", timestamp: day + 60 },
+            ]
+          : [];
+      this.agentTalks.set(agent, kept);
+    }
+    return kept;
   }
 
   /**

@@ -1,4 +1,4 @@
-import type { ActionResult, AnswerRequest, ChangeMessage, AnswerResult, CommentRequest, DeviceAction, DoneRequest, NoticesReadRequest, NoticesReadResult, PushKey, PushRemoveRequest, PushRemoveResult, PushSubscriptionRequest, PushSubscriptionResult, RouteName, Routes, SettingsPatch, SettingsWritten, TalkEvent, TalkRequest } from "../api/client";
+import type { ActionResult, AgentTalkEvent, AgentTalkHistory, AnswerRequest, ChangeMessage, AnswerResult, CommentRequest, DeviceAction, DoneRequest, NoticesReadRequest, NoticesReadResult, PushKey, PushRemoveRequest, PushRemoveResult, PushSubscriptionRequest, PushSubscriptionResult, RouteName, Routes, SettingsPatch, SettingsWritten, TalkEvent, TalkRequest } from "../api/client";
 
 export type ReadResult<T> =
   | { readonly kind: "data"; readonly data: T; readonly at: number }
@@ -13,7 +13,10 @@ export type WriteResult<T> = { readonly ok: true; readonly data: T } | { readonl
  * A talk turn's answer: its streamed events, or the status it was refused with and the `error.code` of a JSON body
  * (status 0: no answer). 429 and 503 can carry the gateway's own body, so `code` may be null.
  */
-export type TalkResult = { readonly ok: true; readonly events: AsyncIterable<TalkEvent> } | { readonly ok: false; readonly status: number; readonly code: string | null };
+export type TalkResult<E = TalkEvent> = { readonly ok: true; readonly events: AsyncIterable<E> } | { readonly ok: false; readonly status: number; readonly code: string | null };
+
+/** A turn in the owner's own window on one agent (lina#482): refused as a to-do's turn is, with no item. */
+export type AgentTalkResult = TalkResult<AgentTalkEvent>;
 
 /**
  * What one change stream connection tells its opener. `closed` comes once, when the connection ends or never opens;
@@ -48,6 +51,10 @@ export interface Source {
   readNotices(body: NoticesReadRequest): Promise<WriteResult<NoticesReadResult>>;
   /** One turn with the agent that owns the item, in that agent's app conversation; `signal` stops reading the reply. */
   talk(id: string, body: TalkRequest, signal?: AbortSignal): Promise<TalkResult>;
+  /** One turn in the owner's own app window on `agent` (not its messenger chat); `signal` stops reading the reply. */
+  agentTalk(agent: string, body: TalkRequest, signal?: AbortSignal): Promise<AgentTalkResult>;
+  /** The earlier turns of that window, oldest first. */
+  agentTalkHistory(agent: string): Promise<ReadResult<AgentTalkHistory>>;
   /** One connection to the core's change stream, resuming after `since` (null: from the tail). */
   changes(since: string | null, handlers: ChangeHandlers): ChangeSocket;
   /** Reads the credential the core serves the page now, after it refused the one the page started with. */

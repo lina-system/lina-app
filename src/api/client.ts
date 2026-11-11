@@ -144,6 +144,10 @@ export const EVENTS_PATH = `${BOARD_BASE}/events`;
 export type TalkRequest = JsonBody<TalkPaths["/work/items/{item_id}/talk"]["post"]>;
 export type TalkEvent = Talk["schemas"]["TalkEvent"];
 export type TalkError = Talk["schemas"]["Error"];
+/** The owner's own window on one agent (lina#482): its turns stream like a to-do's, with no item and nothing carried. */
+export type AgentTalkEvent = Talk["schemas"]["AgentTalkEvent"];
+/** The earlier turns of that window, oldest first; `session_id` is null before the first turn. */
+export type AgentTalkHistory = Talk["schemas"]["AgentTalkHistory"];
 
 /** Web Push to the owner's devices (push-client.yaml, lina#244). */
 export type PushKey = Push["schemas"]["PushKey"];
@@ -161,6 +165,11 @@ export const PUSH_REMOVE_PATH = `${BOARD_BASE}/push/subscriptions/remove`;
 
 export function talkPath(itemId: string): string {
   return `${BOARD_BASE}/work/items/${encodeURIComponent(itemId)}/talk`;
+}
+
+/** The owner's window on one agent: POST runs a turn, GET reads the earlier turns. */
+export function agentTalkPath(agent: string): string {
+  return `${BOARD_BASE}/agents/${encodeURIComponent(agent)}/talk`;
 }
 
 /** A question a work card asks is answered on the work API (work-client.yaml). */

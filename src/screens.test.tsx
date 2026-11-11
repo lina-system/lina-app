@@ -1097,6 +1097,8 @@ describe("agent talk", () => {
     const view = await open("#/talk/ag-2", { wide: false });
     await waitFor(() => expect(view.getByTestId("no-turns").textContent).toBe("아직 나눈 대화 없음"));
     expect(view.getByTestId("back").textContent).toBe("대화");
+    // The phone's window has a screen title like every other screen: the agent's name.
+    expect(view.getAllByTestId("screen-title").map((title) => title.textContent)).toEqual([view.getByTestId("agent-talk-name").textContent]);
     const card = view.getByTestId("agent-card");
     expect(card.querySelector("[data-testid=section-goals]")).toBeNull();
     fireEvent.click(within(card).getByRole("button"));

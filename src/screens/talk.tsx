@@ -180,8 +180,9 @@ function keptLines(history: AgentTalkHistory): Line[] {
 /**
  * The owner's own window on one agent (lina#482): the earlier turns read from the core, then this page's turns, the
  * reply streaming in under the agent's mark. It is the agent's app conversation, not its messenger chat, and says so.
+ * `titled`: the window is the whole screen (a phone), so the agent's name is the screen's title.
  */
-export function AgentTalk({ agent, children }: { agent: string; children?: ComponentChildren }) {
+export function AgentTalk({ agent, titled = false, children }: { agent: string; titled?: boolean; children?: ComponentChildren }) {
   const { model, store } = useApp();
   const [lines, setLines] = useState<readonly Line[] | null>(null);
   const [historyError, setHistoryError] = useState(false);
@@ -267,9 +268,17 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
       <header class="agent-talk-head">
         <AgentMark id={agent} />
         <span class="lines">
-          <span class="title one-line" data-testid="agent-talk-name">
-            {name}
-          </span>
+          {titled ? (
+            <h1 class="agent-talk-title" data-testid="screen-title">
+              <span class="title one-line" data-testid="agent-talk-name">
+                {name}
+              </span>
+            </h1>
+          ) : (
+            <span class="title one-line" data-testid="agent-talk-name">
+              {name}
+            </span>
+          )}
           <span class="sub">{W.appWindow}</span>
         </span>
       </header>

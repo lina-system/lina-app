@@ -2490,6 +2490,11 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   font-weight: 600;
 }
 
+.agent-talk-title {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
 .agent-talk-turns {
   flex: 1;
   min-height: 0;

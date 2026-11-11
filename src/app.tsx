@@ -102,7 +102,7 @@ function Screen({ route }: { route: Route }) {
       return <TalkAgents />;
     case "talk":
       return (
-        <AgentTalk key={route.id} agent={route.id}>
+        <AgentTalk key={route.id} agent={route.id} titled>
           <AgentCard agent={route.id} folded />
         </AgentTalk>
       );

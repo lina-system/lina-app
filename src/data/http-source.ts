@@ -1,4 +1,4 @@
-import { agentTalkPath, BOARD_BASE, cardAnswerPath, EVENTS_PATH, NOTICES_READ_PATH, PUSH_KEY_PATH, PUSH_REMOVE_PATH, PUSH_SUBSCRIPTIONS_PATH, routePath, SETTINGS_PATH, SETTINGS_ROLLBACK_PATH, talkPath, writePath, type ActionResult, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest } from "../api/client";
+import { ADD_ITEM_PATH, agentTalkPath, BOARD_BASE, cardAnswerPath, EVENTS_PATH, NOTICES_READ_PATH, PUSH_KEY_PATH, PUSH_REMOVE_PATH, PUSH_SUBSCRIPTIONS_PATH, routePath, SETTINGS_PATH, SETTINGS_ROLLBACK_PATH, talkPath, writePath, type ActionResult, type AddItemRequest, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest } from "../api/client";
 import { nowSeconds, type AgentTalkResult, type ChangeHandlers, type ChangeSocket, type ReadResult, type Renewal, type Source, type TalkResult, type WriteResult } from "./source";
 import { readSse } from "./sse";
 
@@ -208,6 +208,10 @@ export class HttpSource implements Source {
 
   retry(id: string): Promise<WriteResult<ActionResult>> {
     return this.post(writePath("retry", id), {});
+  }
+
+  addItem(body: AddItemRequest): Promise<WriteResult<ItemSummary>> {
+    return this.post(ADD_ITEM_PATH, body);
   }
 
   answerCard(cardId: string, body: AnswerRequest): Promise<WriteResult<AnswerResult>> {

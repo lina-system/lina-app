@@ -2,9 +2,9 @@ import { expect, test, vi } from "vitest";
 import { bootstrapOptions, HttpSource } from "./http-source";
 import { chooseSource } from "./select";
 import { Store } from "./store";
-import type { TalkEvent } from "../api/client";
+import type { ChangeMessage, TalkEvent } from "../api/client";
 import { SCENE_COUNTS } from "../fixtures/synthetic";
-import { SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS, UNDO_SECONDS } from "./synthetic-source";
+import { STREAM_TICK_MS, SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS, UNDO_SECONDS } from "./synthetic-source";
 
 test("reads each route on its schema's server url with the session token and the last ETag", async () => {
   const calls: { url: string; headers: Record<string, string> }[] = [];
@@ -174,6 +174,52 @@ test("done, undo, retry and a card answer post to their routes with their bodies
     ["POST", "/api/plugins/kanban/work/inbox/k-102/answer", { text: "네" }],
   ]);
   expect(calls.every((call) => call.headers["X-Hermes-Session-Token"] === "token-a" && call.headers["Content-Type"] === "application/json")).toBe(true);
+});
+
+test("an owner's to-do posts its text and due date to the items route and answers the row the list shows", async () => {
+  const row = { id: "T40", kind: "todo", parent: null, title: "영수증 정리", agent: null, addedBy: "owner", mine: true, state: "planned", reason: null, stateSince: 1, lastActivityAt: 1, createdAt: 1, closedAt: null, due: "2026-12-01", doneCondition: null, area: null, projects: [], todos: null, runCount: 0, commentCount: 0 };
+  const { calls, fetchImpl } = recordingFetch(() => new Response(JSON.stringify(row), { status: 200 }));
+  const source = new HttpSource({ fetch: fetchImpl, token: "token-a", basePath: "/core" });
+  expect(await source.addItem({ text: "영수증 정리", due: "2026-12-01" })).toEqual({ ok: true, data: row });
+  await source.addItem({ text: "전화하기", due: null });
+  expect(calls.map((call) => [call.method, call.url, call.body, call.headers["X-Hermes-Session-Token"]])).toEqual([
+    ["POST", "/core/api/lina/work/items", { text: "영수증 정리", due: "2026-12-01" }, "token-a"],
+    ["POST", "/core/api/lina/work/items", { text: "전화하기", due: null }, "token-a"],
+  ]);
+  const refused = new HttpSource({ fetch: recordingFetch(() => new Response(JSON.stringify({ detail: "text is required" }), { status: 400 })).fetchImpl });
+  expect(await refused.addItem({ text: "", due: null })).toEqual({ ok: false, status: 400, detail: "text is required" });
+});
+
+test("the synthetic copy adds an owner's to-do to the list and 내 할 일 with a work event, and refuses empty text and a bad date", async () => {
+  vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval", "setTimeout", "clearTimeout"] });
+  try {
+    const source = new SyntheticSource();
+    const scene = source.scene;
+    const messages: ChangeMessage[] = [];
+    const socket = source.changes(null, { message: (message) => messages.push(message), closed() {} });
+    await Promise.resolve();
+    const added = await source.addItem({ text: "  영수증 정리  ", due: "2026-12-01" });
+    expect(added).toMatchObject({ ok: true, data: { kind: "todo", parent: null, title: "영수증 정리", due: "2026-12-01", mine: true, addedBy: "owner", agent: null, state: "planned" } });
+    const id = added.ok ? added.data.id : "";
+    expect(id).toMatch(/^T\d+$/);
+    expect(scene.items.items.find((item) => item.id === id)).toEqual(added.ok ? added.data : null);
+    expect(scene.board.inbox.mine.find((row) => row.id === id)).toEqual({ id, title: "영수증 정리", waiting: false, due: "2026-12-01", agent: "owner" });
+    expect(scene.itemDetails[id]).toMatchObject({ id, state: "planned", comments: [], ownerDone: null });
+    vi.advanceTimersByTime(STREAM_TICK_MS);
+    expect(messages.flatMap((message) => ("events" in message ? message.events : []))).toContainEqual(expect.objectContaining({ source: "work", id }));
+    socket.close();
+    expect(await source.addItem({ text: "   ", due: null })).toEqual({ ok: false, status: 400, detail: "text is required" });
+    expect(await source.addItem({ text: "전화하기", due: "12월 1일" })).toMatchObject({ ok: false, status: 400, detail: expect.any(String) });
+    expect(await source.addItem({ text: "가".repeat(2001), due: null })).toMatchObject({ ok: false, status: 400, detail: "text must be 1-2000 characters after trimming" });
+    expect(scene.board.inbox.mine.filter((row) => row.title === "전화하기")).toEqual([]);
+    // The new to-do is the owner's: a done mark on it can be taken back like any other.
+    expect(await source.done(id, {})).toMatchObject({ ok: true, data: { state: "done" } });
+    expect(scene.board.inbox.mine.some((row) => row.id === id)).toBe(false);
+    expect(await source.undo(id)).toMatchObject({ ok: true, data: { state: "planned" } });
+    expect(scene.board.inbox.mine.some((row) => row.id === id)).toBe(true);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("the synthetic copy marks done, refuses a goal with open to-dos, and one undo within ten minutes reopens all", async () => {

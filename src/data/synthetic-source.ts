@@ -1,4 +1,4 @@
-import { SETTINGS_HISTORY, type ActionResult, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type BoardSnapshot, type ChangeEvent, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemDetail, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type Settings, type SettingsAuditLine, type SettingsModel, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest, type WorkState } from "../api/client";
+import { SETTINGS_HISTORY, type ActionResult, type AddItemRequest, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type BoardSnapshot, type ChangeEvent, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemDetail, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type Settings, type SettingsAuditLine, type SettingsModel, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest, type WorkState } from "../api/client";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type PowerVariant, type Scene, type SettingsVariant } from "../fixtures/synthetic";
 import { mergePatch } from "../model/settings";
 import { currentSettings, historyView, invalidDetail, modelsView, revisionOf, settingsView, validate, writeRevision } from "./synthetic-settings";
@@ -462,6 +462,24 @@ export class SyntheticSource implements Source {
     if (this.marks.has(id)) this.marks.set(id, null);
     this.changed(work("commented", id));
     return { ok: true, data: { ok: true, id, state: detail.state, reason: detail.reason, cid, undoUntil: null } };
+  }
+
+  /** The owner's own to-do with no goal, as `work add --by <owner>` makes it (lina#693): listed, under 내 할 일, with a work event. */
+  async addItem(body: AddItemRequest): Promise<WriteResult<ItemSummary>> {
+    const title = body.text.trim();
+    if (!title) return fail(400, "text is required");
+    if (title.length > 2000) return fail(400, "text must be 1-2000 characters after trimming");
+    if (body.due !== null && !/^\d{4}-\d{2}-\d{2}$/.test(body.due)) return fail(400, `due must be YYYY-MM-DD, not ${body.due}`);
+    const at = Math.floor(nowSeconds());
+    const numbers = Object.keys(this.scene.itemDetails).flatMap((key) => (/^T\d+$/.test(key) ? [Number(key.slice(1))] : []));
+    const id = `T${Math.max(0, ...numbers) + 1}`;
+    const row: ItemSummary = { id, kind: "todo", parent: null, title, agent: null, addedBy: SYNTHETIC_OWNER.id, mine: true, state: "planned", reason: null, stateSince: at, lastActivityAt: at, createdAt: at, closedAt: null, due: body.due, doneCondition: null, area: null, projects: [], todos: null, runCount: 0, commentCount: 0 };
+    this.scene.items.items.push(row);
+    // The scene's details are read-only to the screens; the synthetic core is the one writer that adds to them.
+    Object.assign(this.scene.itemDetails, { [id]: { ...row, why: null, basis: [], children: [], comments: [], runs: [], links: [], workCards: [], decision: null, ownerDone: null } satisfies ItemDetail });
+    this.scene.board.inbox.mine.push({ id, title, waiting: false, due: body.due, agent: SYNTHETIC_OWNER.id });
+    this.changed(work("created", id));
+    return { ok: true, data: structuredClone(row) };
   }
 
   async answerCard(cardId: string, body: AnswerRequest): Promise<WriteResult<AnswerResult>> {

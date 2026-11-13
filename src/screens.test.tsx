@@ -2561,10 +2561,67 @@ describe("the work tab's first screen (lina-app#124)", () => {
       }
     });
 
-    test("the add button is not drawn while no write route exists", async () => {
-      const view = await open("#/", { wide });
-      expect(view.queryByTestId("quick-add")).toBeNull();
-      expect(view.container.querySelector("button[disabled][aria-label='할 일 추가']")).toBeNull();
+    test("할 일 추가 in the 내 할 일 head opens one line and a date in place; saving lists the to-do there at once (lina-app#95)", async () => {
+      const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
+      const view = await open("#/", { wide, source });
+      const mine = view.getByTestId("home-mine");
+      expect(within(mine).queryByRole("textbox", { name: "할 일" })).toBeNull();
+      fireEvent.click(within(mine).getByRole("button", { name: "할 일 추가" }));
+      const field = within(mine).getByRole("textbox", { name: "할 일" }) as HTMLInputElement;
+      const date = within(mine).getByLabelText("마감일") as HTMLInputElement;
+      expect(date.type).toBe("date");
+      expect(document.activeElement).toBe(field);
+      const save = within(mine).getByRole("button", { name: "저장" }) as HTMLButtonElement;
+      expect(save.disabled).toBe(true);
+      field.value = "영수증 정리";
+      fireEvent.input(field);
+      date.value = "2026-12-01";
+      fireEvent.input(date);
+      expect(save.disabled).toBe(false);
+      fireEvent.click(save);
+      await waitFor(() => expect(within(view.getByRole("list", { name: "내 할 일" })).getByRole("link", { name: containsText("영수증 정리") })).toBeTruthy());
+      expect(view.getByTestId("toast").textContent).toBe("할 일 추가함");
+      expect(within(mine).queryByRole("textbox", { name: "할 일" })).toBeNull();
+      expect(within(mine).getByRole("button", { name: "내 할 일 3" })).toBeTruthy();
+      expect(source.scene.board.inbox.mine.find((row) => row.title === "영수증 정리")).toMatchObject({ due: "2026-12-01", agent: SYNTHETIC_OWNER.id });
+    });
+
+    test("a refused to-do keeps its text and shows the core's one-line reason (lina-app#95)", async () => {
+      class Refusing extends SyntheticSource {
+        override async addItem() {
+          return { ok: false as const, status: 409, detail: "기록이 읽기 전용이다" };
+        }
+      }
+      const view = await open("#/", { wide, source: new Refusing({ now: Math.floor(Date.now() / 1000) }) });
+      const mine = view.getByTestId("home-mine");
+      fireEvent.click(within(mine).getByRole("button", { name: "할 일 추가" }));
+      const field = within(mine).getByRole("textbox", { name: "할 일" }) as HTMLInputElement;
+      field.value = "영수증 정리";
+      fireEvent.input(field);
+      fireEvent.click(within(mine).getByRole("button", { name: "저장" }));
+      await waitFor(() => expect(within(mine).getByTestId("write-error").textContent).toBe("기록이 읽기 전용이다"));
+      expect((within(mine).getByRole("textbox", { name: "할 일" }) as HTMLInputElement).value).toBe("영수증 정리");
+      expect(view.queryByTestId("toast")).toBeNull();
+      expect(within(mine).getByRole("button", { name: "내 할 일 2" })).toBeTruthy();
+    });
+
+    test("a to-do just added can be ticked done and taken back from the toast (lina-app#95)", async () => {
+      const source = new SpySource({ now: Math.floor(Date.now() / 1000) });
+      const view = await open("#/", { wide, source });
+      const mine = view.getByTestId("home-mine");
+      fireEvent.click(within(mine).getByRole("button", { name: "할 일 추가" }));
+      const field = within(mine).getByRole("textbox", { name: "할 일" }) as HTMLInputElement;
+      field.value = "영수증 정리";
+      fireEvent.input(field);
+      fireEvent.click(within(mine).getByRole("button", { name: "저장" }));
+      const box = await waitFor(() => within(mine).getByRole("checkbox", { name: "영수증 정리 완료로 표시" }));
+      const id = source.scene.board.inbox.mine.find((row) => row.title === "영수증 정리")?.id;
+      fireEvent.click(box);
+      await waitFor(() => expect(view.getByTestId("toast").textContent).toBe("완료로 표시함되돌리기"));
+      fireEvent.click(within(view.getByTestId("toast")).getByRole("button", { name: "되돌리기" }));
+      await waitFor(() => expect(source.calls.slice(-2)).toEqual([`done ["${id}",{}]`, `undo ["${id}"]`]));
+      await waitFor(() => expect(within(mine).getByRole("checkbox", { name: "영수증 정리 완료로 표시" })).toBeTruthy());
+      expect(source.scene.itemDetails[id ?? ""].state).toBe("planned");
     });
   });
 });

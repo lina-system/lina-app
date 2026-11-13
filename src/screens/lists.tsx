@@ -10,6 +10,7 @@ import { href, navigate } from "../router";
 import { ago, dayLabel, until } from "../time";
 import { useEffect, useState } from "preact/hooks";
 import { useActions } from "../ui/actions";
+import { QuickAddButton, QuickAddForm } from "../ui/quick-add";
 import { AgentMark, agentName, CardRowView, CountPair, Dial, Disclosure, DoneCheck, Empty, ErrorLine, Link, ListSection, SectionHead, useApp } from "../ui/parts";
 import { machineWhy, metricsReason, serviceName, SEP, versionOf, W } from "../words";
 import { writeError } from "./write-error";
@@ -128,15 +129,16 @@ function StoppedSection({ section }: { section: Section<CardRow> }) {
 
 /**
  * The owner's to-dos on the home: one line with their count, folded, so the stopped and running work reads first
- * (lina-app#141). Choosing the line opens the rows in place under it.
+ * (lina-app#141). Choosing the line opens the rows in place under it. 할 일 추가 after it opens the one-line form
+ * (lina-app#95), so the line is drawn with no rows too.
  */
 function MineFold({ section }: { section: Section<InboxRow> }) {
   const [open, setOpen] = useState(false);
-  if (!section.rows.length) return null;
+  const [adding, setAdding] = useState(false);
   return (
     <section class="list-section" data-testid="home-mine">
       <ul class="rows" aria-label={section.title}>
-        <li class={`row mine-fold${open ? " is-open" : ""}`}>
+        <li class={`row mine-fold has-action${open ? " is-open" : ""}`}>
           <button type="button" class="row-button" aria-expanded={open} aria-label={`${section.title} ${section.count}`} onClick={() => setOpen(!open)}>
             <span class="lines">
               <span class="title one-line">{section.title}</span>
@@ -144,7 +146,19 @@ function MineFold({ section }: { section: Section<InboxRow> }) {
             <CountPair count={section.count} />
             <Disclosure />
           </button>
+          <QuickAddButton open={adding} onToggle={() => setAdding(!adding)} />
         </li>
+        {adding ? (
+          <li class="row quick-add-row">
+            <QuickAddForm
+              onClose={() => setAdding(false)}
+              onAdded={() => {
+                setAdding(false);
+                setOpen(true);
+              }}
+            />
+          </li>
+        ) : null}
         {open ? section.rows.map((row) => <InboxRowView key={row.key} row={row} />) : null}
       </ul>
     </section>

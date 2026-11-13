@@ -1,6 +1,6 @@
 # Owner actions
 
-The owner answers decisions, marks goals and to-dos done, takes a done mark back within ten minutes and asks a stopped card to try again, all through the core's client API (`/api/lina/work/items/<id>/done`, `/undo`, `/comments`, `/retry`, and `/api/plugins/kanban/work/inbox/<card>/answer` for a card's question). Each write shows its effect at once and falls back to the record's state when the core refuses.
+The owner writes a to-do for themself, answers decisions, marks goals and to-dos done, takes a done mark back within ten minutes and asks a stopped card to try again, all through the core's client API (`POST /api/lina/work/items` for a new to-do, `/api/lina/work/items/<id>/done`, `/undo`, `/comments`, `/retry`, and `/api/plugins/kanban/work/inbox/<card>/answer` for a card's question). Each write shows its effect at once and falls back to the record's state when the core refuses.
 
 ## Platforms
 
@@ -17,11 +17,13 @@ The owner answers decisions, marks goals and to-dos done, takes a done mark back
 - Undo: `되돌리기` in the toast sends undo; after the toast the item's page shows `되돌리기` in its head until the mark's ten minutes are over, and a checked box can be tapped again in that time. In the record the item is back in the state it had.
 - Done with open to-dos: ticking a goal with open to-dos asks once `열린 할 일 n개도 함께 완료할까요?` with `함께 완료` and `취소`; `함께 완료` sends `withOpen: true` and closes the goal and its open to-dos together; one undo reopens all of them.
 - Answer: a 결정 필요 row opens its record in the detail frame (see inbox), where the decision is answered. Choosing an answer button (the recommended one marked `추천`) or sending the answer field hides the row and shows `답함 · 되돌리기` for 5 s. The answer is sent only when the toast ends; `되돌리기` in the toast brings the row back and sends nothing. In the record the answer is an owner comment of kind `answer` on the goal or to-do, which marks its decision answered; for a card's question it is an owner comment on the card, and the question leaves the work inbox.
+- Add (lina-app#95): `할 일 추가` at the end of the 작업 tab's `내 할 일 <n>` line (drawn with no to-dos too) opens, under the line, one field `할 일`, an optional `마감일` date, `저장` and `취소`; the field takes focus and scrolls clear of a phone's keyboard. `저장` (disabled while the field is empty) sends `{text, due}` (`due` null with no date). The row is never drawn before the core takes it: the core answers the new `/work/items` row and the record's read that follows (or the `work` event) brings it under `내 할 일`, which opens, the form closes and the toast reads `할 일 추가함`. In the record it is an owner's to-do with no goal (`mine`, added by the owner). A refusal keeps the text in the field and shows the core's one line under it.
 - Retry: a stopped card in 진행 중인 작업 that running again can clear has `다시 시도` (not one waiting on an answer or a review, running.md); it asks the card's to-do's agent to try again (a comment on the to-do; a card whose to-do is not known gets a comment on the card: the core's board does not list a card's own runs, so a work card always takes it on the card), and the row reads `<agent>에게 요청함` for five seconds.
 - Every write: the control is disabled while the request runs. A refusal shows one red line under the control, mapped from the core's `detail` in `src/words.ts`: `열린 할 일 있음`, `10분 지나 되돌릴 수 없음`, `되돌릴 완료 표시 없음`, `열린 결정 없음`, `이미 닫힌 항목`, `글 없음`, `글은 2000자까지`, `쓰기가 너무 많음` (429), `찾을 수 없음`; any other line as the core gives it. The screen goes back to the record's state.
 
 ## Sub-features
 
+- `action-add` writes an owner's to-do from the 내 할 일 line
 - `action-done` marks a goal or to-do done with a toast
 - `action-undo` takes the mark back from the toast or the page
 - `action-with-open` asks before closing a goal with open to-dos
@@ -32,6 +34,7 @@ The owner answers decisions, marks goals and to-dos done, takes a done mark back
 ## How to get to it (user POV)
 
 - 수신함: the 내 할 일 check boxes and the 결정 필요 rows.
+- 작업 (`#/`): `할 일 추가` after the `내 할 일 <n>` line.
 - A goal page (`#/goals/<id>`): its head's check box and its to-dos' boxes; a to-do page (`#/items/<id>`): its head.
 - 진행 중인 작업: `다시 시도` on a stopped card.
 
@@ -52,16 +55,19 @@ Each step below starts from a fresh load, so its counts hold on their own.
 - **Done with open to-dos.** On `#/goals/G1` tick the goal. `열린 할 일 3개도 함께 완료할까요?` and nothing written yet; `함께 완료` and `취소` are accent text buttons; `함께 완료`: the goal and its 3 to-dos are done, 4 boxes checked; 되돌리기 in the toast reopens all four as they were.
 - **Answer with choices.** In 수신함 open `배포를 금요일 오후에 할지 결정 필요` and in its frame choose `금요일 오후 · 추천`. The row leaves, `답함` shows, no answer in the record yet; after the toast the record has the owner's answer `금요일 오후` and the row stays gone.
 - **Free-text answer and a card question.** Open `자주 쓰는 검색어 열 개 확인 필요`, type into its frame's `답 달기`, `보내기` (on a phone close the sheet afterwards); after the toast the record has the answer. Do the same on `카드 번호를 앞 여섯 자리까지 표시할지 결정 필요`: the card gets the owner's comment and its question leaves the work inbox. From the fresh load's 4 decisions, 2 are left.
+- **Add, by hand until the driver has it.** On `#/` choose `할 일 추가`, type `영수증 정리` into `할 일`, set `마감일`, choose `저장`: the list `내 할 일` is open and holds the row `영수증 정리` with its date, the line reads `내 할 일 3`, the toast `할 일 추가함`; `window.__linaScene` has the to-do under `board.inbox.mine`. Its box ticks done and 되돌리기 takes it back like any other.
 - **Retry.** On `#/running` choose `다시 시도`. The row reads `<agent>에게 요청함`; the card `결제: 오류 문구 바꾸기` has the owner's comment `다시 시도해 주세요.`; after five seconds the line goes and `다시 시도` is back.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/actions/actions-1280.{png,aria.yml,json}` and `actions-390.{png,aria.yml,json}`.
 
 ## Gotchas
 
 - Never press these controls on a live core (README, Never press).
+- An add cannot be taken back: the core has no route that removes an owner's to-do, so its toast offers no 되돌리기. The new to-do's done mark can be undone like any other.
+- A refused add is held by the unit tests in `src/screens.test.tsx` and `src/data/data.test.ts`; the synthetic scene refuses only empty, over-long or wrongly dated text, which the screen does not send.
 - The answer waits for the toast: a check right after the tap sees no answer in the record, by design.
 - Refusals (409 after ten minutes, a goal with open to-dos sent without `withOpen`, an answer with no open decision) are held by the unit tests in `src/screens.test.tsx` and `src/data/data.test.ts`; the synthetic scene does not reach them through the screen.
 
 ## Not goals
 
 - No editing an answer once sent; a new comment does that.
-- No quick add (lina-app#9).
+- No add from 수신함 or the agent screen; the 작업 tab's 내 할 일 line is the one place.

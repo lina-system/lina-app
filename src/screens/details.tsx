@@ -2,7 +2,7 @@ import { Fragment, type ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
-import { cardTitle, goalCards, runRow, type CardRow, type Model } from "../model";
+import { cardTitle, goalCards, goalState, runRow, type CardRow, type Model } from "../model";
 import { foldReason } from "../model/fold";
 import { holds } from "../model/rounds";
 import { stopReason } from "../model/stop-reason";
@@ -134,20 +134,22 @@ function HistoryLine({ at, text, kind, who }: { at: number; text: string; kind?:
 /** The head's check box with its state line, 되돌리기 while the owner's mark can be taken back, and a goal's question. */
 function DoneHead({ detail }: { detail: ItemDetail }) {
   const actions = useActions();
-  const { now } = useApp();
+  const { model, store, now } = useApp();
   const [asking, setAsking] = useState(false);
+  // A goal reads the same fold of its cards as the work tab: a stopped card makes it 중단됨 (lina-app#148).
+  const head = detail.kind === "goal" ? goalState(model, detail, store.get("goals")) : detail;
   const open = detail.kind === "goal" ? detail.children.filter((child) => !actions.isDone(child.id, child.state === "done")).map((child) => child.id) : [];
   const withIds = detail.ownerDone?.with ?? [];
   const shown = actions.isDone(detail.id, detail.state === "done");
   const until = actions.undoUntil(detail.id, detail.ownerDone?.undoUntil);
   const showUndo = shown && until !== null && now < until && actions.toast?.owner !== detail.id;
   // An open decision dates the head as its 수신함 row does, from when it was asked (lina-app#149).
-  const since = detail.decision && !detail.decision.answered && detail.decision.at ? detail.decision.at : detail.stateSince;
+  const since = detail.decision && !detail.decision.answered && detail.decision.at ? detail.decision.at : head.stateSince;
   return (
     <>
       <div class="head-check">
         <DoneCheck id={detail.id} title={detail.title} done={detail.state === "done"} undoUntil={detail.ownerDone?.undoUntil} withOpen={withIds} openTodos={open.length} onOpenTodos={() => setAsking(true)} />
-        <StateTime state={detail.state} reason={detail.reason} time={sinceText(detail.state, since, now)} />
+        <StateTime state={head.state} reason={head.reason} time={sinceText(head.state, since, now)} />
         {showUndo ? (
           <button type="button" class="text-button head-undo" disabled={actions.busy(`done:${detail.id}`)} onClick={() => void actions.undoDone(detail.id, withIds)}>
             {W.undo}

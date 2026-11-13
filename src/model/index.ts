@@ -264,11 +264,17 @@ function maxOf(values: (number | null | undefined)[]): number | null {
 /**
  * The title a work card may draw: its checked title, or its own title until the checked one exists, but only while
  * that own title passes the raw-text rule the app already applies to comments (foldReason). Null means nothing may
- * be drawn, so the kind of work stands in.
+ * be drawn, so the kind of work stands in. Stopped work waits on someone, so there a Latin word alone (a product's
+ * name) does not hide the title; any other raw text still does.
  */
-export function cardTitle(checked: string | null, own: string | null): string | null {
+export function cardTitle(checked: string | null, own: string | null, stopped = false): string | null {
   if (checked !== null) return checked;
-  return own !== null && foldReason(own) === null ? own : null;
+  return own !== null && mayDraw(own, stopped) ? own : null;
+}
+
+function mayDraw(title: string, stopped: boolean): boolean {
+  const reason = foldReason(title);
+  return reason === null || (stopped && reason === "latin");
 }
 
 /** The one naming rule: that title, else the kind of work (코드 작업, 문서 작업, 조사, 기기 작업). */
@@ -284,7 +290,7 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
   const base = receivedAt - card.elapsedSeconds;
   // A card with no checked title is named by its own title when that may be drawn; its kind is read from that same
   // text, so a card showing its own title is not guessed as code when it is a documents card.
-  const title = cardTitle(card.plain.title, card.title);
+  const title = cardTitle(card.plain.title, card.title, card.state === "stopped");
   const work = cardKind(title ?? "", cardRuns);
   return {
     key: `card:${card.id}`,
@@ -380,7 +386,7 @@ export function buildModel(input: ModelInput, now: number): Model {
   };
   const ownerName = items?.owner?.name ?? null;
   // An unchecked title (a row's own, its to-do's, its goal's) names a row only when it passes the raw-text rule.
-  const plainName = (title: string | null | undefined) => (title && foldReason(title) === null ? title : null);
+  const plainName = (title: string | null | undefined, stopped = false) => (title && mayDraw(title, stopped) ? title : null);
   // A run that a later run of the same to-do replaced has ended for good: nobody needs to act on it.
   const replaced = (run: RunCard) =>
     run.todo !== null && (board?.cards ?? []).some((other) => other.id !== run.id && other.todo === run.todo && (other.startedAt ?? 0) > (run.startedAt ?? 0));
@@ -409,14 +415,16 @@ export function buildModel(input: ModelInput, now: number): Model {
     return { words: why ?? "", known: false, owner: false };
   };
   // The title of a to-do in the work record (never a goal: a goal names a row last), when it may be drawn.
-  const todoName = (ids: readonly (string | null)[]) =>
-    ids.map((id) => (id ? itemMap.get(id) : undefined)).map((item) => (item && item.kind !== "goal" ? plainName(item.title) : null)).find(Boolean) ?? null;
+  const todoName = (ids: readonly (string | null)[], stopped = false) =>
+    ids.map((id) => (id ? itemMap.get(id) : undefined)).map((item) => (item && item.kind !== "goal" ? plainName(item.title, stopped) : null)).find(Boolean) ?? null;
   const runListRow = (run: RunCard): CardRow => {
     const owner = runOwner.get(run.id);
     const ownerCard = owner ? (cards?.cards ?? []).find((card) => card.id === owner) : undefined;
     const cardTitleText = ownerCard ? cardTitle(ownerCard.plain.title, ownerCard.title) : null;
-    // Its goal's title, then its checked title, its own name, its to-do's title and its card's title.
-    return contextRow(runRow(run), plainName(runGoal(run)?.title), plainName(run.title) ?? todoName([run.todo]) ?? cardTitleText, true, run);
+    // Its goal's title, then its checked title, its own name, its to-do's title and its card's title. A stopped run with
+    // no card or goal waits on someone: a Latin word alone does not hide its own or its to-do's title.
+    const lone = run.state === "stopped" && !owner && runGoal(run) === undefined;
+    return contextRow(runRow(run), plainName(runGoal(run)?.title), plainName(run.title, lone) ?? todoName([run.todo], lone) ?? cardTitleText, true, run);
   };
 
   // Only work with no parent is a row of its own: a worker run of a card or of a goal's to-do shows inside them.

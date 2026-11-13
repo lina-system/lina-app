@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import type { WorkCardDetail, WorkCardList, WorkCardSummary } from "../api/client";
+import type { RunCard, WorkCardDetail, WorkCardList, WorkCardSummary } from "../api/client";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type Scene } from "../fixtures/synthetic";
 import { KIND_TITLE } from "../words";
 import { agentView, buildModel } from "./index";
@@ -116,14 +116,14 @@ test("the stopped group holds only work that still needs someone: replaced runs 
   const stopped = () => model.running.sections[0].rows.map((row) => row.id);
   // r12 was cancelled and r13, a later run of the same to-do, replaced it; r11 sits under the finished goal G4.
   // r14 has nothing to name it: it is counted on the home, not a row (lina-app#124).
-  expect(new Set(stopped())).toEqual(new Set(["k-103", "k-107", "k-108", "k-109", "k-110", "k-111", "r20"]));
-  expect(model.counts.stopped).toBe(7);
+  expect(new Set(stopped())).toEqual(new Set(["k-103", "k-107", "k-108", "k-109", "k-110", "k-111", "k-112", "r20"]));
+  expect(model.counts.stopped).toBe(8);
   // Without the later run, r12 still needs someone.
   const alone = endedModel({ ...scene, board: { ...scene.board, cards: scene.board.cards.filter((run) => run.id !== "r13") } });
   expect(alone.running.sections[0].rows.map((row) => row.id)).toContain("r12");
   // A stopped card whose goal is done leaves too.
   const goalDone = endedModel({ ...scene, goals: { goals: scene.goals.goals.map((goal) => (goal.id === "kg-2" ? { ...goal, state: "done" } : goal)) } });
-  expect(new Set(goalDone.running.sections[0].rows.map((row) => row.id))).toEqual(new Set(["k-108", "k-109", "k-110", "r20"]));
+  expect(new Set(goalDone.running.sections[0].rows.map((row) => row.id))).toEqual(new Set(["k-108", "k-109", "k-110", "k-112", "r20"]));
 });
 
 test("ended work leaves the lists but stays in the lookup that a goal page and a run page link through", () => {
@@ -143,7 +143,7 @@ test("a goal's title that would show raw text does not name a row: 제목 없음
   const raw = endedModel({
     ...scene,
     goals: { goals: scene.goals.goals.map((goal) => (goal.id === "kg-2" ? { ...goal, title: "LINA-41 release notes / CHANGES.md" } : goal)) },
-    cards: { cards: scene.cards.cards.map((card) => (card.id === "k-107" ? { ...card, plain: { ...card.plain, title: null }, title: "payment receipt copy" } : card)) },
+    cards: { cards: scene.cards.cards.map((card) => (card.id === "k-107" ? { ...card, plain: { ...card.plain, title: null }, title: "payment-receipt.md copy" } : card)) },
   });
   expect(raw.cards.get("k-107")?.name).toBe("제목 없음");
 });
@@ -241,7 +241,7 @@ test("a row is named by its goal's title first, then its own checked title, its 
   const noTodo = homeModel({ ...scene, board: { ...scene.board, cards: scene.board.cards.map((run) => (run.id === "r3" ? { ...run, todo: null, plain: { ...run.plain, title: null } } : run)) } });
   expect(noTodo.cards.get("r3")?.name).toBe("결제: 오류 문구 바꾸기");
   // A to-do title that would show raw text does not name a row.
-  const rawTodo = homeModel({ ...scene, items: { ...scene.items, items: scene.items.items.map((item) => (item.id === "T15" ? { ...item, title: "notification copy picks" } : item)) } });
+  const rawTodo = homeModel({ ...scene, items: { ...scene.items, items: scene.items.items.map((item) => (item.id === "T15" ? { ...item, title: "notification-copy.json picks" } : item)) } });
   expect(rawTodo.cards.get("r20")?.name).toBe("제목 없음");
 });
 
@@ -255,11 +255,12 @@ test("a stopped row says who waits from waitingOn and retry, and the rows waitin
   expect(stop("k-110")).toEqual({ words: "응답 없음 · 다시 시도 안 함", known: true, owner: false });
   expect(stop("k-111")).toEqual({ words: "다시 시도 예정", known: true, owner: false });
   expect(stop("r20")).toEqual({ words: "실패 · 다시 시도 안 함", known: true, owner: false });
+  expect(stop("k-112")).toEqual({ words: `${SYNTHETIC_OWNER.name} 확인 필요`, known: true, owner: true });
   // Neither waitingOn nor retry: the core does not say, one grey line.
   expect(stop("k-103")).toEqual({ words: "응답 없음", known: false, owner: false });
   const rows = model.running.sections[0].rows;
-  expect(rows.slice(0, 2).map((row) => row.id)).toEqual(["k-108", "k-107"]);
-  expect(rows.slice(2).every((row) => !row.stop?.owner)).toBe(true);
+  expect(rows.slice(0, 3).map((row) => row.id)).toEqual(["k-108", "k-107", "k-112"]);
+  expect(rows.slice(3).every((row) => !row.stop?.owner)).toBe(true);
   for (const each of model.agents) {
     const own = agentView(model, each.id)?.running.rows.filter((row) => row.state === "stopped") ?? [];
     const first = own.findIndex((row) => !row.stop?.owner);
@@ -279,6 +280,37 @@ test("no row is untitled: work nothing names is counted on the home, not drawn, 
   expect(model.unlisted.has("r14")).toBe(true);
   expect(model.counts.stopped).toBe(model.running.sections[0].rows.length);
   expect(homeModel(generateScene(SYNTHETIC_SEED, { now: NOW })).home.untitled).toBe(0);
+});
+
+// A stopped card waits on someone: an own title whose only raw text is a Latin word (a product's name) is drawn, so
+// the owner sees it. Any other raw text, and every card that is not stopped, stay folded into the grey line.
+test("a stopped card whose own title fails only the Latin-word rule is drawn by it; nothing else changes", () => {
+  const stopped = { ...summary("k-push", "푸시 키 배포와 HTTPS 주소 열기", null, "stopped"), reason: "decision", waitingOn: "owner" };
+  const stoppedPath = summary("k-path", "AAS 회차 점검 notes/aas.md", null, "stopped");
+  const done = summary("k-done", "AAS 회차 점검 마무리", null, "done");
+  const running = summary("k-running", "qveris 일시 오류 정리", null, "in_progress");
+  const all = [stopped, stoppedPath, done, running];
+  const model = buildModel({ cards: { cards: all }, cardDetails: Object.fromEntries(all.map((card) => [card.id, detail(card)])), failed: [] }, NOW);
+
+  expect(model.cards.get("k-push")).toMatchObject({ title: "푸시 키 배포와 HTTPS 주소 열기", name: "푸시 키 배포와 HTTPS 주소 열기" });
+  expect(model.running.sections[0].rows.map((row) => row.id)).toEqual(["k-push"]);
+  expect(model.counts.stopped).toBe(1);
+  // A path is still raw text on a stopped card; a done or running card keeps the Latin-word rule.
+  for (const id of ["k-path", "k-done", "k-running"]) expect(model.cards.get(id)?.title, id).toBeNull();
+  expect(model.done).toEqual([]);
+  expect(model.home.untitled).toBe(3);
+});
+
+test("a stopped run with no card or goal is drawn by its own or its to-do's title with a Latin word; a running one is not", () => {
+  const scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
+  const withR20 = (patch: Partial<RunCard>) => homeModel({ ...scene, board: { ...scene.board, cards: scene.board.cards.map((run) => (run.id === "r20" ? { ...run, ...patch } : run)) } });
+  expect(withR20({ title: "AAS 회차 점검" }).cards.get("r20")?.name).toBe("AAS 회차 점검");
+  const latinTodo = homeModel({ ...scene, items: { ...scene.items, items: scene.items.items.map((item) => (item.id === "T15" ? { ...item, title: "qveris 알림 문구 고르기" } : item)) } });
+  expect(latinTodo.cards.get("r20")?.name).toBe("qveris 알림 문구 고르기");
+  expect(latinTodo.running.sections[0].rows.map((row) => row.id)).toContain("r20");
+  const running = withR20({ state: "in_progress", title: "AAS 회차 점검", todo: null });
+  expect(running.cards.get("r20")?.title).toBeNull();
+  expect(running.home.untitled).toBe(homeModel(scene).home.untitled + 1);
 });
 
 test("a finished task that ran twice is one row in the finished groups, the newest run; the other stays in the lookup", () => {

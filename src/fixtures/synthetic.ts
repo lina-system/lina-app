@@ -905,6 +905,8 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       stoppedCard("k-110", { title: "restore-check.sh audit", plainTitle: "백업: 복구 스크립트 점검", agent: 2, reason: "unresponsive", beat: now - 4 * HOUR, workerRuns: [] }, { waitingOn: null, retry: "none" }),
       // Nothing of its own names it: its goal kg-2 does, last.
       stoppedCard("k-111", { title: "checkout budget tuning", plainTitle: null, agent: 1, reason: "budget", beat: now - 6 * HOUR, workerRuns: [] }, { waitingOn: null, retry: "scheduled" }),
+      // Waits on the owner's decision with no checked title; its own title has a product's Latin name and is drawn.
+      stoppedCard("k-112", { title: "CLI 배포 순서 정하기", plainTitle: null, agent: 0, reason: "decision", beat: now - 3 * HOUR, workerRuns: [] }, { waitingOn: "owner", retry: null }),
     ];
     cardList.cards.push(...liveCards);
     goalCards.find((goal) => goal.id === "kg-2")?.workCards.push(liveCards[3]);

@@ -94,7 +94,7 @@ test("a row is named by what the work is for, never by its kind: a run with noth
 
 test("a worker run of a card or of a goal's to-do is not a row of its own; a run with no parent is", () => {
   const model = endedModel();
-  const listed = new Set(model.cards.keys());
+  const listed = new Set([...model.cards.keys()].filter((id) => !model.unlisted.has(id)));
   // r1-r5, r9, r10 belong to cards; r11 to G4's to-do T10.
   for (const id of ["r1", "r2", "r3", "r4", "r5", "r9", "r10", "r11"]) expect(listed.has(id), id).toBe(false);
   // r13 is on T13, a to-do with no goal; r14 has no to-do at all.
@@ -117,6 +117,28 @@ test("the stopped group holds only work that still needs someone: replaced runs 
   // A stopped card whose goal is done leaves too.
   const goalDone = endedModel({ ...scene, goals: { goals: scene.goals.goals.map((goal) => (goal.id === "kg-2" ? { ...goal, state: "done" } : goal)) } });
   expect(goalDone.running.sections[0].rows.map((row) => row.id)).toEqual(["r14"]);
+});
+
+test("ended work leaves the lists but stays in the lookup that a goal page and a run page link through", () => {
+  const scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
+  const goalDone = endedModel({ ...scene, goals: { goals: scene.goals.goals.map((goal) => (goal.id === "kg-2" ? { ...goal, state: "done" } : goal)) } });
+  expect(goalDone.cards.has("k-107")).toBe(true);
+  expect(goalDone.unlisted.has("k-107")).toBe(true);
+  expect(goalDone.running.sections[0].rows.map((row) => row.id)).not.toContain("k-107");
+  // r11 (under the finished goal G4) and r12 (replaced by r13) are not listed but still resolve.
+  const model = endedModel(scene);
+  for (const id of ["r11", "r12"]) expect(model.cards.has(id) && model.unlisted.has(id), id).toBe(true);
+  expect(model.unlisted.has("r13")).toBe(false);
+});
+
+test("a goal's title that would show raw text does not name a row: 제목 없음 stands in", () => {
+  const scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
+  const raw = endedModel({
+    ...scene,
+    goals: { goals: scene.goals.goals.map((goal) => (goal.id === "kg-2" ? { ...goal, title: "LINA-41 release notes / CHANGES.md" } : goal)) },
+    cards: { cards: scene.cards.cards.map((card) => (card.id === "k-107" ? { ...card, plain: { ...card.plain, title: null }, title: "payment receipt copy" } : card)) },
+  });
+  expect(raw.cards.get("k-107")?.name).toBe("제목 없음");
 });
 
 test("a stopped row says why and who it waits on from what the core serves, and is plain when the core does not say", () => {

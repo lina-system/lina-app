@@ -204,6 +204,8 @@ export interface Model {
   readonly summariesStopped: boolean;
   readonly goals: readonly GoalRow[];
   readonly cards: ReadonlyMap<string, CardRow>;
+  /** Ids in `cards` that no list shows: ended work (a replaced run, a stopped card of a finished goal) kept for links. */
+  readonly unlisted: ReadonlySet<string>;
   readonly runs: ReadonlyMap<string, RunCard>;
   readonly runOwner: ReadonlyMap<string, string>;
   readonly items: ReadonlyMap<string, ItemSummary>;
@@ -372,7 +374,7 @@ export function buildModel(input: ModelInput, now: number): Model {
   const runListRow = (run: RunCard): CardRow => {
     const owner = runOwner.get(run.id);
     const ownerCard = owner ? (cards?.cards ?? []).find((card) => card.id === owner) : undefined;
-    const goalTitle = runGoal(run)?.title ?? null;
+    const goalTitle = goalName(runGoal(run)?.title);
     const cardTitleText = ownerCard ? cardTitle(ownerCard.plain.title, ownerCard.title) : null;
     const ownName = foldReason(run.title) === null ? run.title : null;
     return contextRow(runRow(run), goalTitle ?? cardTitleText ?? ownName, true, run.waitingOn ?? null);
@@ -381,13 +383,21 @@ export function buildModel(input: ModelInput, now: number): Model {
   // Only work with no parent is a row of its own: a worker run of a card or of a goal's to-do shows inside them.
   // A stopped run a later run replaced, and stopped work whose card or goal is done, need nobody and are not listed.
   const goalDone = (goal: { state: WorkState } | undefined) => goal?.state === "done";
-  const allCards: CardRow[] = [
-    ...(cards?.cards ?? [])
-      .filter((card) => !(card.state === "stopped" && goalDone(cardGoal.get(card.id))))
-      .map((card) => contextRow(workCardRow(card, input.cardDetails[card.id], receivedAt, runs), cardGoal.get(card.id)?.title ?? null, false, null)),
-    ...(board?.cards ?? []).filter((run) => !runOwner.has(run.id) && !runGoal(run) && !(run.state === "stopped" && replaced(run))).map(runListRow),
+  // A goal's title is an unchecked string: it names a row only when it passes the same raw-text rule as a card's own.
+  const goalName = (title: string | null | undefined) => (title && foldReason(title) === null ? title : null);
+  const isEnded = (card: { id: string; state: WorkState }, run: RunCard | null) =>
+    run ? runOwner.has(run.id) || runGoal(run) !== undefined || (run.state === "stopped" && replaced(run)) : card.state === "stopped" && goalDone(cardGoal.get(card.id));
+  const everyCard: { row: CardRow; listed: boolean }[] = [
+    ...(cards?.cards ?? []).map((card) => ({
+      row: contextRow(workCardRow(card, input.cardDetails[card.id], receivedAt, runs), goalName(cardGoal.get(card.id)?.title), false, null),
+      listed: !isEnded(card, null),
+    })),
+    ...(board?.cards ?? []).filter((run) => !runOwner.has(run.id)).map((run) => ({ row: runListRow(run), listed: !isEnded(run, run) })),
   ];
-  const cardMap = new Map(allCards.map((card) => [card.id, card]));
+  // The lookup keeps every card (a goal's page and a run page link to them); only the lists leave out ended work.
+  const allCards: CardRow[] = everyCard.filter((each) => each.listed).map((each) => each.row);
+  const unlisted = new Set(everyCard.filter((each) => !each.listed).map((each) => each.row.id));
+  const cardMap = new Map(everyCard.map((each) => [each.row.id, each.row]));
 
   const stopped = allCards.filter((card) => card.state === "stopped").sort(newestFirst((card) => card.stateAt));
   const running = allCards.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt));
@@ -553,6 +563,7 @@ export function buildModel(input: ModelInput, now: number): Model {
     summariesStopped: board?.writer.state === "stopped",
     goals,
     cards: cardMap,
+    unlisted,
     runs,
     runOwner,
     items: itemMap,
@@ -595,7 +606,7 @@ export function doneFor(model: Model, agentId?: string): readonly CardRow[] {
 export function agentView(model: Model, agentId: string): AgentView | null {
   const agent = model.agents.find((candidate) => candidate.id === agentId);
   if (!agent) return null;
-  const mine = [...model.cards.values()].filter((card) => card.agent === agentId);
+  const mine = [...model.cards.values()].filter((card) => card.agent === agentId && !model.unlisted.has(card.id));
   const stoppedCards = mine.filter((card) => card.state === "stopped").sort(newestFirst((card) => card.stateAt));
   const running = [...stoppedCards, ...mine.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt))];
   const review = mine.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt));

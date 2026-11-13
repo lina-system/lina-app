@@ -216,6 +216,8 @@ export interface components {
             lastHeartbeatAt?: number | null;
             now: string | null;
             plain: components["schemas"]["PlainLines"];
+            /** @description The card lives on a board the core only reads (lina#481); every write to it is refused with 409. */
+            readOnly?: boolean;
             reason: components["schemas"]["Reason"];
             runs: components["schemas"]["CardRun"][];
             state: components["schemas"]["WorkState"];
@@ -229,6 +231,8 @@ export interface components {
         };
         WorkCardSummary: {
             agent: string | null;
+            /** @description False on an old done card whose history the core does not keep: its detail has no runs or comments. */
+            detail?: boolean;
             elapsedSeconds: number;
             /** @description When a done card completed (completed_at, epoch seconds); null otherwise (lina#577). */
             endedAt?: number | null;
@@ -238,6 +242,8 @@ export interface components {
             /** @description The latest comment or heartbeat note, plain text. */
             now: string | null;
             plain: components["schemas"]["PlainLines"];
+            /** @description The card lives on a board the core only reads (lina#481): every write to it is refused with 409. */
+            readOnly?: boolean;
             reason: components["schemas"]["Reason"];
             /**
              * @description On a stopped card (lina#629): whether it will be tried again, `scheduled` (the core or the agent will start another run), `none`, or null when unknown.
@@ -263,6 +269,8 @@ export interface components {
             /** @description Completion summary and metadata of the goal card and its done work cards. */
             evidence: components["schemas"]["Evidence"][];
             id: string;
+            /** @description The goal lives on a board the core only reads (lina#481); every write to it is refused with 409. */
+            readOnly?: boolean;
             reason: components["schemas"]["Reason"];
             state: components["schemas"]["WorkState"];
             title: string;

@@ -131,6 +131,13 @@ export function writePath(route: WriteRoute, id: string): string {
   return `${BOARD_BASE}/work/items/${encodeURIComponent(id)}/${route}`;
 }
 
+/**
+ * The owner writes a to-do for themself (lina#693): POST `{text, due}` answers the new row in the shape of the
+ * `/work/items` rows, or 4xx {detail} like the other writes. The contract copy has no route yet, so the body is here.
+ */
+export const ADD_ITEM_PATH = `${BOARD_BASE}/work/items`;
+export type AddItemRequest = { text: string; due: string | null };
+
 export const NOTICES_READ_PATH = `${BOARD_BASE}/notices/read`;
 
 /** The settings' own address: GET reads them with their ETag, PATCH changes them with it as If-Match. */

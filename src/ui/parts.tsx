@@ -122,11 +122,13 @@ export function StateTime({ state, reason, stop, time }: { state: WorkState; rea
   );
 }
 
-export function CardRowView({ card, dim = false, bare = false, kindIcon = true, action, error }: { card: CardRow; dim?: boolean; bare?: boolean; kindIcon?: boolean; action?: ComponentChildren; error?: string }) {
+export function CardRowView({ card, dim = false, bare = false, kindIcon = true, action: offered, error }: { card: CardRow; dim?: boolean; bare?: boolean; kindIcon?: boolean; action?: ComponentChildren; error?: string }) {
   const { model, now, wide, selected } = useApp();
+  // A card from a board the core only reads (lina#481) offers no write, such as 다시 시도 (lina-app#149).
+  const action = card.readOnly ? undefined : offered;
   const time = cardTime(card, now);
   const progress = wide && card.state === "in_progress" && card.progress ? card.progress : null;
-  const label = [agentName(model, card.agent), card.name, card.ask ?? "", stateWords(card.state, card.reason, card.stop), progress ? W.todoProgress(progress.done, progress.total) : ""].filter(Boolean).join(SEP);
+  const label = [agentName(model, card.agent), card.name, card.sub ?? "", card.ask ?? "", stateWords(card.state, card.reason, card.stop), progress ? W.todoProgress(progress.done, progress.total) : ""].filter(Boolean).join(SEP);
   // No title: the kind word (a card's detail) or 제목 없음 (a list row) stands in its place, grey.
   const titleClass = card.title ? "title" : "title is-kind";
   return (
@@ -145,6 +147,11 @@ export function CardRowView({ card, dim = false, bare = false, kindIcon = true, 
         ) : (
           <span class="lines">
             <span class={`${titleClass} one-line`}>{card.name}</span>
+            {card.sub ? (
+              <span class="sub row-sub one-line" data-testid="row-sub">
+                {card.sub}
+              </span>
+            ) : null}
             {card.ask ? (
               <span class="sub stop-ask one-line" data-testid="stop-ask">
                 {card.ask}

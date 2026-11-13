@@ -3,7 +3,7 @@ import { useState } from "preact/hooks";
 import type { RecordRow, Settings } from "../api/client";
 import { foldReason } from "../model/fold";
 import { runModelLine } from "../model/settings";
-import { firstSentence, timelineBlocks, type TimelineBlock } from "../model/timeline";
+import { firstSentence, historyLines, timelineBlocks, type TimelineBlock } from "../model/timeline";
 import { clockAt } from "../time";
 import { agentName, Box, useApp } from "../ui/parts";
 import { SEP, W } from "../words";
@@ -38,7 +38,7 @@ function timed(at: number, text: string, now: number): string {
   return [clockAt(at, now), text].join(SEP);
 }
 
-function Row({ row, owner }: { row: RecordRow; owner: string }) {
+function Row({ row, owner, folded }: { row: RecordRow; owner: string; folded: number }) {
   const { now } = useApp();
   if (row.kind === "tools")
     return (
@@ -47,11 +47,12 @@ function Row({ row, owner }: { row: RecordRow; owner: string }) {
       </li>
     );
   if (row.kind === "comment") {
-    // The owner's comment is its first sentence on one line, as in the comments box; its author is the tooltip.
-    const text = firstSentence(row.text);
+    // The owner's comment is its first sentence on one line, as in the comments box; its author is the tooltip. A run of
+    // comments with no sentence left is one dim line with their count.
+    const text = folded ? null : firstSentence(row.text);
     return (
       <li class={text ? "timeline-row is-comment" : "timeline-row is-comment is-dim"} data-kind="comment" title={owner || undefined}>
-        <span class="timeline-text">{timed(row.at, text ?? W.folded, now)}</span>
+        <span class="timeline-text">{timed(row.at, text ?? W.foldedRun(folded || 1), now)}</span>
       </li>
     );
   }
@@ -84,7 +85,7 @@ function Block({ block, owner, link, modelRun }: { block: TimelineBlock; owner: 
   const { now } = useApp();
   const [open, setOpen] = useState(true);
   // A sentence or a result line that would show raw text is left out; the round still shows its head.
-  const rows = block.rows.filter((row) => row.kind !== "said" || clean(row.text));
+  const rows = historyLines(block.rows.filter((row) => row.kind !== "said" || clean(row.text)).map((row) => ({ row, at: row.at, text: row.kind === "comment" ? firstSentence(row.text) : "" })));
   const title = head(block, now);
   return (
     <details class="timeline-block" open={open} onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)} data-testid="timeline-block" data-outcome={block.type === "round" ? block.outcome : "comment"}>
@@ -101,8 +102,8 @@ function Block({ block, owner, link, modelRun }: { block: TimelineBlock; owner: 
       {block.type === "round" && block.startUnknown ? <p class="timeline-row is-dim" data-testid="timeline-no-start">{W.noStart}</p> : null}
       {rows.length ? (
         <ul class="timeline-rows">
-          {rows.map((row, index) => (
-            <Row key={`${row.at}:${index}`} row={row} owner={owner} />
+          {rows.map((line, index) => (
+            <Row key={`${line.at}:${index}`} row={line.row} owner={owner} folded={line.folded} />
           ))}
         </ul>
       ) : null}
@@ -116,14 +117,14 @@ export interface PastEvent {
   readonly text: string;
 }
 
-/** A history with no record behind it (a finished run the core keeps no record for): one line per event, oldest first. */
+/** A history with no record behind it (a finished run the core keeps no record for): one line per event, newest first. */
 export function PastEvents({ events }: { events: readonly PastEvent[] }) {
   const { now } = useApp();
   if (!events.length) return null;
   return (
     <Box title={W.record} testid="timeline">
       <ul class="timeline-rows">
-        {events.map((event) => (
+        {[...events].sort((a, b) => b.at - a.at).map((event) => (
           <li key={`${event.at}:${event.text}`} class="timeline-row is-said" data-kind="said">
             {timed(event.at, event.text, now)}
           </li>

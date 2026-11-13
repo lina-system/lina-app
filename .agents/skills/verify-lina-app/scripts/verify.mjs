@@ -267,6 +267,18 @@ async function freshnessLine(page) {
   return (await page.getByTestId("freshness-line").innerText()).trim();
 }
 
+// Records every word the freshness line shows from now on (window.__linaWords), so a drive can tell that a word never
+// showed, however briefly (lina-app#150).
+async function recordFreshness(page) {
+  await page.evaluate(() => {
+    const line = () => document.querySelector("[data-testid=freshness-line]")?.textContent ?? "";
+    window.__linaWords = [line()];
+    new MutationObserver(() => {
+      if (window.__linaWords.at(-1) !== line()) window.__linaWords.push(line());
+    }).observe(document.querySelector("[data-testid=freshness]"), { subtree: true, childList: true, characterData: true });
+  });
+}
+
 // The synthetic stream's connections and the page's snapshot reads (window.__linaStream).
 async function stream(page) {
   return page.evaluate(() => window.__linaStream);
@@ -396,7 +408,9 @@ async function rowLines(page) {
       const allowed = (child) => (child.classList.contains("title") ? 2.5 : 1.5);
       const tall = children.filter((child) => child.getBoundingClientRect().height > lineHeight(child) * allowed(child) + 1);
       const asks = children.filter((child) => child.getAttribute("data-testid") === "stop-ask").length;
-      return children.length > 2 + Math.min(asks, 1) || tall.length ? [lines.textContent.trim().slice(0, 40) + " (" + children.length + " lines)"] : [];
+      // A row whose title another row of its group repeats adds the card's own name as one line (lina-app#148).
+      const subs = children.filter((child) => child.getAttribute("data-testid") === "row-sub").length;
+      return children.length > 2 + Math.min(asks, 1) + Math.min(subs, 1) || tall.length ? [lines.textContent.trim().slice(0, 40) + " (" + children.length + " lines)"] : [];
     }),
   );
 }
@@ -740,7 +754,9 @@ const drivers = {
       await list.waitFor({ timeout: 5_000 }).catch(() => check(false, "the screen shows its empty state with a stopped card"));
       const names = await rowNames(list);
       check(names.length === 1 && names[0].endsWith("중단됨 · 응답 없음"), "the list reads " + names.join(" | "));
-      check((await page.getByTestId("section-active").count()) === 0, "a 진행 중 group is drawn with nothing running");
+      // Nothing runs but a card is stopped: the 진행 중 head alone reads 0, with no rows (lina-app#148).
+      const active = (await page.getByTestId("head-active").innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+      check(active === "진행 중 0" && (await page.getByTestId("section-active").locator("[data-testid=row]").count()) === 0, "the 진행 중 head reads " + JSON.stringify(active));
       const head = (await page.getByTestId("head-stopped").innerText()).replace(/\s+/g, " ").trim();
       check(head === "중단됨 1" && (await page.getByTestId("head-stopped").getByTestId("count").count()) === 0, "the group heads " + head);
       const retry = await buttonLook(page, page.getByRole("button", { name: /다시 시도$/ }));
@@ -915,7 +931,7 @@ const drivers = {
       check(target === "#/done?agent=" + id, "the done line opens " + target);
       return target;
     });
-    await step("a card just created (예정) shows on its agent's screen after 검토 필요, with no time, and not on the home", async () => {
+    await step("a card just created (예정) shows on its agent's screen after 검토 필요, with no time, and in the home's 예정 group", async () => {
       await openApp(page, "#/agents/ag-3");
       const heads = await page.locator(".list h2.section-head > span:first-child").allInnerTexts();
       check(heads.includes("예정") && heads.indexOf("예정") === heads.length - 2 && heads.at(-1) === "목표", "sections " + heads.join(", "));
@@ -932,7 +948,7 @@ const drivers = {
       });
       check(Math.abs(lines.latest - lines.counts) <= 1 && lines.latestBottom <= lines.head, "the latest line starts at " + lines.latest + " (counts " + lines.counts + ") and ends at " + lines.latestBottom + " under a head at " + lines.head);
       await openApp(page, "#/running");
-      check((await page.locator('a[href="#/cards/k-106"]').count()) === 0, "the planned card is on the home");
+      check((await page.getByTestId("section-planned").locator('a[href="#/cards/k-106"]').count()) === 1, "the planned card is not in the home's 예정 group");
       return heads.join(" → ") + "; " + header;
     });
   },
@@ -975,7 +991,8 @@ const drivers = {
       const event = /^(어제 |\d+월 \d+일 )?\d\d:\d\d · \S/;
       check(lines.every((line) => event.test(line) && !line.includes("\n")), "a history row is not time · sentence: " + JSON.stringify(lines));
       check(lines.some((line) => line.endsWith(" · 새 가이드를 문서 사이트에 올리고 첫 화면에 연결함")), "no evidence row: " + JSON.stringify(lines));
-      check(lines.at(-1).endsWith(" · 완료"), "the last row is not the close: " + lines.at(-1));
+      // Newest first, as every history (lina-app#149): the close is the top row.
+      check(lines[0].endsWith(" · 완료"), "the first row is not the close: " + lines[0]);
       return lines.join(" | ");
     });
   },
@@ -1221,7 +1238,7 @@ const drivers = {
       await openApp(page, "#/runs/r7");
       await page.getByTestId("timeline").waitFor();
       const lines = (await page.getByTestId("timeline").locator("li.timeline-row").allInnerTexts()).map((line) => line.trim());
-      check(lines.length === 2 && /^(어제 )?\d\d:\d\d · 작업 시작$/.test(lines[0]) && /^(어제 )?\d\d:\d\d · 용어 표를 맨 앞으로 옮김$/.test(lines[1]), "r7's history reads " + JSON.stringify(lines));
+      check(lines.length === 2 && /^(어제 )?\d\d:\d\d · 용어 표를 맨 앞으로 옮김$/.test(lines[0]) && /^(어제 )?\d\d:\d\d · 작업 시작$/.test(lines[1]), "r7's history reads " + JSON.stringify(lines));
       return lines.join(" | ");
     });
   },
@@ -1256,6 +1273,9 @@ const drivers = {
       check(colours.includes("경고=rgb(255, 149, 0)") && colours.includes("꺼짐=rgb(255, 59, 48)"), "state colours " + colours.join(", "));
       const bars = await page.getByRole("list", { name: "기기", exact: true }).locator(".mini-meter .meter").count();
       check(bars === 9, "expected 9 thin bars on the three machines that report, got " + bars);
+      // Each bar has its percent beside it (lina-app#150).
+      const values = await page.getByRole("list", { name: "기기", exact: true }).locator(".mini-meter .mini-value").allInnerTexts();
+      check(values.length === 9 && values.every((value) => /^\d+%$/.test(value.trim())), "the bars read " + JSON.stringify(values));
       const loads = await page.getByRole("list", { name: "기기", exact: true }).locator(".trail").allInnerTexts();
       check(loads.every((text) => /^작업 (\d+|—)\/\d+$/.test(text)), "loads read " + loads.join(", "));
       return names.join(" | ");
@@ -1293,6 +1313,9 @@ const drivers = {
       check(grid.includes("업데이트 필요") && grid.includes("로그인 필요"), "the grid has no update or sign-in cell");
       check(/업데이트 필요\s*1\.2 → 1\.6/.test(grid), "the update cell does not show installed → fleet: " + grid.replace(/\s+/g, " "));
       check(!grid.includes("확인 중"), "a runner reads 확인 중");
+      // A runner reads by the settings screen's name, never by its id (lina-app#150).
+      const runnerNames = await page.getByRole("list", { name: "기기", exact: true }).locator(".runner-name").allInnerTexts();
+      check(runnerNames.length > 0 && runnerNames.every((name) => /^실행기( \d+)?$/.test(name.trim())), "runner names " + JSON.stringify(runnerNames));
       return "update 1.2 → 1.6, sign-in; unreachable node without runners; file node " + files + "; edges " + JSON.stringify(edges);
     });
     // Phone checks run before 로그인 is pressed, and the viewport comes back to the drive width for the proof shot.
@@ -2366,15 +2389,16 @@ const drivers = {
       // The detail is the one frame, a sheet over the list (lina-app#142): the list keeps its title and its back.
       const frame = await page.getByTestId("detail-frame").getAttribute("data-frame");
       check(frame === "sheet", "the card opens in " + frame);
-      check((await title(page)) === "진행 중인 작업", "the list under the sheet reads " + (await title(page)));
+      // The work list has one name, 작업, on its header and on the back that returns to it (lina-app#148).
+      check((await title(page)) === "작업", "the list under the sheet reads " + (await title(page)));
       const back2 = (await page.getByTestId("back").innerText()).trim();
-      check(back2 === "진행 중인 작업", "back over the sheet reads " + back2);
+      check(back2 === "작업", "back over the sheet reads " + back2);
       return "작업 → 진행 중인 작업 → card sheet";
     });
     await step("the browser back button restores the screen and its scroll", async () => {
       await page.goBack();
       await page.waitForFunction(() => location.hash === "#/running");
-      check((await title(page)) === "진행 중인 작업", "back did not restore the list");
+      check((await title(page)) === "작업", "back did not restore the list");
       // A short window, so the home has something to scroll.
       await page.setViewportSize({ width: 390, height: 480 });
       await openApp(page, "#/");
@@ -2549,11 +2573,12 @@ const drivers = {
       check(await notReloaded(page), "the page reloaded");
       return "reply drawn " + ((Date.now() - sent) / 1000).toFixed(1) + " s after 보내기 (the agent answers after 5 s)";
     });
-    await step("a drop says 갱신 지연, the reconnect resumes from its cursor and draws what another device did meanwhile, the open row, the selection and the scroll kept", async () => {
+    await step("a drop the reconnect mends within the settle time never says 갱신 지연; the reconnect resumes from its cursor and draws what another device did meanwhile, the open row, the selection and the scroll kept", async () => {
       // Wide: a to-do is selected, its detail open beside the list. Phone: a short window, so the list scrolls.
       const size = page.viewportSize();
       if (!wide) await page.setViewportSize({ width: size.width, height: 480 });
       await openApp(page, wide ? "#/items/T3" : "#/inbox", "&live=drop");
+      await recordFreshness(page);
       await markPage(page);
       // The decision opens in the frame (lina-app#142) and its row is the selected one.
       const row = page.getByRole("link", { name: /배포를 금요일 오후에 할지 결정 필요/ });
@@ -2571,9 +2596,9 @@ const drivers = {
       if (wide) check(before.selected && before.detail, "no selected row with its detail: " + JSON.stringify(before));
       else check(before.scroll > 0, "the list did not scroll");
       check((await page.getByTestId("bell").getAttribute("aria-label")) === "알림 5", "the bell does not read 알림 5 before the drop");
-      await page.getByTestId("freshness-line").filter({ hasText: /^갱신 지연$/ }).waitFor({ timeout: 6_000 });
-      await page.getByTestId("freshness-line").filter({ hasText: /^실시간$/ }).waitFor({ timeout: 6_000 });
-      await page.getByRole("button", { name: "알림 4" }).waitFor({ timeout: 3_000 });
+      await page.getByRole("button", { name: "알림 4" }).waitFor({ timeout: 10_000 });
+      const words = await page.evaluate(() => window.__linaWords);
+      check(words.every((word) => word === "실시간"), "the line left 실시간 during the drop: " + JSON.stringify(words));
       const { connections } = await stream(page);
       check(connections.length === 2, "the stream had " + connections.length + " connections");
       check(connections[1].since !== null && connections[1].first === "missed" && connections[1].missed === 1, "the reconnect was " + JSON.stringify(connections[1]));
@@ -2582,7 +2607,7 @@ const drivers = {
       check(JSON.stringify(after) === JSON.stringify(before), "the screen moved: " + JSON.stringify(before) + " -> " + JSON.stringify(after));
       check(await notReloaded(page), "the page reloaded");
       await page.setViewportSize(size);
-      return "갱신 지연 → 실시간, reconnect " + JSON.stringify(connections[1]) + ", 알림 5 → 알림 4, row open, kept " + JSON.stringify(after);
+      return "실시간 throughout " + JSON.stringify(words) + ", reconnect " + JSON.stringify(connections[1]) + ", 알림 5 → 알림 4, row open, kept " + JSON.stringify(after);
     });
     await step("a resync reads the snapshot once", async () => {
       await openApp(page, "#/inbox", "&live=resync");
@@ -2599,13 +2624,14 @@ const drivers = {
       check(await notReloaded(page), "the page reloaded");
       return (after - before) + " reads (one refresh), still 1 connection";
     });
-    await step("a core restarted with a new session token: the page reads the token once, resumes from its cursor and draws what it missed, without a reload or a stored token", async () => {
+    await step("a core restarted with a new session token: the page reads the token once, resumes from its cursor and draws what it missed, without a reload or a stored token, and the line never leaves 실시간", async () => {
       await openApp(page, "#/inbox", "&live=token");
+      await recordFreshness(page);
       await markPage(page);
       check((await page.getByTestId("bell").getAttribute("aria-label")) === "알림 5", "the bell does not read 알림 5 before the restart");
-      await page.getByTestId("freshness-line").filter({ hasText: /^갱신 지연$/ }).waitFor({ timeout: 6_000 });
-      await page.getByTestId("freshness-line").filter({ hasText: /^실시간$/ }).waitFor({ timeout: 6_000 });
-      await page.getByRole("button", { name: "알림 4" }).waitFor({ timeout: 3_000 });
+      await page.getByRole("button", { name: "알림 4" }).waitFor({ timeout: 10_000 });
+      const words = await page.evaluate(() => window.__linaWords);
+      check(words.every((word) => word === "실시간"), "the line left 실시간 during the restart: " + JSON.stringify(words));
       const { connections, renewals } = await stream(page);
       const last = connections.at(-1);
       check(renewals === 1, "the page renewed its token " + renewals + " times");
@@ -2614,7 +2640,7 @@ const drivers = {
       const stored = await page.evaluate(() => Object.keys(localStorage).length + Object.keys(sessionStorage).length);
       check(stored === 0, "the page keeps " + stored + " keys in web storage");
       check(await notReloaded(page), "the page reloaded");
-      return "갱신 지연 → 실시간, 1 renewal, connections " + connections.map((connection) => connection.first).join(" → ") + ", 알림 5 → 알림 4";
+      return "실시간 throughout, 1 renewal, connections " + connections.map((connection) => connection.first).join(" → ") + ", 알림 5 → 알림 4";
     });
     await step("a stream that cannot open says 갱신 지연 and retries with growing waits; the screens still draw", async () => {
       await openApp(page, "#/inbox", "&live=down", "갱신 지연");
@@ -2640,7 +2666,7 @@ const drivers = {
     await step("the home order: one decisions line, review, stopped then running, the owner's to-dos folded to one line, the last 24 hours", async () => {
       // The waiting card waits on review, so 대기 does not repeat it; r7 and r8 are worker runs, no row (lina-app#141).
       const lists = await home().locator("ul.rows").evaluateAll((all) => all.map((list) => list.getAttribute("aria-label")));
-      check(JSON.stringify(lists) === JSON.stringify(["수신함", "검토 필요", "중단됨", "진행 중인 작업", "내 할 일", "최근 완료"]), "the home lists " + JSON.stringify(lists));
+      check(JSON.stringify(lists) === JSON.stringify(["수신함", "검토 필요", "중단됨", "진행 중인 작업", "예정", "내 할 일", "최근 완료"]), "the home lists " + JSON.stringify(lists));
       const fold = home().getByRole("button", { name: "내 할 일 2" });
       const folded = { expanded: await fold.getAttribute("aria-expanded"), rows: await rowsOf("내 할 일").count() };
       await fold.click();
@@ -2829,7 +2855,7 @@ const drivers = {
       const label = await page.locator(".detail-title").evaluate((title) => getComputedStyle(title).color);
       // Each row is one event, time · one sentence (lina-app#128).
       const said = rows.map((row) => row.text.replace(/^(어제 )?\d\d:\d\d · /, "")).join(" | ");
-      check(rows.every((row) => /^(어제 )?\d\d:\d\d · \S/.test(row.text)) && said === "변경마다 한 줄 요약을 붙이는 중 | 도구 사용 4번 | 요약을 표로 옮기는 중 ×3", "the going round reads " + rows.map((row) => row.text).join(" | "));
+      check(rows.every((row) => /^(어제 )?\d\d:\d\d · \S/.test(row.text)) && said === "요약을 표로 옮기는 중 ×3 | 도구 사용 4번 | 변경마다 한 줄 요약을 붙이는 중", "the going round reads " + rows.map((row) => row.text).join(" | "));
       check(rows[0].colour === label && rows[1].colour !== label && rows[2].colour === label, "sentence and dim colours " + JSON.stringify(rows.map((row) => row.colour)) + ", label " + label);
       const noStart = (await blocks.nth(4).getByTestId("timeline-no-start").innerText()).trim();
       check(noStart === "시작 기록 없음", "the start-unknown round reads " + noStart);
@@ -2847,14 +2873,17 @@ const drivers = {
       check(title === "릴리스 변경 목록 정리", "the run page is named " + title);
       return new URL(page.url()).hash + " " + title;
     });
-    await step("a stopped writer: one 요약 중단됨 line beside the freshness line", async () => {
+    await step("a stopped writer: no 요약 중단됨 beside the freshness line; 상태 · 점검 holds it as one row", async () => {
       await openApp(page, "#/running", "&writer=stopped");
-      const lines = await page.getByTestId("summaries-stopped").allInnerTexts();
-      check(lines.length === 1 && lines[0].trim() === "· 요약 중단됨", "the line reads " + JSON.stringify(lines));
+      const header = (await page.getByTestId("freshness").innerText()).trim();
+      check(!header.includes("요약 중단됨") && (await page.getByTestId("summaries-stopped").count()) === 0, "the header reads " + JSON.stringify(header));
       const row = page.getByTestId("screen-running").locator('li:has(> a[href="#/cards/k-102"])');
       check((await row.locator(".title").innerText()).trim() === "결제 화면 개편", "the card with no checked lines is not named by its goal");
       if (!wide) await phoneRules(page, "summaries stopped @390");
-      return lines[0].trim();
+      await openApp(page, "#/status", "&writer=stopped");
+      const rows = await page.getByRole("list", { name: "점검", exact: true }).getByTestId("summaries-check").allInnerTexts();
+      check(rows.length === 1 && rows[0].trim() === "요약 중단됨", "점검 reads " + JSON.stringify(rows));
+      return "header " + JSON.stringify(header) + ", 점검 " + JSON.stringify(rows);
     });
   },
 

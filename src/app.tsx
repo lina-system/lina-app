@@ -39,9 +39,10 @@ function useWide(): boolean {
 export function titleOf(route: Route, model: Model, store: Store): string {
   switch (route.name) {
     case "home":
+    case "running":
+      // The work list has one name, the tab's, on every header and back (lina-app#148).
       return W.tabWork;
     case "inbox":
-    case "running":
     case "due":
     case "done":
     case "goals":
@@ -301,11 +302,6 @@ export function Freshness() {
       <span class={line.tone} data-testid="freshness-line">
         {line.text}
       </span>
-      {!store.offline && model.summariesStopped ? (
-        <span class="is-orange" data-testid="summaries-stopped">
-          {`${SEP}${W.summariesStopped}`}
-        </span>
-      ) : null}
       {!store.offline && model.errors.length ? (
         <span class="is-orange" data-testid="read-failed">
           {`${SEP}${W.readFailed(model.errors.join(", "))}`}

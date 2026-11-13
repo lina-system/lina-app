@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import type { RunCard, WorkCardDetail, WorkCardList, WorkCardSummary } from "../api/client";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type Scene } from "../fixtures/synthetic";
-import { KIND_TITLE } from "../words";
+import { KIND_TITLE, W } from "../words";
 import { agentView, buildModel, type CardSummary } from "./index";
 
 const NOW = 1_793_700_000;
@@ -131,14 +131,16 @@ test("ended work leaves the lists but stays in the lookup that a goal page and a
   for (const id of ["r11", "r12", "r13"]) expect(model.cards.has(id) && model.unlisted.has(id), id).toBe(true);
 });
 
-test("a goal's title that would show raw text does not name a row: 제목 없음 stands in", () => {
+test("a goal's title that would show raw text does not name a row: a stopped card says whose stopped card it is", () => {
   const scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
   const raw = endedModel({
     ...scene,
     goals: { goals: scene.goals.goals.map((goal) => (goal.id === "kg-2" ? { ...goal, title: "LINA-41 release notes / CHANGES.md" } : goal)) },
     cards: { cards: scene.cards.cards.map((card) => (card.id === "k-107" ? { ...card, plain: { ...card.plain, title: null }, title: "payment-receipt.md copy", goalTitle: "LINA-41 release notes / CHANGES.md" } : card)) },
   });
-  expect(raw.cards.get("k-107")?.name).toBe("제목 없음");
+  // A stopped card is always a row (lina-app#148): with no title that may be drawn, its agent's name says whose it is.
+  const agent = scene.cards.cards.find((card) => card.id === "k-107")?.agent ?? null;
+  expect(raw.cards.get("k-107")?.name).toBe(W.stoppedCardOf(agent ? (raw.names.get(agent) ?? null) : null));
 });
 
 test("a stopped row says why and who it waits on from what the core serves, and is plain when the core does not say", () => {
@@ -285,12 +287,14 @@ test("a stopped card whose own title fails only the Latin-word rule is drawn by 
   const model = buildModel({ cards: { cards: all }, cardDetails: Object.fromEntries(all.map((card) => [card.id, detail(card)])), failed: [] }, NOW);
 
   expect(model.cards.get("k-push")).toMatchObject({ title: "푸시 키 배포와 HTTPS 주소 열기", name: "푸시 키 배포와 HTTPS 주소 열기" });
-  expect(model.running.sections[0].rows.map((row) => row.id)).toEqual(["k-push"]);
-  expect(model.counts.stopped).toBe(1);
-  // A path is still raw text on a stopped card; a done or running card keeps the Latin-word rule.
-  for (const id of ["k-path", "k-done", "k-running"]) expect(model.cards.get(id)?.title, id).toBeNull();
+  // A path is still raw text on a stopped card: it is never drawn, but the card stays a row (lina-app#148).
+  expect(model.running.sections[0].rows.map((row) => row.id)).toEqual(["k-push", "k-path"]);
+  expect(model.counts.stopped).toBe(2);
+  expect(model.cards.get("k-path")?.name).toBe(W.stoppedCardOf(null));
+  // A done or running card keeps the Latin-word rule.
+  for (const id of ["k-done", "k-running"]) expect(model.cards.get(id)?.title, id).toBeNull();
   expect(model.done).toEqual([]);
-  for (const id of ["k-path", "k-done", "k-running"]) expect(model.unlisted.has(id), id).toBe(true);
+  for (const id of ["k-done", "k-running"]) expect(model.unlisted.has(id), id).toBe(true);
 });
 
 test("a stopped run with no card or goal is named by its own or its to-do's title with a Latin word on its page, and is no row", () => {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { eventsUrl, HttpSource } from "./http-source";
-import { BACKOFF_MAX_MS, backoffMs, Live, routesFor, type LiveHost } from "./live";
+import { BACKOFF_MAX_MS, backoffMs, Live, LIVE_SETTLE_MS, routesFor, type LiveHost } from "./live";
 import { Store } from "./store";
 import { STREAM_TICK_MS, SyntheticSource } from "./synthetic-source";
 
@@ -85,7 +85,8 @@ describe("the change stream", () => {
     const kept = live.cursor;
 
     source.dropStreams();
-    expect(store.live).toBe("down");
+    // The reconnect lands inside the settle time, so the line never left 실시간 (lina-app#150).
+    expect(store.live).toBe("open");
     const otherDevice = new SyntheticSource({ scene: source.scene });
     await otherDevice.comment("T4", { text: "폭도 봐 주세요" });
     const refresh = vi.spyOn(store, "refresh");
@@ -151,6 +152,39 @@ describe("the change stream", () => {
     source.setStreamDown(false);
     await step(BACKOFF_MAX_MS);
     expect(store.live).toBe("open");
+    stop();
+  });
+
+  // lina-app#150: the header word follows the stream, but a drop the reconnect mends within the settle time never
+  // shows, so 실시간 and 갱신 지연 cannot alternate faster than it.
+  test("a drop mended within the settle time never says down; one that lasts says down after it, and open at once when mended", async () => {
+    const source = new SyntheticSource();
+    const store = new Store(source);
+    const states: string[] = [];
+    const setLive = store.setLive.bind(store);
+    vi.spyOn(store, "setLive").mockImplementation((state) => {
+      if (state !== store.live) states.push(state);
+      setLive(state);
+    });
+    const stop = new Live(store, tab(() => 0).host).start();
+    await settle();
+    expect(store.live).toBe("open");
+    for (let round = 0; round < 5; round += 1) {
+      source.dropStreams();
+      await step(backoffMs(0, () => 0));
+      expect(store.live).toBe("open");
+    }
+    expect(states).toEqual(["open"]);
+    source.setStreamDown(true);
+    source.dropStreams();
+    await step(LIVE_SETTLE_MS - 1);
+    expect(store.live).toBe("open");
+    await step(1);
+    expect(store.live).toBe("down");
+    source.setStreamDown(false);
+    await step(BACKOFF_MAX_MS);
+    expect(store.live).toBe("open");
+    expect(states).toEqual(["open", "down", "open"]);
     stop();
   });
 

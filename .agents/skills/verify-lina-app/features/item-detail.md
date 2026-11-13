@@ -11,7 +11,7 @@ A to-do opens in the one detail frame: its check box, done condition, state and 
 ## Intended behavior
 
 - A to-do opens in the one detail frame (lina-app#142), wherever it is chosen (the home, a goal, 마감일, 수신함): the right-hand pane beside the list at desktop width, a sheet rising from the bottom over the list at phone width, opened where the owner is looking. The tab, the header and the list stay as they were (a to-do chosen on the home never turns the list into 수신함). Back closes the frame; the list is at the scroll it had and the chosen row stays highlighted.
-- The head shows the round check box (named `<title> 완료로 표시`, `<title> 완료됨` once checked) with `state · time`, and `되돌리기` while the owner's own done mark can be taken back (ten minutes, after the toast). Ticking it is in actions.md.
+- The head shows the round check box (named `<title> 완료로 표시`, `<title> 완료됨` once checked) with `state · time` (while a decision on it is open, the time is when it was asked, the same as its 수신함 row, lina-app#149), and `되돌리기` while the owner's own done mark can be taken back (ten minutes, after the toast). Ticking it is in actions.md.
 - A pending decision on the to-do (or on a goal, on its goal page) shows on top as a `결정 필요` box: the sentence, then agent, kind word (`질문` or `요청`) and age. Under it is the place to answer it, the same answer as from 수신함: its choice buttons (the recommended one tagged `추천`), or a `답 달기` field and `보내기`.
 - `완료 조건`, then `실행` with one line per run (`title · state`), then `댓글`, then `대화` (talk.md).
 - Each comment shows its sentence, then author and time; replies sit under it with their author, time and result word (`반영함`, `답변 필요`, `반영 안 함`). Never only a count.

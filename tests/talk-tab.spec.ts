@@ -41,6 +41,15 @@ test("on a wide window each agent row keeps its counts inside the sidebar under 
   await expect(row.locator(".count-pair .count")).toHaveText(["1", "1"]);
 });
 
+test("on a wide window with no agent chosen, the middle takes the whole width: no empty right column (lina-app#150)", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "wide panes only");
+  await page.goto(`${APP}#/talk`);
+  await expect(page.getByTestId("pick-agent")).toBeVisible();
+  const panes = (await page.getByTestId("panes").boundingBox())!;
+  const middle = (await page.locator(".talk-pane").boundingBox())!;
+  expect(Math.round(middle.width)).toBe(Math.round(panes.width));
+});
+
 test("on a phone the last goal row is fully visible above the field and the strip", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "phone layout only");
   // The synthetic agent has two goals; a short window makes the open card longer than the screen, as 19 goals do.

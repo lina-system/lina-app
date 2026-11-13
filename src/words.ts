@@ -119,6 +119,8 @@ export const W = {
     unreachable: "연결 끊김",
     unknown: "확인 중",
   } as Readonly<Record<string, string>>,
+  /** A runner the core reports nothing on: no version, no state (lina-app#150). */
+  runnerUnchecked: "확인 안 됨",
   signedIn: "로그인됨",
   signIn: "로그인",
   signingIn: "로그인 중",
@@ -137,6 +139,8 @@ export const W = {
   /** A runner's update: the version the node has, then the fleet's. */
   versionGap: (installed: string, fleet: string) => `${installed} → ${fleet}`,
   checkMore: "자세히",
+  /** A line the core cut short, ended at its last whole word. */
+  cutShort: (text: string) => `${text}…`,
   restartWorker: "작업 실행기",
   restartOcx: "모델 연결",
   restartWorkerConfirm: "작업 실행기를 다시 시작합니다.",
@@ -235,6 +239,8 @@ export const W = {
   untitledCount: (n: number) => `제목 없는 ${n}건`,
   /** A lone stopped run whose only name is an internal one in Latin, never shown (lina-app#134). */
   unnamedRun: "이름 없는 실행",
+  /** A stopped card with no title or goal left once its references go: whose it is (lina-app#148). */
+  stoppedCardOf: (agent: string | null) => (agent ? `${agent}의 중단 카드` : "중단 카드"),
   /** A stopped row's words for who it waits on (lina-app#116). */
   needsCheck: "확인 필요",
   waitReview: "검토 대기",
@@ -285,6 +291,9 @@ export const W = {
   unread: (n: number) => `안 읽음 ${n}`,
   close: "닫기",
   quickAdd: "할 일 추가",
+  quickAddField: "할 일",
+  save: "저장",
+  todoAdded: "할 일 추가함",
   markDone: (title: string) => `${title} 완료로 표시`,
   progress: (done: number, total: number) => `${done}/${total}`,
   runningCount: (n: number) => `진행 중 ${n}`,
@@ -295,6 +304,12 @@ export const W = {
   round: (n: number) => `라운드 ${n}`,
   summariesStopped: "요약 중단됨",
   folded: "접힌 댓글",
+  /** A run of comments with nothing left to read, one line (lina-app#149). */
+  foldedRun: (n: number) => (n > 1 ? `접힌 댓글 ${n}건` : "접힌 댓글"),
+  /** A card from a board the core only reads (lina#481): it is changed there, never here. */
+  readOnly: "읽기 전용 · 칸반에서 변경",
+  /** An old done card whose history the core does not keep (`detail: false`). */
+  noHistory: "기록 보관 안 됨",
   noStart: "시작 기록 없음",
   runStarted: "작업 시작",
   untitledRun: "제목 없음",

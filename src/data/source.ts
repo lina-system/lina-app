@@ -1,4 +1,4 @@
-import type { ActionResult, AgentTalkEvent, AgentTalkHistory, AnswerRequest, ChangeMessage, AnswerResult, CommentRequest, DeviceAction, DoneRequest, NoticesReadRequest, NoticesReadResult, PushKey, PushRemoveRequest, PushRemoveResult, PushSubscriptionRequest, PushSubscriptionResult, RouteName, Routes, SettingsPatch, SettingsWritten, TalkEvent, TalkRequest } from "../api/client";
+import type { ActionResult, AddItemRequest, AgentTalkEvent, AgentTalkHistory, AnswerRequest, ChangeMessage, AnswerResult, CommentRequest, DeviceAction, DoneRequest, NoticesReadRequest, NoticesReadResult, PushKey, PushRemoveRequest, PushRemoveResult, PushSubscriptionRequest, PushSubscriptionResult, ItemSummary, RouteName, Routes, SettingsPatch, SettingsWritten, TalkEvent, TalkRequest } from "../api/client";
 
 export type ReadResult<T> =
   | { readonly kind: "data"; readonly data: T; readonly at: number }
@@ -46,6 +46,8 @@ export interface Source {
   done(id: string, body: DoneRequest): Promise<WriteResult<ActionResult>>;
   undo(id: string): Promise<WriteResult<ActionResult>>;
   retry(id: string): Promise<WriteResult<ActionResult>>;
+  /** One owner's to-do in the record, answered as its `/work/items` row (lina#693). */
+  addItem(body: AddItemRequest): Promise<WriteResult<ItemSummary>>;
   answerCard(cardId: string, body: AnswerRequest): Promise<WriteResult<AnswerResult>>;
   /** Read marks are the core's, per owner: every device sees the same ones after its next read. */
   readNotices(body: NoticesReadRequest): Promise<WriteResult<NoticesReadResult>>;

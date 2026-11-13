@@ -708,11 +708,10 @@ button:disabled {
 }
 
 /*
- * A stopped row's title takes a second line before it is cut (lina-app#133): two titles that start alike read apart.
- * So do the home's running rows and the owner's to-dos (lina-app#141).
+ * A work row's title takes a second line before it is cut (lina-app#133, #148): two titles that start alike read
+ * apart, in every group. So do the owner's to-dos (lina-app#141).
  */
-.card-row.is-stopped .lines > .title.one-line,
-[data-testid="section-active"] .card-row .lines > .title.one-line,
+.card-row .lines > .title.one-line,
 [data-testid="home-mine"] .check-row .lines > .title.one-line {
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -765,6 +764,37 @@ button:disabled {
 /* The owner's to-dos folded to one line on the home (lina-app#141): its chevron turns down while the rows are open. */
 .mine-fold.is-open .disclosure {
   transform: rotate(90deg);
+}
+
+/* 할 일 추가 after the 내 할 일 line, and its one-line form under it (lina-app#95). */
+.row.has-action > .row-button {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.row.has-action > .quick-add-open {
+  margin-right: calc(var(--inset) - 8px);
+}
+
+.quick-add-form {
+  margin: 0;
+  padding: 6px var(--inset) 10px;
+}
+
+/* The line takes a row of its own on a phone; the date, 저장 and 취소 go under it. */
+.quick-add-form > .note.is-inline:first-child {
+  flex: 1 1 260px;
+}
+
+.quick-add-form > .note.quick-add-due {
+  flex: none;
+  width: 150px;
+}
+
+.quick-add-form > .write-error {
+  flex-basis: 100%;
+  margin: 0;
 }
 
 .agent-counts {
@@ -852,7 +882,8 @@ button:disabled {
 
 .mini-meters {
   display: flex;
-  gap: 14px;
+  flex-wrap: wrap;
+  gap: 2px 14px;
   margin-top: 3px;
   font-size: var(--text-small);
   color: var(--label-2);
@@ -872,6 +903,10 @@ button:disabled {
 
 .mini-none {
   color: var(--label-2);
+}
+
+.mini-value {
+  font-variant-numeric: tabular-nums;
 }
 
 /* The restart control sits under the node row, so the load trail stays on the same edge as every other row. */
@@ -2672,6 +2707,11 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 
 .talk-pane > .empty {
   margin: auto;
+}
+
+/* No agent chosen, no card: the middle takes the whole width rather than leave an empty column (lina-app#150). */
+.talk-panes:not(:has(> .card-pane)) {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .card-pane {

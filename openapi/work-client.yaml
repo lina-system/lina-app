@@ -1,6 +1,8 @@
 # Copied unchanged from lina-system/lina docs/api/work-client.yaml at dev commit df3b9926391eb9c04f5451dbd5679b12ed3f2c05,
 # plus the optional WorkCardSummary/WorkCardDetail fields endedAt and lastHeartbeatAt that lina#577 adds (lina-app#100)
-# and the optional WorkCardSummary fields waitingOn and retry that lina#629 adds (lina-app#119).
+# and the optional WorkCardSummary fields waitingOn and retry that lina#629 adds (lina-app#119),
+# and the optional readOnly (WorkCardSummary, WorkCardDetail, WorkGoal) and detail (WorkCardSummary) fields that
+# lina#481 adds (lina-app#149).
 # Work endpoints the app reads: goals, work cards, their worker runs and the owner inbox.
 # Served by plugins/kanban/dashboard/work_api.py under /api/plugins/kanban/work, behind the
 # dashboard auth gate (session token). lina-app's scripts/generate-client.mjs can point
@@ -239,6 +241,14 @@ components:
           description: >
             On a stopped card (lina#629): whether it will be tried again, `scheduled` (the core or the agent will
             start another run), `none`, or null when unknown.
+        readOnly:
+          type: boolean
+          description: >
+            The card lives on a board the core only reads (lina#481): every write to it is refused with 409.
+        detail:
+          type: boolean
+          description: >
+            False on an old done card whose history the core does not keep: its detail has no runs or comments.
     WorkCardList:
       type: object
       additionalProperties: false
@@ -373,6 +383,9 @@ components:
           type: integer
           nullable: true
           description: The card's last heartbeat (epoch seconds); null when it has none (lina#577).
+        readOnly:
+          type: boolean
+          description: The card lives on a board the core only reads (lina#481); every write to it is refused with 409.
         todos:
           type: array
           items:
@@ -432,6 +445,9 @@ components:
         elapsedSeconds:
           type: integer
           minimum: 0
+        readOnly:
+          type: boolean
+          description: The goal lives on a board the core only reads (lina#481); every write to it is refused with 409.
         workCards:
           type: array
           items:

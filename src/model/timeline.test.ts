@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import type { RecordRound } from "../api/client";
 import type { ItemDetail } from "../api/client";
-import { firstSentence, goalHistory, outcomeOf } from "./timeline";
+import { firstSentence, goalHistory, historyLines, isMachineNotice, outcomeOf } from "./timeline";
 
 const round = (fields: Partial<RecordRound>): RecordRound => ({ run: 1, startedAt: 100, endedAt: null, endKnown: false, startUnknown: false, result: null, verdict: null, stopped: false, rows: [], ...fields });
 
@@ -29,6 +29,66 @@ test("a history sentence is the first sentence with ids, paths and commands take
   expect(firstSentence(null)).toBeNull();
 });
 
+/**
+ * History lines the real hub's comments produced (lina-app#149, ids in their shape, none real): each one cut inside a
+ * word or a number, or a machine notice, or an identifier with nothing around it. Machine notices are no line; every
+ * other comment reads one whole sentence or nothing.
+ */
+const REAL_HISTORY: readonly (readonly [string, string, string | null])[] = [
+  ["worker-a", "vs 20 14 my in '—' 24, 14 점검", null],
+  ["worker-a", '.5초 무렵 "불러오는 중"이었고…', null],
+  ["lina-worker", "[대기 충족] of — 돌렸다.", null],
+  ["kanban-dispatcher", "[받음] 1744 대화에 들어감: 21:44 · OT-QAX1113…", null],
+  ["worker-a", "장부 G73 / T264.", null],
+  ["worker-a", "t_27363156 레스큐 봇", "레스큐 봇"],
+  ["worker-a", "rc=1(없음)", null],
+  ["worker-a", "[현황]", null],
+  ["worker-a", "[받음] 첫 화면 문구를 짧게 고쳤어요.", null],
+  ["lina-worker", "작업을 받아 대화에 들어감", null],
+  ["worker-a", "G73 장부를 맞추고 T264 할 일을 닫았어요. 이어서 배포", "장부를 맞추고 할 일을 닫았어요."],
+];
+
+const IDENTIFIER = /[A-Za-z]+[-_:]?\d|\d+[A-Za-z]|#\d|=|_/;
+
+test.each(REAL_HISTORY)("a real comment by %s, %j, is a whole sentence with no identifier or tag, or no line at all", (author, body, expected) => {
+  const line = isMachineNotice(body, author) ? null : firstSentence(body);
+  expect(line).toBe(expected);
+  if (line === null) return;
+  expect(line).not.toMatch(IDENTIFIER);
+  expect(line).not.toMatch(/\[[^\]]*\]/);
+  // It starts on a letter or a number, and every word in it is a whole word of the comment: nothing cut mid-word.
+  expect(line).toMatch(/^[\p{L}\p{N}"'(]/u);
+  const words = new Set(body.split(/\s+/).map((word) => word.replace(/[.,!?。:;…]+$/, "")));
+  for (const word of line.replace(/…$/, "").split(/\s+/)) expect(words, word).toContain(word.replace(/[.,!?。:;]+$/, ""));
+});
+
+test("a long sentence is cut at a word end with …, never inside a word", () => {
+  const body = "배포 전에 바뀐 화면 문구를 하나씩 다시 읽어 보고 어색한 곳을 고쳐서 검토 요청을 올렸고 이어서 남은 화면 두 곳을 맞추는 중";
+  const line = firstSentence(body) ?? "";
+  expect(line.endsWith("…")).toBe(true);
+  expect([...line].length).toBeLessThanOrEqual(60);
+  expect(body.startsWith(line.slice(0, -1))).toBe(true);
+  expect(body[line.length - 1]).toBe(" ");
+});
+
+test("history lines read newest first, and a run of entries with nothing left to read is one line with its count", () => {
+  const lines = historyLines([
+    { at: 100, text: "첫 문장." },
+    { at: 400, text: null },
+    { at: 300, text: null },
+    { at: 500, text: "마지막 문장." },
+    { at: 200, text: null },
+    { at: 250, text: "중간 문장." },
+  ]);
+  expect(lines.map((line) => [line.at, line.text, line.folded])).toEqual([
+    [500, "마지막 문장.", 0],
+    [400, null, 2],
+    [250, "중간 문장.", 0],
+    [200, null, 1],
+    [100, "첫 문장.", 0],
+  ]);
+});
+
 test("a goal's history: comments, its question, its runs, the merge and the close, one row each in time order", () => {
   const detail = {
     state: "done",
@@ -41,12 +101,20 @@ test("a goal's history: comments, its question, its runs, the merge and the clos
     runs: [{ id: "r1", title: "guide", state: "done", reason: null, startedAt: 450, endedAt: 600 }],
   } as unknown as ItemDetail;
   const rows = goalHistory(detail, [{ at: 700, text: "새 가이드를 문서 사이트에 올림 (3f2a1c9)" }]);
+  // Newest first, as every history (lina-app#149).
   expect(rows.map((row) => [row.at, row.kind, row.text])).toEqual([
-    [200, "comment", "첫 화면 문구는 짧게 해 주세요."],
-    [300, "comment", "짧게 고쳤어요."],
-    [400, "question", "질문: 가이드를 첫 화면에 걸지 결정 필요"],
-    [600, "run", "완료"],
-    [700, "merge", "새 가이드를 문서 사이트에 올림"],
     [900, "close", "완료"],
+    [700, "merge", "새 가이드를 문서 사이트에 올림"],
+    [600, "run", "완료"],
+    [400, "question", "질문: 가이드를 첫 화면에 걸지 결정 필요"],
+    [300, "comment", "짧게 고쳤어요."],
+    [200, "comment", "첫 화면 문구는 짧게 해 주세요."],
   ]);
+});
+
+test("the owner's comment that opens with a bracketed word is history, a machine notice with the same tag is not (lina-app#149)", () => {
+  expect(isMachineNotice("[중요] 배포 전에 검토해 주세요.", "owner")).toBe(false);
+  expect(isMachineNotice("[받음] 대화에 들어감", "ag-1")).toBe(true);
+  expect(isMachineNotice("[중요] 배포 전에 검토해 주세요.", "lina-worker")).toBe(true);
+  expect(isMachineNotice("[받음] 대화에 들어감")).toBe(true);
 });

@@ -190,7 +190,17 @@ function lastLinesOf(source: Source): Map<string, string> {
   return lines;
 }
 
+/** How many times each agent's preview was published: a read that began before a newer preview must not overwrite it. */
+const lastLineRevisions = new WeakMap<Source, Map<string, number>>();
+
+function revisionOf(source: Source, agent: string): number {
+  return lastLineRevisions.get(source)?.get(agent) ?? 0;
+}
+
 function keepLastLine(source: Source, agent: string, line: string | undefined) {
+  let revisions = lastLineRevisions.get(source);
+  if (!revisions) lastLineRevisions.set(source, (revisions = new Map()));
+  revisions.set(agent, revisionOf(source, agent) + 1);
   if (line === undefined) lastLinesOf(source).delete(agent);
   else lastLinesOf(source).set(agent, line);
   for (const watcher of lastLineWatchers) watcher();
@@ -209,8 +219,10 @@ export function TalkPreview({ agent }: { agent: string }) {
     let live = true;
     const watch = () => redraw((count) => count + 1);
     lastLineWatchers.add(watch);
+    const revision = revisionOf(store.source, agent);
     void store.source.agentTalkHistory(agent).then((result) => {
-      if (live && result.kind === "data") keepLastLine(store.source, agent, lastLineOf(result.data));
+      // A turn sent or a reply taken meanwhile is newer than this snapshot.
+      if (live && result.kind === "data" && revisionOf(store.source, agent) === revision) keepLastLine(store.source, agent, lastLineOf(result.data));
     });
     return () => {
       live = false;

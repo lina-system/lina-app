@@ -360,7 +360,7 @@ function WorkerRows({ ids, model, title, state }: { ids: readonly string[]; mode
  * of the work card it ran for, or 제목 없음 when no card names it (never 코드 작업, lina-app#61 and #128).
  */
 export function workerTitle(model: Model, cardId: string | null | undefined): string {
-  return (cardId ? model.cards.get(cardId)?.title : null) || W.untitledRun;
+  return (cardId ? model.cards.get(cardId)?.own : null) || W.untitledRun;
 }
 
 /** A to-do's run by the one naming rule: its checked title when the board lists it, never raw text in its place. */

@@ -84,6 +84,8 @@ export interface CardRow {
    * to-do's title; else its card's title. Null when none may be drawn: the row is not listed (lina-app#124).
    */
   readonly title: string | null;
+  /** The card's own title, the one its page's head shows, before its goal's title is put first: null when none may be drawn. */
+  readonly own: string | null;
   /** What the card is called everywhere: that title, else its kind word (cardName). */
   readonly name: string;
   readonly agent: string | null;
@@ -291,6 +293,7 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
     id: card.id,
     href: href({ name: "card", id: card.id }),
     title,
+    own: title,
     name: cardName(card.plain.title, work, card.title),
     agent: card.agent,
     state: card.state,
@@ -316,6 +319,7 @@ export function runRow(run: RunCard): CardRow {
     id: run.id,
     href: href({ name: "run", id: run.id }),
     title: run.plain.title,
+    own: run.plain.title,
     name: cardName(run.plain.title, work),
     agent: run.agent,
     state: run.state,

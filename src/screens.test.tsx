@@ -1948,13 +1948,13 @@ describe("the run's own timeline", () => {
     fireEvent.click(link);
     await waitFor(() => expect(view.queryByTestId("screen-run")).not.toBeNull());
     await waitFor(() => expect(view.getByTestId("screen-run").querySelector("[data-testid=timeline]")).not.toBeNull());
-    expect(view.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("릴리스 노트 정리");
+    expect(view.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("릴리스 변경 목록 정리");
     expect(view.getByTestId("screen-run").querySelector('a[href="#/cards/k-101"]')).not.toBeNull();
     view.unmount();
     // Opened on its own, before its card: the run's record names its card, which the page reads and shows.
     const run = await open("#/runs/r1", { wide: true });
     await waitFor(() => expect(run.getByTestId("timeline")).toBeTruthy());
-    expect(run.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("릴리스 노트 정리");
+    expect(run.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("릴리스 변경 목록 정리");
     expect(run.getByTestId("screen-run").querySelector('a[href="#/cards/k-101"]')).not.toBeNull();
   });
 
@@ -2159,9 +2159,9 @@ describe("a card's detail (lina-app#128)", () => {
   test("a card's worker run reads its work's title and a state word, never 코드 작업, on its page and on the card's lines", async () => {
     const run = await open("#/runs/r1", { wide: true });
     await waitFor(() => expect(run.getByTestId("timeline")).toBeTruthy());
-    expect(run.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("릴리스 노트 정리");
+    expect(run.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("릴리스 변경 목록 정리");
     expect(run.getByTestId("run-state").textContent).toBe("진행 중");
-    expect(run.getByTestId("detail-pane").getAttribute("aria-label")).toBe("릴리스 노트 정리");
+    expect(run.getByTestId("detail-pane").getAttribute("aria-label")).toBe("릴리스 변경 목록 정리");
     expect(screenText(run.container)).not.toContain("코드 작업");
     run.unmount();
     // k-104's worker run r4 has no record: 실행 stands, one line per run with its title and state word.

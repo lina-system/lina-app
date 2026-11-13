@@ -190,8 +190,9 @@ function lastLinesOf(source: Source): Map<string, string> {
   return lines;
 }
 
-function keepLastLine(source: Source, agent: string, line: string) {
-  lastLinesOf(source).set(agent, line);
+function keepLastLine(source: Source, agent: string, line: string | undefined) {
+  if (line === undefined) lastLinesOf(source).delete(agent);
+  else lastLinesOf(source).set(agent, line);
   for (const watcher of lastLineWatchers) watcher();
 }
 
@@ -394,11 +395,14 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
     const turn: Sent = { key: `t${++sentKeys}`, message, reply: "", state: "streaming", carried: false };
     box.turns.push(turn);
     box.window?.redraw();
+    const before = lastLinesOf(store.source).get(agent);
     keepLastLine(store.source, agent, firstLine(message));
     await historyRead.current;
     const result = await store.source.agentTalk(agent, { message });
     if (!result.ok) {
       box.turns.splice(box.turns.indexOf(turn), 1);
+      // A refused turn is not the last message: the row goes back to what it showed before the send.
+      keepLastLine(store.source, agent, before);
       const refusal = talkError(result);
       if (box.window) box.window.refused(refusal);
       else box.refusal = refusal;

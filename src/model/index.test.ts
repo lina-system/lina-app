@@ -97,15 +97,13 @@ test("a row is named by what the work is for, never by its kind: a run with noth
   expect(named.cards.get("r14")).toMatchObject({ title: "밤마다 미러 맞추기", name: "밤마다 미러 맞추기" });
 });
 
-test("a worker run of a card or of a goal's to-do is not a row of its own; a run with no parent is", () => {
+test("no worker run is a row of its own, whatever it belongs to; every run stays in the lookup (lina-app#141)", () => {
   const model = endedModel();
   const listed = new Set([...model.cards.keys()].filter((id) => !model.unlisted.has(id)));
-  // r1-r5, r9, r10 belong to cards; r11 to G4's to-do T10.
-  for (const id of ["r1", "r2", "r3", "r4", "r5", "r9", "r10", "r11"]) expect(listed.has(id), id).toBe(false);
-  // r13 is on T13, a to-do with no goal. r8 is the earlier run of r7's finished task and r14 has nothing to name it
-  // (lina-app#124): neither is a row, both stay in the lookup.
-  for (const id of ["r6", "r7", "r13"]) expect(listed.has(id), id).toBe(true);
-  for (const id of ["r8", "r14"]) expect(model.cards.has(id) && !listed.has(id), id).toBe(true);
+  // r1-r5, r9, r10 belong to cards; r11 to G4's to-do T10; r13 to T13, a to-do with no goal; r6, r7, r8 and r14 have
+  // no card or to-do at all.
+  for (const id of ["r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r13", "r14", "r20"]) expect(model.cards.has(id) && !listed.has(id), id).toBe(true);
+  expect([...listed].every((id) => model.cards.get(id)?.kind === "card")).toBe(true);
   // The board does list r11 (it is outside any card): only its goal keeps it out.
   expect(generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true }).board.cards.some((run) => run.id === "r11")).toBe(true);
 });
@@ -114,16 +112,12 @@ test("the stopped group holds only work that still needs someone: replaced runs 
   const scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
   const model = endedModel(scene);
   const stopped = () => model.running.sections[0].rows.map((row) => row.id);
-  // r12 was cancelled and r13, a later run of the same to-do, replaced it; r11 sits under the finished goal G4.
-  // r14 has nothing to name it: it is counted on the home, not a row (lina-app#124).
-  expect(new Set(stopped())).toEqual(new Set(["k-103", "k-107", "k-108", "k-109", "k-110", "k-111", "k-112", "r20"]));
-  expect(model.counts.stopped).toBe(8);
-  // Without the later run, r12 still needs someone.
-  const alone = endedModel({ ...scene, board: { ...scene.board, cards: scene.board.cards.filter((run) => run.id !== "r13") } });
-  expect(alone.running.sections[0].rows.map((row) => row.id)).toContain("r12");
+  // Only the stopped cards: no run is a row (lina-app#141), the stopped runs r11, r12, r14 and r20 included.
+  expect(new Set(stopped())).toEqual(new Set(["k-103", "k-107", "k-108", "k-109", "k-110", "k-111", "k-112"]));
+  expect(model.counts.stopped).toBe(7);
   // A stopped card whose goal is done leaves too.
   const goalDone = endedModel({ ...scene, goals: { goals: scene.goals.goals.map((goal) => (goal.id === "kg-2" ? { ...goal, state: "done" } : goal)) } });
-  expect(new Set(goalDone.running.sections[0].rows.map((row) => row.id))).toEqual(new Set(["k-108", "k-109", "k-110", "k-112", "r20"]));
+  expect(new Set(goalDone.running.sections[0].rows.map((row) => row.id))).toEqual(new Set(["k-108", "k-109", "k-110", "k-112"]));
 });
 
 test("ended work leaves the lists but stays in the lookup that a goal page and a run page link through", () => {
@@ -132,10 +126,9 @@ test("ended work leaves the lists but stays in the lookup that a goal page and a
   expect(goalDone.cards.has("k-107")).toBe(true);
   expect(goalDone.unlisted.has("k-107")).toBe(true);
   expect(goalDone.running.sections[0].rows.map((row) => row.id)).not.toContain("k-107");
-  // r11 (under the finished goal G4) and r12 (replaced by r13) are not listed but still resolve.
+  // Runs are not listed but still resolve, for their own pages.
   const model = endedModel(scene);
-  for (const id of ["r11", "r12"]) expect(model.cards.has(id) && model.unlisted.has(id), id).toBe(true);
-  expect(model.unlisted.has("r13")).toBe(false);
+  for (const id of ["r11", "r12", "r13"]) expect(model.cards.has(id) && model.unlisted.has(id), id).toBe(true);
 });
 
 test("a goal's title that would show raw text does not name a row: 제목 없음 stands in", () => {
@@ -201,15 +194,15 @@ test("a run with a card is never a row of its own, whether or not the cards list
   expect(model.runOwner.get("r15")).toBe("k-108");
 });
 
-test("the stopped group is the stopped cards plus the runs with no card nothing replaced; the header, the sidebar and the agent pages agree", () => {
+test("the stopped group is the stopped cards alone; the header, the sidebar and the agent pages agree", () => {
   const scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
   const model = homeModel(scene);
   const stoppedCards = scene.cards.cards.filter((card) => card.state === "stopped").map((card) => card.id);
   // r12 was replaced by r13 and r11 sits under the finished goal G4; every other stopped run has a card.
   const lone = scene.board.cards.filter((run) => run.state === "stopped" && !run.card).map((run) => run.id);
   expect(lone.sort()).toEqual(["r11", "r12", "r14", "r20"]);
-  // r14 has nothing to name it: counted on the home, not a row (lina-app#124).
-  const expected = [...stoppedCards, "r20"];
+  // No run is a row, a lone stopped one included (lina-app#141).
+  const expected = stoppedCards;
   expect(new Set(model.running.sections[0].rows.map((row) => row.id))).toEqual(new Set(expected));
   expect(model.counts.stopped).toBe(expected.length);
   expect(model.home.stopped.stopped).toBe(expected.length);
@@ -270,16 +263,15 @@ test("a stopped row says who waits from waitingOn and retry, and the rows waitin
 
 // lina-app#124: the work tab's first screen reads at a glance.
 
-test("no row is untitled: work nothing names is counted on the home, not drawn, and stays in the lookup", () => {
+test("no row is untitled: work nothing names is not listed, no line counts it, and it stays in the lookup", () => {
   const model = homeModel();
   const rows = [...model.running.rows, ...model.home.waiting.rows, ...model.home.recent.rows, ...model.home.older.rows, ...model.done, ...model.home.review.rows.flatMap((row) => (row.type === "review" ? [row.card] : []))];
   expect(rows.filter((row) => row.title === null).map((row) => row.id)).toEqual([]);
   // r14 has no goal, to-do, card or checked title, and its own title is a file name.
-  expect(model.home.untitled).toBe(1);
   expect(model.cards.get("r14")?.name).toBe("제목 없음");
   expect(model.unlisted.has("r14")).toBe(true);
+  expect("untitled" in model.home).toBe(false);
   expect(model.counts.stopped).toBe(model.running.sections[0].rows.length);
-  expect(homeModel(generateScene(SYNTHETIC_SEED, { now: NOW })).home.untitled).toBe(0);
 });
 
 // A stopped card waits on someone: an own title whose only raw text is a Latin word (a product's name) is drawn, so
@@ -298,29 +290,26 @@ test("a stopped card whose own title fails only the Latin-word rule is drawn by 
   // A path is still raw text on a stopped card; a done or running card keeps the Latin-word rule.
   for (const id of ["k-path", "k-done", "k-running"]) expect(model.cards.get(id)?.title, id).toBeNull();
   expect(model.done).toEqual([]);
-  expect(model.home.untitled).toBe(3);
+  for (const id of ["k-path", "k-done", "k-running"]) expect(model.unlisted.has(id), id).toBe(true);
 });
 
-test("a stopped run with no card or goal is drawn by its own or its to-do's title with a Latin word; a running one is not", () => {
+test("a stopped run with no card or goal is named by its own or its to-do's title with a Latin word on its page, and is no row", () => {
   const scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
   const withR20 = (patch: Partial<RunCard>) => homeModel({ ...scene, board: { ...scene.board, cards: scene.board.cards.map((run) => (run.id === "r20" ? { ...run, ...patch } : run)) } });
   expect(withR20({ title: "AAS 회차 점검" }).cards.get("r20")?.name).toBe("AAS 회차 점검");
   const latinTodo = homeModel({ ...scene, items: { ...scene.items, items: scene.items.items.map((item) => (item.id === "T15" ? { ...item, title: "qveris 알림 문구 고르기" } : item)) } });
   expect(latinTodo.cards.get("r20")?.name).toBe("qveris 알림 문구 고르기");
-  expect(latinTodo.running.sections[0].rows.map((row) => row.id)).toContain("r20");
+  expect(latinTodo.running.sections[0].rows.map((row) => row.id)).not.toContain("r20");
   const running = withR20({ state: "in_progress", title: "AAS 회차 점검", todo: null });
   expect(running.cards.get("r20")?.title).toBeNull();
-  expect(running.home.untitled).toBe(homeModel(scene).home.untitled + 1);
+  expect(running.running.rows.map((row) => row.id)).not.toContain("r20");
 });
 
-test("a finished task that ran twice is one row in the finished groups, the newest run; the other stays in the lookup", () => {
+test("a finished worker run is no row in the finished groups; both runs of a task that ran twice stay in the lookup", () => {
   const model = homeModel(generateScene(SYNTHETIC_SEED, { now: NOW }));
-  const names = model.done.map((row) => row.name);
-  expect(new Set(names).size).toBe(names.length);
-  expect(model.done.filter((row) => row.name === "가이드 초안 다듬기").map((row) => row.id)).toEqual(["r7"]);
-  expect(model.cards.has("r8") && model.unlisted.has("r8")).toBe(true);
+  expect(model.done.every((row) => row.kind === "card")).toBe(true);
+  for (const id of ["r7", "r8"]) expect(model.cards.has(id) && model.unlisted.has(id), id).toBe(true);
   expect(model.counts.done).toBe(model.home.recent.rows.length + model.home.older.rows.length);
-  expect(model.home.older.rows.map((row) => row.id)).not.toContain("r8");
 });
 
 test("a row is titled by its goal first; with no goal by its card's title (lina-app#122)", () => {
@@ -335,7 +324,8 @@ test("a row is titled by its goal first; with no goal by its card's title (lina-
 test("the home holds the owner's to-dos and the review items as their own groups, and the waiting group does not repeat them", () => {
   const model = homeModel(generateScene(SYNTHETIC_SEED, { now: NOW }));
   expect(model.home.review.rows.map((row) => row.key)).toEqual(model.inbox.sections[1].rows.map((row) => row.key));
-  expect(model.home.review.rows).toHaveLength(2);
+  // k-104 waits on the owner's review; r6, a worker run the core lists for review, is no row (lina-app#141).
+  expect(model.home.review.rows.map((row) => row.key)).toEqual(["review:k-104"]);
   expect(model.home.mine.rows).toHaveLength(2);
   const reviewed = new Set(model.home.review.rows.flatMap((row) => (row.type === "review" ? [row.card.id] : [])));
   expect(model.home.waiting.rows.filter((row) => reviewed.has(row.id))).toEqual([]);
@@ -378,13 +368,12 @@ test("다시 시도 is offered on a stop running again can clear, never on one t
   });
 });
 
-test("a lone stopped run named only in Latin reads 이름 없는 실행 instead; its to-do's title still comes first", () => {
+test("a lone stopped run named only in Latin is no row, and its lookup reads 이름 없는 실행; its to-do's title still comes first", () => {
   const scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
   const withR20 = (patch: Partial<RunCard>) => homeModel({ ...scene, board: { ...scene.board, cards: scene.board.cards.map((run) => (run.id === "r20" ? { ...run, ...patch } : run)) } });
   const english = withR20({ title: "device smoke node-a", todo: null });
   expect(english.cards.get("r20")).toMatchObject({ title: "이름 없는 실행", name: "이름 없는 실행" });
-  expect(english.home.stopped.rows.map((row) => row.id)).toContain("r20");
-  expect(english.home.untitled).toBe(homeModel(scene).home.untitled);
+  expect(english.home.stopped.rows.map((row) => row.id)).not.toContain("r20");
   expect(withR20({ title: "device smoke node-a" }).cards.get("r20")?.name).toBe("알림 문구 고르기");
   // A to-do named only in Latin is an internal name too.
   const latinTodo = homeModel({ ...scene, board: { ...scene.board, cards: scene.board.cards.map((run) => (run.id === "r20" ? { ...run, title: "device smoke node-a" } : run)) }, items: { ...scene.items, items: scene.items.items.map((item) => (item.id === "T15" ? { ...item, title: "notification copy picks" } : item)) } });

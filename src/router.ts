@@ -6,8 +6,12 @@ export type Route =
   | { readonly name: Exclude<ListName, "done"> }
   /** 완료, optionally filtered to one agent: the filter lives in the address (`#/done?agent=<id>`), never in storage. */
   | { readonly name: "done"; readonly agent?: string }
-  /** `talk` is the owner's own window on one agent (`#/talk/<agent>`); `talks` (`#/talk`) lists the agents. */
-  | { readonly name: "agent" | "goal" | "item" | "card" | "run" | "talk"; readonly id: string }
+  | { readonly name: "agent" | "goal" | "item" | "card" | "run"; readonly id: string }
+  /**
+   * `talk` is the owner's own window on one agent (`#/talk/<agent>`); `talks` (`#/talk`) lists the agents. A goal
+   * chosen on the agent's card opens under 대화 too (`#/talk/<agent>?goal=<id>`, lina-app#143).
+   */
+  | { readonly name: "talk"; readonly id: string; readonly goal?: string }
   /** A list the settings push (`#/settings/runner/codex/model`): `page` is the path after `settings/`. */
   | { readonly name: "setting"; readonly page: string };
 
@@ -49,6 +53,10 @@ export function parse(hash: string): Route {
     return agent ? { name: "done", agent } : { name: "done" };
   }
   if (parts.length === 1 && parts[0] === "talk") return { name: "talks" };
+  if (parts.length === 2 && parts[0] === "talk") {
+    const goal = new URLSearchParams(query).get("goal");
+    return goal ? { name: "talk", id: parts[1], goal } : { name: "talk", id: parts[1] };
+  }
   if (parts.length === 1 && (LISTS as readonly string[]).includes(parts[0]) && parts[0] !== "talks") return { name: parts[0] as ListName };
   if (parts[0] === "settings") return { name: "setting", page: parts.slice(1).join("/") };
   const name = PATHS[parts[0]];
@@ -59,6 +67,7 @@ export function parse(hash: string): Route {
 export function href(route: Route): string {
   if (route.name === "home") return "#/";
   if (route.name === "setting") return `#/settings/${route.page.split("/").map(encodeURIComponent).join("/")}`;
+  if (route.name === "talk" && route.goal) return `#/talk/${encodeURIComponent(route.id)}?${new URLSearchParams({ goal: route.goal })}`;
   if ("id" in route) return `#/${SEGMENT[route.name]}/${encodeURIComponent(route.id)}`;
   if (route.name === "done" && route.agent) return `#/done?${new URLSearchParams({ agent: route.agent })}`;
   if (route.name === "talks") return "#/talk";

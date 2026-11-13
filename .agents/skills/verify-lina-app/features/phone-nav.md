@@ -10,13 +10,14 @@ On a phone the app is a navigation stack under three tabs (`대화 · 작업 · 
 
 ## Intended behavior
 
-- Every navigation pushes a history entry with a hash route (`#/inbox`, `#/running`, `#/due`, `#/done`, `#/agents/<id>`, `#/goals`, `#/goals/<id>`, `#/items/<id>`, `#/cards/<id>`, `#/runs/<id>`, `#/status`).
+- Every navigation pushes a history entry with a hash route (`#/inbox`, `#/running`, `#/due`, `#/done`, `#/agents/<id>`, `#/goals`, `#/goals/<id>`, `#/items/<id>`, `#/cards/<id>`, `#/runs/<id>`, `#/talk`, `#/talk/<agent>`, `#/talk/<agent>?goal=<id>`, `#/status`).
 - Back (the control, the browser button or the edge swipe) restores the screen, the selection and the scroll, and no frame shows the screen before its scroll is back.
 - On a phone a push slides the next screen in from the right, and the back control or the edge swipe slides the top one out to the right (same-document View Transitions, direction set before the swap). Without `startViewTransition` or under reduced motion the screen swaps at once. The browser's own back or forward (its button, Safari's swipe in a tab) swaps at once, with the scroll back before the next frame, since the browser already draws that step.
 - In the installed Home Screen app, a swipe from within 20 px of the left edge, at least 72 px to the right and mostly sideways, goes back like the back control. It does nothing in a browser tab (the browser's own swipe goes back there), on a tab's first screen, or for a mostly vertical gesture.
-- On a phone, lists have a large title; the back control reads the title of the screen it returns to (the tab's name, `작업` from a work list, from a list; the list's name from a detail).
+- On a phone, lists have a large title; the back control reads the title of the screen it returns to (the tab's name, `작업` from a work list, from a list; the list's name from a detail; the agent's name from a goal opened on its card in `대화`, which stays under that tab, lina-app#143).
 - On a wide window (900 px and up) the sidebar, the list and the detail sit side by side; the open row is an accent rounded rect with white text. With nothing selected the detail pane folds away and the list takes the width.
 - On a phone the nav row and the bottom bar keep clear of the status bar and the home indicator (`env(safe-area-inset-*)`), so a Home Screen app on an iPhone puts neither under them.
+- The three tabs under a tab's large title show the pressed one as on a wide window, in dark too (see talk-tab.md).
 
 ## Sub-features
 

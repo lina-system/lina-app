@@ -668,8 +668,13 @@ button:disabled {
   color: inherit;
 }
 
-/* A stopped row's title takes a second line before it is cut (lina-app#133): two titles that start alike read apart. */
-.card-row.is-stopped .lines > .title.one-line {
+/*
+ * A stopped row's title takes a second line before it is cut (lina-app#133): two titles that start alike read apart.
+ * So do the home's running rows and the owner's to-dos (lina-app#141).
+ */
+.card-row.is-stopped .lines > .title.one-line,
+[data-testid="section-active"] .card-row .lines > .title.one-line,
+[data-testid="home-mine"] .check-row .lines > .title.one-line {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -718,10 +723,9 @@ button:disabled {
   color: var(--label-2);
 }
 
-.untitled-line {
-  padding: 4px var(--inset) 12px;
-  font-size: var(--text-small);
-  color: var(--label-2);
+/* The owner's to-dos folded to one line on the home (lina-app#141): its chevron turns down while the rows are open. */
+.mine-fold.is-open .disclosure {
+  transform: rotate(90deg);
 }
 
 .agent-counts {
@@ -1037,6 +1041,33 @@ button:disabled {
 
 .power-age {
   color: var(--orange);
+}
+
+/* A check whose own line is not Korean keeps it folded under 자세히, wrapped at any width, never cut. */
+.check-more {
+  padding: 0 var(--inset) 10px;
+  font-size: var(--text-small);
+  color: var(--label-2);
+}
+
+.check-more > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  width: max-content;
+  color: var(--accent);
+  cursor: pointer;
+  list-style: none;
+}
+
+.check-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.check-original {
+  margin: 2px 0 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* Detail. */
@@ -1721,7 +1752,8 @@ html:has(.stack) body {
 }
 
 .stack .person-row,
-.stack .machine-restart {
+.stack .machine-restart,
+.stack .check-more {
   padding-left: 12px;
   padding-right: 12px;
 }
@@ -2474,7 +2506,7 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   gap: 2px;
   padding: 2px;
   border-radius: 9px;
-  background: var(--fill);
+  background: var(--tab-track);
 }
 
 .tab {
@@ -2488,8 +2520,9 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   transition: background-color var(--motion);
 }
 
+/* One selected look at every width; on a dark phone it was the page's grey on a grey track (lina-app#143). */
 .tab.is-current {
-  background: var(--bg);
+  background: var(--tab-current);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   font-weight: 600;
 }
@@ -2543,6 +2576,36 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 
 .card-pane {
   padding: 12px 0 24px;
+}
+
+.card-pane.is-goal {
+  padding-top: 0;
+}
+
+.card-back {
+  min-height: 36px;
+  max-width: none;
+  padding: 0 var(--inset) 0 8px;
+  font-size: var(--text-body);
+}
+
+/* An agent row's last message under its name, in the sidebar and on a phone's list (lina-app#143). */
+.nav-row a:has(> .nav-lines) {
+  height: auto;
+  min-height: var(--row-dense);
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+/* A zero basis: the preview's one line must not widen the row past the sidebar and push its counts out. */
+.nav-lines {
+  flex: 1 1 0;
+  width: 0;
+  gap: 1px;
+}
+
+.split .nav-row.is-current .talk-preview {
+  color: var(--on-accent);
 }
 
 .agent-talk {
@@ -2617,6 +2680,11 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 .stack .agent-talk-turns {
   overflow: visible;
   padding: 8px var(--inset);
+}
+
+/* The field and the strip cover the bottom of the screen: a row brought into view stops above both (lina-app#143). */
+.stack .phone-main:has(> .agent-talk) {
+  scroll-padding-bottom: calc(var(--hit) + 96px + var(--safe-bottom) + var(--keyboard-inset, 0px));
 }
 
 .stack .agent-talk-form {

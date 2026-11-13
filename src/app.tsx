@@ -8,7 +8,7 @@ import { back, defaultListFor, href, isList, linkClick, navigate, onSaveScroll, 
 import { slideMotion } from "./stack-motion";
 import { bindSwipeBack, isStandalone } from "./swipe-back";
 import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RestartSheet, RunningScreen, StatusScreen, TodayScreen } from "./screens/lists";
-import { AgentCard, AgentTalk, TalkAgents } from "./screens/talk";
+import { AgentCard, AgentTalk, TalkAgents, TalkPreview } from "./screens/talk";
 import { CardScreen, GoalScreen, ItemScreen, RunScreen, workerTitle } from "./screens/details";
 import { RollbackSheet, SettingPage, settingParent, SettingsScreen, settingTitle } from "./screens/settings";
 import { SETTINGS_HISTORY } from "./api/client";
@@ -52,6 +52,7 @@ export function titleOf(route: Route, model: Model, store: Store): string {
     case "talks":
       return W.talk;
     case "talk":
+      if (route.goal) return titleOf({ name: "goal", id: route.goal }, model, store);
       return model.names.get(route.id) ?? W.talk;
     case "setting":
       return settingTitle(route.page);
@@ -73,6 +74,8 @@ export function titleOf(route: Route, model: Model, store: Store): string {
 
 function wantsFor(route: Route, store: Store): Want {
   switch (route.name) {
+    case "talk":
+      return route.goal ? wantsFor({ name: "goal", id: route.goal }, store) : [];
     case "goal":
     case "item": {
       const detail = store.get("item", route.id);
@@ -106,6 +109,7 @@ function Screen({ route }: { route: Route }) {
     case "talks":
       return <TalkAgents />;
     case "talk":
+      if (route.goal) return <GoalScreen id={route.goal} />;
       return (
         <AgentTalk key={route.id} agent={route.id} titled>
           <AgentCard agent={route.id} folded />
@@ -225,7 +229,12 @@ function TalkRows({ current }: { current?: Route }) {
       <h2 class="nav-head">{W.agents}</h2>
       <ul class="nav-group" aria-label={W.agents}>
         {model.agents.map((agent) => (
-          <NavRow key={agent.id} to={{ name: "talk", id: agent.id }} icon={<AgentMark id={agent.id} />} label={agent.name} count={model.counts.agents[agent.id]?.running} stopped={model.counts.agents[agent.id]?.stopped} current={Boolean(current && current.name === "talk" && current.id === agent.id)} testid={`nav-talk-${agent.index}`} />
+          <NavRow key={agent.id} to={{ name: "talk", id: agent.id }} icon={<AgentMark id={agent.id} />} label={agent.name} count={model.counts.agents[agent.id]?.running} stopped={model.counts.agents[agent.id]?.stopped} current={Boolean(current && current.name === "talk" && current.id === agent.id)} testid={`nav-talk-${agent.index}`}>
+            <span class="lines nav-lines">
+              <span class="nav-label one-line">{agent.name}</span>
+              <TalkPreview agent={agent.id} />
+            </span>
+          </NavRow>
         ))}
       </ul>
       <p class="version" data-testid="version">
@@ -480,6 +489,7 @@ function isTabRoot(route: Route): boolean {
 function parentOf(route: Route, stack: readonly string[]): Route {
   if (stack.length > 1) return parse(stack[stack.length - 2]);
   if (isTabRoot(route)) return route;
+  if (route.name === "talk" && route.goal) return { name: "talk", id: route.id };
   if (isList(route)) return tabRoot(tabOf(route));
   if (route.name === "setting") return settingParent(route.page);
   return defaultListFor(route);
@@ -510,10 +520,21 @@ function useScrollKeeping(panes: Panes, keys: Record<keyof Panes, string>, saved
   }, [keys.list, keys.detail, keys.main]);
 }
 
-/** 대화 on a wide window: the agents, the chosen agent's window in the middle and its card on the right. */
-function TalkShell({ route }: { route: Route }) {
+/**
+ * 대화 on a wide window: the agents, the chosen agent's window in the middle and its card on the right. A goal chosen
+ * on the card opens in the right column with a back control to the card; the window stays open (lina-app#143).
+ */
+function TalkShell({ route, stack }: { route: Route; stack: readonly string[] }) {
   const { model, store } = useApp();
   const agent = route.name === "talk" ? route.id : null;
+  const goal = route.name === "talk" ? route.goal : undefined;
+  const windowRoute: Route = agent ? { name: "talk", id: agent } : route;
+  const toCard = () => {
+    if (!agent) return;
+    const card = href({ name: "talk", id: agent });
+    if (stack.length > 1 && stack[stack.length - 2] === card) back();
+    else navigate(card, { replace: true });
+  };
   return (
     <div class="split is-talk" data-layout="wide" data-tab="talk">
       <aside class="sidebar">
@@ -523,7 +544,7 @@ function TalkShell({ route }: { route: Route }) {
         <header class="toolbar">
           <div class="toolbar-title">
             <h1 class="toolbar-name" data-testid="screen-title">
-              {titleOf(route, model, store)}
+              {titleOf(windowRoute, model, store)}
             </h1>
             <Freshness />
           </div>
@@ -533,12 +554,22 @@ function TalkShell({ route }: { route: Route }) {
           </div>
         </header>
         <div class="talk-panes" data-testid="panes">
-          <section class="pane talk-pane" aria-label={titleOf(route, model, store)}>
+          <section class="pane talk-pane" aria-label={titleOf(windowRoute, model, store)}>
             {agent ? <AgentTalk key={agent} agent={agent} /> : <p class="empty" data-testid="pick-agent">{W.pickAgent}</p>}
           </section>
           {agent ? (
-            <aside class="pane card-pane" aria-label={W.agentCard} data-testid="card-pane">
-              <AgentCard agent={agent} />
+            <aside class={goal ? "pane card-pane is-goal" : "pane card-pane"} aria-label={goal ? titleOf(route, model, store) : W.agentCard} data-testid="card-pane">
+              {goal ? (
+                <>
+                  <button type="button" class="back card-back" onClick={toCard} data-testid="back">
+                    <BackIcon />
+                    <span class="one-line">{W.agentCard}</span>
+                  </button>
+                  <GoalScreen key={goal} id={goal} />
+                </>
+              ) : (
+                <AgentCard agent={agent} />
+              )}
             </aside>
           ) : null}
         </div>
@@ -695,7 +726,7 @@ export function App({ store, pushHost }: { store: Store; pushHost?: PushHost }) 
       <ActionsCtx.Provider value={actions}>
         <PushCtx.Provider value={push}>
           <SettingsCtx.Provider value={settingsEdits}>
-            {wide && tabOf(nav.route) === "talk" ? <TalkShell route={nav.route} /> : wide ? <WideShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} /> : <PhoneShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} />}
+            {wide && tabOf(nav.route) === "talk" ? <TalkShell route={nav.route} stack={nav.state.stack} /> : wide ? <WideShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} /> : <PhoneShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} />}
             <Toast />
             <RollbackSheet />
             <RestartSheet />

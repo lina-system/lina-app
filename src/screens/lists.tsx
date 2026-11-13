@@ -10,7 +10,7 @@ import { useEffect, useState } from "preact/hooks";
 import { KoreanInput } from "../korean-input";
 import { useActions } from "../ui/actions";
 import { AgentMark, agentName, CardRowView, CountPair, Dial, Disclosure, DoneCheck, Empty, ErrorLine, Link, ListSection, useApp } from "../ui/parts";
-import { machineWhy, runnerReason, serviceName, SEP, W } from "../words";
+import { machineWhy, metricsReason, serviceName, SEP, versionOf, W } from "../words";
 import { writeError } from "./write-error";
 
 type DecideRow = Extract<InboxRow, { type: "decide" }>;
@@ -174,15 +174,40 @@ function StoppedSection({ section }: { section: Section<CardRow> }) {
 }
 
 /**
- * The home: one line for the open decisions (only when there are any), the review items and the owner's own to-dos,
- * the running cards (only when there are any), the stopped cards in their own group under them, the cards waiting on
- * an answer, then finished cards, the last 24 hours first and older ones after, and one grey line counting the work
- * nothing names. Every number is its section's own row count, the same model the sidebar and the agent screens read.
+ * The owner's to-dos on the home: one line with their count, folded, so the stopped and running work reads first
+ * (lina-app#141). Choosing the line opens the rows in place under it.
+ */
+function MineFold({ section }: { section: Section<InboxRow> }) {
+  const [open, setOpen] = useState(false);
+  if (!section.rows.length) return null;
+  return (
+    <section class="list-section" data-testid="home-mine">
+      <ul class="rows" aria-label={section.title}>
+        <li class={`row mine-fold${open ? " is-open" : ""}`}>
+          <button type="button" class="row-button" aria-expanded={open} aria-label={`${section.title} ${section.count}`} onClick={() => setOpen(!open)}>
+            <span class="lines">
+              <span class="title one-line">{section.title}</span>
+            </span>
+            <CountPair count={section.count} />
+            <Disclosure />
+          </button>
+        </li>
+        {open ? section.rows.map((row) => <InboxRowView key={row.key} row={row} />) : null}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * The home (lina-app#141): one line for the open decisions (only when there are any) and the review items, the
+ * stopped cards in their own group, the running cards (only when there are any), the cards waiting on an answer, the
+ * owner's own to-dos folded to one line, then finished cards, the last 24 hours first and older ones after. Every
+ * number is its section's own row count, the same model the sidebar and the agent screens read.
  */
 export function RunningScreen() {
   const { model } = useApp();
   const { home } = model;
-  if (!home.decisions && !home.review.rows.length && !home.mine.rows.length && !model.running.rows.length && !home.waiting.rows.length && !model.done.length && !home.untitled) return <Empty />;
+  if (!home.decisions && !home.review.rows.length && !home.mine.rows.length && !model.running.rows.length && !home.waiting.rows.length && !model.done.length) return <Empty />;
   return (
     <div class="list" data-testid="screen-running">
       {home.decisions ? (
@@ -198,19 +223,14 @@ export function RunningScreen() {
           </li>
         </ul>
       ) : null}
-      {[home.review, home.mine].map((section) => (
-        <ListSection key={section.id} section={section} render={(row) => <InboxRowView key={row.key} row={row} />} />
-      ))}
-      <ListSection section={home.active} label={W.running} render={(card) => <CardRowView key={card.key} card={card} />} />
+      <ListSection section={home.review} render={(row) => <InboxRowView key={row.key} row={row} />} />
       <StoppedSection section={home.stopped} />
-      {[home.waiting, home.recent, home.older].map((section) => (
+      <ListSection section={home.active} label={W.running} render={(card) => <CardRowView key={card.key} card={card} />} />
+      <ListSection section={home.waiting} render={(card) => <CardRowView key={card.key} card={card} />} />
+      <MineFold section={home.mine} />
+      {[home.recent, home.older].map((section) => (
         <ListSection key={section.id} section={section} render={(card) => <CardRowView key={card.key} card={card} />} />
       ))}
-      {home.untitled ? (
-        <p class="untitled-line" data-testid="home-untitled">
-          {W.untitledCount(home.untitled)}
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -402,17 +422,13 @@ export function AgentScreen({ id }: { id: string }) {
   );
 }
 
-function Meter({ label, value }: { label: string; value: number | null }) {
+function Meter({ label, value }: { label: string; value: number }) {
   return (
     <span class="mini-meter" data-testid="machine-meter">
       <span class="mini-label">{label}</span>
-      {value === null ? (
-        <span class="mini-none">{W.none}</span>
-      ) : (
-        <span class="meter" aria-hidden="true">
-          <span class={`meter-fill${value >= 90 ? " is-high" : ""}`} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
-        </span>
-      )}
+      <span class="meter" aria-hidden="true">
+        <span class={`meter-fill${value >= 90 ? " is-high" : ""}`} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
+      </span>
     </span>
   );
 }
@@ -466,8 +482,9 @@ function chooseRestart(step: "worker" | "ocx"): void {
 /**
  * A fine runner shows its installed version and the signed-in mark. The core's ready decides it, whatever signIn says
  * (the hub serves magpie and unknown for ready runners); only when ready is null does a known signed-in value decide.
- * The sign-in button shows only for why sign_in, or for a signed-out runner with no why. Any other why shows its reason;
- * a runner not ready with no reason of its own reads 준비 필요, never 확인 중.
+ * The sign-in button shows only for why sign_in, or for a signed-out runner with no why. Any other why shows its reason,
+ * and an update its installed and fleet versions; a runner not ready with no reason of its own reads 준비 필요. No cell
+ * reads 확인 중 (lina-app#144): a runner with no answer, or the core's unknown, shows its version alone.
  * 로그인 중 has no button while the post is in flight or the core still reports signingIn. When that turns false,
  * a signed-in runner shows the mark; a sign-in cell shows the reason and the button again.
  */
@@ -482,6 +499,9 @@ function RunnerCellView({ machine, runner }: { machine: Machine; runner: RunnerC
     void store.invalidate([["devices"]]);
   }, [runner.signingIn, store]);
   const signedIn = runner.signIn === "signed_in" || runner.signIn === "api_key" || runner.signIn === "ocx";
+  const reason = runner.why && runner.why !== "unknown" && Object.hasOwn(W.runnerWhy, runner.why) ? W.runnerWhy[runner.why] : null;
+  const installed = versionOf(runner.installed);
+  const fleet = versionOf(runner.fleet);
   const fine = !signingIn && (runner.ready === true || (runner.ready === null && !runner.why && signedIn));
   const needsSignIn = !signingIn && (runner.why === "sign_in" || (runner.signIn === "signed_out" && runner.why == null));
   const signIn = () => {
@@ -515,24 +535,46 @@ function RunnerCellView({ machine, runner }: { machine: Machine; runner: RunnerC
             {W.signIn}
           </button>
         </>
-      ) : (
-        <span class="runner-detail">{runner.ready === false && runner.why == null ? W.runnerWhy.prepare : runnerReason(runner.why)}</span>
-      )}
+      ) : runner.why === "update" ? (
+        <>
+          <span class="runner-detail">{W.runnerWhy.update}</span>
+          {installed && fleet && installed !== fleet ? <span class="runner-detail">{W.versionGap(installed, fleet)}</span> : null}
+        </>
+      ) : reason ? (
+        <span class="runner-detail">{reason}</span>
+      ) : runner.ready === false ? (
+        <span class="runner-detail">{W.runnerWhy.prepare}</span>
+      ) : installed ? (
+        <span class="runner-detail">{installed}</span>
+      ) : null}
       {error ? <ErrorLine line={error} /> : null}
     </div>
   );
 }
 
-function MachineRow({ machine }: { machine: Machine }) {
+/** The hub serves `metricsWhy` beside the readings; the client schema does not name it yet (lina-app#144). */
+type MachineReadings = Machine & { readonly metricsWhy?: string | null };
+
+/**
+ * A node the hub cannot reach reads its name, state and 연결 끊김 and nothing else: no readings, load, runners or restart.
+ * A reachable node draws the readings it has as bars and, for the ones it lacks, one reason from `metricsWhy`.
+ * Restart names what it restarts and is gone while the node is down.
+ */
+function MachineRow({ machine }: { machine: MachineReadings }) {
   const { note } = useRestartState();
   const word = W.machineState[machine.state] ?? "";
-  const why = machineWhy(machine.why);
-  const meters = [
-    [W.cpu, machine.cpu],
-    [W.memory, machine.memory],
-    [W.disk, machine.disk],
-  ] as const;
-  const label = [machine.name, word, why, ...meters.map(([name, value]) => W.meter(name, value)), W.load(machine.running, machine.cap)].filter(Boolean).join(SEP);
+  const offline = machine.reachable === false;
+  const why = offline ? W.offline : machineWhy(machine.why);
+  const readings = (
+    [
+      [W.cpu, machine.cpu],
+      [W.memory, machine.memory],
+      [W.disk, machine.disk],
+    ] as const
+  ).filter((reading): reading is readonly [string, number] => reading[1] !== null);
+  const missing = readings.length < 3 ? metricsReason(machine.metricsWhy, machine.reachable) : null;
+  const load = W.load(machine.running, machine.cap);
+  const label = (offline ? [machine.name, word, why] : [machine.name, word, why, ...readings.map(([name, value]) => W.meter(name, value)), missing, load]).filter(Boolean).join(SEP);
   return (
     <li class={`row machine-row is-${machine.state}`} data-testid="row" data-role={machine.role}>
       <div class="row-body" aria-label={label}>
@@ -543,24 +585,31 @@ function MachineRow({ machine }: { machine: Machine }) {
             <span class="machine-state">{word}</span>
             {why ? <span class="machine-why">{`${SEP}${why}`}</span> : null}
           </span>
-          <span class="mini-meters">
-            {meters.map(([name, value]) => (
-              <Meter key={name} label={name} value={value} />
-            ))}
-          </span>
+          {offline ? null : (
+            <span class="mini-meters">
+              {readings.map(([name, value]) => (
+                <Meter key={name} label={name} value={value} />
+              ))}
+              {missing ? <span class="mini-none">{missing}</span> : null}
+            </span>
+          )}
         </span>
-        <span class="trail">{W.load(machine.running, machine.cap)}</span>
+        {offline ? null : <span class="trail">{load}</span>}
       </div>
-      <div class="machine-restart">
-        <button type="button" class="text-button" aria-label={W.restartOf(machine.name)} onClick={() => openRestart(machine.name)}>
-          {W.restart}
-        </button>
-      </div>
-      <div class="runner-grid" role="group" aria-label={`${machine.name} ${W.runners}`}>
-        {machine.runners.map((runner) => (
-          <RunnerCellView key={runner.name} machine={machine} runner={runner} />
-        ))}
-      </div>
+      {offline || machine.state === "down" ? null : (
+        <div class="machine-restart">
+          <button type="button" class="text-button" aria-label={W.restartServiceOf(machine.name)} onClick={() => openRestart(machine.name)}>
+            {W.restartService}
+          </button>
+        </div>
+      )}
+      {offline ? null : (
+        <div class="runner-grid" role="group" aria-label={`${machine.name} ${W.runners}`}>
+          {machine.runners.map((runner) => (
+            <RunnerCellView key={runner.name} machine={machine} runner={runner} />
+          ))}
+        </div>
+      )}
       <ErrorLine line={note?.device === machine.name ? note.line : undefined} />
     </li>
   );
@@ -572,15 +621,17 @@ function personState(device: PersonDevice): string {
   return W.runnerWhy.unknown;
 }
 
+/** An owner's Mac: 연결 끊김 alone while unreachable; otherwise each tool once, with its version when the Mac read one. */
 function PersonRow({ device }: { device: PersonDevice }) {
   const state = personState(device);
+  const tools = device.reachable === false ? [] : device.tools.filter((tool, index) => device.tools.findIndex((other) => other.name === tool.name) === index);
   return (
     <li class="person-row">
       <span class="person-name">{device.name}</span>
       <span class={`person-state${device.reachable === false ? " is-off" : ""}`}>{state}</span>
-      {device.tools.map((tool) => (
+      {tools.map((tool) => (
         <span key={tool.name} class="person-tool">
-          {`${tool.name} ${tool.installed ?? W.none}`}
+          {tool.installed ? `${tool.name} ${tool.installed}` : tool.name}
         </span>
       ))}
     </li>
@@ -877,15 +928,21 @@ function CheckRow({ check }: { check: OpenCheck }) {
   const word = W.checkState[check.state] ?? "";
   return (
     <li class={`row status-check-row is-${check.state}`} data-testid="row">
-      <div class="row-body" aria-label={[check.name, check.line, word, ago(now - check.at)].filter(Boolean).join(SEP)}>
+      <div class="row-body" aria-label={[check.title, word, ago(now - check.at)].filter(Boolean).join(SEP)}>
         <span class="lines">
-          <span class="title one-line">{[check.name, check.line].filter(Boolean).join(SEP)}</span>
+          <span class="title one-line">{check.title}</span>
         </span>
         <span class="trail">
           <span class={`check-state is-${check.state}`}>{word}</span>
           <span class="time">{ago(now - check.at)}</span>
         </span>
       </div>
+      {check.original ? (
+        <details class="check-more">
+          <summary>{W.checkMore}</summary>
+          <p class="check-original">{check.original}</p>
+        </details>
+      ) : null}
     </li>
   );
 }
@@ -964,11 +1021,14 @@ export function StatusScreen() {
   const hasQuota = model.quota.length + model.quotaMissing.length > 0;
   // Work nodes, then the file node. Person devices are a group of their own and are not machine rows.
   const nodes = [...model.machines].sort((a, b) => Number(a.role === "files") - Number(b.role === "files"));
+  const { all, ok, warn, down } = model.counts.devices;
+  const connected = model.person.filter((device) => device.reachable === true).length;
+  const offline = model.person.filter((device) => device.reachable === false).length;
   return (
     <div class="list" data-testid="screen-status">
       <section class="list-section" data-testid="section-machines">
         <h2 class="section-head">
-          <span>{W.devices}</span>
+          <span>{W.workDeviceHead(all, ok, warn, down)}</span>
         </h2>
         <ul class="rows" aria-label={W.devices}>
           {nodes.map((machine) => (
@@ -979,7 +1039,7 @@ export function StatusScreen() {
       {model.person.length ? (
         <section class="list-section" data-testid="section-person">
           <h2 class="section-head">
-            <span>{W.myDevices}</span>
+            <span>{W.personHead(model.person.length, connected, offline)}</span>
           </h2>
           <ul class="rows" aria-label={W.myDevices}>
             {model.person.map((device) => (

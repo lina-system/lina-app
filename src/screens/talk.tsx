@@ -173,6 +173,71 @@ export function ownText(content: string): string {
   return content.replace(/^\[LINA app\][^\n]*\n?/, "");
 }
 
+function firstLine(text: string): string {
+  return text.split("\n").map((line) => line.trim()).find(Boolean) ?? "";
+}
+
+/**
+ * The first line of each agent's last message, for its row in the agent list (lina-app#143): "" when it has none.
+ * A row reads it on mount; an open window keeps it current as turns go out and replies settle.
+ */
+const lastLines = new WeakMap<Source, Map<string, string>>();
+const lastLineWatchers = new Set<() => void>();
+
+function lastLinesOf(source: Source): Map<string, string> {
+  let lines = lastLines.get(source);
+  if (!lines) lastLines.set(source, (lines = new Map()));
+  return lines;
+}
+
+/** How many times each agent's preview was published: a read that began before a newer preview must not overwrite it. */
+const lastLineRevisions = new WeakMap<Source, Map<string, number>>();
+
+function revisionOf(source: Source, agent: string): number {
+  return lastLineRevisions.get(source)?.get(agent) ?? 0;
+}
+
+function keepLastLine(source: Source, agent: string, line: string | undefined) {
+  let revisions = lastLineRevisions.get(source);
+  if (!revisions) lastLineRevisions.set(source, (revisions = new Map()));
+  revisions.set(agent, revisionOf(source, agent) + 1);
+  if (line === undefined) lastLinesOf(source).delete(agent);
+  else lastLinesOf(source).set(agent, line);
+  for (const watcher of lastLineWatchers) watcher();
+}
+
+function lastLineOf(history: AgentTalkHistory): string {
+  const last = history.messages.at(-1);
+  return last ? firstLine(last.role === "user" ? ownText(last.content) : last.content) : "";
+}
+
+/** An agent row's second line: the first line of its last message, or `아직 나눈 대화 없음`; nothing until read. */
+export function TalkPreview({ agent }: { agent: string }) {
+  const { store } = useApp();
+  const [, redraw] = useState(0);
+  useEffect(() => {
+    let live = true;
+    const watch = () => redraw((count) => count + 1);
+    lastLineWatchers.add(watch);
+    const revision = revisionOf(store.source, agent);
+    void store.source.agentTalkHistory(agent).then((result) => {
+      // A turn sent or a reply taken meanwhile is newer than this snapshot.
+      if (live && result.kind === "data" && revisionOf(store.source, agent) === revision) keepLastLine(store.source, agent, lastLineOf(result.data));
+    });
+    return () => {
+      live = false;
+      lastLineWatchers.delete(watch);
+    };
+  }, [agent, store]);
+  const line = lastLinesOf(store.source).get(agent);
+  if (line === undefined) return null;
+  return (
+    <span class="sub one-line talk-preview" data-testid="talk-preview">
+      {line || W.noTurns}
+    </span>
+  );
+}
+
 /** The turns a window carried over (see `Sent.carried`) that its history read may hold. */
 interface Carried {
   /** Their messages while they go: the core may keep one as the owner's last message, or already hold it whole. */
@@ -313,8 +378,10 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
     historyRead.current = store.source.agentTalkHistory(agent).then((result) => {
       if (!live) return;
       const going = box.turns.filter((turn) => turn.carried).map((turn) => turn.message);
-      if (result.kind === "data") setLines((shown) => [...keptLines(result.data, { going, settled }), ...(shown ?? [])]);
-      else {
+      if (result.kind === "data") {
+        setLines((shown) => [...keptLines(result.data, { going, settled }), ...(shown ?? [])]);
+        if (!box.turns.length) keepLastLine(store.source, agent, lastLineOf(result.data));
+      } else {
         setLines((shown) => shown ?? []);
         if (result.kind === "failed") setHistoryError(true);
       }
@@ -340,10 +407,14 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
     const turn: Sent = { key: `t${++sentKeys}`, message, reply: "", state: "streaming", carried: false };
     box.turns.push(turn);
     box.window?.redraw();
+    const before = lastLinesOf(store.source).get(agent);
+    keepLastLine(store.source, agent, firstLine(message));
     await historyRead.current;
     const result = await store.source.agentTalk(agent, { message });
     if (!result.ok) {
       box.turns.splice(box.turns.indexOf(turn), 1);
+      // A refused turn is not the last message: the row goes back to what it showed before the send.
+      keepLastLine(store.source, agent, before);
       const refusal = talkError(result);
       if (box.window) box.window.refused(refusal);
       else box.refusal = refusal;
@@ -363,6 +434,7 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
             turn.reply = event.data.content;
             turn.state = "done";
             settle(box, turn);
+            keepLastLine(store.source, agent, firstLine(turn.reply));
             break;
           case "error":
           case "run.failed":
@@ -455,19 +527,25 @@ export function AgentCard({ agent, folded = false }: { agent: string; folded?: b
   const view = agentView(model, agent);
   const [open, setOpen] = useState(!folded);
   if (!view) return null;
+  // Every number has its word; red is 중단됨 and nothing else (lina-app#143).
+  const parts = [view.running, view.review, view.goals].flatMap((section) => [
+    { key: section.id, text: `${section.title} ${section.count}`, stopped: false },
+    ...(section.stopped ? [{ key: `${section.id}-stopped`, text: W.stoppedCount(section.stopped), stopped: true }] : []),
+  ]);
   const counts = (
     <p class="agent-counts" data-testid="agent-card-counts">
-      {[view.running, view.review, view.goals].map((section, index) => (
-        <span key={section.id}>
-          {index ? SEP : ""}
-          {section.title} <CountPair count={section.count} stopped={section.stopped} showZero />
-        </span>
-      ))}
+      {parts.map((part, index) => [
+        index ? SEP : "",
+        <span key={part.key} class={part.stopped ? "is-red" : undefined} data-testid="agent-count">
+          {part.text}
+        </span>,
+      ])}
     </p>
   );
+  // A goal opens under 대화, beside the window on a wide one and one step deeper on a phone (lina-app#143).
   const body = (
     <>
-      <ListSection section={view.goals} render={(goal) => <GoalLine key={goal.id} goal={goal} showAgent={false} />} />
+      <ListSection section={view.goals} render={(goal) => <GoalLine key={goal.id} goal={{ ...goal, href: href({ name: "talk", id: agent, goal: goal.id }) }} showAgent={false} />} />
       <ul class="rows" aria-label={W.done}>
         <li class="row" data-testid="card-done-today">
           <Link href={href({ name: "done", agent })} label={W.doneToday(view.doneToday.count)}>
@@ -514,17 +592,17 @@ export function TalkAgents() {
   return (
     <ul class="rows" aria-label={W.agents} data-testid="talk-agents">
       {model.agents.map((agent) => {
-        const view = agentView(model, agent.id);
         const target = href({ name: "talk", id: agent.id });
-        const sub = view ? [view.running.count ? `${view.running.title} ${view.running.count}` : "", `${view.goals.title} ${view.goals.rows.length}`].filter(Boolean).join(SEP) : "";
+        const { running = 0, stopped = 0 } = model.counts.agents[agent.id] ?? {};
         return (
           <li key={agent.id} class="row" data-testid={`talk-agent-${agent.index}`}>
-            <Link href={target} label={agent.name} current={selected === target}>
+            <Link href={target} label={[running ? `${agent.name} ${running}` : agent.name, stopped ? W.stoppedCount(stopped) : ""].filter(Boolean).join(SEP)} current={selected === target}>
               <AgentMark id={agent.id} />
               <span class="lines">
                 <span class="title one-line">{agent.name}</span>
-                {sub ? <span class="sub one-line">{sub}</span> : null}
+                <TalkPreview agent={agent.id} />
               </span>
+              <CountPair count={running} stopped={stopped} />
               <Disclosure />
             </Link>
           </li>

@@ -40,6 +40,13 @@ describe("the three tabs", () => {
     const tabs = ["#/talk", "#/talk/ag-1", "#/", "#/today", "#/inbox", "#/agents/ag-1", "#/goals/G1", "#/cards/k-1", "#/status", "#/settings", "#/settings/runner/codex"].map((hash) => tabOf(parse(hash)));
     expect(tabs).toEqual(["talk", "talk", "work", "work", "work", "work", "work", "work", "status", "status", "status"]);
   });
+
+  test("a goal opened from an agent's talk stays under 대화 (lina-app#143)", () => {
+    expect(parse("#/talk/ag-1?goal=G1")).toEqual({ name: "talk", id: "ag-1", goal: "G1" });
+    expect(href({ name: "talk", id: "ag-1", goal: "G 1" })).toBe("#/talk/ag-1?goal=G+1");
+    expect(parse(href({ name: "talk", id: "ag-1", goal: "G 1" }))).toEqual({ name: "talk", id: "ag-1", goal: "G 1" });
+    expect(tabOf(parse("#/talk/ag-1?goal=G1"))).toBe("talk");
+  });
 });
 
 describe("stack direction", () => {

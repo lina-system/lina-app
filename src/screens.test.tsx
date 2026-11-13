@@ -351,7 +351,7 @@ describe("usage, OCX and the accounts' quota", () => {
   test("the 사용량 panel sits between 쿼터 and 점검 and reads today's totals and the costliest rows", async () => {
     const view = await open("#/status", { wide: true });
     const sections = [...view.getByTestId("screen-status").querySelectorAll(".list-section")].map((section) => section.getAttribute("data-testid"));
-    expect(sections).toEqual(["section-machines", "section-person", "section-quota", "section-usage", "section-checks"]);
+    expect(sections).toEqual(["section-machines", "section-person", "section-power", "section-quota", "section-usage", "section-checks"]);
     expect(view.getByTestId("usage-total").textContent).toBe("$3.42 · 토큰 1.2만");
     const rows = (name: string) => [...view.getByRole("list", { name }).querySelectorAll(".usage-row")].map((row) => row.textContent);
     expect(rows("모델별")).toEqual(["haru · $1.85 · 토큰 6,200", "saeol · $1.12 · 토큰 4,200", "moru · $0.45 · 토큰 2,080"]);
@@ -416,6 +416,61 @@ describe("usage, OCX and the accounts' quota", () => {
     const allOk = { ...base, modelsState: { ...base.modelsState, machines: base.modelsState.machines.map((link) => ({ ...link, ok: true, state: "connected" })) } };
     const other = await open("#/status", { wide: true, source: new SyntheticSource({ scene: allOk }) });
     expect(other.getByTestId("ocx-line").textContent).toBe("모델 3개 켜짐");
+  });
+});
+
+describe("the power card (lina-app#82)", () => {
+  const stations = (view: ReturnType<typeof render>) => [...view.getByTestId("section-power").querySelectorAll("[data-testid=power-station]")];
+  const labelOf = (row: Element) => row.querySelector(".row-body")?.getAttribute("aria-label");
+
+  test("one card reads each station's level, in and out, temperature and charge, the hub's line and the alerts", async () => {
+    const view = await open("#/status", { wide: true });
+    expect(view.getAllByTestId("section-power")).toHaveLength(1);
+    expect(view.getByTestId("power-head").textContent).toBe("갱신 방금");
+    expect(stations(view).map(labelOf)).toEqual(["큰 축전지 · 87% · 입력 0W · 출력 64W · 41°C · 배터리 사용 · 3시간 후 방전", "작은 축전지 · 100% · 입력 12W · 출력 4W · 30°C · 완충 · 20분 전", "보조 충전기 · 연결 끊김"]);
+    expect(stations(view).map((row) => row.className)).toEqual(["row power-row is-warn", "row power-row is-ok is-stale", "row power-row is-down"]);
+    // A value older than 15 minutes keeps its numbers and shows its age; a fresh one shows none.
+    expect(stations(view)[1].querySelector(".trail")?.textContent).toBe("20분 전");
+    expect(stations(view)[0].querySelector(".trail")).toBeNull();
+    expect(labelOf(view.getByTestId("power-hub"))).toBe("허브 · 벽 전원 끊김 · 배터리 95% · 핫스팟");
+    expect(view.getByTestId("power-alerts").textContent).toBe("경고: 정전 · 큰 축전지 온도");
+    expect(view.getByTestId("section-power").querySelector("button, input, select, textarea, a")).toBeNull();
+  });
+
+  test("a stopped watch dims every row and the hub's line, each with its age and its numbers kept", async () => {
+    const view = await open("#/status", { wide: true, source: new SyntheticSource({ now: Math.floor(Date.now() / 1000), power: "stopped" }) });
+    expect(view.getByTestId("power-head").textContent).toBe("감시 끊김 · 25분 전");
+    expect(stations(view).every((row) => row.classList.contains("is-stale"))).toBe(true);
+    expect(stations(view).map((row) => row.querySelector(".trail")?.textContent)).toEqual(["25분 전", "45분 전", "33분 전"]);
+    expect(labelOf(stations(view)[0])).toBe("큰 축전지 · 87% · 입력 0W · 출력 64W · 41°C · 배터리 사용 · 3시간 후 방전 · 25분 전");
+    expect(view.getByTestId("power-hub").classList.contains("is-stale")).toBe(true);
+  });
+
+  test("a failed cloud read says so with its age; a station with no known age reads — instead of a time", async () => {
+    const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
+    const power = source.scene.devices.power!;
+    Object.assign(power, { state: "stale", why: "cloud", age: 5 * 60, alerts: ["watch:cloud", "offline:ps-3", "watch:mqtt:ps-1", "fan:ps-2"] });
+    power.stations = power.stations.map((station) => ({ ...station, stale: true, age: station.key === "ps-1" ? null : station.age }));
+    const view = await open("#/status", { wide: true, source });
+    expect(view.getByTestId("power-head").textContent).toBe("클라우드 읽기 실패 · 5분 전");
+    expect(stations(view)[0].querySelector(".trail")?.textContent).toBe("—");
+    expect(view.getByTestId("power-alerts").textContent).toBe("경고: 클라우드 읽기 실패 · 보조 충전기 연결 끊김 · 큰 축전지 실시간 연결 끊김 · 기타 경고");
+  });
+
+  test("a missing record draws no numbers, never zeros", async () => {
+    const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
+    Object.assign(source.scene.devices, { power: { state: "missing", at: null, age: null, why: null, alerts: [], stations: [], hub: null } });
+    const view = await open("#/status", { wide: true, source });
+    expect(view.getByTestId("power-head").textContent).toBe("전원 기록 없음");
+    expect(view.getByTestId("section-power").textContent).not.toMatch(/\d/);
+    expect(view.queryByTestId("power-station")).toBeNull();
+    expect(view.queryByTestId("power-alerts")).toBeNull();
+  });
+
+  test("no power section, no card", async () => {
+    const view = await open("#/status", { wide: true, source: new SyntheticSource({ now: Math.floor(Date.now() / 1000), power: "none" }) });
+    expect(view.queryByTestId("section-power")).toBeNull();
+    expect(view.getByRole("list", { name: "기기" }).querySelectorAll(".machine-row")).toHaveLength(4);
   });
 });
 

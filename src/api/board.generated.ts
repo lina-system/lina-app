@@ -432,6 +432,7 @@ export interface components {
             /** @description The nodes, work first, then files; in each, down, then warn, then ok. */
             machines: components["schemas"]["Machine"][];
             person: components["schemas"]["PersonDevice"][];
+            power?: components["schemas"]["PowerView"];
             version: number;
         };
         DueGroups: {
@@ -675,6 +676,61 @@ export interface components {
             now: string | null;
             result: string | null;
             title: string | null;
+        };
+        /** @description The hub's own wall adapter, battery and uplink, as the watch reads them. */
+        PowerHub: {
+            batteryPercent: number | null;
+            /** @description The watch stopped, so this line is as old as its last record. */
+            stale: boolean;
+            /** @enum {string|null} */
+            uplink: "wired" | "hotspot" | null;
+            wallAdapter: boolean | null;
+        } | null;
+        /** @description A station without a battery (battery false) reports only connected; its numbers are null. */
+        PowerStation: {
+            /** @description Seconds since the station's last value reached the watch. */
+            age: number | null;
+            battery: boolean;
+            batteryPercent: number | null;
+            /**
+             * @description full is on outside power and not charging.
+             * @enum {string|null}
+             */
+            charge: "charging" | "on_battery" | "full" | "idle" | null;
+            /** @description Its cloud (Wi-Fi) link. */
+            connected: boolean | null;
+            inputW: number | null;
+            key: string;
+            name: string;
+            outputW: number | null;
+            /** @description Time left on battery, only while on_battery. */
+            remainingS: number | null;
+            /** @description The value is older than 15 minutes, its age is unknown, or the section is stale. */
+            stale: boolean;
+            /** @description Degrees Celsius. */
+            temperature: number | null;
+        };
+        /** @description The hub's power equipment (lina#483), only when the worker config sets devices.metrics.power, the path of the watch service's state file. Read only: no route sends anything to the devices. A missing or unreadable file carries no numbers (never zeros); a record or value too old to trust is stale with its age. */
+        PowerView: {
+            /** @description Seconds since that record. */
+            age: number | null;
+            /** @description The watch's active alert keys as it writes them (power, temp:<key>, offline:<key>, watch:cloud, watch:mqtt:<key>, ...). */
+            alerts: string[];
+            /** @description When the watch wrote its last record (epoch seconds); null with no file or no time in it. */
+            at: number | null;
+            hub: components["schemas"]["PowerHub"];
+            /**
+             * @description missing (no file), broken (not a JSON object), stale (see why) or ok.
+             * @enum {string}
+             */
+            state: "ok" | "stale" | "missing" | "broken";
+            /** @description One entry per power station, by key. */
+            stations: components["schemas"]["PowerStation"][];
+            /**
+             * @description stopped (no record for 10 minutes or a record without a time), cloud (the watch could not read the cloud); null when ok, missing or broken.
+             * @enum {string|null}
+             */
+            why: "stopped" | "cloud" | null;
         };
         QuotaAccount: {
             /** @description OCX's active account of its provider. */

@@ -1004,6 +1004,41 @@ button:disabled {
   color: var(--orange);
 }
 
+/* 전원: the watch's record age, one row per station with its battery bar, the hub's line, then the alerts in red. A
+   value too old to trust keeps its numbers, dimmed, with its age in the trail. */
+.power-head,
+.power-alerts {
+  margin: 0;
+  padding: 0 var(--inset) 8px;
+  font-size: var(--text-small);
+  color: var(--label-2);
+}
+
+.power-head.is-late {
+  color: var(--orange);
+}
+
+.power-alerts {
+  padding-top: 8px;
+  color: var(--red);
+}
+
+.power-row .row-body {
+  flex-wrap: wrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.power-row.is-stale .sub,
+.power-row.is-stale .meter,
+.power-row.is-stale .status-dot,
+.power-hub.is-stale .sub {
+  opacity: 0.45;
+}
+
+.power-age {
+  color: var(--orange);
+}
+
 /* Detail. */
 
 .detail {

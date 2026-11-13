@@ -6,6 +6,7 @@ import type {
   ItemList,
   ItemSummary,
   ModelsState,
+  PowerView,
   QuotaView,
   RunCard,
   Settings,
@@ -99,7 +100,11 @@ export interface SceneOptions {
   readonly endedRuns?: boolean;
   /** The work settings (`&settings=`): this device may only read them, or no revision was ever written. */
   readonly settings?: SettingsVariant | null;
+  /** The power section (`&power=`, lina-app#82): the watch stopped 25 minutes ago, or the core serves no section. */
+  readonly power?: PowerVariant | null;
 }
+
+export type PowerVariant = "stopped" | "none";
 
 export type SettingsVariant = "readonly" | "empty" | "ocx-down" | "many-warnings";
 
@@ -919,7 +924,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     board,
     items: { version: 1, at: now, errors: [], owner: { ...OWNER }, agents, items: listItems },
     itemDetails,
-    devices: { version: 1, at: now, errors: [], machines: machineList, person },
+    devices: { version: 1, at: now, errors: [], machines: machineList, person, ...(options.power === "none" ? {} : { power: powerScene(now, options.power ?? null) }) },
     quota: { version: 1, at: now, errors, quota: quotaList, missing: options.sourceError ? null : ["Cursor"] },
     usage,
     modelsState,
@@ -931,6 +936,30 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     runs: runCards,
     records: records(now),
     settings: settingsScene(now, options.settings ?? null),
+  };
+}
+
+/**
+ * The hub's power equipment as the core serves it (lina#483): a station on its battery with a temperature alert, one
+ * whose last value is 20 minutes old (stale, with its age), one without a battery that lost its link, and the hub on
+ * its own battery over the hotspot during an outage. `stopped`: the watch wrote its last record 25 minutes ago, so
+ * every station and the hub line are stale, each with its age; the numbers stay, never zeros.
+ */
+function powerScene(now: number, variant: Exclude<PowerVariant, "none"> | null): PowerView {
+  const behind = variant === "stopped" ? 25 * MIN : 40;
+  const late = variant === "stopped";
+  return {
+    state: late ? "stale" : "ok",
+    at: now - behind,
+    age: behind,
+    why: late ? "stopped" : null,
+    alerts: ["power", "temp:ps-1"],
+    stations: [
+      { key: "ps-1", name: "큰 축전지", connected: true, battery: true, batteryPercent: 87, inputW: 0, outputW: 64, charge: "on_battery", remainingS: 2.5 * HOUR, temperature: 41, age: behind + 3, stale: late },
+      { key: "ps-2", name: "작은 축전지", connected: true, battery: true, batteryPercent: 100, inputW: 12, outputW: 4, charge: "full", remainingS: null, temperature: 30, age: behind + 20 * MIN, stale: true },
+      { key: "ps-3", name: "보조 충전기", connected: false, battery: false, batteryPercent: null, inputW: null, outputW: null, charge: null, remainingS: null, temperature: null, age: behind + 500, stale: late },
+    ],
+    hub: { wallAdapter: false, batteryPercent: 95, uplink: "hotspot", stale: late },
   };
 }
 

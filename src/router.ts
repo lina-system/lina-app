@@ -89,7 +89,8 @@ export function isFrame(route: Route): boolean {
 
 /**
  * The screen a detail frame stands over or beside: the nearest screen under it in the stack that is not a frame (the
- * list, the home or the agent window it was opened from, whatever its tab), else the list it falls back to; a goal
+ * list, the home or the agent window it was opened from, whatever its tab), else the screen the earlier frame fell
+ * back to, else the list this route falls back to; a goal
  * chosen in 대화 always its agent's window. Any other route is its own screen.
  */
 export function baseOf(route: Route, stack: readonly string[]): Route {
@@ -100,6 +101,10 @@ export function baseOf(route: Route, stack: readonly string[]): Route {
     const below = parse(stack[index]);
     if (!isFrame(below)) return below;
   }
+  // Only frames lie below (the address was opened directly): the screen the earlier frame stood on is this one's too,
+  // so a link followed inside the frame does not swap the screen around it.
+  const earlier = stack.length >= 2 ? parse(stack[stack.length - 2]) : null;
+  if (earlier) return baseOf(earlier, stack.slice(0, -1));
   return defaultListFor(route);
 }
 

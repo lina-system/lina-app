@@ -61,7 +61,7 @@ describe("the settings screen", () => {
     }
   });
 
-  test("the groups come in order: warnings, 기본값, 실행기, 배정 규칙, 기기, 모델 (OCX), 기록, then the revision", async () => {
+  test("the groups come in order: warnings, 기본값, 실행기, 배정 규칙, 기기, 모델, 기록, then the revision", async () => {
     const { view } = await open("#/settings");
     const screen = view.getByTestId("screen-settings");
     const order = [...screen.children].map((child) => child.getAttribute("data-testid")).filter(Boolean);
@@ -416,10 +416,10 @@ describe("the settings screen", () => {
     expect(patch).toHaveBeenCalledWith({ worker: { runners: { omo: { type: "omo", on: false } } } }, expect.any(String));
   });
 
-  test("OCX not read: one grey line with the time of the last good list, every model 확인 못 함, the warnings say how old", async () => {
+  test("the models not read: one grey line with the time of the last good list, every model 확인 못 함, the warnings say how old", async () => {
     const synthetic = source("ocx-down");
     const at = synthetic.scene.settings.ocxReadAt ?? 0;
-    const line = `OCX를 읽지 못했습니다 · 모델 상태는 ${clock(at)} 기준`;
+    const line = `모델 상태 읽기 실패 · ${clock(at)} 기준`;
     const { view } = await open("#/settings", { source: synthetic });
     await waitFor(() => expect(view.getByTestId("models-stale").textContent).toBe(line));
     expect(view.getByTestId("screen-settings").firstElementChild?.getAttribute("data-testid")).toBe("models-stale");
@@ -449,7 +449,7 @@ describe("the settings screen", () => {
       return result;
     });
     const { view } = await open("#/settings/runner/codex/model", { source: synthetic });
-    await waitFor(() => expect(view.getByTestId("models-stale").textContent).toBe(`OCX를 읽지 못했습니다 · 모델 상태는 ${clock(1_800_000_000)} 기준`));
+    await waitFor(() => expect(view.getByTestId("models-stale").textContent).toBe(`모델 상태 읽기 실패 · ${clock(1_800_000_000)} 기준`));
     expect(view.getAllByRole("radio").map((choice) => choice.getAttribute("aria-label"))).toEqual(["model-a · 확인 못 함", "model-b · 확인 못 함", "model-c · 확인 못 함"]);
   });
 

@@ -73,8 +73,8 @@ afterEach(() => {
 // The shared term table, written out here so a change to src/words.ts cannot widen it unnoticed.
 const STATES = ["예정", "진행 중", "대기", "중단됨", "완료"];
 const REASONS = ["결정 필요", "피드백", "검토 필요", "보류", "진행 대기", "응답 없음", "실패", "결과 누락"];
-// Latin words the term table allows on screen: the app name, CPU, OCX and the services' display names.
-const LATIN_WORDS = ["LINA", "CPU", "OCX", "Claude", "ChatGPT", "Gemini", "Grok", "Cursor"];
+// Latin words the term table allows on screen: the app name, CPU and the services' display names.
+const LATIN_WORDS = ["LINA", "CPU", "Claude", "ChatGPT", "Gemini", "Grok", "Cursor"];
 const STATE_LINE = new RegExp(`^(?:${STATES.join("|")})(?: · (?:${REASONS.join("|")}))?$`);
 
 describe.each([
@@ -278,8 +278,8 @@ describe("machines, quota and checks", () => {
     const view = await open("#/status", { wide: true });
     const list = view.getByRole("list", { name: "점검" });
     const rows = [...list.querySelectorAll(".status-check-row")];
-    expect(rows.map((row) => row.querySelector(".row-body")?.getAttribute("aria-label"))).toEqual(["백업 회선 · 응답 없음 · 실패 · 12분 전", "대기 봇 · 소식이 끊김 · 오래됨 · 3시간 전"]);
-    expect(rows.map((row) => row.querySelector(".check-state")?.textContent)).toEqual(["실패", "오래됨"]);
+    expect(rows.map((row) => row.querySelector(".row-body")?.getAttribute("aria-label"))).toEqual(["백업 회선 · 응답 없음 · 실패 · 12분 전", "대기 봇 · 소식이 끊김 · 갱신 지연 · 3시간 전"]);
+    expect(rows.map((row) => row.querySelector(".check-state")?.textContent)).toEqual(["실패", "갱신 지연"]);
     expect(rows.map((row) => row.className)).toEqual(["row status-check-row is-failing", "row status-check-row is-stale"]);
     // `check-row` is the to-do row with a check box: it indents past the box and lets the title size the row, so a
     // 점검 row must not carry it (the trail would no longer sit at the row's right edge).
@@ -326,15 +326,15 @@ describe("usage, OCX and the accounts' quota", () => {
     expect(view.getByTestId("usage-total").textContent).toBe("$3.42 · 토큰 1.2만");
   });
 
-  test("a service with no account and OCX itself are rows in the quota list, not lines under it", async () => {
+  test("a service with no account and the model proxy are rows in the quota list, not lines under it", async () => {
     const view = await open("#/status", { wide: true });
     const list = view.getByRole("list", { name: "쿼터" });
     const rows = [...list.querySelectorAll(":scope > li")].map((row) => row.querySelector(".row-body")?.getAttribute("aria-label") ?? row.querySelector("summary")?.getAttribute("aria-label"));
-    expect(rows).toEqual(["Claude · 72% · 시간당 +10% · 3시간 후 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후", "가온셈 · 5% · 12일 후", "Cursor · 계정 없음", "OCX · 모델 3개 켜짐 · 연결 끊김: 물레방아"]);
+    expect(rows).toEqual(["Claude · 72% · 시간당 +10% · 3시간 후 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후", "가온셈 · 5% · 12일 후", "Cursor · 계정 없음", "모델 3개 켜짐 · 연결 끊김: 물레방아"]);
     // Every one of them is a row of the list, with the row look: a title line and a 44 px minimum height.
     for (const row of list.querySelectorAll(":scope > li")) expect(row.querySelector(".title")).not.toBeNull();
     expect(view.getByTestId("quota-missing").textContent).toBe("Cursor · 계정 없음");
-    expect(view.getByTestId("ocx-line").textContent).toBe("OCX · 모델 3개 켜짐 · 연결 끊김: 물레방아");
+    expect(view.getByTestId("ocx-line").textContent).toBe("모델 3개 켜짐 · 연결 끊김: 물레방아");
   });
 
   test("an account that needs signing in again reads only that, with no rate, reset or bar; a paused one keeps its reset", async () => {
@@ -360,14 +360,14 @@ describe("usage, OCX and the accounts' quota", () => {
     expect(view.getByTestId("usage-total").textContent).toBe("$3.42 · 토큰 1.2만");
   });
 
-  test("OCX's row names the machine whose link is down, and leaves links out when all are fine", async () => {
+  test("the model proxy's row, never named, names the machine whose link is down, and leaves links out when all are fine", async () => {
     const view = await open("#/status", { wide: true });
-    expect(view.getByTestId("ocx-line").textContent).toBe("OCX · 모델 3개 켜짐 · 연결 끊김: 물레방아");
+    expect(view.getByTestId("ocx-line").textContent).toBe("모델 3개 켜짐 · 연결 끊김: 물레방아");
     view.unmount();
     const base = new SyntheticSource().scene;
     const allOk = { ...base, modelsState: { ...base.modelsState, machines: base.modelsState.machines.map((link) => ({ ...link, ok: true, state: "connected" })) } };
     const other = await open("#/status", { wide: true, source: new SyntheticSource({ scene: allOk }) });
-    expect(other.getByTestId("ocx-line").textContent).toBe("OCX · 모델 3개 켜짐");
+    expect(other.getByTestId("ocx-line").textContent).toBe("모델 3개 켜짐");
   });
 });
 
@@ -1599,18 +1599,18 @@ describe("work cards", () => {
     const screen = view.getByTestId("screen-running");
     const lists = [...screen.querySelectorAll("ul.rows")].map((list) => list.getAttribute("aria-label"));
     // Both waiting rows wait on review, so 대기 does not repeat them; r8 is r7's earlier run, so nothing is older.
-    expect(lists).toEqual(["수신함", "검토 필요", "내 할 일", "진행 중인 작업", "24시간 안에 끝남"]);
+    expect(lists).toEqual(["수신함", "검토 필요", "내 할 일", "진행 중인 작업", "최근 완료"]);
     expect(view.getByTestId("home-decisions").textContent).toContain(String(SCENE_COUNTS.decisions));
     const names = (label: string) => [...(screen.querySelector(`[aria-label="${label}"]`)?.querySelectorAll(":scope > li > a") ?? [])].map((link) => link.getAttribute("aria-label") ?? "");
     expect(names("진행 중인 작업")[0]).toMatch(/중단됨 · 응답 없음$/);
     // k-105 is never opened here: its list row's own end (lina#577) places it.
-    expect(names("24시간 안에 끝남")).toHaveLength(2);
-    expect(names("이전에 끝남")).toHaveLength(0);
+    expect(names("최근 완료")).toHaveLength(2);
+    expect(names("완료")).toHaveLength(0);
     for (const id of ["review", "mine", "recent"]) {
       const section = view.getByTestId(`section-${id}`);
       expect(rowsIn(section)).toBe(count(section.querySelector("[data-testid=count]")));
     }
-    expect(names("24시간 안에 끝남").length + names("이전에 끝남").length).toBe(count(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")));
+    expect(names("최근 완료").length + names("완료").length).toBe(count(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")));
   });
 
   test("a work card with no checked title is named by its own title on its detail, and by its goal on the home and its agent", async () => {
@@ -1732,16 +1732,16 @@ describe("work cards", () => {
     // Each round's head is the link to its worker run.
     const links = within(detail).getAllByTestId("timeline-link");
     // No round number: each head is its own span and outcome (lina-app#61).
-    expect(links.map((link) => link.textContent)).toEqual([expect.stringMatching(/^(어제 )?\d\d:\d\d · 진행 중$/), expect.stringMatching(/^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 검토 반려$/), expect.stringMatching(/^(어제 )?\d\d:\d\d · 작업 마침$/)]);
+    expect(links.map((link) => link.textContent)).toEqual([expect.stringMatching(/^(어제 )?\d\d:\d\d · 진행 중$/), expect.stringMatching(/^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 검토 필요$/), expect.stringMatching(/^(어제 )?\d\d:\d\d · 완료$/)]);
     expect(links.map((link) => link.getAttribute("href"))).toEqual(["#/runs/r1", "#/runs/r10", "#/runs/r9"]);
     view.unmount();
     const waiting = await open("#/cards/k-104", { wide: true });
-    expect(waiting.getByTestId("card-done-so-far").textContent).toBe("끝난 것실패 화면 세 곳의 문구와 버튼을 비교함");
+    expect(waiting.getByTestId("card-done-so-far").textContent).toBe("완료된 것실패 화면 세 곳의 문구와 버튼을 비교함");
   });
 
-  test("a stopped writer: one 요약 멈춤 line, and the missing lines still show nothing", async () => {
+  test("a stopped writer: one 요약 중단됨 line, and the missing lines still show nothing", async () => {
     const view = await open("#/running", { wide: true, source: new SyntheticSource({ writerStopped: true }) });
-    expect(view.getByTestId("summaries-stopped").textContent).toBe(" · 요약 멈춤");
+    expect(view.getByTestId("summaries-stopped").textContent).toBe(" · 요약 중단됨");
     expect(view.getAllByTestId("summaries-stopped")).toHaveLength(1);
     view.unmount();
     const ok = await open("#/running", { wide: true });
@@ -1885,7 +1885,7 @@ describe("work cards, round 5", () => {
     expect([...agent.getByTestId("screen-done").querySelectorAll(".sub")].map((line) => line.textContent)).toEqual(["완료 · 30분 전"]);
     agent.unmount();
     const detail = await open("#/runs/r7", { wide: true });
-    expect(detail.container.querySelector(".detail-head .sub")?.textContent).toBe("완료 · 30분 전 · 20분 걸림");
+    expect(detail.container.querySelector(".detail-head .sub")?.textContent).toBe("완료 · 30분 전 · 소요 20분");
   });
 });
 
@@ -1943,10 +1943,10 @@ describe("the run's own timeline", () => {
     const titles = blocks.map((block) => block.querySelector(".timeline-head")?.textContent);
     expect(titles[0]).toMatch(/^(어제 )?\d\d:\d\d · 진행 중$/);
     expect(titles[1]).toBe("댓글");
-    expect(titles[2]).toMatch(/^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 검토 반려$/);
+    expect(titles[2]).toMatch(/^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 검토 필요$/);
     // No start on record: the end alone, no dangling dash; the dim line below says the start is missing.
     expect(titles[3]).toBe("댓글");
-    expect(titles[4]).toMatch(/^(어제 )?\d\d:\d\d · 작업 마침$/);
+    expect(titles[4]).toMatch(/^(어제 )?\d\d:\d\d · 완료$/);
     expect(titles.join("\n")).not.toMatch(/ –|^–/m);
   });
 
@@ -2038,7 +2038,7 @@ describe("the run's own timeline", () => {
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const block = view.getByTestId("timeline-block");
     expect(block.getAttribute("data-outcome")).toBe("ended");
-    expect(block.querySelector(".timeline-head")?.textContent).toMatch(/^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 작업 마침$/);
+    expect(block.querySelector(".timeline-head")?.textContent).toMatch(/^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 완료$/);
     expect(block.querySelector("[data-testid=timeline-result]")).toBeNull();
     expect(block.querySelector(".timeline-rows")).toBeNull();
     const text = screenText(view.getByTestId("timeline"));

@@ -7,5 +7,5 @@ const base: CardRow = { key: "card:x", kind: "card", work: "code", id: "x", href
 test("a planned card shows no time beside it: no running timer and no age", () => {
   expect(cardTime(base, 1_000 + 30 * 60)).toBe("");
   expect(cardTime({ ...base, startedAt: 500 }, 1_000 + 30 * 60)).toBe("");
-  expect(cardTime({ ...base, state: "in_progress", startedAt: 1_000, stateAt: null }, 1_000 + 30 * 60)).toBe("30분째");
+  expect(cardTime({ ...base, state: "in_progress", startedAt: 1_000, stateAt: null }, 1_000 + 30 * 60)).toBe("시작 30분 전");
 });

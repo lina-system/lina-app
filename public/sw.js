@@ -3,7 +3,7 @@
 // item's key, so a later message for the same item replaces it, and a `close` message takes it away.
 
 // A copy of PUSH_LINE in src/words.ts; src/sw.test.ts holds the two equal.
-const PUSH_LINE = { ask: "결정 필요", reply: "답글", blocked: "멈춤 · 기다림", question: "멈춤 · 기다림" };
+const PUSH_LINE = { ask: "결정 필요", reply: "답글", blocked: "중단됨 · 피드백 대기", question: "중단됨 · 피드백 대기" };
 
 // A copy of foldReason in src/model/fold.ts (src/sw.test.ts runs both on the same sentences): a sentence that shows a
 // path, a command, a hash, an issue number, an address, a cut-off fragment or an English word is not shown.

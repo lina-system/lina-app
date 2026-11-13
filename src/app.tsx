@@ -543,7 +543,7 @@ function TalkShell({ route, frame, stack }: { route: Route; frame: Route | null;
   const windowRoute: Route = agent ? { name: "talk", id: agent } : route;
   // Back from the frame stands on the agent's card, or on the bare 대화 list when no agent is chosen.
   const toCard = () => {
-    const card = href(agent ? { name: "talk", id: agent } : { name: "talk" });
+    const card = href(agent ? { name: "talk", id: agent } : { name: "talks" });
     if (stack.length > 1 && stack[stack.length - 2] === card) back();
     else navigate(card, { replace: true });
   };

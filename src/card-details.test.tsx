@@ -155,7 +155,7 @@ test("a card's worker run opened on its own reads its card: r1 goes on inside it
   });
   const run = view.getByTestId("screen-run");
   expect(run.querySelector("[data-testid=detail-loading]")).toBeNull();
-  expect(run.querySelector(".timeline-head")?.textContent).toMatch(/^라운드 3 · (어제 )?\d\d:\d\d · 진행 중$/);
+  expect(run.querySelector(".timeline-head")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 진행 중$/);
   expect(runBoxes(view)).toEqual(["작업", "기록"]);
   expect(run.querySelector('a[href="#/cards/k-101"]')).not.toBeNull();
   expect(core.details()).toEqual(["k-101"]);
@@ -184,7 +184,7 @@ test.each(["r4", "r5"])("a card's worker run %s with no record, opened on its ow
   await waitFor(() => expect(store.status("record", runId)).toBe("missing"));
   await waitFor(() => expect(view.getByTestId("screen-run").textContent).toContain("읽기 실패: 기록"));
   observer.disconnect();
-  expect(view.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("코드 작업");
+  expect(view.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("제목 없음");
   expect(seen.filter((text) => text.includes("찾을 수 없음"))).toEqual([]);
   expect(view.container.textContent).not.toContain("찾을 수 없음");
   expect(core.details()).toEqual([]);
@@ -204,6 +204,35 @@ test("the first load reads no card's detail on any screen but a card's run page,
   const { view } = mount("#/runs/r1", core);
   await waitFor(() => expect(view.getByTestId("screen-run").querySelector('a[href="#/cards/k-101"]')).not.toBeNull());
   expect(core.details()).toEqual(["k-101"]);
+});
+
+/** The words the hub served as worker run ids for one real card (lina-app#128): the commands its text names, not runs. */
+const NOT_RUN_IDS = ["status", "wait", "accept", "send", "cancel", "submit", "receipts"] as const;
+
+/**
+ * k-101 as the real hub served such a card: its worker runs listed again and again, and the words of the commands in
+ * its text (`lina worker status ...`) listed as worker runs of their own.
+ */
+function wordyCard(): SyntheticSource {
+  const { scene } = new SyntheticSource();
+  const detail = scene.cardDetails["k-101"];
+  const seen = detail.workerRuns[0];
+  const words = NOT_RUN_IDS.map((id) => ({ ...seen, id, kind: "lina-worker" as const }));
+  const workerRuns = [...detail.workerRuns, ...detail.workerRuns, ...words, ...detail.workerRuns, ...words];
+  const comments = [...detail.comments, { ...detail.comments[0], id: 9_128, body: "lina worker status 다음에 lina worker wait, 끝나면 lina worker accept" }];
+  return new SyntheticSource({ scene: { ...scene, cardDetails: { ...scene.cardDetails, "k-101": { ...detail, workerRuns, comments } } } });
+}
+
+test("opening one card reads each worker run's record once and never reads a word that is not a run id", async () => {
+  const core = fakeCore(wordyCard());
+  const { store, view } = mount("#/cards/k-101", core);
+  await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
+  await waitFor(() => expect(store.refreshes).toBeGreaterThan(0));
+  const reads = core.requests.filter((url) => url.endsWith("/record")).map((url) => decodeURIComponent(url.split("/").at(-2) ?? ""));
+  expect([...reads].sort()).toEqual(["r1", "r10", "r9"]);
+  // Nothing on the card links to a word as if it were a run.
+  expect(view.container.querySelectorAll(`a[href^="#/runs/"]`).length).toBeGreaterThan(0);
+  for (const word of NOT_RUN_IDS) expect(view.container.querySelector(`a[href="#/runs/${word}"]`)).toBeNull();
 });
 
 test("the lists draw while a card's detail takes 30 seconds; the open card shows its row, then fills in", async () => {

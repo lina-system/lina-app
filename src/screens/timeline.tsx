@@ -8,12 +8,18 @@ import { clockAt } from "../time";
 import { agentName, Box, useApp } from "../ui/parts";
 import { SEP, W } from "../words";
 
-/** The model a worker run used: its record once the screen has read it, else the run card the board lists. */
+/**
+ * The model a worker run used: its record once the screen has read it, else the run card the board lists. It is named
+ * only by the plain name the model list gives it; an id with no name there is an alias (model-a) and the line is left
+ * out (lina-app#128).
+ */
 export function RunModelLine({ runId, class: className = "sub" }: { runId: string; class?: string }) {
   const { model, store } = useApp();
   const run = store.get("record", runId)?.model ?? model.runs.get(runId)?.model ?? null;
   const settings: Settings = store.get("settings")?.settings ?? {};
-  const line = runModelLine(run, settings, store.get("settingsModels")?.models ?? []);
+  const models = store.get("settingsModels")?.models ?? [];
+  if (!models.some((listed) => listed.id === run?.id && (!run.provider || listed.provider === run.provider) && listed.name?.trim())) return null;
+  const line = runModelLine(run, settings, models);
   if (!line) return null;
   return (
     <p class={className} data-testid="run-model">
@@ -27,39 +33,47 @@ function clean(text: string | null): text is string {
   return Boolean(text) && !foldReason(text ?? "");
 }
 
-function Row({ row, owner, timed = true }: { row: RecordRow; owner: string; timed?: boolean }) {
+/** One event of a history: `time · one sentence` on one line (lina-app#123, #128). */
+function timed(at: number, text: string, now: number): string {
+  return [clockAt(at, now), text].join(SEP);
+}
+
+function Row({ row, owner }: { row: RecordRow; owner: string }) {
   const { now } = useApp();
   if (row.kind === "tools")
     return (
       <li class="timeline-row is-dim" data-kind="tools">
-        {W.toolSteps(row.count)}
+        {timed(row.at, W.toolSteps(row.count), now)}
       </li>
     );
   if (row.kind === "comment") {
     // The owner's comment stays, folded when its text would show raw text (접힌 댓글), as in the comments box.
-    const ok = clean(row.text);
+    const text = clean(row.text) ? row.text : null;
     return (
-      <li class={ok ? "timeline-row is-comment" : "timeline-row is-comment is-dim"} data-kind="comment">
-        <span class="timeline-text">{ok ? row.text : W.folded}</span>
-        <span class="sub">{[owner, timed ? clockAt(row.at, now) : ""].filter(Boolean).join(SEP)}</span>
+      <li class={text ? "timeline-row is-comment" : "timeline-row is-comment is-dim"} data-kind="comment">
+        <span class="timeline-text">{timed(row.at, text ?? W.folded, now)}</span>
+        {owner ? <span class="sub">{` ${owner}`}</span> : null}
       </li>
     );
   }
   return (
     <li class="timeline-row is-said" data-kind="said">
-      {row.text}
+      {timed(row.at, row.text ?? "", now)}
       {row.count > 1 ? <span class="timeline-count">{` ${W.repeated(row.count)}`}</span> : null}
     </li>
   );
 }
 
-/** A round's head: 라운드 n, its own start and end (the end alone when its start is not on record), its outcome. */
+/**
+ * A round's head: its own start and end (the end alone when its start is not on record) and its outcome, with no round
+ * number (lina-app#61: rounds are not for the owner to count). Comments between rounds head their block with 댓글.
+ */
 function head(block: TimelineBlock, now: number): string {
-  if (block.type === "comment") return [W.comments, clockAt(block.at, now)].join(SEP);
+  if (block.type === "comment") return W.comments;
   const start = block.start === null ? "" : clockAt(block.start, now);
   const end = block.end === null ? "" : clockAt(block.end, now);
   const span = start && end ? `${start}–${end}` : start || end;
-  return [W.round(block.n), span, W.outcome[block.outcome]].filter(Boolean).join(SEP);
+  return [span, W.outcome[block.outcome]].filter(Boolean).join(SEP);
 }
 
 /**
@@ -90,17 +104,39 @@ function Block({ block, owner, link, modelRun }: { block: TimelineBlock; owner: 
       {rows.length ? (
         <ul class="timeline-rows">
           {rows.map((row, index) => (
-            <Row key={`${row.at}:${index}`} row={row} owner={owner} timed={block.type === "round"} />
+            <Row key={`${row.at}:${index}`} row={row} owner={owner} />
           ))}
         </ul>
       ) : null}
       {result ? (
         <p class="timeline-result" data-testid="timeline-result">
-          <span class="timeline-label">{W.result}</span>
-          {result}
+          {timed(block.type === "round" ? (block.end ?? block.at) : block.at, result, now)}
         </p>
       ) : null}
     </details>
+  );
+}
+
+/** One past event of a run the record does not hold: when, and one sentence. */
+export interface PastEvent {
+  readonly at: number;
+  readonly text: string;
+}
+
+/** A history with no record behind it (a finished run the core keeps no record for): one line per event, oldest first. */
+export function PastEvents({ events }: { events: readonly PastEvent[] }) {
+  const { now } = useApp();
+  if (!events.length) return null;
+  return (
+    <Box title={W.record} testid="timeline">
+      <ul class="timeline-rows">
+        {events.map((event) => (
+          <li key={`${event.at}:${event.text}`} class="timeline-row is-said" data-kind="said">
+            {timed(event.at, event.text, now)}
+          </li>
+        ))}
+      </ul>
+    </Box>
   );
 }
 

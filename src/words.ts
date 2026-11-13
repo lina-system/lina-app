@@ -257,6 +257,8 @@ export const W = {
   summariesStopped: "요약 멈춤",
   folded: "접힌 댓글",
   noStart: "시작 기록 없음",
+  runStarted: "작업 시작",
+  untitledRun: "제목 없음",
   latest: (time: string) => `최근 활동 ${time}`,
   allAgents: "전체",
   todoProgress: (done: number, total: number) => `할 일 ${done}/${total}`,

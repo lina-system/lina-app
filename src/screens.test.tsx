@@ -1625,7 +1625,8 @@ describe("work cards", () => {
     expect(within(detail).queryByTestId("worker-runs")).toBeNull();
     // Each round's head is the link to its worker run.
     const links = within(detail).getAllByTestId("timeline-link");
-    expect(links.map((link) => link.textContent?.split(" · ")[0])).toEqual(["라운드 3", "라운드 2", "라운드 1"]);
+    // No round number: each head is its own span and outcome (lina-app#61).
+    expect(links.map((link) => link.textContent)).toEqual([expect.stringMatching(/^(어제 )?\d\d:\d\d · 진행 중$/), expect.stringMatching(/^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 검토 반려$/), expect.stringMatching(/^(어제 )?\d\d:\d\d · 작업 마침$/)]);
     expect(links.map((link) => link.getAttribute("href"))).toEqual(["#/runs/r1", "#/runs/r10", "#/runs/r9"]);
     view.unmount();
     const waiting = await open("#/cards/k-104", { wide: true });
@@ -1746,7 +1747,7 @@ describe("work cards, round 4", () => {
     const view = await open("#/cards/k-103", { wide: true });
     const heads = view.getAllByTestId("round").map((round) => round.querySelector(".round-head")?.textContent);
     // Round 3 has no end and its run no longer beats: the head says 중단됨, not 진행 중.
-    expect(heads).toEqual([expect.stringMatching(/^라운드 3 · (어제 )?\d\d:\d\d · 중단됨$/), "라운드 1 · 시작 기록 없음"]);
+    expect(heads).toEqual([expect.stringMatching(/^(어제 )?\d\d:\d\d · 중단됨$/), "시작 기록 없음"]);
     expect(view.getAllByTestId("round")[1].classList.contains("is-no-start")).toBe(true);
     expect(view.getAllByTestId("round")[1].querySelector("li")).toBeNull();
   });
@@ -1810,7 +1811,7 @@ describe("work cards, round 6", () => {
   test("a round with no start on record draws the line it left, dimmed, under its head", async () => {
     const view = await open("#/cards/k-103", { wide: true });
     const round = view.getAllByTestId("round")[1];
-    expect(round.querySelector(".round-head")?.textContent).toBe("라운드 1 · 시작 기록 없음");
+    expect(round.querySelector(".round-head")?.textContent).toBe("시작 기록 없음");
     expect(round.querySelector("[data-testid=round-line]")?.textContent).toBe("오류 문구 초안을 남김");
   });
 
@@ -1834,12 +1835,12 @@ describe("the run's own timeline", () => {
     const blocks = view.getAllByTestId("timeline-block");
     expect(blocks.map((block) => block.getAttribute("data-outcome"))).toEqual(["going", "comment", "rejected", "comment", "ended"]);
     const titles = blocks.map((block) => block.querySelector(".timeline-head")?.textContent);
-    expect(titles[0]).toMatch(/^라운드 3 · (어제 )?\d\d:\d\d · 진행 중$/);
-    expect(titles[1]).toMatch(/^댓글 · (어제 )?\d\d:\d\d$/);
-    expect(titles[2]).toMatch(/^라운드 2 · (어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 검토 반려$/);
+    expect(titles[0]).toMatch(/^(어제 )?\d\d:\d\d · 진행 중$/);
+    expect(titles[1]).toBe("댓글");
+    expect(titles[2]).toMatch(/^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 검토 반려$/);
     // No start on record: the end alone, no dangling dash; the dim line below says the start is missing.
-    expect(titles[3]).toMatch(/^댓글 · (어제 )?\d\d:\d\d$/);
-    expect(titles[4]).toMatch(/^라운드 1 · (어제 )?\d\d:\d\d · 작업 마침$/);
+    expect(titles[3]).toBe("댓글");
+    expect(titles[4]).toMatch(/^(어제 )?\d\d:\d\d · 작업 마침$/);
     expect(titles.join("\n")).not.toMatch(/ –|^–/m);
   });
 
@@ -1849,9 +1850,9 @@ describe("the run's own timeline", () => {
     const going = view.getAllByTestId("timeline-block")[0];
     const rows = [...going.querySelectorAll(".timeline-row")].map((row) => [row.getAttribute("data-kind"), row.classList.contains("is-dim"), row.textContent]);
     expect(rows).toEqual([
-      ["said", false, "변경마다 한 줄 요약을 붙이는 중"],
-      ["tools", true, "도구 사용 4번"],
-      ["said", false, "요약을 표로 옮기는 중 ×3"],
+      ["said", false, expect.stringMatching(/^(어제 )?\d\d:\d\d · 변경마다 한 줄 요약을 붙이는 중$/)],
+      ["tools", true, expect.stringMatching(/^(어제 )?\d\d:\d\d · 도구 사용 4번$/)],
+      ["said", false, expect.stringMatching(/^(어제 )?\d\d:\d\d · 요약을 표로 옮기는 중 ×3$/)],
     ]);
     expect(going.querySelector("[data-testid=timeline-result]")).toBeNull();
     const text = screenText(view.getByTestId("timeline"));
@@ -1864,46 +1865,56 @@ describe("the run's own timeline", () => {
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const blocks = view.getAllByTestId("timeline-block");
     expect(blocks[4].querySelector("[data-testid=timeline-no-start]")?.textContent).toBe("시작 기록 없음");
-    expect(blocks[4].querySelector("[data-testid=timeline-result]")?.textContent).toBe("결과병합된 변경 41개를 모음");
+    expect(blocks[4].querySelector("[data-testid=timeline-result]")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 병합된 변경 41개를 모음$/);
     // The owner asked for the doc-only group between rounds 1 and 2, before round 2 did it.
-    expect(blocks[3].querySelector(".timeline-text")?.textContent).toBe("문서만 바뀐 변경은 따로 묶어 주세요.");
-    expect(blocks[1].querySelector(".timeline-text")?.textContent).toBe("변경 목록은 표로 보여 주세요");
-    // A comment's own block already carries its time in the head; the row names its author only.
-    expect(blocks[1].querySelector(".sub")?.textContent).toBe("나");
-    expect(blocks[2].querySelector(".sub")?.textContent).toMatch(/^나 · (어제 )?\d\d:\d\d$/);
-    expect(blocks[2].querySelector(".timeline-text")?.textContent).toBe("변경마다 한 줄 요약을 붙여 주세요");
+    expect(blocks[3].querySelector(".timeline-text")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 문서만 바뀐 변경은 따로 묶어 주세요\.$/);
+    expect(blocks[1].querySelector(".timeline-text")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 변경 목록은 표로 보여 주세요$/);
+    // Every comment row carries its own time, then its author.
+    expect(blocks[1].querySelector(".sub")?.textContent?.trim()).toBe("나");
+    expect(blocks[2].querySelector(".sub")?.textContent?.trim()).toBe("나");
+    expect(blocks[2].querySelector(".timeline-text")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 변경마다 한 줄 요약을 붙여 주세요$/);
   });
 
+  /** The scene with plain names on its models: a run's record names a model only by such a name (lina-app#128). */
+  const namedModels = () => {
+    const { scene } = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
+    const names: Record<string, string> = { "model-a": "가온 큰 모델", "model-b": "가온 작은 모델" };
+    const models = scene.settings.models.map((model) => ({ ...model, name: names[model.id] ?? model.name }));
+    return new SyntheticSource({ now: scene.now, scene: { ...scene, settings: { ...scene.settings, models } } });
+  };
+
   test("a worker run's page names the model it used once under its head, and its rounds draw no model line", async () => {
-    const used = await open("#/runs/r1", { wide: true });
+    const used = await open("#/runs/r1", { wide: true, source: namedModels() });
     await waitFor(() => expect(used.getByTestId("timeline")).toBeTruthy());
-    expect(used.container.querySelector(".detail-head [data-testid=run-model]")?.textContent).toBe("model-a · 보통");
+    await waitFor(() => expect(used.container.querySelector(".detail-head [data-testid=run-model]")?.textContent).toBe("가온 큰 모델 · 보통"));
     expect(used.container.querySelectorAll("[data-testid=run-model]")).toHaveLength(1);
     expect(used.container.querySelector("[data-testid=timeline-block] [data-testid=run-model]")).toBeNull();
     expect(screenText(used.container)).not.toMatch(/\br\d+\b/);
     used.unmount();
-    const fallback = await open("#/runs/r8", { wide: true });
-    await waitFor(() => expect(fallback.container.querySelector(".detail-head [data-testid=run-model]")?.textContent).toBe("model-b · 높음 · 대체 모델"));
+    const fallback = await open("#/runs/r8", { wide: true, source: namedModels() });
+    await waitFor(() => expect(fallback.container.querySelector(".detail-head [data-testid=run-model]")?.textContent).toBe("가온 작은 모델 · 높음 · 대체 모델"));
     expect(fallback.container.querySelectorAll("[data-testid=run-model]")).toHaveLength(1);
     expect(fallback.container.querySelector("[data-testid=timeline-block] [data-testid=run-model]")).toBeNull();
     expect(screenText(fallback.container)).not.toMatch(/\br\d+\b/);
     fallback.unmount();
-    const none = await open("#/runs/r6", { wide: true });
+    const none = await open("#/runs/r6", { wide: true, source: namedModels() });
     await waitFor(() => expect(none.getByTestId("timeline")).toBeTruthy());
     expect(none.container.querySelector("[data-testid=run-model]")).toBeNull();
     expect(screenText(none.container)).not.toMatch(/\br\d+\b/);
   });
 
   test("each round of a card's 기록 names its own run's model, and a round whose run has none shows nothing", async () => {
-    const view = await open("#/cards/k-101", { wide: true });
-    await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
+    const view = await open("#/cards/k-101", { wide: true, source: namedModels() });
+    await waitFor(() => expect(view.container.querySelector("[data-testid=timeline-block] [data-testid=run-model]")).not.toBeNull());
     const blocks = view.getAllByTestId("timeline-block");
-    const round = (n: number) => blocks.find((block) => block.getAttribute("data-outcome") !== "comment" && block.querySelector(".timeline-head")?.textContent?.startsWith(`라운드 ${n}`));
+    // The rounds by their place, oldest 1: the heads carry no number (lina-app#61).
+    const rounds = blocks.filter((block) => block.getAttribute("data-outcome") !== "comment").reverse();
+    const round = (n: number) => rounds[n - 1];
     // k-101's rounds stay r9, r10, r1. Only r1 (round 3) has a model.
     const third = round(3);
     const line = third?.querySelector("[data-testid=run-model]");
     expect(third?.querySelector("[data-testid=timeline-link]")?.getAttribute("href")).toBe("#/runs/r1");
-    expect(line?.textContent).toBe("model-a · 보통");
+    expect(line?.textContent).toBe("가온 큰 모델 · 보통");
     expect(line?.classList.contains("timeline-model")).toBe(true);
     expect(third?.querySelector(".timeline-head")?.contains(line ?? null)).toBe(false);
     expect(round(2)?.querySelector("[data-testid=timeline-link]")?.getAttribute("href")).toBe("#/runs/r10");
@@ -1921,7 +1932,7 @@ describe("the run's own timeline", () => {
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const block = view.getByTestId("timeline-block");
     expect(block.getAttribute("data-outcome")).toBe("ended");
-    expect(block.querySelector(".timeline-head")?.textContent).toMatch(/^라운드 1 · (어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 작업 마침$/);
+    expect(block.querySelector(".timeline-head")?.textContent).toMatch(/^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 작업 마침$/);
     expect(block.querySelector("[data-testid=timeline-result]")).toBeNull();
     expect(block.querySelector(".timeline-rows")).toBeNull();
     const text = screenText(view.getByTestId("timeline"));
@@ -1933,17 +1944,17 @@ describe("the run's own timeline", () => {
     const view = await open("#/cards/k-101", { wide: true });
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const link = view.getByTestId("timeline").querySelector('a[href="#/runs/r1"]') as HTMLAnchorElement;
-    expect(link.textContent).toMatch(/^라운드 3 · /);
+    expect(link.textContent).toMatch(/^(어제 )?\d\d:\d\d · 진행 중$/);
     fireEvent.click(link);
     await waitFor(() => expect(view.queryByTestId("screen-run")).not.toBeNull());
     await waitFor(() => expect(view.getByTestId("screen-run").querySelector("[data-testid=timeline]")).not.toBeNull());
-    expect(view.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("코드 작업");
+    expect(view.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("릴리스 변경 목록 정리");
     expect(view.getByTestId("screen-run").querySelector('a[href="#/cards/k-101"]')).not.toBeNull();
     view.unmount();
     // Opened on its own, before its card: the run's record names its card, which the page reads and shows.
     const run = await open("#/runs/r1", { wide: true });
     await waitFor(() => expect(run.getByTestId("timeline")).toBeTruthy());
-    expect(run.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("코드 작업");
+    expect(run.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("릴리스 변경 목록 정리");
     expect(run.getByTestId("screen-run").querySelector('a[href="#/cards/k-101"]')).not.toBeNull();
   });
 
@@ -2127,5 +2138,71 @@ describe("test environment teardown", () => {
 
     expect(text).toBe("ran");
     expect(flushAfterPaint).toBeTypeOf("function");
+  });
+});
+
+describe("a card's detail (lina-app#128)", () => {
+  beforeEach(() => setWide(true));
+  const TIME = "(?:어제 |\\d+월 \\d+일 )?\\d\\d:\\d\\d";
+  const EVENT = new RegExp(`^${TIME} · \\S`);
+
+  test("a to-do mark the card cannot change is a plain status mark: no control, no action name", async () => {
+    const view = await open("#/cards/k-101", { wide: true });
+    const todos = within(view.getByRole("list", { name: "할 일" }));
+    expect(todos.queryAllByRole("checkbox")).toEqual([]);
+    expect(todos.queryAllByRole("button")).toEqual([]);
+    expect(view.container.querySelectorAll('[aria-label$="완료로 표시"], [aria-disabled="true"]')).toHaveLength(0);
+    const rows = todos.getAllByTestId("row").map((row) => row.textContent);
+    expect(rows).toEqual(["완료변경 목록 모으기", "모은 변경 확인", "공지 문구 확인"]);
+  });
+
+  test("a card's worker run reads its work's title and a state word, never 코드 작업, on its page and on the card's lines", async () => {
+    const run = await open("#/runs/r1", { wide: true });
+    await waitFor(() => expect(run.getByTestId("timeline")).toBeTruthy());
+    expect(run.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("릴리스 변경 목록 정리");
+    expect(run.getByTestId("run-state").textContent).toBe("진행 중");
+    expect(run.getByTestId("detail-pane").getAttribute("aria-label")).toBe("릴리스 변경 목록 정리");
+    expect(screenText(run.container)).not.toContain("코드 작업");
+    run.unmount();
+    // k-104's worker run r4 has no record: 실행 stands, one line per run with its title and state word.
+    const card = await open("#/cards/k-104", { wide: true });
+    const lines = within(card.getByTestId("worker-runs")).getAllByRole("link");
+    expect(lines.map((line) => line.getAttribute("aria-label"))).toEqual(["결제: 실패 화면 검토 · 완료 기록 없음"]);
+    expect(screenText(card.container)).not.toContain("코드 작업");
+  });
+
+  test("a run's record never shows a model alias; a model with a name reads by its name", async () => {
+    for (const hash of ["#/runs/r1", "#/runs/r8", "#/cards/k-101"]) {
+      const view = await open(hash, { wide: true });
+      await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
+      expect(screenText(view.container), hash).not.toMatch(/model-[a-z]/);
+      view.unmount();
+    }
+    const scene = new SyntheticSource({ now: Math.floor(Date.now() / 1000) }).scene;
+    const models = scene.settings.models.map((model) => (model.id === "model-a" ? { ...model, name: "가온 큰 모델" } : model));
+    const named = await open("#/runs/r1", { wide: true, source: new SyntheticSource({ now: scene.now, scene: { ...scene, settings: { ...scene.settings, models } } }) });
+    await waitFor(() => expect(named.container.querySelector(".detail-head [data-testid=run-model]")?.textContent).toBe("가온 큰 모델 · 보통"));
+  });
+
+  test("history lists one line per event, time · one sentence, with no round number as a heading", async () => {
+    const view = await open("#/cards/k-101", { wide: true });
+    await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
+    const timeline = view.getByTestId("timeline");
+    expect(screenText(timeline)).not.toContain("라운드");
+    const heads = [...timeline.querySelectorAll(".timeline-head")].map((head) => head.textContent);
+    expect(heads[0]).toMatch(new RegExp(`^${TIME} · 진행 중$`));
+    const lines = [...timeline.querySelectorAll("li.timeline-row, [data-testid=timeline-result]")].map((row) => row.textContent ?? "");
+    expect(lines.length).toBeGreaterThan(5);
+    for (const line of lines) expect(line).toMatch(EVENT);
+    expect(lines).toContainEqual(expect.stringMatching(new RegExp(`^${TIME} · 병합된 변경 41개를 모음$`)));
+  });
+
+  test("a finished run outside any card lists its past events: started, then what it left", async () => {
+    const view = await open("#/runs/r7", { wide: true });
+    await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
+    const lines = [...view.getByTestId("timeline").querySelectorAll(".timeline-row")].map((row) => row.textContent ?? "");
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatch(new RegExp(`^${TIME} · 작업 시작$`));
+    expect(lines[1]).toMatch(new RegExp(`^${TIME} · 용어 표를 맨 앞으로 옮김$`));
   });
 });

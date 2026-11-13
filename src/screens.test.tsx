@@ -177,9 +177,10 @@ describe("machines, quota and checks", () => {
     expect(rows).toHaveLength(4);
     expect(rows.some((label) => /^\S+ · 정상 · CPU \d+% · 메모리 \d+% · 디스크 \d+% · 작업 \d+\/\d+$/.test(label ?? ""))).toBe(true);
     expect(rows.some((label) => /^\S+ · 경고 · 디스크 · CPU \d+% · 메모리 \d+% · 디스크 \d+% · 작업 \d+\/\d+$/.test(label ?? ""))).toBe(true);
-    expect(rows.some((label) => /^\S+ · 꺼짐 · 연결 끊김 · CPU — · 메모리 — · 디스크 — · 작업 —\/\d+$/.test(label ?? ""))).toBe(true);
+    // An unreachable node reads 연결 끊김 and nothing else (lina-app#144).
+    expect(rows.some((label) => /^\S+ · 꺼짐 · 연결 끊김$/.test(label ?? ""))).toBe(true);
     const down = view.container.querySelector(".machine-row.is-down") as HTMLElement;
-    expect(down.querySelectorAll(".mini-none")).toHaveLength(3);
+    expect(down.querySelector(".mini-meters")).toBeNull();
     expect(down.querySelectorAll(".meter")).toHaveLength(0);
     expect(view.container.querySelectorAll(".machine-row.is-ok .meter")).toHaveLength(6);
   });
@@ -193,12 +194,8 @@ describe("machines, quota and checks", () => {
     expect(rows.at(-1)?.getAttribute("data-role")).toBe("files");
     expect(view.getByText("업데이트 필요")).toBeTruthy();
     expect(view.getByText("로그인 필요")).toBeTruthy();
-    const downCells = [...view.container.querySelectorAll(".machine-row.is-down [data-testid=runner-cell]")];
-    expect(downCells.length).toBeGreaterThan(0);
-    for (const cell of downCells) {
-      expect(cell.textContent).toContain("연결 끊김");
-      expect(cell.textContent).not.toMatch(/\d/);
-    }
+    // The unreachable node lists no runners: its row says 연결 끊김 once (lina-app#144).
+    expect(view.container.querySelectorAll(".machine-row.is-down [data-testid=runner-cell]")).toHaveLength(0);
     const filesCell = rows.at(-1)?.querySelector("[data-testid=runner-cell]") as HTMLElement;
     expect(filesCell.textContent).toContain("2.0");
     expect(within(filesCell).getByRole("img", { name: "로그인됨" })).toBeTruthy();
@@ -282,7 +279,7 @@ describe("machines, quota and checks", () => {
     const view = await open("#/status", { wide: true, source });
     const machine = source.scene.devices.machines.find((item) => item.role === "work" && item.state === "ok");
     expect(machine).toBeTruthy();
-    fireEvent.click(view.getByRole("button", { name: `${machine?.name} 다시 시작` }));
+    fireEvent.click(view.getByRole("button", { name: `${machine?.name} 서비스 다시 시작` }));
     const dialog = view.getByRole("dialog", { name: "다시 시작" });
     expect(source.deviceWrites).toEqual([]);
     fireEvent.click(within(dialog).getByRole("button", { name: "작업 실행기" }));
@@ -298,7 +295,7 @@ describe("machines, quota and checks", () => {
     source.restartDevice = async () => ({ ok: false as const, status: 502, detail: "the node refused" });
     const view = await open("#/status", { wide: true, source });
     const machine = source.scene.devices.machines[0];
-    fireEvent.click(view.getByRole("button", { name: `${machine.name} 다시 시작` }));
+    fireEvent.click(view.getByRole("button", { name: `${machine.name} 서비스 다시 시작` }));
     fireEvent.click(view.getByRole("button", { name: "작업 실행기" }));
     fireEvent.click(view.getByRole("button", { name: "다시 시작" }));
     await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("기기가 거절함"));

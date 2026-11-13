@@ -1039,6 +1039,33 @@ button:disabled {
   color: var(--orange);
 }
 
+/* A check whose own line is not Korean keeps it folded under 자세히, wrapped at any width, never cut. */
+.check-more {
+  padding: 0 var(--inset) 10px;
+  font-size: var(--text-small);
+  color: var(--label-2);
+}
+
+.check-more > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  width: max-content;
+  color: var(--accent);
+  cursor: pointer;
+  list-style: none;
+}
+
+.check-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.check-original {
+  margin: 2px 0 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 /* Detail. */
 
 .detail {
@@ -1721,7 +1748,8 @@ html:has(.stack) body {
 }
 
 .stack .person-row,
-.stack .machine-restart {
+.stack .machine-restart,
+.stack .check-more {
   padding-left: 12px;
   padding-right: 12px;
 }

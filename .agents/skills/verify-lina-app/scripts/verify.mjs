@@ -1234,7 +1234,11 @@ const drivers = {
       const meters = "CPU (\\d+%|—) · 메모리 (\\d+%|—) · 디스크 (\\d+%|—) · 작업 (\\d+|—)/\\d+$";
       check(names.some((name) => new RegExp(" · 정상 · " + meters).test(name)), "no 정상 machine with its meters: " + names.join(" | "));
       check(names.some((name) => new RegExp(" · 경고 · 디스크 · " + meters).test(name)), "no 경고 machine with its reason word: " + names.join(" | "));
-      check(names.some((name) => / · 꺼짐 · 연결 끊김 · CPU — · 메모리 — · 디스크 — · 작업 —\/\d+$/.test(name)), "no 꺼짐 machine reading 연결 끊김 and — meters: " + names.join(" | "));
+      // An unreachable node reads 연결 끊김 and nothing else: no readings, no load, no dashes (lina-app#144).
+      check(names.some((name) => /^\S+ · 꺼짐 · 연결 끊김$/.test(name)), "no 꺼짐 machine reading 연결 끊김 alone: " + names.join(" | "));
+      const head = (await page.getByTestId("section-machines").locator(".section-head").innerText()).trim();
+      check(head === "작업 기기 4 · 정상 2 · 경고 1 · 꺼짐 1", "the machines head reads " + head);
+      check(!(await page.getByTestId("section-machines").innerText()).includes("—"), "the machines panel still draws a dash");
       const colours = await page.getByRole("list", { name: "기기", exact: true }).locator(".machine-state").evaluateAll((words) => words.map((word) => word.textContent + "=" + getComputedStyle(word).color));
       check(colours.includes("경고=rgb(255, 149, 0)") && colours.includes("꺼짐=rgb(255, 59, 48)"), "state colours " + colours.join(", "));
       const bars = await page.getByRole("list", { name: "기기", exact: true }).locator(".mini-meter .meter").count();
@@ -1254,12 +1258,15 @@ const drivers = {
       check(ready === 3, "expected 3 runners with the signed-in mark, got " + ready);
       // The runner row starts where the node's name starts, and a sign-in button stays on its runner's line.
       const edges = await rows.evaluateAll((items) =>
-        items.map((row) => {
-          const name = row.querySelector(".title").getBoundingClientRect();
-          const first = row.querySelector(".runner-name").getBoundingClientRect();
-          return { name: Math.round(name.left), runner: Math.round(first.left) };
-        }),
+        items
+          .filter((row) => row.querySelector(".runner-name"))
+          .map((row) => {
+            const name = row.querySelector(".title").getBoundingClientRect();
+            const first = row.querySelector(".runner-name").getBoundingClientRect();
+            return { name: Math.round(name.left), runner: Math.round(first.left) };
+          }),
       );
+      check(edges.length === 3, "expected runners under the 3 reachable nodes, got " + edges.length);
       check(edges.every((edge) => Math.abs(edge.name - edge.runner) <= 1), "name and first runner start at " + JSON.stringify(edges));
       const line = await page.getByTestId("runner-cell").filter({ has: page.getByRole("button", { name: "로그인", exact: true }) }).evaluate((cell) => {
         const name = cell.querySelector(".runner-name").getBoundingClientRect();
@@ -1267,11 +1274,13 @@ const drivers = {
         return Math.round(Math.abs(button.top + button.height / 2 - (name.top + name.height / 2)));
       });
       check(line <= 2, "the sign-in button sits " + line + " px off its runner's line");
-      const down = await page.locator(".machine-row.is-down").getByTestId("runner-cell").allInnerTexts();
-      check(down.length > 0 && down.every((cell) => cell.includes("연결 끊김") && !/\d/.test(cell)), "down cells " + JSON.stringify(down));
+      const down = await page.locator(".machine-row.is-down").getByTestId("runner-cell").count();
+      check(down === 0, "the unreachable node still lists " + down + " runners");
       const grid = await page.getByRole("list", { name: "기기", exact: true }).innerText();
       check(grid.includes("업데이트 필요") && grid.includes("로그인 필요"), "the grid has no update or sign-in cell");
-      return "update, sign-in, unreachable; file node " + files + "; edges " + JSON.stringify(edges);
+      check(/업데이트 필요\s*1\.2 → 1\.6/.test(grid), "the update cell does not show installed → fleet: " + grid.replace(/\s+/g, " "));
+      check(!grid.includes("확인 중"), "a runner reads 확인 중");
+      return "update 1.2 → 1.6, sign-in; unreachable node without runners; file node " + files + "; edges " + JSON.stringify(edges);
     });
     // Phone checks run before 로그인 is pressed, and the viewport comes back to the drive width for the proof shot.
     // The push into this screen is still sliding for a moment; a press during it misses the button.
@@ -1340,7 +1349,11 @@ const drivers = {
     await step("restart the worker from the row menu", async () => {
       const row = page.locator(".machine-row[data-role=work]").first();
       const name = (await row.locator(".title").first().innerText()).trim();
-      await row.getByRole("button", { name: name + " 다시 시작" }).click();
+      // The control says what it restarts, and the unreachable node has none (lina-app#144).
+      const button = row.getByRole("button", { name: name + " 서비스 다시 시작", exact: true });
+      check((await button.innerText()).trim() === "서비스 다시 시작", "the restart control reads " + (await button.innerText()));
+      check((await page.locator(".machine-row.is-down").getByRole("button").count()) === 0, "the unreachable node has a button");
+      await button.click();
       const dialog = page.getByRole("dialog", { name: "다시 시작" });
       await dialog.waitFor();
       await dialog.getByRole("button", { name: "작업 실행기", exact: true }).click();
@@ -1357,7 +1370,12 @@ const drivers = {
       check(text.includes("연결됨") && text.includes("연결 끊김"), "states read " + text);
       check((await list.getByRole("button").count()) === 0, "내 기기 has a button");
       check(/\d+\.\d+/.test(text), "no tool version in " + text);
-      return text;
+      // The unreachable Mac reads 연결 끊김 alone, and the head counts this block on its own (lina-app#144).
+      const off = (await list.locator(".person-row").filter({ hasText: "연결 끊김" }).innerText()).replace(/\s+/g, " ").trim();
+      check(/^\S+ 연결 끊김$/.test(off), "the unreachable Mac reads " + off);
+      const head = (await page.getByTestId("section-person").locator(".section-head").innerText()).trim();
+      check(head === "내 기기 2 · 연결됨 1 · 연결 끊김 1", "the 내 기기 head reads " + head);
+      return head + "; " + text;
     });
     await step("read the quota: service rows, then the service OCX has no account for and OCX itself as rows", async () => {
       const list = page.getByRole("list", { name: "쿼터", exact: true });

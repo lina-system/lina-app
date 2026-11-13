@@ -128,6 +128,15 @@ export const W = {
   deviceRefused: "기기가 거절함",
   restart: "다시 시작",
   restartOf: (name: string) => `${name} 다시 시작`,
+  /** The row's restart control names what it restarts: the services on that node, the worker or the model link. */
+  restartService: "서비스 다시 시작",
+  restartServiceOf: (name: string) => `${name} 서비스 다시 시작`,
+  /** Each status block counts what it lists: the nodes, then the owner's own Macs, which the nodes' count leaves out. */
+  workDeviceHead: (all: number, ok: number, warn: number, down: number) => [`작업 기기 ${all}`, `정상 ${ok}`, warn ? `경고 ${warn}` : "", down ? `꺼짐 ${down}` : ""].filter(Boolean).join(SEP),
+  personHead: (all: number, connected: number, offline: number) => [`내 기기 ${all}`, connected ? `연결됨 ${connected}` : "", offline ? `연결 끊김 ${offline}` : ""].filter(Boolean).join(SEP),
+  /** A runner's update: the version the node has, then the fleet's. */
+  versionGap: (installed: string, fleet: string) => `${installed} → ${fleet}`,
+  checkMore: "자세히",
   restartWorker: "작업 실행기",
   restartOcx: "모델 연결",
   restartWorkerConfirm: "작업 실행기를 다시 시작합니다.",
@@ -410,6 +419,35 @@ export function machineWhy(why: string | null | undefined): string | null {
 export function runnerReason(why: string | null | undefined): string {
   return why && Object.hasOwn(W.runnerWhy, why) ? W.runnerWhy[why] : W.runnerWhy.unknown;
 }
+
+/** Why a node shows no CPU, memory or disk reading, from the core's `metricsWhy` (lina-app#144). */
+export const METRICS_WHY: Readonly<Record<string, string>> = {
+  no_source: "측정 원본 없음",
+  unknown: "측정 기록 없음",
+  down: "기기 응답 없음",
+};
+
+/** One reason for missing readings. A value the table does not know, or none, reads by whether the node answered. */
+export function metricsReason(why: string | null | undefined, reachable: boolean): string {
+  if (why && Object.hasOwn(METRICS_WHY, why)) return METRICS_WHY[why];
+  return reachable ? METRICS_WHY.unknown : METRICS_WHY.down;
+}
+
+/** The version number in what a node reports installed (`omo 5.1.51 (engine: …)` reads `5.1.51`), or null. */
+export function versionOf(installed: string | null | undefined): string | null {
+  if (!installed) return null;
+  return /\d+(?:\.\d+)+(?:-[0-9A-Za-z.]+)?/.exec(installed)?.[0] ?? null;
+}
+
+export type CheckOutcome = "ok" | "hold" | "fail";
+
+/** A check whose own line is not Korean reads one of these, by the check's id and the line's ok/hold/fail. */
+export const CHECK_LINE: Readonly<Record<string, Readonly<Record<CheckOutcome, string>>>> = {
+  "runner-sync": { ok: "실행기 업데이트 완료", hold: "실행기 업데이트 보류", fail: "실행기 업데이트 실패" },
+};
+
+/** The line for a check the table does not know. */
+export const CHECK_OUTCOME_LINE: Readonly<Record<CheckOutcome, string>> = { ok: "점검 정상", hold: "점검 보류", fail: "점검 실패" };
 
 /** Display names for the services the core knows; any other service shows as the core gives it. */
 export const SERVICE_NAME: Readonly<Record<string, string>> = {

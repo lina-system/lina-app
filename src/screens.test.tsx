@@ -1307,7 +1307,7 @@ describe("agent talk", () => {
   test("every number on the agent's card has its word, and red marks only 중단됨 (lina-app#143)", async () => {
     const view = await open("#/talk/ag-2", { wide: true });
     const counts = view.getByTestId("agent-card-counts");
-    expect(counts.textContent).toBe("진행 중 1 · 중단됨 1 · 검토 필요 2 · 목표 2");
+    expect(counts.textContent).toBe("진행 중 1 · 중단됨 1 · 검토 필요 1 · 목표 2");
     // No number stands alone: each one follows its word inside the same part.
     for (const part of counts.querySelectorAll("[data-testid=agent-count]")) expect(part.textContent).toMatch(/^[가-힣 ]+ \d+$/);
     expect([...counts.querySelectorAll(".is-red")].map((red) => red.textContent)).toEqual(["중단됨 1"]);

@@ -1757,6 +1757,8 @@ html:has(.stack) body {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-bottom: calc(64px + var(--safe-bottom) + var(--keyboard-inset, 0px));
+  /* A row brought into view (a tap, a focus move, a find) stops above the bottom bar, never under it (lina-app#142). */
+  scroll-padding-bottom: calc(44px + 8px + var(--safe-bottom) + var(--keyboard-inset, 0px));
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
   background: var(--bg-2);

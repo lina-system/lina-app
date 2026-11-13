@@ -660,11 +660,11 @@ describe("decisions", () => {
   test("each 결정 필요 row opens the record it is aimed at, and that record shows the decision", async () => {
     const inbox = await open("#/inbox", { wide: true });
     const list = inbox.getByRole("list", { name: "결정 필요" });
-    for (const button of list.querySelectorAll(":scope > li > .row-button")) fireEvent.click(button);
+    // A press opens the record in the detail frame at once (lina-app#142): each row is a link to it.
     const rows = [...list.querySelectorAll(":scope > li")].map((row) => ({
-      href: row.querySelector(".decision-panel a")?.getAttribute("href") ?? "",
-      text: row.querySelector(".row-button .title")?.textContent ?? "",
-      context: row.querySelector(".decision-panel a")?.textContent ?? "",
+      href: row.querySelector(":scope > a")?.getAttribute("href") ?? "",
+      text: row.querySelector(":scope > a .title")?.textContent ?? "",
+      context: row.querySelector(":scope > a .context")?.textContent ?? "",
     }));
     inbox.unmount();
     expect(rows.filter((row) => /^#\/(items|goals)\//.test(row.href)).length).toBeGreaterThanOrEqual(1);
@@ -780,8 +780,9 @@ class SpySource extends SyntheticSource {
 
 const TIMERS: Parameters<typeof vi.useFakeTimers>[0] = { toFake: ["Date", "setInterval", "clearInterval", "setTimeout", "clearTimeout"] };
 
+/** A 결정 필요 row in 수신함: a link that opens its record in the detail frame (lina-app#142). */
 function decisionButton(view: ReturnType<typeof render>, text: string): HTMLElement {
-  return view.getByRole("button", { name: containsText(text) });
+  return view.getByRole("link", { name: containsText(text) });
 }
 
 describe("answers", () => {
@@ -792,12 +793,14 @@ describe("answers", () => {
       const view = await open("#/inbox", { wide: true, source });
       const row = decisionButton(view, "배포를 금요일 오후에 할지 결정 필요");
       fireEvent.click(row);
-      expect(row.getAttribute("aria-expanded")).toBe("true");
+      // The decision opens in the frame at once, with its answers there.
+      await waitFor(() => expect(view.getByTestId("detail-frame").querySelector("[data-testid=decision]")?.textContent).toContain("배포를 금요일 오후에 할지 결정 필요"));
       await waitFor(() => expect(view.getByRole("button", { name: "금요일 오후 · 추천" })).toBeTruthy());
       expect(view.getByRole("button", { name: "월요일 오전" })).toBeTruthy();
       fireEvent.click(view.getByRole("button", { name: "금요일 오후 · 추천" }));
       expect(view.getByTestId("toast").textContent).toBe("답함되돌리기");
-      expect(view.queryByRole("button", { name: /배포를 금요일/ })).toBeNull();
+      expect(view.queryByRole("link", { name: /배포를 금요일/ })).toBeNull();
+      expect(view.getByTestId("detail-frame").querySelector("[data-testid=decision]")).toBeNull();
       await act(async () => {
         vi.advanceTimersByTime(TOAST_MS - 100);
       });
@@ -807,7 +810,7 @@ describe("answers", () => {
       });
       await waitFor(() => expect(source.calls).toEqual(['comment ["T2",{"text":"금요일 오후","answer":true}]']));
       expect(view.queryByTestId("toast")).toBeNull();
-      expect(view.queryByRole("button", { name: /배포를 금요일/ })).toBeNull();
+      expect(view.queryByRole("link", { name: /배포를 금요일/ })).toBeNull();
     } finally {
       vi.useRealTimers();
     }
@@ -819,13 +822,14 @@ describe("answers", () => {
       const source = new SpySource();
       const view = await open("#/inbox", { wide: true, source });
       fireEvent.click(decisionButton(view, "자주 쓰는 검색어 열 개"));
-      const field = view.getByRole("textbox", { name: "답 달기" }) as HTMLInputElement;
+      const field = (await waitFor(() => view.getByRole("textbox", { name: "답 달기" }))) as HTMLInputElement;
       field.value = "결제, 환불, 배송";
       fireEvent.input(field);
       fireEvent.submit(field.form as HTMLFormElement);
-      expect(view.queryByRole("button", { name: /자주 쓰는 검색어/ })).toBeNull();
+      expect(view.queryByRole("link", { name: /자주 쓰는 검색어/ })).toBeNull();
       fireEvent.click(view.getByRole("button", { name: "되돌리기" }));
-      expect(view.getByRole("button", { name: /자주 쓰는 검색어/ })).toBeTruthy();
+      expect(view.getByRole("link", { name: /자주 쓰는 검색어/ })).toBeTruthy();
+      expect(view.getByTestId("detail-frame").querySelector("[data-testid=decision]")?.textContent).toContain("자주 쓰는 검색어");
       await act(async () => {
         vi.advanceTimersByTime(TOAST_MS * 2);
       });
@@ -841,7 +845,7 @@ describe("answers", () => {
       const source = new SpySource();
       const view = await open("#/inbox", { wide: true, source });
       fireEvent.click(decisionButton(view, "카드 번호를 앞 여섯 자리까지"));
-      const field = view.getByRole("textbox", { name: "답 달기" }) as HTMLInputElement;
+      const field = (await waitFor(() => view.getByRole("textbox", { name: "답 달기" }))) as HTMLInputElement;
       field.value = "네";
       fireEvent.input(field);
       fireEvent.submit(field.form as HTMLFormElement);
@@ -849,10 +853,11 @@ describe("answers", () => {
         vi.advanceTimersByTime(TOAST_MS);
       });
       await waitFor(() => expect(source.calls).toEqual(['answerCard ["k-102",{"text":"네"}]']));
-      await waitFor(() => expect(view.queryByRole("button", { name: /카드 번호는/ })).toBeNull());
+      await waitFor(() => expect(view.queryByRole("link", { name: /카드 번호를/ })).toBeNull());
 
       source.refuse.add("comment");
       fireEvent.click(decisionButton(view, "복구 연습에 쓸 두 시간"));
+      await waitFor(() => expect(view.getByTestId("detail-frame").querySelector("[data-testid=decision]")?.textContent).toContain("복구 연습에 쓸 두 시간"));
       const act2 = view.getByRole("textbox", { name: "답 달기" }) as HTMLInputElement;
       act2.value = "목요일 오후";
       fireEvent.input(act2);
@@ -1726,10 +1731,12 @@ describe("live updates", () => {
       const screen = view.getByTestId("screen-inbox");
       const row = decisionButton(view, "배포를 금요일 오후에 할지 결정 필요");
       fireEvent.click(row);
-      expect(row.getAttribute("aria-expanded")).toBe("true");
       await act(async () => {
         await vi.advanceTimersByTimeAsync(0);
       });
+      // The decision is open in the frame and its row is the selected one.
+      expect(row.getAttribute("aria-current")).toBe("page");
+      expect(view.getByTestId("detail-frame").querySelector("[data-testid=screen-item]")).not.toBeNull();
       const read = vi.spyOn(core, "read");
 
       const otherDevice = new Store(new SyntheticSource({ scene: core.scene }));
@@ -1760,7 +1767,8 @@ describe("live updates", () => {
 
       expect(view.getByTestId("screen-inbox")).toBe(screen);
       expect(decisionButton(view, "배포를 금요일 오후에 할지 결정 필요")).toBe(row);
-      expect(row.getAttribute("aria-expanded")).toBe("true");
+      expect(row.getAttribute("aria-current")).toBe("page");
+      expect(view.getByTestId("detail-frame").querySelector("[data-testid=decision]")?.textContent).toContain("배포를 금요일 오후에 할지 결정 필요");
       expect(core.stream.filter((connection) => connection.open)).toHaveLength(1);
     } finally {
       vi.useRealTimers();

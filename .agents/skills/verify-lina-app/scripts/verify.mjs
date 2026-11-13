@@ -323,7 +323,7 @@ async function stoppedCardColours(list) {
 
 async function decisionNames(list) {
   await list.first().waitFor({ timeout: 10_000 });
-  return list.locator(":scope > li > .row-button").evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label")));
+  return list.locator(":scope > li > a").evaluateAll((links) => links.map((link) => link.getAttribute("aria-label")));
 }
 
 const ACCENT = "rgb(0, 122, 255)";
@@ -629,6 +629,7 @@ async function dividerSteps(page, step, width) {
 
 const drivers = {
   async inbox(page, step) {
+    const wide = page.viewportSize().width >= 900;
     await step("open the app on 수신함", async () => {
       await openApp(page, "#/inbox");
       return await title(page);
@@ -657,10 +658,9 @@ const drivers = {
     });
     await step("each decision opens the record it is aimed at, which shows the decision", async () => {
       const list = page.getByRole("list", { name: "결정 필요" });
-      const buttons = list.locator(":scope > li > .row-button");
-      for (let index = 0; index < (await buttons.count()); index += 1) await buttons.nth(index).click();
+      // Each row is a link to its record (lina-app#142): its line names the record, its address opens it in the frame.
       const rows = await list.locator(":scope > li").evaluateAll((items) =>
-        items.map((item) => ({ href: item.querySelector(".decision-panel a").getAttribute("href"), text: item.querySelector(".row-button .title").textContent.trim(), context: item.querySelector(".decision-panel a").textContent.trim(), kind: item.querySelector(".kind-word").textContent.trim() })),
+        items.map((item) => ({ href: item.querySelector(":scope > a").getAttribute("href"), text: item.querySelector(":scope > a .title").textContent.trim(), context: item.querySelector(":scope > a .context").textContent.trim(), kind: item.querySelector(".kind-word").textContent.trim() })),
       );
       const seen = { item: 0, card: 0 };
       for (const row of rows) {
@@ -687,16 +687,15 @@ const drivers = {
       await openApp(page, "#/inbox");
       return rows.length + " decisions: " + seen.item + " on goals or to-dos, " + seen.card + " on a card";
     });
-    await step("a decision expands in place, and its line opens the record", async () => {
+    await step("a decision's row opens its record in the detail frame at once, with its answers there", async () => {
       const first = page.getByRole("list", { name: "결정 필요" }).locator(":scope > li").first();
-      await first.locator(".row-button").click();
-      check((await first.locator(".row-button").getAttribute("aria-expanded")) === "true", "the row did not expand");
-      check(/#\/inbox$/.test(page.url()), "expanding the row navigated to " + page.url());
-      await first.getByRole("button", { name: /추천$/ }).waitFor({ timeout: 5_000 }).catch(() => check(false, "the first decision shows no recommended answer"));
-      await first.locator(".decision-panel a").click();
-      await page.locator(".detail-title").waitFor();
+      await first.locator(":scope > a").click();
+      const frame = page.getByTestId("detail-frame");
+      await frame.locator(".detail-title").waitFor();
       check(/#\/items\//.test(page.url()), "the row opened " + page.url());
-      return (await page.locator(".detail-title").innerText()) + " at " + new URL(page.url()).hash;
+      check((await frame.getAttribute("data-frame")) === (wide ? "panel" : "sheet"), "the decision opens in " + (await frame.getAttribute("data-frame")));
+      await frame.getByRole("button", { name: /추천$/ }).waitFor({ timeout: 5_000 }).catch(() => check(false, "the first decision shows no recommended answer in its frame"));
+      return (await frame.locator(".detail-title").innerText()) + " at " + new URL(page.url()).hash;
     });
   },
 
@@ -1033,9 +1032,8 @@ const drivers = {
     });
     await step("from 수신함, a decision's line opens 배포 순서 정하기 with its decision box", async () => {
       await openApp(page, "#/inbox");
-      const row = page.getByRole("list", { name: "결정 필요" }).locator(":scope > li").filter({ has: page.getByRole("button", { name: /배포를 금요일 오후에 할지 결정 필요/ }) });
-      await row.locator(".row-button").click();
-      await row.locator(".decision-panel a").click();
+      const row = page.getByRole("list", { name: "결정 필요" }).locator(":scope > li").filter({ has: page.getByRole("link", { name: /배포를 금요일 오후에 할지 결정 필요/ }) });
+      await row.locator(":scope > a").click();
       await page.waitForFunction(() => location.hash === "#/items/T2", null, { timeout: 3_000 }).catch(() => check(false, "the decision opened " + page.url()));
       const title = (await page.locator(".detail-title").first().innerText()).trim();
       check(title === "배포 순서 정하기", "the to-do opened is " + title);
@@ -1987,7 +1985,7 @@ const drivers = {
     await step("a row hidden for its answer's toast is out of every count; undo puts it back", async () => {
       await openApp(page, "#/inbox");
       const list = page.getByRole("list", { name: "결정 필요" });
-      await list.getByRole("button", { name: /배포를 금요일 오후에 할지 결정 필요/ }).click();
+      await list.getByRole("link", { name: /배포를 금요일 오후에 할지 결정 필요/ }).click();
       const pick = page.getByRole("button", { name: "금요일 오후 · 추천" });
       await pick.waitFor({ timeout: 3_000 });
       await pick.click();
@@ -2050,30 +2048,33 @@ const drivers = {
     await step("an answer with choices: the row leaves, and the answer goes after the toast", async () => {
       await openApp(page, "#/inbox");
       const list = page.getByRole("list", { name: "결정 필요" });
-      await list.getByRole("button", { name: /배포를 금요일 오후에 할지 결정 필요/ }).click();
+      await list.getByRole("link", { name: /배포를 금요일 오후에 할지 결정 필요/ }).click();
       const pick = page.getByRole("button", { name: "금요일 오후 · 추천" });
       await pick.waitFor({ timeout: 3_000 });
       await pick.click();
-      check((await list.getByRole("button", { name: /배포를 금요일/ }).count()) === 0, "the row is still listed");
+      check((await list.getByRole("link", { name: /배포를 금요일/ }).count()) === 0, "the row is still listed");
       check((await page.getByTestId("toast").innerText()).startsWith("답함"), "no 답함 toast");
       const early = await scene(() => window.__linaScene.itemDetails.T2.comments.filter((comment) => comment.kind === "answer").length);
       check(early === 0, "the answer was sent before the toast ended");
       await toastGone();
       await page.waitForFunction(() => window.__linaScene.itemDetails.T2.comments.some((comment) => comment.kind === "answer" && comment.text === "금요일 오후"), null, { timeout: 3_000 }).catch(() => check(false, "the answer did not reach the record"));
-      check((await list.getByRole("button", { name: /배포를 금요일/ }).count()) === 0, "the row came back");
+      check((await list.getByRole("link", { name: /배포를 금요일/ }).count()) === 0, "the row came back");
       return "row gone, answer 금요일 오후 recorded after the toast";
     });
     await step("a free-text answer and a card's question", async () => {
       await openApp(page, "#/inbox");
       const list = page.getByRole("list", { name: "결정 필요" });
-      await list.getByRole("button", { name: /자주 쓰는 검색어 열 개 확인 필요/ }).click();
+      await list.getByRole("link", { name: /자주 쓰는 검색어 열 개 확인 필요/ }).click();
+      // The decision opens in the frame (lina-app#142); its 보내기 is the answer's, not the comment box's.
       await page.getByRole("textbox", { name: "답 달기" }).fill("결제, 환불, 배송");
-      await page.getByRole("button", { name: "보내기", exact: true }).click();
+      await page.getByTestId("decision-answer").getByRole("button", { name: "보내기", exact: true }).click();
       await toastGone();
+      // On a phone the frame is a sheet over the list: close it to reach the next row.
+      if (!wide) await page.getByTestId("frame-close").click();
       await page.waitForFunction(() => window.__linaScene.itemDetails.T12.comments.some((comment) => comment.kind === "answer" && comment.text === "결제, 환불, 배송"), null, { timeout: 3_000 }).catch(() => check(false, "the free-text answer did not reach the record"));
-      await list.getByRole("button", { name: /카드 번호를 앞 여섯 자리까지/ }).click();
+      await list.getByRole("link", { name: /카드 번호를 앞 여섯 자리까지/ }).click();
       await page.getByRole("textbox", { name: "답 달기" }).fill("앞 네 자리만요");
-      await page.getByRole("button", { name: "보내기", exact: true }).click();
+      await page.getByTestId("decision-answer").getByRole("button", { name: "보내기", exact: true }).click();
       await toastGone();
       await page.waitForFunction(() => window.__linaScene.cardDetails["k-102"].comments.some((comment) => comment.body === "앞 네 자리만요") && window.__linaScene.inbox.questions.length === 0, null, { timeout: 3_000 }).catch(() => check(false, "the card answer did not reach the card"));
       const left = await decisionNames(list);
@@ -2554,9 +2555,11 @@ const drivers = {
       if (!wide) await page.setViewportSize({ width: size.width, height: 480 });
       await openApp(page, wide ? "#/items/T3" : "#/inbox", "&live=drop");
       await markPage(page);
-      const row = page.getByRole("button", { name: /배포를 금요일 오후에 할지 결정 필요/ });
+      // The decision opens in the frame (lina-app#142) and its row is the selected one.
+      const row = page.getByRole("link", { name: /배포를 금요일 오후에 할지 결정 필요/ });
       await row.click();
-      check((await row.getAttribute("aria-expanded")) === "true", "the decision row did not open");
+      await page.getByTestId("detail-frame").getByTestId("decision").waitFor();
+      check((await row.getAttribute("aria-current")) === "page", "the decision row is not the selected one");
       const kept = async () =>
         page.evaluate(() => ({
           selected: document.querySelector(".list-pane [aria-current=page]")?.textContent?.trim() ?? null,
@@ -2574,7 +2577,7 @@ const drivers = {
       const { connections } = await stream(page);
       check(connections.length === 2, "the stream had " + connections.length + " connections");
       check(connections[1].since !== null && connections[1].first === "missed" && connections[1].missed === 1, "the reconnect was " + JSON.stringify(connections[1]));
-      check((await row.getAttribute("aria-expanded")) === "true", "the open decision row closed");
+      check((await row.getAttribute("aria-current")) === "page" && (await page.getByTestId("detail-frame").getByTestId("decision").count()) === 1, "the open decision closed");
       const after = await kept();
       check(JSON.stringify(after) === JSON.stringify(before), "the screen moved: " + JSON.stringify(before) + " -> " + JSON.stringify(after));
       check(await notReloaded(page), "the page reloaded");

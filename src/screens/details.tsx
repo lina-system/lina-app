@@ -1,4 +1,4 @@
-import type { ComponentChildren } from "preact";
+import { Fragment, type ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
@@ -63,7 +63,6 @@ function AnswerPlace({ answerKey, target, label, choices = [], recommended = nul
     const body = answer.trim();
     if (!body || busy) return;
     actions.answer(answerKey, target, body);
-    setText("");
   };
   return (
     <div class="answer-place" data-testid={testid}>
@@ -98,12 +97,26 @@ function AnswerPlace({ answerKey, target, label, choices = [], recommended = nul
   );
 }
 
+/** Whether an answer under this key waits for its toast: its decision leaves the frame as its row leaves 수신함. */
+function useAnswering(): (key: string) => boolean {
+  const actions = useActions();
+  return (key) => actions.pending().hidden.has(key);
+}
+
 function ItemDecision({ detail }: { detail: ItemDetail }) {
-  if (!detail.decision || detail.decision.answered) return null;
+  const answering = useAnswering();
+  const key = `decide:${detail.id}`;
+  if (!detail.decision || detail.decision.answered || answering(key)) return null;
+  const waiting = detail.children.filter((child) => child.reason === "blocked_by_item").map((child) => child.title);
   return (
     <>
       <DecisionBox text={detail.decision.text} agent={detail.agent} ask={detail.decision.kind === "ask"} at={detail.decision.at} />
-      <AnswerPlace answerKey={`decide:${detail.id}`} target={{ kind: "item", id: detail.id }} label={W.answerField} choices={detail.decision.choices} recommended={detail.decision.recommended} testid="decision-answer" />
+      {waiting.length ? (
+        <p class="sub waiting-on" data-testid="waiting-on">
+          {W.waitingOn(waiting.join(", "))}
+        </p>
+      ) : null}
+      <AnswerPlace answerKey={key} target={{ kind: "item", id: detail.id }} label={W.answerField} choices={detail.decision.choices} recommended={detail.decision.recommended} testid="decision-answer" />
     </>
   );
 }
@@ -431,6 +444,7 @@ function runLive(model: Model, runId: string): boolean {
 
 export function CardScreen({ id }: { id: string }) {
   const { model, store, now } = useApp();
+  const answering = useAnswering();
   const detail = store.get("card", id);
   const row = model.cards.get(id);
   if (!detail) {
@@ -451,7 +465,7 @@ export function CardScreen({ id }: { id: string }) {
       </article>
     );
   }
-  const questions = (store.get("inbox")?.questions ?? []).filter((question) => question.cardId === id);
+  const questions = (store.get("inbox")?.questions ?? []).filter((question) => question.cardId === id && !answering(`question:${id}:${question.commentId}`));
   // A worker run id the hub served may be a word of a command in the card's text (status, wait): not a run, never
   // read or drawn; a run listed twice is one run (lina-app#128).
   const workerRuns = detail.workerRuns.filter((worker, index, all) => isRunId(worker.id) && all.findIndex((other) => other.id === worker.id) === index);
@@ -482,12 +496,16 @@ export function CardScreen({ id }: { id: string }) {
         ) : null}
         {detail.state === "in_progress" && detail.todoProgress.total > 0 ? <Progress done={detail.todoProgress.done} total={detail.todoProgress.total} word /> : null}
       </CardHead>
+      {/* Each question with the place to answer it, keyed as its 수신함 row, so answering here hides that row too. */}
       {questions.map((question) => (
-        <DecisionBox key={question.commentId} text={question.body} agent={question.agent} ask at={question.askedAt} />
+        <Fragment key={question.commentId}>
+          <DecisionBox text={question.body} agent={question.agent} ask at={question.askedAt} />
+          <AnswerPlace answerKey={`question:${id}:${question.commentId}`} target={{ kind: "card", id }} label={W.answerField} testid="decision-answer" />
+        </Fragment>
       ))}
-      {ask ? (
+      {ask && !questions.length && !answering(`answer:${id}`) ? (
         <Box>
-          <AnswerPlace answerKey={questions[0] ? `question:${id}:${questions[0].commentId}` : `answer:${id}`} target={{ kind: "card", id }} label={ask} testid="card-answer" />
+          <AnswerPlace answerKey={`answer:${id}`} target={{ kind: "card", id }} label={ask} testid="card-answer" />
         </Box>
       ) : null}
       {detail.plain.now && detail.state === "in_progress" ? (

@@ -39,7 +39,7 @@ A work card (`#/cards/<id>`) or a worker run outside any card (`#/runs/<id>`) op
 ## How to get to it (user POV)
 
 - Choose a card on 진행 중인 작업, 완료, an agent screen or a goal page.
-- Choose a `결정 필요` row in 수신함 whose small line reads `목표 › 작업`: it is the card's question; it opens in place, and its `목표 › 작업` link opens the card with the question box on top.
+- Choose a `결정 필요` row in 수신함 whose small line reads `목표 › 작업`: it is the card's question; choosing it opens the card in the detail frame with the question box on top and the place to answer it.
 - Choose a 검토 필요 row in 수신함 for a run.
 
 ## Driving it with verify.mjs
@@ -52,7 +52,7 @@ Preconditions:
 - **Open a card.** On 진행 중인 작업, choose `릴리스 변경 목록 정리`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive card-detail`.
 - **Read it.** State `진행 중 · 시작 n분 전`; boxes `지금`, `할 일`, `기록`, `댓글` (no `실행` beside the record); 3 to-do marks (no check box, nothing named `완료로 표시` or `aria-disabled`) beside `변경 목록 모으기` (done), `모은 변경 확인`, `공지 문구 확인`; the round heads link to `#/runs/r1`, `#/runs/r10`, `#/runs/r9`; 4 comments (the agent's note in round 1 and the owner's three, which are also the record's comment rows).
 - **Own title.** Open `#/cards/k-102`: its head reads `위키: 결제 화면 문서 정리` with the `문서` kind and no `지금`, not `코드 작업`.
-- **Card question.** In 수신함 open `카드 번호를 앞 여섯 자리까지 표시할지 결정 필요` in place and choose its `목표 › 작업` link. The address is `#/cards/<id>` and the first box is `결정 필요` with that sentence, `질문` and `n일 전`.
+- **Card question.** In 수신함 choose `카드 번호를 앞 여섯 자리까지 표시할지 결정 필요`. The address is `#/cards/<id>` and the first box is `결정 필요` with that sentence, `질문` and `n일 전`.
 - **Open a run.** In 수신함 choose the 검토 필요 row. The address is `#/runs/<id>` and the state reads `대기 · 검토 필요 · n시간 전`.
 - **Timeline.** Driven in work-cards.md on `#/cards/k-101` and `#/runs/r1`; here `#/runs/r6`'s single round reads `<hh:mm> · 완료` and its raw result line is left out: no result sentence, no `가린 문장`.
 - **Model.** The scene's models have no plain name (`model-a`, `model-b` are ids): `#/runs/r1`, `#/cards/k-101`, `#/runs/r8` and `#/runs/r6` show no model line and no `model-` text. A model with a plain name reads `<name> · 보통` once under a run's head (src/screens.test.tsx). None of these pages shows a settings revision.

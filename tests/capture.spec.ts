@@ -138,19 +138,22 @@ const SCREENS: readonly { id: string; hash: string; query?: string; line?: strin
     id: "decision-open",
     hash: "#/inbox",
     open: async (page) => {
-      const rows = page.getByRole("list", { name: "결정 필요" }).locator(".row-button");
-      await rows.nth(0).click();
-      await rows.nth(1).click();
-      await expect(page.getByRole("button", { name: /추천$/ })).toBeVisible();
-      await expect(page.getByTestId("waiting-on")).toBeVisible();
+      // A decision opens in the detail frame at once (lina-app#142), its answers and what waits on it there.
+      const rows = page.getByRole("list", { name: "결정 필요" }).locator(".decision-row > a");
+      await rows.filter({ hasText: "배포를 금요일" }).click();
+      await expect(page.getByTestId("detail-frame").getByRole("button", { name: /추천$/ })).toBeVisible();
+      // On a phone the frame is a sheet over the list: it closes before the next row.
+      if ((page.viewportSize()?.width ?? 0) < 900) await page.getByTestId("frame-close").click();
+      await rows.filter({ hasText: "복구 연습" }).click();
+      await expect(page.getByTestId("detail-frame").getByTestId("waiting-on")).toBeVisible();
     },
   },
   {
     id: "answered-toast",
     hash: "#/inbox",
     open: async (page) => {
-      await page.getByRole("list", { name: "결정 필요" }).locator(".row-button").first().click();
-      await page.getByRole("button", { name: /추천$/ }).click();
+      await page.getByRole("list", { name: "결정 필요" }).locator(".decision-row > a").first().click();
+      await page.getByTestId("detail-frame").getByRole("button", { name: /추천$/ }).click();
       await expect(page.getByTestId("toast")).toHaveText(/^답함/);
     },
   },

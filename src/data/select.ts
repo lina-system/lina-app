@@ -2,11 +2,13 @@ import { bootstrapOptions, HttpSource } from "./http-source";
 import { browserPushHost, type PushHost } from "../push";
 import type { SettingsModel, SettingsPatch } from "../api/client";
 import type { Source } from "./source";
+import type { PowerVariant } from "../fixtures/synthetic";
 import { SyntheticSource, type SettingsScript, type StreamScript, type TalkRefusal } from "./synthetic-source";
 
 const TALK_REFUSALS: readonly string[] = ["busy", "down", "none"] satisfies TalkRefusal[];
 const STREAM_SCRIPTS: readonly string[] = ["down", "drop", "resync", "token"] satisfies StreamScript[];
 const SETTINGS_SCRIPTS: readonly string[] = ["readonly", "empty", "stale", "race", "ocx-down", "many-warnings"] satisfies SettingsScript[];
+const POWER_VARIANTS: readonly string[] = ["stopped", "none"] satisfies PowerVariant[];
 
 /**
  * The core by default. `?source=synthetic` or the build flag `VITE_LINA_SOURCE=synthetic` selects the synthetic
@@ -27,6 +29,7 @@ export function chooseSource(location: Pick<Location, "search"> = window.locatio
     const talk = params.get("talk");
     const live = params.get("live");
     const settings = params.get("settings");
+    const power = params.get("power");
     const synthetic = new SyntheticSource({
       sourceError: params.get("error") === "quota",
       checksError: params.get("error") === "checks",
@@ -37,6 +40,7 @@ export function chooseSource(location: Pick<Location, "search"> = window.locatio
       live: live && STREAM_SCRIPTS.includes(live) ? (live as StreamScript) : "ok",
       pushOff: params.get("push") === "off",
       settings: settings && SETTINGS_SCRIPTS.includes(settings) ? (settings as SettingsScript) : null,
+      power: power && POWER_VARIANTS.includes(power) ? (power as PowerVariant) : null,
     });
     // verify.mjs reads the synthetic copy after a write to check the record changed, not only the screen.
     if (typeof window !== "undefined") {

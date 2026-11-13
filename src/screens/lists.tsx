@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import { USAGE_RANGES, type Machine, type PersonDevice, type QuotaAccount, type QuotaService, type RunnerCell, type UsageRange } from "../api/client";
+import { USAGE_RANGES, type Machine, type PersonDevice, type PowerStation, type PowerView, type QuotaAccount, type QuotaService, type RunnerCell, type UsageRange } from "../api/client";
 import type { CardRow, DueRow, GoalRow, InboxRow, Section } from "../model";
 import { agentView, doneFor, localDay } from "../model";
 import type { OpenCheck } from "../model/checks";
@@ -587,6 +587,122 @@ function PersonRow({ device }: { device: PersonDevice }) {
   );
 }
 
+/** The watch's alert keys in words, each once: a station's own alert by its name, an unknown key as one 기타 경고. */
+function powerAlertWords(power: PowerView): string[] {
+  const name = (key: string) => power.stations.find((station) => station.key === key)?.name ?? W.powerAlert.device;
+  const words = power.alerts.map((alert) => {
+    const [kind, ...rest] = alert.split(":");
+    const key = rest.join(":");
+    if (alert === "power") return W.powerAlert.outage;
+    if (alert === "watch:cloud") return W.powerAlert.cloud;
+    if (kind === "temp" && key) return W.powerAlert.temp(name(key));
+    if (kind === "offline" && key) return W.powerAlert.offline(name(key));
+    if (kind === "watch" && rest[0] === "mqtt") return W.powerAlert.mqtt(name(rest.slice(1).join(":")));
+    return W.powerAlert.other;
+  });
+  return [...new Set(words)];
+}
+
+/** A station's own alert keys name it after the colon (temp:<key>, offline:<key>, watch:mqtt:<key>). */
+function stationAlerted(power: PowerView, station: PowerStation): boolean {
+  return power.alerts.some((alert) => alert.split(":").at(-1) === station.key && alert.includes(":"));
+}
+
+/**
+ * One power station: its battery level, input and output, temperature, charging state and the time left on battery.
+ * A station without a battery reports only its link. A value too old to trust keeps its numbers, dimmed, with its age.
+ */
+function PowerStationRow({ power, station }: { power: PowerView; station: PowerStation }) {
+  const state = station.connected === false ? "down" : stationAlerted(power, station) ? "warn" : "ok";
+  const parts = station.battery
+    ? [
+        station.batteryPercent !== null ? W.percent(station.batteryPercent) : null,
+        station.inputW !== null ? W.powerIn(station.inputW) : null,
+        station.outputW !== null ? W.powerOut(station.outputW) : null,
+        station.temperature !== null ? W.temperature(station.temperature) : null,
+        station.charge ? W.powerCharge[station.charge] : null,
+        station.remainingS !== null ? W.powerRunsOut(until(station.remainingS)) : null,
+      ]
+    : [station.connected === true ? W.connected : station.connected === false ? W.offline : W.runnerWhy.unknown];
+  const line = parts.filter((part): part is string => Boolean(part));
+  const age = station.stale ? (station.age !== null ? ago(station.age) : W.none) : null;
+  return (
+    <li class={`row power-row is-${state}${station.stale ? " is-stale" : ""}`} data-testid="power-station">
+      <div class="row-body" aria-label={[station.name, ...line, age].filter(Boolean).join(SEP)}>
+        <span class={`status-dot is-${state}`} aria-hidden="true" />
+        <span class="lines">
+          <span class="title one-line">{station.name}</span>
+          <span class="sub">{line.join(SEP)}</span>
+        </span>
+        {age ? <span class="trail power-age">{age}</span> : null}
+        {station.battery && station.batteryPercent !== null ? (
+          <span class="meter" aria-hidden="true">
+            <span class={`meter-fill${station.batteryPercent <= 20 ? " is-high" : ""}`} style={{ width: `${Math.min(100, Math.max(0, station.batteryPercent))}%` }} />
+          </span>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+/** The hub's own line: its wall adapter, battery and uplink, dimmed when the watch stopped. */
+function PowerHubRow({ hub }: { hub: NonNullable<PowerView["hub"]> }) {
+  const line = [hub.wallAdapter !== null ? W.wallAdapter(hub.wallAdapter) : null, hub.batteryPercent !== null ? W.hubBattery(hub.batteryPercent) : null, hub.uplink ? W.uplink[hub.uplink] : null].filter(
+    (part): part is string => Boolean(part),
+  );
+  return (
+    <li class={`row power-hub${hub.stale ? " is-stale" : ""}`} data-testid="power-hub">
+      <div class="row-body" aria-label={[W.hub, ...line].join(SEP)}>
+        <span class="lines">
+          <span class="title one-line">{W.hub}</span>
+          <span class="sub">{line.join(SEP)}</span>
+        </span>
+      </div>
+    </li>
+  );
+}
+
+/** The record's age, or why it is not current: a stopped watch or a failed cloud read with its age, or no record. */
+function powerHead(power: PowerView): string {
+  const age = power.age !== null ? ago(power.age) : null;
+  if (power.state === "missing") return W.powerMissing;
+  if (power.state === "broken") return W.powerBroken;
+  if (power.state === "stale") return [W.powerWhy[power.why ?? "stopped"] ?? W.powerWhy.stopped, age].filter(Boolean).join(SEP);
+  return age ? W.powerFresh(age) : W.powerFresh(W.none);
+}
+
+/**
+ * 전원: one card for the hub's power equipment, only when the core serves the section. Read only: no button, no form.
+ * The head says how old the watch's record is; the stations follow, then the hub's own line, then the active alerts as
+ * one red line.
+ */
+function PowerSection({ power }: { power: PowerView }) {
+  const alerts = powerAlertWords(power);
+  return (
+    <section class={`list-section power-card is-${power.state}`} data-testid="section-power">
+      <h2 class="section-head">
+        <span>{W.power}</span>
+      </h2>
+      <p class={`power-head${power.state === "ok" ? "" : " is-late"}`} data-testid="power-head">
+        {powerHead(power)}
+      </p>
+      {power.stations.length || power.hub ? (
+        <ul class="rows" aria-label={W.power}>
+          {power.stations.map((station) => (
+            <PowerStationRow key={station.key} power={power} station={station} />
+          ))}
+          {power.hub ? <PowerHubRow hub={power.hub} /> : null}
+        </ul>
+      ) : null}
+      {alerts.length ? (
+        <p class="power-alerts warn-mark" data-testid="power-alerts">
+          {W.powerAlerts(alerts)}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 /**
  * One question before a restart: a bottom sheet on a phone, a small dialog on a wide window. Drawn beside the shell,
  * like the settings rollback, so the phone screen's view transition does not trap it.
@@ -872,6 +988,7 @@ export function StatusScreen() {
           </ul>
         </section>
       ) : null}
+      {model.power ? <PowerSection power={model.power} /> : null}
       {hasQuota ? (
         <section class="list-section" data-testid="section-quota">
           <h2 class="section-head">

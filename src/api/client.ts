@@ -18,6 +18,9 @@ export type SourceError = Board["schemas"]["SourceError"];
 export type DevicesView = Board["schemas"]["DevicesView"];
 export type DeviceAction = Board["schemas"]["DeviceAction"];
 export type PersonDevice = Board["schemas"]["PersonDevice"];
+/** The hub's power equipment, read only (lina#483): present only when the core watches it. */
+export type PowerView = Board["schemas"]["PowerView"];
+export type PowerStation = Board["schemas"]["PowerStation"];
 export type RunnerCell = Board["schemas"]["RunnerCell"];
 export type QuotaView = Board["schemas"]["QuotaView"];
 /** Tokens and estimated cost per model, provider, account and machine, for one range (lina#232). */

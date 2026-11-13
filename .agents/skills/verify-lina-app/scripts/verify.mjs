@@ -1470,6 +1470,67 @@ const drivers = {
       check(folded === "정상 3", "the passing checks read " + folded);
       return rows.map((row) => row.text + " / " + row.state + " / " + row.time).join(" | ") + "; " + folded + "; trail " + Math.round(rows[0].trail) + " px, 기기 " + Math.round(machineEdge) + " px";
     });
+    // 전원 (lina-app#82): read only, one card when the core serves the power section.
+    const power = async () => {
+      const card = page.getByTestId("section-power");
+      return {
+        head: (await card.getByTestId("power-head").innerText()).trim(),
+        headColour: await card.getByTestId("power-head").evaluate((item) => getComputedStyle(item).color),
+        stations: await card.getByTestId("power-station").evaluateAll((items) =>
+          items.map((item) => ({ label: item.querySelector(".row-body").getAttribute("aria-label"), stale: item.classList.contains("is-stale"), opacity: Number(getComputedStyle(item.querySelector(".sub")).opacity) })),
+        ),
+        hub: await card.getByTestId("power-hub").evaluate((item) => ({ label: item.querySelector(".row-body").getAttribute("aria-label"), stale: item.classList.contains("is-stale") })),
+        controls: await card.locator("button, input, select, textarea, a").count(),
+      };
+    };
+    await step("read the power card", async () => {
+      check((await page.getByTestId("section-power").count()) === 1, "expected one power card");
+      const read = await power();
+      check(read.head === "갱신 방금", "the card's head reads " + read.head);
+      const labels = read.stations.map((station) => station.label);
+      check(
+        labels.join(" | ") === "큰 축전지 · 87% · 입력 0W · 출력 64W · 41°C · 배터리 사용 · 3시간 후 방전 | 작은 축전지 · 100% · 입력 12W · 출력 4W · 30°C · 완충 · 20분 전 | 보조 충전기 · 연결 끊김",
+        "stations read " + labels.join(" | "),
+      );
+      check(read.stations.map((station) => station.stale).join() === "false,true,false", "stale rows " + JSON.stringify(read.stations));
+      check(read.stations[1].opacity < 1 && read.stations[0].opacity === 1, "the stale row is not dimmed: " + JSON.stringify(read.stations));
+      check(read.hub.label === "허브 · 벽 전원 끊김 · 배터리 95% · 핫스팟" && !read.hub.stale, "the hub line " + JSON.stringify(read.hub));
+      const alerts = page.getByTestId("power-alerts");
+      const alertLine = [(await alerts.innerText()).trim(), await alerts.evaluate((item) => getComputedStyle(item).color)];
+      check(alertLine.join("=") === "경고: 정전 · 큰 축전지 온도=rgb(255, 59, 48)", "the alert line " + alertLine.join("="));
+      check(read.controls === 0, "the power card has " + read.controls + " controls");
+      let phone = "";
+      if (page.viewportSize().width < 900) {
+        const card = page.getByTestId("section-power");
+        const sizes = await card.locator(".title, .sub, .trail, .power-head, .power-alerts").evaluateAll((items) => items.map((item) => parseFloat(getComputedStyle(item).fontSize)));
+        check(sizes.every((size) => size >= MIN_TEXT), "power text draws at " + sizes.join(", ") + " px on a phone");
+        const overflow = await card.evaluate((item) => [...item.querySelectorAll("*")].filter((child) => child.getBoundingClientRect().right > window.innerWidth + 1).length);
+        check(overflow === 0, overflow + " parts of the power card run past the window");
+        phone = "; text " + Math.min(...sizes) + " px, nothing past " + page.viewportSize().width + " px";
+      }
+      return read.head + "; " + labels.join(" | ") + "; " + read.hub.label + "; " + alertLine[0] + phone;
+    });
+    await step("a stopped watch dims every row with its age", async () => {
+      await openApp(page, "#/status", "&power=stopped");
+      const read = await power();
+      check(read.head === "감시 끊김 · 25분 전" && read.headColour === "rgb(255, 149, 0)", "the head reads " + read.head + " in " + read.headColour);
+      check(read.stations.every((station) => station.stale && station.opacity < 1), "rows not dimmed: " + JSON.stringify(read.stations));
+      const labels = read.stations.map((station) => station.label);
+      check(labels[0].startsWith("큰 축전지 · 87% · ") && labels[0].endsWith(" · 25분 전") && labels[1].endsWith(" · 45분 전") && labels[2].endsWith(" · 33분 전"), "stations read " + labels.join(" | "));
+      check(read.hub.stale, "the hub line is not dimmed");
+      return read.head + "; " + labels.join(" | ");
+    });
+    await step("no power section, no card", async () => {
+      await openApp(page, "#/status", "&power=none");
+      await page.getByTestId("screen-status").waitFor();
+      const cards = await page.getByTestId("section-power").count();
+      check(cards === 0, "expected no power card, got " + cards);
+      check((await page.getByRole("list", { name: "기기", exact: true }).locator(".machine-row").count()) === 4, "the machines did not draw");
+      // The screenshot after the last step is the default scene's.
+      await openApp(page, "#/status");
+      await page.getByTestId("section-power").waitFor();
+      return "no card; machines 4";
+    });
   },
 
   // The work settings: every write control (switch, picker, stepper, rule edit, rollback), a stale write (412), a

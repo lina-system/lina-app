@@ -4,13 +4,15 @@ import type { ItemDetail, ItemSummary, WorkCardDetail } from "../api/client";
 import { cardName, cardTitle, goalCards, runRow, type Model } from "../model";
 import { foldReason } from "../model/fold";
 import { holds } from "../model/rounds";
+import { outcomeOf } from "../model/timeline";
 import type { CardKind } from "../model/kind";
+import { isRunId } from "../data/store";
 import { href } from "../router";
 import { ago, clockAt } from "../time";
 import { useActions } from "../ui/actions";
 import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, useApp } from "../ui/parts";
-import { KIND_TITLE, SEP, STATE_WORD, stateLabel, W } from "../words";
-import { RunModelLine, Timeline } from "./timeline";
+import { SEP, STATE_WORD, stateLabel, W } from "../words";
+import { PastEvents, RunModelLine, Timeline, type PastEvent } from "./timeline";
 import { Comments } from "./comments";
 import { Talk } from "./talk";
 
@@ -234,11 +236,11 @@ export const GoalScreen = ItemScreen;
  * A work card's head: its kind icon and word, its name (the checked title, or the card's own title until that exists
  * and may be drawn; a run without a checked title keeps its kind word in grey) and its state line.
  */
-function CardHead({ work, title, children }: { work: CardKind; title: string | null; children: ComponentChildren }) {
+function CardHead({ work, title, untitled, children }: { work: CardKind; title: string | null; untitled?: string; children: ComponentChildren }) {
   return (
     <header class="detail-head">
       <KindMark work={work} word />
-      <h1 class={title ? "detail-title" : "detail-title is-kind"}>{cardName(title, work)}</h1>
+      <h1 class={title ? "detail-title" : "detail-title is-kind"}>{title ? cardName(title, work) : (untitled ?? cardName(null, work))}</h1>
       {children}
     </header>
   );
@@ -282,13 +284,16 @@ export function workerRounds(detail: Pick<WorkCardDetail, "runs" | "workerRuns">
   };
 }
 
-/** A round's head: its number and its own start and end, each with its day when that is not today (어제 23:41). */
+/**
+ * A round's head: its own start and end, each with its day when that is not today (어제 23:41), with no round number
+ * (lina-app#61).
+ */
 export function roundHead(round: Round, now: number): string {
-  if (round.startedAt === null) return [W.round(round.n), W.noStart].join(SEP);
+  if (round.startedAt === null) return W.noStart;
   const span = round.endedAt === null ? clockAt(round.startedAt, now) : `${clockAt(round.startedAt, now)}–${clockAt(round.endedAt, now)}`;
   // A round with no end is running only while its run beats; otherwise it stopped, and the head says so.
   const state = round.endedAt !== null ? "" : round.live ? STATE_WORD.in_progress : STATE_WORD.stopped;
-  return [W.round(round.n), span, state].filter(Boolean).join(SEP);
+  return [span, state].filter(Boolean).join(SEP);
 }
 
 /**
@@ -324,7 +329,7 @@ function CardComment({ comment }: { comment: WorkCardDetail["comments"][number] 
  * card), so such a run is still drawn, by its kind of work in grey, as a link to its own page: no worker row is ever
  * left out because its target is not in a list.
  */
-function WorkerRows({ ids, model }: { ids: readonly string[]; model: Model }) {
+function WorkerRows({ ids, model, title, state }: { ids: readonly string[]; model: Model; title: string; state: (runId: string) => string }) {
   return (
     <ul class="rows" aria-label={W.workerRuns}>
       {ids.map((workerId) => {
@@ -332,10 +337,14 @@ function WorkerRows({ ids, model }: { ids: readonly string[]; model: Model }) {
         if (run) return <CardRowView key={workerId} card={runRow(run)} dim bare={ids.length === 1} kindIcon={false} />;
         return (
           <li key={workerId} class="row card-row is-dim" data-testid="row">
-            <Link href={href({ name: "run", id: workerId })} label={KIND_TITLE.code}>
+            <Link href={href({ name: "run", id: workerId })} label={[title, state(workerId)].join(SEP)}>
               <span class="lines">
                 <span class="one-line">
-                  <span class="title is-kind">{KIND_TITLE.code}</span>
+                  <span class="title">{title}</span>
+                  <span class="sub">
+                    {SEP}
+                    {state(workerId)}
+                  </span>
                 </span>
               </span>
             </Link>
@@ -346,11 +355,19 @@ function WorkerRows({ ids, model }: { ids: readonly string[]; model: Model }) {
   );
 }
 
+/**
+ * The title of a worker run the board does not list: the core serves no title of its own for it, so it reads the title
+ * of the work card it ran for, or 제목 없음 when no card names it (never 코드 작업, lina-app#61 and #128).
+ */
+export function workerTitle(model: Model, cardId: string | null | undefined): string {
+  return (cardId ? model.cards.get(cardId)?.title : null) || W.untitledRun;
+}
+
 /** A to-do's run by the one naming rule: its checked title when the board lists it, never raw text in its place. */
 function runName(model: Model, run: ItemDetail["runs"][number]): string {
   const listed = model.runs.get(run.id);
   if (listed) return runRow(listed).name;
-  return foldReason(run.title) ? KIND_TITLE.code : run.title;
+  return foldReason(run.title) ? workerTitle(model, model.runOwner.get(run.id)) : run.title;
 }
 
 /** Whether a worker run still goes: its own state, or for a run the board does not list, its card's. */
@@ -384,7 +401,18 @@ export function CardScreen({ id }: { id: string }) {
     );
   }
   const questions = (store.get("inbox")?.questions ?? []).filter((question) => question.cardId === id);
-  const { rounds, outside } = workerRounds(detail);
+  // A worker run id the hub served may be a word of a command in the card's text (status, wait): not a run, never
+  // read or drawn; a run listed twice is one run (lina-app#128).
+  const workerRuns = detail.workerRuns.filter((worker, index, all) => isRunId(worker.id) && all.findIndex((other) => other.id === worker.id) === index);
+  const { rounds, outside } = workerRounds({ runs: detail.runs, workerRuns });
+  // The state word of a worker run the board does not list: going while it beats, else how its round ended.
+  const workerState = (runId: string) => {
+    if (runLive(model, runId)) return STATE_WORD.in_progress;
+    const round = rounds.find((candidate) => candidate.workers.includes(runId));
+    if (!round) return W.outcome.unknown;
+    return round.endedAt !== null ? W.outcome.ended : STATE_WORD.stopped;
+  };
+  const workTitle = cardTitle(detail.plain.title, detail.title) || W.untitledRun;
   // The worker run a round was: the same run its head opens. A card's 기록 holds several runs' rounds in one record.
   const roundRun = (runId: string, n: number) => rounds.find((round) => round.n === n)?.workers[0] ?? runId;
   // The goal (project) the card serves, in its head; a goal title that would show raw text is left out.
@@ -421,7 +449,7 @@ export function CardScreen({ id }: { id: string }) {
           <ul class="rows checklist" aria-label={W.todos}>
             {detail.todos.map((todo) => (
               <li key={todo.id} class="row check-row" data-testid="row">
-                <CheckBox title={todo.title} done={todo.done} />
+                <CheckBox done={todo.done} />
                 <span class="lines">
                   <span class="title one-line">{todo.title}</span>
                 </span>
@@ -433,22 +461,22 @@ export function CardScreen({ id }: { id: string }) {
       {/* One round list: the record's blocks (기록), each head the link to its worker run. 실행 stands only while the
           record is not shown, and under its error line when the read failed, so the worker links never disappear. */}
       <Timeline
-        runs={detail.workerRuns.map((worker) => worker.id)}
+        runs={workerRuns.map((worker) => worker.id)}
         live={(runId) => runLive(model, runId)}
         link={(runId, n) => href({ name: "run", id: roundRun(runId, n) })}
         modelRun={roundRun}
         fallback={
-          detail.workerRuns.length ? (
+          workerRuns.length ? (
             <Box title={W.workerRuns} testid="worker-runs">
               {rounds.map((round) => (
                 <section key={round.n} class={round.startedAt === null ? "round is-no-start" : "round"} data-testid="round">
                   <h3 class="round-head">{roundHead(round, now)}</h3>
                   {/* The round's own line is its content; one that would show a path or a command reads 접힌 댓글. */}
                   {round.line ? <p class="round-line" data-testid="round-line">{foldReason(round.line) ? W.folded : round.line}</p> : null}
-                  {round.workers.length ? <WorkerRows ids={round.workers} model={model} /> : null}
+                  {round.workers.length ? <WorkerRows ids={round.workers} model={model} title={workTitle} state={workerState} /> : null}
                 </section>
               ))}
-              {outside.length ? <WorkerRows ids={outside} model={model} /> : null}
+              {outside.length ? <WorkerRows ids={outside} model={model} title={workTitle} state={workerState} /> : null}
             </Box>
           ) : null
         }
@@ -467,22 +495,32 @@ export function CardScreen({ id }: { id: string }) {
 }
 
 /** A worker run a card started: the board does not list it, so its page is its card and its own record. */
-function CardRunScreen({ id, cardId, cardLoading = false }: { id: string; cardId?: string; cardLoading?: boolean }) {
-  const { model } = useApp();
+function CardRunScreen({ id, cardId, cardLoading = false }: { id: string; cardId?: string | null; cardLoading?: boolean }) {
+  const { model, store, now } = useApp();
+  // The core serves no title for a card's worker run: it reads its card's title (lina-app#61).
+  const title = workerTitle(model, cardId);
   // While its card is read, whether the run still goes is not known: its rounds wait rather than read 완료 기록 없음.
   if (cardLoading)
     return (
       <article class="detail" data-testid="screen-run">
-        <CardHead work="code" title={null}>
+        <CardHead work="code" title={title}>
           <RunModelLine runId={id} />
         </CardHead>
         <Loading />
       </article>
     );
   const card = cardId ? model.cards.get(cardId) : undefined;
+  const newest = store.get("record", id)?.rounds[0];
+  const live = runLive(model, id);
+  const state = newest ? W.outcome[outcomeOf(newest, true, live, now)] : live ? STATE_WORD.in_progress : null;
   return (
     <article class="detail" data-testid="screen-run">
-      <CardHead work="code" title={null}>
+      <CardHead work="code" title={title}>
+        {state ? (
+          <span class="sub" data-testid="run-state">
+            {state}
+          </span>
+        ) : null}
         <RunModelLine runId={id} />
       </CardHead>
       {card ? (
@@ -505,14 +543,14 @@ export function RunScreen({ id }: { id: string }) {
   // A card's worker run opened before its card was: its record names the card, read now (wantsFor), and the page
   // stands on the record meanwhile. A card that cannot be read leaves the page on the record alone.
   const record = store.get("record", id);
-  if (!run && record) return <CardRunScreen id={id} cardLoading={record.cardId ? store.status("card", record.cardId) === "pending" : false} />;
+  if (!run && record) return <CardRunScreen id={id} cardId={record.cardId} cardLoading={record.cardId ? store.status("card", record.cardId) === "pending" : false} />;
   if (!run && (!model.ready || store.status("record", id) === "pending")) return <Loading />;
   // A card's worker run with no record to read (an older run the core has none for): nothing names its card before
   // the card opens (the card list carries no worker runs), so the page keeps its head and says the record failed.
   if (!run)
     return (
       <article class="detail" data-testid="screen-run">
-        <CardHead work="code" title={null}>
+        <CardHead work="code" title={null} untitled={W.untitledRun}>
           {null}
         </CardHead>
         <p class="write-error" role="alert" data-testid="timeline-error">
@@ -521,6 +559,11 @@ export function RunScreen({ id }: { id: string }) {
       </article>
     );
   const row = runRow(run);
+  // A finished run the core keeps no record for still lists its past events from its own card (lina-app#128: r7).
+  const past: PastEvent[] = [
+    ...(run.startedAt ? [{ at: run.startedAt, text: W.runStarted }] : []),
+    ...(run.endedAt ? [{ at: run.endedAt, text: run.plain.result ?? W.outcome.ended }] : []),
+  ];
   const todo = run.todo ? model.items.get(run.todo) : undefined;
   const owner = model.runOwner.get(run.id);
   const card = owner ? model.cards.get(owner) : undefined;
@@ -561,7 +604,7 @@ export function RunScreen({ id }: { id: string }) {
           </ul>
         </Box>
       ) : null}
-      <Timeline runs={[id]} live={(runId) => runLive(model, runId)} />
+      <Timeline runs={[id]} live={(runId) => runLive(model, runId)} fallback={store.status("record", id) === "failed" ? null : <PastEvents events={past} />} />
     </article>
   );
 }

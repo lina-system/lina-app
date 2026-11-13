@@ -13,6 +13,26 @@ interface Entry {
 
 export type Want = readonly (readonly [RouteName, string?])[];
 
+/**
+ * Whether an id can name a worker run: one token of letters, digits, dots, dashes and underscores with at least one
+ * digit (r1, OT-SIO1113214433). A card's worker runs from the hub once held the words of the commands its text names
+ * (status, wait, accept, ...); those are not runs and are never read (lina-app#128).
+ */
+export function isRunId(id: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id) && /\d/.test(id);
+}
+
+/** The routes once each, in order, without a record whose id cannot name a run. */
+function distinct(routes: Want): Want {
+  const seen = new Set<string>();
+  return routes.filter(([name, id]) => {
+    const key = id === undefined ? name : `${name}:${id}`;
+    if (seen.has(key) || (name === "record" && (id === undefined || !isRunId(id)))) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 /** The change stream: not opened yet, open (the screens are current), or down (they may be stale). */
 export type LiveState = "connecting" | "open" | "down";
 
@@ -251,7 +271,7 @@ export class Store {
 
   /** Reads routes not read yet without changing what the open screen wants (an expanded row's record). */
   ensure(routes: Want): void {
-    const missing = routes.filter(([name, id]) => !this.entries.has(this.key(name, id)));
+    const missing = distinct(routes).filter(([name, id]) => !this.entries.has(this.key(name, id)));
     if (!missing.length) return;
     for (const [name, id] of missing) this.entries.set(this.key(name, id), { status: "pending" });
     void Promise.all(missing.map(([name, id]) => this.load(name, id))).then((changes) => {
@@ -260,8 +280,8 @@ export class Store {
   }
 
   want(routes: Want): void {
-    this.wanted = routes;
-    const missing = routes.filter(([name, id]) => !this.entries.has(this.key(name, id)));
+    this.wanted = distinct(routes);
+    const missing = this.wanted.filter(([name, id]) => !this.entries.has(this.key(name, id)));
     if (!missing.length) return;
     // Held as pending while the read is out, so a redraw meanwhile does not ask for it again.
     for (const [name, id] of missing) this.entries.set(this.key(name, id), { status: "pending" });

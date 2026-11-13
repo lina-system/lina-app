@@ -210,15 +210,16 @@ export function Box({ title, children, testid }: { title?: string; children: Com
   );
 }
 
-export function CheckBox({ title, done }: { title: string; done: boolean }) {
+/**
+ * A to-do's round mark where pressing it does nothing (a work card's to-dos): a plain status mark, not a control. A
+ * done one says 완료 to a screen reader; an open one says nothing beside its title (lina-app#128).
+ */
+export function CheckBox({ done }: { done: boolean }) {
   return (
-    <span
-      class={`check${done ? " is-done" : ""}`}
-      role="checkbox"
-      aria-checked={done}
-      aria-disabled="true"
-      aria-label={W.markDone(title)}
-    />
+    <>
+      <span class={`check${done ? " is-done" : ""}`} aria-hidden="true" data-testid="todo-mark" />
+      {done ? <span class="visually-hidden">{STATE_WORD.done}</span> : null}
+    </>
   );
 }
 

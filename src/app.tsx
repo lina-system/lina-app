@@ -9,7 +9,7 @@ import { slideMotion } from "./stack-motion";
 import { bindSwipeBack, isStandalone } from "./swipe-back";
 import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RestartSheet, RunningScreen, StatusScreen, TodayScreen } from "./screens/lists";
 import { AgentCard, AgentTalk, TalkAgents } from "./screens/talk";
-import { CardScreen, GoalScreen, ItemScreen, RunScreen } from "./screens/details";
+import { CardScreen, GoalScreen, ItemScreen, RunScreen, workerTitle } from "./screens/details";
 import { RollbackSheet, SettingPage, settingParent, SettingsScreen, settingTitle } from "./screens/settings";
 import { SETTINGS_HISTORY } from "./api/client";
 import { BackIcon, BellIcon, CalendarIcon, DeviceIcon, DoneIcon, GearIcon, GoalIcon, InboxIcon, PlusIcon, RunningIcon } from "./ui/icons";
@@ -19,7 +19,7 @@ import { SettingsCtx, useSettingsEditsFor } from "./ui/settings-edits";
 import { browserPushHost, type OpenRequest, type PushHost } from "./push";
 import { PushCtx, PushRow, usePushFor } from "./ui/push-row";
 import { APP_VERSION } from "./version";
-import { KIND_TITLE, SEP, W } from "./words";
+import { SEP, W } from "./words";
 
 export const WIDE_QUERY = "(min-width: 900px)";
 
@@ -64,7 +64,9 @@ export function titleOf(route: Route, model: Model, store: Store): string {
       return model.cards.get(route.id)?.name ?? W.cards;
     case "run": {
       const run = model.runs.get(route.id);
-      return run ? runRow(run).name : model.runOwner.has(route.id) ? KIND_TITLE.code : W.cards;
+      // A card's worker run reads its card's title: the core serves none of its own (lina-app#61, #128).
+      const cardId = model.runOwner.get(route.id) ?? store.get("record", route.id)?.cardId;
+      return run ? runRow(run).name : cardId ? workerTitle(model, cardId) : W.cards;
     }
   }
 }

@@ -173,14 +173,37 @@ export function ownText(content: string): string {
   return content.replace(/^\[LINA app\][^\n]*\n?/, "");
 }
 
+/** What this page already shows of the turns it sent, so the history does not show them twice. */
+interface Shown {
+  /** Messages it shows as the owner's, and the ones still going. */
+  readonly sent: readonly string[];
+  readonly going: readonly string[];
+  /** Turns this window took in whole, as (message, reply), oldest first. */
+  readonly settled: readonly (readonly [string, string])[];
+}
+
 /**
- * The earlier turns. `sent` is what this page sent and shows already: when the core keeps a turn still in flight as
- * the owner's last message, it is left out here so it shows once.
+ * The earlier turns. From the tail of the history backwards it leaves out what this page shows already: a going turn
+ * the core keeps as the owner's last message, or already holds whole (message and reply), and the turns this window
+ * took in whole. So a chat opened while its reply completes shows each exchange once, in either order.
  */
-function keptLines(history: AgentTalkHistory, sent: readonly string[] = []): Line[] {
+function keptLines(history: AgentTalkHistory, shown: Shown = { sent: [], going: [], settled: [] }): Line[] {
   const lines: Line[] = history.messages.map((message, index) => ({ key: `h${index}`, mine: message.role === "user", text: message.role === "user" ? ownText(message.content) : message.content, state: "kept" }));
-  const last = lines.at(-1);
-  return last?.mine && sent.includes(last.text) ? lines.slice(0, -1) : lines;
+  let end = lines.length;
+  const pair = (message: (text: string) => boolean, reply: (text: string) => boolean) => {
+    const own = lines[end - 2];
+    const answer = lines[end - 1];
+    return Boolean(own?.mine && answer && !answer.mine && message(own.text) && reply(answer.text));
+  };
+  if (lines[end - 1]?.mine && shown.sent.includes(lines[end - 1].text)) end -= 1;
+  else if (pair((text) => shown.going.includes(text), () => true)) end -= 2;
+  else
+    for (let turn = shown.settled.length - 1; turn >= 0; turn -= 1) {
+      const [message, reply] = shown.settled[turn];
+      if (!pair((text) => text === message, (text) => text === reply)) break;
+      end -= 2;
+    }
+  return lines.slice(0, end);
 }
 
 /** One turn sent from an agent's window. It lives outside the window, so leaving the window neither cancels nor drops it (lina-app#127). */
@@ -256,7 +279,14 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
     const box = outbox(store.source, agent);
     const open: TalkWindow = {
       take(turn) {
-        setLines((shown) => [...(shown ?? []), ...sentLines(turn)]);
+        setLines((shown) => {
+          const all = shown ?? [];
+          const own = all[all.length - 2];
+          const answer = all[all.length - 1];
+          // The history read can already hold this turn whole: it shows once.
+          const held = own?.mine && !answer?.mine && own.text === turn.message && answer.text === turn.reply;
+          return held ? all : [...all, ...sentLines(turn)];
+        });
         if (turn.state === "failed") setError(W.talkFailed);
       },
       redraw: () => redraw((count) => count + 1),
@@ -266,8 +296,15 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
     for (const turn of box.turns.filter((each) => each.state === "failed")) settle(box, turn);
     historyRead.current = store.source.agentTalkHistory(agent).then((result) => {
       if (!live) return;
-      const sent = box.turns.map((turn) => turn.message);
-      if (result.kind === "data") setLines((shown) => [...keptLines(result.data, [...(shown ?? []).filter((line) => line.mine).map((line) => line.text), ...sent]), ...(shown ?? [])]);
+      const pending = box.turns.map((turn) => turn.message);
+      if (result.kind === "data")
+        setLines((shown) => {
+          const taken = shown ?? [];
+          // The turns this window took in, as (message, reply) pairs, and the messages it shows beside them.
+          const settled = taken.flatMap((line, index) => (line.mine && taken[index + 1] && !taken[index + 1].mine ? [[line.text, taken[index + 1].text] as const] : []));
+          const mine = taken.filter((line) => line.mine).map((line) => line.text);
+          return [...keptLines(result.data, { sent: [...mine, ...pending], going: pending, settled }), ...taken];
+        });
       else {
         setLines((shown) => shown ?? []);
         if (result.kind === "failed") setHistoryError(true);

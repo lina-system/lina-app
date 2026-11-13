@@ -1237,6 +1237,48 @@ describe("agent talk", () => {
     }
   });
 
+  test("reopening a chat while its reply completes shows each exchange once, whichever of the history read and the completion comes first", async () => {
+    const reply = AGENT_REPLY_DELTAS.join("");
+    for (const order of ["history after the completion", "history holds the whole turn before the completion"] as const) {
+      vi.useFakeTimers(TIMERS);
+      try {
+        let release: () => void = () => undefined;
+        const gate = new Promise<void>((resolve) => (release = resolve));
+        class Overlap extends SyntheticSource {
+          reads = 0;
+          override async agentTalkHistory(agent: string) {
+            const result = await super.agentTalkHistory(agent);
+            if (agent !== "ag-1" || ++this.reads < 2 || result.kind !== "data") return result;
+            if (order === "history after the completion") {
+              await gate;
+              return await super.agentTalkHistory(agent);
+            }
+            const messages = [...result.data.messages, { role: "user" as const, content: "[LINA app]\n오늘 어디까지 했어요?", timestamp: null }, { role: "assistant" as const, content: reply, timestamp: null }];
+            return { ...result, data: { ...result.data, messages } };
+          }
+        }
+        const view = await open("#/talk/ag-1", { wide: true, source: new Overlap() });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(0);
+        });
+        const box = await leaveAndReturn(view, "오늘 어디까지 했어요?");
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 12);
+        });
+        release();
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(0);
+        });
+        expect(box.getAllByTestId("talk-mine").map((line) => line.textContent), order).toEqual(["어디까지 왔어요?", "오늘 어디까지 했어요?"]);
+        expect(box.getAllByTestId("talk-reply"), order).toHaveLength(2);
+        expect(box.getAllByTestId("talk-reply").at(-1)?.querySelector(".talk-bubble")?.textContent, order).toBe(reply);
+        view.unmount();
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  });
+
   test("a reply that breaks off while the owner is in another window shows as not received when they come back", async () => {
     vi.useFakeTimers(TIMERS);
     try {

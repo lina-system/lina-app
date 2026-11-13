@@ -18,10 +18,11 @@ import type {
   WorkCardDetail,
   WorkCardList,
   WorkCardSummary,
+  WorkGoal,
   WorkInbox,
   WorkState,
 } from "../api/client";
-import { CRUMB, KIND_TITLE, SOURCE_WORD, STATE_WORD, W } from "../words";
+import { CRUMB, KIND_TITLE, REASON_WORD, SEP, SOURCE_WORD, STATE_WORD, W, reasonWord } from "../words";
 import { href } from "../router";
 import { checksView, type ChecksView } from "./checks";
 import { foldReason } from "./fold";
@@ -98,6 +99,11 @@ export interface CardRow {
   readonly progress: { readonly done: number; readonly total: number } | null;
   /** The work record to-do the card's runs take on: retry goes there; null for a card with none. */
   readonly todo: string | null;
+  /**
+   * A stopped row's few words after 중단됨: why and who it waits on, from what the core serves. `known` is false when
+   * the core does not say who (lina#629): the line is then grey. Null for any other state.
+   */
+  readonly stop?: { readonly words: string; readonly known: boolean } | null;
 }
 
 /** Where an answer to a decision goes: the record's item (comments with answer) or a work card's question. */
@@ -335,9 +341,51 @@ export function buildModel(input: ModelInput, now: number): Model {
   }
   const runs = new Map<string, RunCard>((board?.cards ?? []).map((run) => [run.id, run]));
   const receivedAt = input.cardsAt ?? now;
+
+  // What a row's work is for: the work goal a card sits in, the record goal a run's to-do sits under (or the to-do is).
+  const cardGoal = new Map<string, WorkGoal>();
+  for (const goal of input.goals?.goals ?? []) for (const card of goal.workCards) cardGoal.set(card.id, goal);
+  const runGoal = (run: RunCard): ItemSummary | undefined => {
+    const item = run.todo ? itemMap.get(run.todo) : undefined;
+    if (item?.kind === "goal") return item;
+    const parent = item?.parent ? itemMap.get(item.parent) : undefined;
+    return parent?.kind === "goal" ? parent : undefined;
+  };
+  const ownerName = items?.owner?.name ?? null;
+  // A run that a later run of the same to-do replaced has ended for good: nobody needs to act on it.
+  const replaced = (run: RunCard) =>
+    run.todo !== null && (board?.cards ?? []).some((other) => other.id !== run.id && other.todo === run.todo && (other.startedAt ?? 0) > (run.startedAt ?? 0));
+  const contextRow = (row: CardRow, parentTitle: string | null, isRun: boolean, waitingOn: string | null): CardRow => {
+    // The kind of work is the icon only, never the title: else what the work is for, else one grey 제목 없음.
+    const title = row.title ?? parentTitle;
+    return { ...row, title, name: title ?? W.untitled, stop: row.state === "stopped" ? stopWords(row.reason, isRun, waitingOn) : null };
+  };
+  const stopWords = (reason: string | null, isRun: boolean, waitingOn: string | null): NonNullable<CardRow["stop"]> => {
+    const agent = waitingOn?.startsWith("agent:") ? agents.find((each) => each.id === waitingOn.slice(6) || each.name === waitingOn.slice(6)) : undefined;
+    if (agent) return { words: `${agent.name} ${W.waitReview}`, known: true };
+    if (reason === "decision" || reason === "feedback") return { words: ownerName ? `${ownerName} ${W.needsCheck}` : W.needsCheck, known: true };
+    if (reason === "review") return { words: W.waitReview, known: true };
+    // A failed run still listed has no later run of its to-do: nobody tried it again.
+    if (isRun && (reason === "failed" || reason === "rejected")) return { words: `${REASON_WORD.failed}${SEP}${W.notRetried}`, known: true };
+    return { words: reasonWord(reason) ?? "", known: false };
+  };
+  const runListRow = (run: RunCard): CardRow => {
+    const owner = runOwner.get(run.id);
+    const ownerCard = owner ? (cards?.cards ?? []).find((card) => card.id === owner) : undefined;
+    const goalTitle = runGoal(run)?.title ?? null;
+    const cardTitleText = ownerCard ? cardTitle(ownerCard.plain.title, ownerCard.title) : null;
+    const ownName = foldReason(run.title) === null ? run.title : null;
+    return contextRow(runRow(run), goalTitle ?? cardTitleText ?? ownName, true, run.waitingOn ?? null);
+  };
+
+  // Only work with no parent is a row of its own: a worker run of a card or of a goal's to-do shows inside them.
+  // A stopped run a later run replaced, and stopped work whose card or goal is done, need nobody and are not listed.
+  const goalDone = (goal: { state: WorkState } | undefined) => goal?.state === "done";
   const allCards: CardRow[] = [
-    ...(cards?.cards ?? []).map((card) => workCardRow(card, input.cardDetails[card.id], receivedAt, runs)),
-    ...(board?.cards ?? []).filter((run) => !runOwner.has(run.id)).map(runRow),
+    ...(cards?.cards ?? [])
+      .filter((card) => !(card.state === "stopped" && goalDone(cardGoal.get(card.id))))
+      .map((card) => contextRow(workCardRow(card, input.cardDetails[card.id], receivedAt, runs), cardGoal.get(card.id)?.title ?? null, false, null)),
+    ...(board?.cards ?? []).filter((run) => !runOwner.has(run.id) && !runGoal(run) && !(run.state === "stopped" && replaced(run))).map(runListRow),
   ];
   const cardMap = new Map(allCards.map((card) => [card.id, card]));
 
@@ -395,7 +443,7 @@ export function buildModel(input: ModelInput, now: number): Model {
     ...(board?.inbox.review ?? [])
       .map((id) => runs.get(id))
       .filter((run): run is RunCard => run !== undefined)
-      .map((run): InboxRow => ({ type: "review", key: `review:${run.id}`, href: href({ name: "run", id: run.id }), agent: run.agent, card: runRow(run) })),
+      .map((run): InboxRow => ({ type: "review", key: `review:${run.id}`, href: href({ name: "run", id: run.id }), agent: run.agent, card: runListRow(run) })),
     ...allCards
       .filter((card) => card.kind === "card" && card.state === "waiting" && card.reason === "review")
       .sort(newestFirst((card) => card.stateAt))

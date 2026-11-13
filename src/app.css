@@ -663,6 +663,19 @@ button:disabled {
   color: var(--red);
 }
 
+/* A stopped row whose core does not say who it waits on: one grey line, no hand named in red. */
+.is-stopped .state.is-plain {
+  color: inherit;
+}
+
+/* A list row's state line stays one line beside its action, like its title. */
+.card-row .lines > .sub {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 /* A worker run inside a card: told apart by size and weight, never by fading. */
 .is-dim > a,
 .is-dim > .row-body {

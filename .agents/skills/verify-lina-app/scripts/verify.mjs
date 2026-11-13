@@ -287,8 +287,9 @@ async function rowNames(list) {
   return list.getByRole("link").evaluateAll((links) => links.map((link) => link.getAttribute("aria-label") ?? link.textContent));
 }
 
-// Red marks the problem, not the row: a stopped card's title keeps the label colour, its state words are red,
-// and its time is the same grey as any card's time.
+// Red marks the problem, not the row: a stopped card's title keeps the label colour, its state words are red when
+// they name who it waits on and grey when the core does not say (lina-app#116), and its time is the same grey as any
+// card's time.
 async function stoppedCardColours(list) {
   const rows = await list.locator("[data-testid=row]").evaluateAll((items) =>
     items.map((item) => ({
@@ -297,6 +298,7 @@ async function stoppedCardColours(list) {
       // word in grey. Only a title in colour is compared: a kind word is grey on purpose.
       title: item.querySelector(".title:not(.is-kind)") ? getComputedStyle(item.querySelector(".title:not(.is-kind)")).color : null,
       state: getComputedStyle(item.querySelector("[data-testid=state]")).color,
+      plain: item.querySelector("[data-testid=state]").classList.contains("is-plain"),
       time: item.querySelector(".time") ? getComputedStyle(item.querySelector(".time")).color : null,
     })),
   );
@@ -306,7 +308,7 @@ async function stoppedCardColours(list) {
   // With no titled running card in the list, the label colour is the page's own text colour.
   const label = rows.find((row) => !row.stopped && row.title)?.title ?? (await list.evaluate((element) => getComputedStyle(element.closest(".list") ?? document.body).color));
   check(stopped.title === label, "the stopped card's title is " + stopped.title + ", the label colour " + label);
-  check(stopped.state === "rgb(255, 59, 48)", "the stopped card's state words are " + stopped.state);
+  check(stopped.state === (stopped.plain ? stopped.time : "rgb(255, 59, 48)"), "the stopped card's state words are " + stopped.state + (stopped.plain ? ", its time " + stopped.time : ""));
   check(stopped.time === running.time, "the stopped card's time is " + stopped.time + ", a running card's " + running.time);
   return "title " + stopped.title + ", state " + stopped.state + ", time " + stopped.time;
 }

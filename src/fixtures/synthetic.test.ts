@@ -87,9 +87,9 @@ test("the scene holds what every screen needs", () => {
   const owned = new Set(Object.values(scene.cardDetails).flatMap((detail) => detail.workerRuns.map((run) => run.id)));
   const outside = scene.board.cards.filter((run) => !owned.has(run.id));
   expect(outside.map((run) => run.id)).toEqual(["r6", "r7", "r8"]);
-  // Two jobs on one to-do with one generated title.
+  // Two jobs with one generated title, outside any card and any goal's to-do, so both are listed (lina-app#116).
   const twins = outside.filter((run) => run.plain.title === "가이드 초안 다듬기");
-  expect(twins.map((run) => run.todo)).toEqual(["T10", "T10"]);
+  expect(twins.map((run) => run.todo)).toEqual([null, null]);
   expect(scene.board.writer.state).toBe("ok");
   expect(generateScene(SYNTHETIC_SEED, { now: NOW, writerStopped: true }).board.writer.state).toBe("stopped");
 

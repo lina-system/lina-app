@@ -12,7 +12,10 @@
 
 - Stopped cards first, whenever there are any: with no running card the stopped ones are still listed; the empty state shows only when there are neither.
 - Stopped cards first. Red marks the problem, not the row: the title keeps the normal label colour, `중단됨 · <reason>` is red, and the time after it (`52분 전`) is grey; then running cards with `진행 중 · n분째` (or `n시간째`).
-- A card is a thin kind icon, the agent mark, a one-line title and one grey state line. On a wide window, a running card adds a second grey line with what it is doing now when the core gives its checked now line. Titles and now lines are the core's checked lines only (work-cards.md).
+- A stopped row says in a few words why and who it waits on, from what the core serves: `중단됨 · <owner> 확인 필요` (decision or feedback), `중단됨 · 검토 대기` (review, or `<agent> 검토 대기` when the run waits on an agent), `중단됨 · 실패 · 다시 시도 안 함` (a failed run no later run replaced), in red. When the core does not say who (no response, cancelled, result missing; lina#629), the state line is one grey line.
+- The stopped group holds only work that still needs someone: a worker run a later run of the same to-do replaced, and stopped work whose goal is done, are not listed.
+- A card is a thin kind icon, the agent mark, a one-line title and one grey state line. The title is what the work is for: its checked title, else its goal's title, else its card's title, else a run's own plain name; with none, a grey `제목 없음`. The kind of work is the icon only.
+- A worker run of a card, or of a to-do under a goal, is not a row of its own: it shows inside that card or goal. On a wide window, a running card adds a second grey line with what it is doing now when the core gives its checked now line. Titles and now lines are the core's checked lines only (work-cards.md).
 - Waiting and finished cards are not in this list; they follow it on the same screen, in their own sections (work-cards.md).
 - Running times count up every second on the page, without a reload.
 - On a phone nothing but the large title sits above the list.
@@ -26,6 +29,7 @@
 - `running-time` counts the running time up live
 - `running-now` shows the now line on a wide window
 - `running-retry` asks a stopped card to try again
+- `running-ended` keeps replaced runs and stopped work under a done goal out, and names who a stopped row waits on
 
 ## How to get to it (user POV)
 
@@ -41,7 +45,8 @@ Preconditions:
 
 - **Open the screen.** Choose `진행 중인 작업`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive running`.
 - **Order.** Read the list `진행 중인 작업`. 3 links; the first name ends in `중단됨 · 응답 없음`, the others in `진행 중`; no `실패 화면 검토` card; the sidebar reads `2` with a red `1`.
-- **Stopped colours.** Read the stopped card's colours. The title matches a running card's title colour, `중단됨 · 응답 없음` is `rgb(255, 59, 48)` (light), and `52분 전` matches a running card's time colour.
+- **Stopped colours.** Read the stopped card's colours. The title matches a running card's title colour, `중단됨 · 응답 없음` (the core does not say who it waits on) and `52분 전` both match a running card's time colour.
+- **Ended runs.** Load `/app/?source=synthetic&runs=ended#/running`. The stopped rows are three: `결제: 영수증 문구 정하기` with `중단됨 · 나 확인 필요` in `rgb(255, 59, 48)`, `결제: 오류 문구 바꾸기` and a grey `제목 없음`, both with a grey `중단됨 · 응답 없음`; no `검색 색인 다시 만들기` among them (a later run replaced it) and no `가이드 초안 다시 다듬기` (its goal is done); the sidebar reads a red `3`.
 - **State lines.** Read each grey line. `중단됨 · 응답 없음 · n분 전`, then `진행 중 · n분째` or `n시간째`.
 - **Retry.** The stopped card has one `다시 시도` button; choosing it is driven in actions.md.
 - **No running card.** Load `/app/?source=synthetic&running=none#/running`. One row, the stopped card, with an accent `다시 시도`; no `없음`.

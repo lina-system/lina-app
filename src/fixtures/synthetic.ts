@@ -83,6 +83,12 @@ export interface SceneOptions {
   readonly noRunning?: boolean;
   /** The writer of the checked lines has stopped (`&writer=stopped`): the screens say the summaries stopped. */
   readonly writerStopped?: boolean;
+  /**
+   * Ended runs and a card waiting on the owner (`&runs=ended`, lina-app#116): a run cancelled under the finished goal
+   * G4, a cancelled run a later run of its to-do replaced, a stalled run with no parent and no name that may be drawn,
+   * and a stopped card waiting for the owner's feedback.
+   */
+  readonly endedRuns?: boolean;
   /** The work settings (`&settings=`): this device may only read them, or no revision was ever written. */
   readonly settings?: SettingsVariant | null;
 }
@@ -240,7 +246,8 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
   const NO_LINES = plain(null);
 
   // Worker runs: r1-r5, r9 and r10 were started by work cards (r9, r1 and r10 are k-101's three rounds); r6, r7 and
-  // r8 run outside any card. r7 and r8 are two jobs on one to-do that got one generated title: two cards. The raw
+  // r8 run outside any card and any goal's to-do, so they are listed by themselves (lina-app#116). r7 and r8 are two
+  // jobs that got one generated title: two cards. The raw
   // titles and live lines are what a worker records (file names, English topics); the screens never draw them.
   const runCards: RunCard[] = ([
     { id: "r1", title: "release-notes: collect merged PRs (round 3)", state: "in_progress", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[0], startedAt: now - 12 * MIN, endedAt: null, now: "adding a one-line summary per merged PR in CHANGES.md", plain: plain("변경 목록 모으기", "변경마다 한 줄 요약을 붙이는 중") },
@@ -248,9 +255,9 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     { id: "r3", title: "error-copy.json rewrite", state: "stopped", reason: "unresponsive", agent: agentId(1), kind: "ulw", todo: "T5", host: machines[2], startedAt: now - 58 * MIN, endedAt: null, now: null, plain: plain("오류 문구 바꾸기") },
     { id: "r4", title: "payment failure screen review", state: "waiting", reason: "review", agent: agentId(1), kind: "research", todo: "T6", host: machines[0], startedAt: now - 4 * HOUR, endedAt: now - 3 * HOUR, now: null, plain: plain("결제 실패 화면 검토", null, "실패 화면 세 곳의 문구와 버튼을 비교함") },
     { id: "r5", title: "backup log audit", state: "done", reason: null, agent: agentId(2), kind: "ulw", todo: "T7", host: machines[1], startedAt: now - 2 * HOUR - 9 * MIN, endedAt: now - 2 * HOUR, now: null, plain: plain("백업 기록 살펴보기", null, "지난 한 달 백업이 모두 끝까지 돌았음") },
-    { id: "r6", title: "index-structure benchmark v2", state: "waiting", reason: "review", agent: agentId(1), kind: "research", todo: "T11", host: machines[0], startedAt: now - 6 * HOUR, endedAt: now - 5 * HOUR, now: null, plain: plain("색인 구조 다시 비교", null, "새 색인이 느린 질의에서 두 배 빠름") },
-    { id: "r7", title: "guide-draft.md pass", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T10", host: machines[1], startedAt: now - 50 * MIN, endedAt: now - 30 * MIN, now: null, plain: plain("가이드 초안 다듬기", null, "용어 표를 맨 앞으로 옮김") },
-    { id: "r8", title: "guide-draft.md pass", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T10", host: machines[0], startedAt: now - 2 * DAY - 40 * MIN, endedAt: now - 2 * DAY, now: null, plain: plain("가이드 초안 다듬기", null, "첫 화면 설명을 세 문장으로 줄임") },
+    { id: "r6", title: "index-structure benchmark v2", state: "waiting", reason: "review", agent: agentId(1), kind: "research", todo: null, host: machines[0], startedAt: now - 6 * HOUR, endedAt: now - 5 * HOUR, now: null, plain: plain("색인 구조 다시 비교", null, "새 색인이 느린 질의에서 두 배 빠름") },
+    { id: "r7", title: "guide-draft.md pass", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: null, host: machines[1], startedAt: now - 50 * MIN, endedAt: now - 30 * MIN, now: null, plain: plain("가이드 초안 다듬기", null, "용어 표를 맨 앞으로 옮김") },
+    { id: "r8", title: "guide-draft.md pass", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: null, host: machines[0], startedAt: now - 2 * DAY - 40 * MIN, endedAt: now - 2 * DAY, now: null, plain: plain("가이드 초안 다듬기", null, "첫 화면 설명을 세 문장으로 줄임") },
     { id: "r9", title: "release-notes: collect merged PRs (round 1)", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[0], startedAt: now - 3 * HOUR, endedAt: now - 2 * HOUR - 40 * MIN, now: null, plain: plain("변경 목록 모으기", null, "병합된 변경 41개를 모음") },
     { id: "r10", title: "release-notes: collect merged PRs (round 2)", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[1], startedAt: now - HOUR, endedAt: now - 40 * MIN, now: null, plain: plain("변경 목록 모으기", null, "문서만 바뀐 변경을 따로 묶음") },
   ] satisfies Omit<RunCard, "model" | "settingsRevision">[]).map((run) => ({ ...run, ...modelFields(run.id) }));
@@ -780,6 +787,47 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     board.cards = board.cards.filter((run) => !running.has(run.id));
     board.counts.running = 0;
     for (const agent of Object.keys(board.counts.agents ?? {})) if (board.counts.agents) board.counts.agents[agent] = 0;
+  }
+
+  if (options.endedRuns) {
+    // T13 is a to-do with no goal: its runs have no parent and are listed by themselves.
+    const lone = summary({ id: "T13", kind: "todo", parent: null, title: "검색 색인 다시 만들기", agent: agentId(1), addedBy: agentId(1), mine: false, state: "in_progress", reason: null, stateSince: now - HOUR, due: null, doneCondition: "색인을 새로 만듦", todos: null });
+    const ended: RunCard[] = ([
+      { id: "r11", title: "guide-draft.md pass 3", state: "stopped", reason: "cancelled", agent: agentId(0), kind: "ulw", todo: "T10", host: null, startedAt: now - 20 * HOUR, endedAt: now - 20 * HOUR, now: null, plain: plain("가이드 초안 다시 다듬기") },
+      { id: "r12", title: "rebuild search index", state: "stopped", reason: "cancelled", agent: agentId(1), kind: "ulw", todo: "T13", host: null, startedAt: now - 3 * HOUR, endedAt: now - 3 * HOUR, now: null, plain: plain("검색 색인 다시 만들기") },
+      { id: "r13", title: "rebuild search index", state: "in_progress", reason: null, agent: agentId(1), kind: "ulw", todo: "T13", host: machines[0], startedAt: now - HOUR, endedAt: null, now: null, plain: plain("검색 색인 다시 만들기", "색인을 새로 만드는 중") },
+      { id: "r14", title: "nightly mirror sync / mirror.sh", state: "stopped", reason: "unresponsive", agent: agentId(2), kind: "ulw", todo: null, host: machines[1], startedAt: now - 5 * HOUR, endedAt: null, now: null, plain: NO_LINES },
+    ] satisfies Omit<RunCard, "model" | "settingsRevision">[]).map((run) => ({ ...run, ...modelFields(run.id) }));
+    runCards.push(...ended);
+    board.cards.push(...ended);
+    listItems.push({ ...lone, runCount: 2 });
+    // r11 is G4's to-do T10's third job: its to-do lists it.
+    itemDetails.T10 = { ...itemDetails.T10, runs: itemRuns("T10"), runCount: itemRuns("T10").length };
+    listItems.splice(listItems.findIndex((item) => item.id === "T10"), 1, { ...listItems.find((item) => item.id === "T10")!, runCount: itemRuns("T10").length });
+    itemDetails.T13 = { ...lone, runCount: 2, why: null, basis: [], children: [], comments: [], runs: itemRuns("T13"), links: [], workCards: [], decision: null, ownerDone: null };
+    // k-107 stopped on the owner's feedback, inside the goal kg-2 that is still going.
+    const waiting: WorkCardDetail = {
+      id: "k-107",
+      title: "payment receipt copy",
+      agent: agentId(1),
+      state: "stopped",
+      reason: "feedback",
+      elapsedSeconds: 40 * MIN,
+      todoProgress: { done: 0, total: 1 },
+      now: null,
+      plain: plain("결제: 영수증 문구 정하기"),
+      endedAt: null,
+      lastHeartbeatAt: now - 2 * HOUR,
+      todos: [{ id: "check-1", title: "영수증 문구 정하기", kind: "check", done: false }],
+      workerRuns: [],
+      gates: [],
+      comments: [{ id: 8, author: agentId(1), body: "영수증에 카드사 이름을 넣을지 정해 주세요.", createdAt: now - 2 * HOUR }],
+      runs: [{ id: 1, profile: null, status: "blocked", outcome: null, startedAt: now - 2 * HOUR - 40 * MIN, endedAt: null, lastHeartbeatAt: now - 2 * HOUR, summary: null, live: false }],
+    };
+    cardDetails["k-107"] = waiting;
+    const { todos: _todos, workerRuns: _runs, gates: _gates, comments: _comments, runs: _cardRuns, ...waitingSummary } = waiting;
+    cardList.cards.push(waitingSummary);
+    goalCards.find((goal) => goal.id === "kg-2")?.workCards.push(waitingSummary);
   }
 
   return {

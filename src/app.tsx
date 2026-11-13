@@ -571,7 +571,7 @@ function TalkShell({ route, frame, stack }: { route: Route; frame: Route | null;
             {agent ? <AgentTalk key={agent} agent={agent} /> : <p class="empty" data-testid="pick-agent">{W.pickAgent}</p>}
           </section>
           {frame ? (
-            <aside class="pane card-pane is-goal" aria-label={titleOf(frame, model, store)} data-testid="card-pane">
+            <aside key={href(frame)} class="pane card-pane is-goal" aria-label={titleOf(frame, model, store)} data-testid="card-pane">
               <button type="button" class="back card-back" onClick={toCard} data-testid="back">
                 <BackIcon />
                 <span class="one-line">{agent ? W.agentCard : W.talk}</span>

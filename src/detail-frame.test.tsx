@@ -244,6 +244,22 @@ describe("a disabled control says why", () => {
     expect((await field()).value).toBe("");
   });
 
+  test("in 대화 a record opened after another starts at the top with no draft of the first (lina-app#142, #143)", async () => {
+    const view = await open("#/talk/ag-1?goal=G1", { wide: true });
+    await frame(view);
+    const field = () => within(view.getByTestId("card-pane")).getByRole("textbox", { name: "댓글 달기" }) as HTMLInputElement;
+    fireEvent.input(field(), { target: { value: "첫 목표에만 쓴 글" } });
+    view.getByTestId("card-pane").scrollTop = 300;
+    expect(field().value).toBe("첫 목표에만 쓴 글");
+    await act(async () => {
+      navigate("#/talk/ag-1?goal=G2");
+    });
+    await waitFor(() => expect(window.location.hash).toBe("#/talk/ag-1?goal=G2"));
+    await frame(view);
+    expect(field().value).toBe("");
+    expect(view.getByTestId("card-pane").scrollTop).toBe(0);
+  });
+
   test("answering a stopped card's last question does not open the fallback answer place while it goes", async () => {
     const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000), endedRuns: true });
     source.scene.inbox.questions.push({ ...source.scene.inbox.questions[0], cardId: "k-112", commentId: 9 });

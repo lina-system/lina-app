@@ -8,7 +8,7 @@ import { AGENT_REPLY_DELTAS, STREAM_TICK_MS, SYNTHETIC_REPLY_AFTER, SyntheticSou
 import type { ReadResult, Source } from "./data/source";
 import { BACKOFF_MAX_MS } from "./data/live";
 import { Store } from "./data/store";
-import { SCENE_COUNTS } from "./fixtures/synthetic";
+import { SCENE_COUNTS, SYNTHETIC_OWNER } from "./fixtures/synthetic";
 import { buildModel } from "./model";
 import { containsText } from "./text-match";
 import { TOAST_MS } from "./ui/actions";
@@ -1425,7 +1425,7 @@ describe("work cards", () => {
     expect(agentRow?.classList.contains("is-kind")).toBe(false);
   });
 
-  test("a work card whose own title would show raw text keeps its kind word on the home and its detail", async () => {
+  test("a work card whose own title would show raw text is named by its goal on the home, and keeps its kind word on its detail", async () => {
     const source = new SyntheticSource();
     const ownTitle = "LINA-41 release notes / CHANGES.md";
     const scene = {
@@ -1434,12 +1434,13 @@ describe("work cards", () => {
       cardDetails: { ...source.scene.cardDetails, "k-102": { ...source.scene.cardDetails["k-102"], title: ownTitle } },
     };
     const view = await open("#/running", { wide: true, source: new SyntheticSource({ scene }) });
-    // The own title fails the raw-text rule, so nothing of it is drawn: the kind word names the card, in grey.
+    // The own title fails the raw-text rule, so nothing of it is drawn: the row is named by its goal (lina-app#116), the
+    // kind of work is the icon only.
     expect(screenText(view.container)).not.toContain(ownTitle);
     const row = within(view.getByTestId("screen-running")).getAllByTestId("row").find((item) => item.querySelector("a")?.getAttribute("href") === "#/cards/k-102");
-    expect(row?.querySelector(".title")?.textContent).toBe("코드 작업");
-    expect(row?.querySelector(".title")?.classList.contains("is-kind")).toBe(true);
-    expect(row?.querySelector("a")?.getAttribute("aria-label")).toMatch(/ · 코드 작업 · 진행 중/);
+    expect(row?.querySelector(".title")?.textContent).toBe("결제 화면 개편");
+    expect(row?.querySelector(".title")?.classList.contains("is-kind")).toBe(false);
+    expect(row?.querySelector("a")?.getAttribute("aria-label")).toMatch(/ · 결제 화면 개편 · 진행 중/);
     view.unmount();
     const detail = await open("#/cards/k-102", { wide: true, source: new SyntheticSource({ scene }) });
     expect(screenText(detail.container)).not.toContain(ownTitle);
@@ -1447,6 +1448,26 @@ describe("work cards", () => {
     expect(head?.textContent).toBe("코드 작업");
     expect(head?.classList.contains("is-kind")).toBe(true);
     expect(within(detail.getByTestId("screen-card")).getByTestId("kind").textContent).toBe("코드");
+  });
+
+  test("ended runs do not pile up as stopped: the stopped rows say who they wait on, or are one grey line", async () => {
+    const view = await open("#/running", { wide: true, source: new SyntheticSource({ endedRuns: true }) });
+    const list = within(view.getByTestId("screen-running")).getByRole("list", { name: "진행 중인 작업" });
+    const stopped = [...list.querySelectorAll("[data-testid=row].is-stopped")];
+    const hrefs = stopped.map((row) => row.querySelector("a")?.getAttribute("href"));
+    // r12 (replaced by r13) and r11 (under the finished goal G4) are gone; nothing else is listed by its kind.
+    expect(new Set(hrefs)).toEqual(new Set(["#/cards/k-103", "#/cards/k-107", "#/runs/r14"]));
+    expect(view.getByTestId("nav-running").querySelector("[data-testid=nav-stopped]")?.textContent).toBe("3");
+    const row = (href: string) => stopped.find((each) => each.querySelector("a")?.getAttribute("href") === href) as Element;
+    const state = (href: string) => row(href).querySelector("[data-testid=state]") as Element;
+    expect(state("#/cards/k-107").textContent).toBe(`중단됨 · ${SYNTHETIC_OWNER.name} 확인 필요`);
+    expect(state("#/cards/k-107").classList.contains("is-plain")).toBe(false);
+    // The core does not say who an unresponsive stop waits on: the line stays grey.
+    expect(state("#/runs/r14").textContent).toBe("중단됨 · 응답 없음");
+    expect(state("#/runs/r14").classList.contains("is-plain")).toBe(true);
+    expect(row("#/runs/r14").querySelector(".title")?.textContent).toBe("제목 없음");
+    expect(row("#/runs/r14").querySelector(".title")?.classList.contains("is-kind")).toBe(true);
+    expect(screenText(view.container)).not.toMatch(/코드 작업|문서 작업|기기 작업/);
   });
 
   test("two jobs on one to-do with one generated title stay two cards; three rounds of one card stay one card", async () => {

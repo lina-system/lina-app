@@ -192,6 +192,12 @@ export const W = {
   withOpen: "함께 완료",
   cancel: "취소",
   retry: "다시 시도",
+  /** A row the core cannot describe: no checked title, no goal or card, no own name that may be drawn. */
+  untitled: "제목 없음",
+  /** A stopped row's words for who it waits on (lina-app#116). */
+  needsCheck: "확인 필요",
+  waitReview: "검토 대기",
+  notRetried: "다시 시도 안 함",
   retryText: "다시 시도해 주세요.",
   requestedTo: (agent: string) => `${agent}에게 요청함`,
   errOpenTodos: "열린 할 일 있음",

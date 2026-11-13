@@ -5,7 +5,7 @@ import type { Store } from "../data/store";
 import type { CardRow, Model, Section } from "../model";
 import { linkClick } from "../router";
 import { ago, duration, total } from "../time";
-import { KIND_WORD, SEP, stateLabel, W } from "../words";
+import { KIND_WORD, SEP, STATE_WORD, stateLabel, W } from "../words";
 import { ChevronIcon, CodeIcon, DeviceKindIcon, DocsIcon, ResearchIcon } from "./icons";
 import type { CardKind } from "../model/kind";
 import { useActions } from "./actions";
@@ -70,12 +70,17 @@ export function KindMark({ work, word = false }: { work: CardKind; word?: boolea
   );
 }
 
-export function StateText({ state, reason }: { state: WorkState; reason?: string | null }) {
+export function StateText({ state, reason, stop }: { state: WorkState; reason?: string | null; stop?: CardRow["stop"] }) {
   return (
-    <span class="state" data-state={state} data-testid="state">
-      {stateLabel(state, reason)}
+    <span class={stop && !stop.known ? "state is-plain" : "state"} data-state={state} data-testid="state">
+      {stateWords(state, reason, stop)}
     </span>
   );
+}
+
+/** A row's state words: a stopped row's few words of why and who it waits on (CardRow.stop), else the state label. */
+export function stateWords(state: WorkState, reason?: string | null, stop?: CardRow["stop"]): string {
+  return stop ? [STATE_WORD.stopped, stop.words].filter(Boolean).join(SEP) : stateLabel(state, reason);
 }
 
 /**
@@ -108,10 +113,10 @@ export function Link({ href, class: className, label, children, current }: { hre
   );
 }
 
-export function StateTime({ state, reason, time }: { state: WorkState; reason?: string | null; time: string }) {
+export function StateTime({ state, reason, stop, time }: { state: WorkState; reason?: string | null; stop?: CardRow["stop"]; time: string }) {
   return (
     <span class="sub">
-      <StateText state={state} reason={reason} />
+      <StateText state={state} reason={reason} stop={stop} />
       {time ? <span class="time">{`${SEP}${time}`}</span> : null}
     </span>
   );
@@ -121,8 +126,8 @@ export function CardRowView({ card, dim = false, bare = false, kindIcon = true, 
   const { model, now, wide, selected } = useApp();
   const time = cardTime(card, now);
   const progress = wide && card.state === "in_progress" && card.progress ? card.progress : null;
-  const label = [agentName(model, card.agent), card.name, stateLabel(card.state, card.reason), progress ? W.todoProgress(progress.done, progress.total) : ""].filter(Boolean).join(SEP);
-  // No checked title: the kind word stands in its place, grey, so the row still says what it is.
+  const label = [agentName(model, card.agent), card.name, stateWords(card.state, card.reason, card.stop), progress ? W.todoProgress(progress.done, progress.total) : ""].filter(Boolean).join(SEP);
+  // No title: the kind word (a card's detail) or 제목 없음 (a list row) stands in its place, grey.
   const titleClass = card.title ? "title" : "title is-kind";
   return (
     <li class={`row card-row${card.state === "stopped" ? " is-stopped" : ""}${dim ? " is-dim" : ""}${action ? " has-action" : ""}`} data-testid="row">
@@ -134,13 +139,13 @@ export function CardRowView({ card, dim = false, bare = false, kindIcon = true, 
             <span class="one-line">
               <span class={titleClass}>{card.name}</span>
               {bare ? null : <span class="sub">{SEP}</span>}
-              {bare ? null : <StateTime state={card.state} reason={card.reason} time={time} />}
+              {bare ? null : <StateTime state={card.state} reason={card.reason} stop={card.stop} time={time} />}
             </span>
           </span>
         ) : (
           <span class="lines">
             <span class={`${titleClass} one-line`}>{card.name}</span>
-            <StateTime state={card.state} reason={card.reason} time={time} />
+            <StateTime state={card.state} reason={card.reason} stop={card.stop} time={time} />
             {wide && card.now && card.state === "in_progress" ? <span class="sub now one-line">{card.now}</span> : null}
           </span>
         )}

@@ -527,7 +527,8 @@ function useScrollKeeping(panes: Panes, keys: Record<keyof Panes, string>, saved
 function PanelFrame({ route }: { route: Route }) {
   return (
     <div class="detail-frame" data-testid="detail-frame" data-frame="panel">
-      <Screen route={route} />
+      {/* One record's screen at a time: a draft, a fold or an answer typed for one never shows on the next. */}
+      <Screen key={href(route)} route={route} />
     </div>
   );
 }
@@ -720,7 +721,7 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
               </button>
             </div>
             <div class="detail-sheet-body" ref={sheetRef}>
-              <Screen route={sheet} />
+              <Screen key={href(sheet)} route={sheet} />
             </div>
           </section>
         </>

@@ -226,6 +226,24 @@ describe("a disabled control says why", () => {
     expect((await box()).value).toBe("");
   });
 
+  test("a comment draft typed for one record does not show on the next the frame opens", async () => {
+    const view = await open("#/items/T4", { wide: true });
+    const field = async () => within(within(await frame(view)).getByTestId("comments")).getByRole("textbox", { name: "댓글 달기" }) as HTMLInputElement;
+    const title = () => view.container.querySelector("[data-testid=detail-frame] .detail-title")?.textContent ?? "";
+    const go = async (hash: string, word: string) => {
+      await act(async () => {
+        navigate(hash);
+      });
+      await waitFor(() => expect(title()).toContain(word));
+    };
+    await go("#/items/T12", "느린 질의");
+    await go("#/items/T4", "입력 폼");
+    fireEvent.input(await field(), { target: { value: "가로 화면도 봐 주세요" } });
+    expect((await field()).value).toBe("가로 화면도 봐 주세요");
+    await go("#/items/T12", "느린 질의");
+    expect((await field()).value).toBe("");
+  });
+
   test("answering a stopped card's last question does not open the fallback answer place while it goes", async () => {
     const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000), endedRuns: true });
     source.scene.inbox.questions.push({ ...source.scene.inbox.questions[0], cardId: "k-112", commentId: 9 });

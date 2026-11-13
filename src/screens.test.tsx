@@ -2586,6 +2586,26 @@ describe("the work tab's first screen (lina-app#124)", () => {
       expect(source.scene.board.inbox.mine.find((row) => row.title === "영수증 정리")).toMatchObject({ due: "2026-12-01", agent: SYNTHETIC_OWNER.id });
     });
 
+    test("a home with no work still offers 할 일 추가, so the first to-do can be written (lina-app#95)", async () => {
+      const { scene } = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
+      const empty = new SyntheticSource({
+        scene: {
+          ...scene,
+          cards: { cards: [] },
+          runs: [],
+          items: { ...scene.items, items: [] },
+          inbox: { blocked: [], questions: [] },
+          board: { ...scene.board, cards: [], inbox: { ...scene.board.inbox, mine: [], decide: [], review: [] } },
+        },
+      });
+      Element.prototype.scrollIntoView = () => {}; // jsdom has none; the field scrolls itself into view on focus
+      const view = await open("#/", { wide, source: empty });
+      const mine = view.getByTestId("home-mine");
+      expect(view.container.querySelector("p.empty")).not.toBeNull();
+      fireEvent.click(within(mine).getByRole("button", { name: "할 일 추가" }));
+      expect(within(mine).getByRole("textbox", { name: "할 일" })).toBeTruthy();
+    });
+
     test("a refused to-do keeps its text and shows the core's one-line reason (lina-app#95)", async () => {
       class Refusing extends SyntheticSource {
         override async addItem() {

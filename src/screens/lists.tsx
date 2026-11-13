@@ -172,9 +172,18 @@ function MineFold({ section }: { section: Section<InboxRow> }) {
  * number is its section's own row count, the same model the sidebar and the agent screens read.
  */
 export function RunningScreen() {
-  const { model } = useApp();
+  const { model, store } = useApp();
   const { home } = model;
-  if (!home.decisions && !home.review.rows.length && !home.mine.rows.length && !model.running.rows.length && !home.planned.rows.length && !home.waiting.rows.length && !model.done.length) return <Empty />;
+  if (!home.decisions && !home.review.rows.length && !home.mine.rows.length && !model.running.rows.length && !home.planned.rows.length && !home.waiting.rows.length && !model.done.length) {
+    // Nothing yet, but the owner can still write the first to-do (lina-app#95); while loading, only the loading line.
+    if (store.version === 0) return <Empty />;
+    return (
+      <div class="list" data-testid="screen-running">
+        <MineFold section={home.mine} />
+        <Empty />
+      </div>
+    );
+  }
   return (
     <div class="list" data-testid="screen-running">
       {home.decisions ? (

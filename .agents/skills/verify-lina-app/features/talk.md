@@ -10,7 +10,7 @@ On a goal or to-do page the owner talks with the agent that owns it. The message
 
 ## Intended behavior
 
-- A box `대화` sits under `댓글` on every goal and to-do page (`#/goals/<id>`, `#/items/<id>`). On a fresh page it holds only the field `메시지` and `보내기`: no earlier turns, because the core has no route to read the conversation back.
+- A box `대화` sits under `댓글` on every goal and to-do page (`#/goals/<id>`, `#/items/<id>`), and on a goal opened from an agent's card under the `대화` tab (`#/talk/<agent>?goal=<id>`, see talk-tab.md). On a fresh page it holds only the field `메시지` and `보내기`: no earlier turns, because the core has no route to read the conversation back.
 - `보내기` is grey while the field is empty, accent once it has text, and on a phone it and the field are at least 44 px tall.
 - Enter or `보내기` sends. An Enter that ends a Hangul composition only finishes the syllable; it does not send.
 - After sending: the field empties, the owner's message shows on the right, and the agent's reply streams in on the left under the agent's mark, ending in one quiet live dot while it streams. `보내기` stays disabled until the reply ends. With `prefers-reduced-motion` the dot holds still.
@@ -28,8 +28,8 @@ On a goal or to-do page the owner talks with the agent that owns it. The message
 ## How to get to it (user POV)
 
 - Open a to-do (from a goal page, a 마감일 row or a 수신함 decision) and scroll to `대화`.
-- Open a goal (from 목표 or an agent's goals) and scroll to `대화`.
-- Address `/app/#/items/<id>` or `/app/#/goals/<id>`.
+- Open a goal (from 목표, an agent's goals, or the agent's card in the `대화` tab) and scroll to `대화`.
+- Address `/app/#/items/<id>`, `/app/#/goals/<id>` or `/app/#/talk/<agent>?goal=<id>`.
 
 ## Driving it with verify.mjs
 

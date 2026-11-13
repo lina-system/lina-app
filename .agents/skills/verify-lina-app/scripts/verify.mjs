@@ -3083,7 +3083,12 @@ const drivers = {
       const agents = await page.locator(wide ? "[data-testid^=nav-talk-]" : "[data-testid^=talk-agent-]").count();
       check(agents === 3, "the agents listed: " + agents);
       if (wide) check((await text(page.getByTestId("pick-agent"))) === "에이전트를 고르면 대화가 열림", "the middle does not ask to choose an agent");
-      return agents + " agents";
+      // Each row: the first line of its last message, or one plain line when it has none (lina-app#143).
+      const row = (index) => page.getByTestId((wide ? "nav-talk-" : "talk-agent-") + index).getByTestId("talk-preview");
+      await row(1).waitFor({ timeout: 5_000 });
+      const previews = [await text(row(0)), await text(row(1))];
+      check(previews[0] === "변경 목록을 모으는 중이에요. 배포 순서는 답을 기다려요." && previews[1] === "아직 나눈 대화 없음", "the rows read " + JSON.stringify(previews));
+      return agents + " agents; " + previews.join(" / ");
     });
     await step("choose the first agent: its earlier turns, the window says it is not the messenger chat, its card holds its goals", async () => {
       await page.locator(wide ? "[data-testid=nav-talk-0] a" : "[data-testid=talk-agent-0] a").click();
@@ -3107,6 +3112,19 @@ const drivers = {
       check((await box().getByTestId("talk-live").count()) === 0, "the live dot stayed");
       check((await field.inputValue()) === "", "the field kept " + (await field.inputValue()));
       return "reply: " + (await box().getByTestId("talk-reply").last().locator(".talk-bubble").innerText());
+    });
+    await step("a goal on the card opens under 대화, and back returns to the window", async () => {
+      const talk = new URL(page.url()).hash;
+      await page.getByTestId("agent-card").getByRole("link", { name: /릴리스 노트 정리/ }).click();
+      await page.locator("article.detail .detail-title").filter({ hasText: "릴리스 노트 정리" }).waitFor({ timeout: 5_000 });
+      const hash = new URL(page.url()).hash;
+      check(hash === talk + "?goal=G1", "the goal opened at " + hash);
+      if (wide) check((await page.getByTestId("tabs").locator("[aria-current=page]").innerText()).trim() === "대화", "the current tab left 대화");
+      await page.getByTestId("back").click();
+      await settled(page);
+      await box().waitFor({ timeout: 5_000 });
+      check(new URL(page.url()).hash === talk, "back went to " + new URL(page.url()).hash);
+      return hash + " -> " + talk;
     });
     if (!wide) {
       await step("phone: the field and 보내기 are 44 px tall and back reads 대화", async () => {

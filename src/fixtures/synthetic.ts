@@ -42,7 +42,7 @@ function modelFields(id: string): Pick<RunCard, "model" | "settingsRevision"> {
 /**
  * The synthetic scene behind tests, captures and the verify skill. It is generated from a seed, never copied
  * from a real home: agent and machine names are invented words, titles are invented Korean work phrases, and
- * every time is relative to the `now` it is generated for, so a capture always reads "12분째", never a date.
+ * every time is relative to the `now` it is generated for, so a capture always reads "시작 12분 전", never a date.
  * Every route the app reads has its body here, shaped by the generated schema types.
  */
 export const SYNTHETIC_SEED = 0x5eed;
@@ -53,7 +53,8 @@ const AGENT_NAMES = ["Mirel", "Tavo", "Quenna", "Orli", "Pesk"] as const;
 const MACHINE_NAMES = ["솔방울", "징검돌", "모래톱", "물레방아"] as const;
 // Two services the app has display names for and one it shows as the core gives it.
 const SERVICE_NAMES = ["anthropic", "openai", "가온셈"] as const;
-const OWNER = { id: "owner", name: "나" } as const;
+// The owner reads by a person's name, as on the hub; "나" would make a line like `나 확인 필요` (lina-app#125).
+const OWNER = { id: "owner", name: "도윤" } as const;
 export const SYNTHETIC_OWNER = OWNER;
 
 type Rng = () => number;
@@ -181,7 +182,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     { id: "G2", agent: 1, title: "결제 화면 개편", state: "in_progress", sinceAgo: 5 * DAY, due: -2, doneCondition: "새 결제 화면이 모든 카드사에서 통과", why: "결제 중에 이탈이 많다는 말을 들었어요." },
     { id: "G3", agent: 2, title: "백업 주기 점검", state: "waiting", reason: "decision", sinceAgo: 3 * DAY, doneCondition: "복구 연습을 한 번 마침", why: "백업이 실제로 복구되는지 확인하고 싶어요." },
     { id: "G4", agent: 0, title: "온보딩 문서 갱신", state: "done", sinceAgo: 1 * DAY, doneCondition: "새 가이드가 문서 사이트에 올라감", why: "처음 온 사람이 혼자 시작할 수 있게요." },
-    { id: "G5", agent: 1, title: "검색 속도 개선", state: "in_progress", sinceAgo: 4 * DAY, due: 20, doneCondition: "느린 질의 상위 열 개가 1초 안에 끝남", why: "검색이 느리다는 의견이 많아요." },
+    { id: "G5", agent: 1, title: "검색 속도 개선", state: "in_progress", sinceAgo: 4 * DAY, due: 20, doneCondition: "느린 질의 상위 열 개 1초 안에 완료", why: "검색이 느리다는 의견이 많아요." },
   ] as const;
 
   const todoSeeds: TodoSeed[] = [
@@ -386,9 +387,9 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
   const todoWorkCards: Record<string, string[]> = { T1: ["k-101"], T3: ["k-101"], T4: ["k-102"], T5: ["k-103"], T6: ["k-104"], T7: ["k-105"] };
 
   const decisions: Record<string, { text: string; kind: "ask" | "act"; ago: number; choices?: string[]; recommended?: string }> = {
-    T2: { text: "배포를 금요일 오후에 해도 될까요?", kind: "ask", ago: 3 * DAY, choices: ["금요일 오후", "월요일 오전"], recommended: "금요일 오후" },
-    G3: { text: "복구 연습에 쓸 두 시간을 비워 주세요.", kind: "act", ago: 2 * DAY },
-    T12: { text: "자주 쓰는 검색어 열 개를 알려 주세요.", kind: "act", ago: 1 * DAY },
+    T2: { text: "배포를 금요일 오후에 할지 결정 필요", kind: "ask", ago: 3 * DAY, choices: ["금요일 오후", "월요일 오전"], recommended: "금요일 오후" },
+    G3: { text: "복구 연습에 쓸 두 시간 확인 필요", kind: "act", ago: 2 * DAY },
+    T12: { text: "자주 쓰는 검색어 열 개 확인 필요", kind: "act", ago: 1 * DAY },
   };
 
   const comments: Record<string, ItemDetail["comments"]> = {
@@ -477,7 +478,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     return { ...item, runCount: detail.runs.length, commentCount: detail.comments.length };
   });
 
-  const question = { cardId: "k-102", title: "위키: 결제 화면 문서 정리", agent: agentId(1), commentId: 7, body: "카드 번호는 앞 여섯 자리까지 보여 줄까요?", askedAt: now - 1 * DAY - 4 * HOUR };
+  const question = { cardId: "k-102", title: "위키: 결제 화면 문서 정리", agent: agentId(1), commentId: 7, body: "카드 번호를 앞 여섯 자리까지 표시할지 결정 필요", askedAt: now - 1 * DAY - 4 * HOUR };
 
   const decide = Object.entries(decisions).map(([target, decision]) => ({
     target,
@@ -640,9 +641,10 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
         {
           service: SERVICE_NAMES[0],
           percent: 72,
-          ratePerHour: 10,
+          ratePerHour: 1,
           accounts: [
-            quotaAccount("acct-a", 1, "pro", "fiveHour", [quotaWindow("fiveHour", 72, 3 * HOUR, 10), quotaWindow("weekly", 40, 4 * DAY, 0.5)]),
+            // The core serves the weekly window as the main one and no five-hour window (lina#654).
+            quotaAccount("acct-a", 1, "pro", "weekly", [quotaWindow("weekly", 72, 3 * DAY, 1)]),
             quotaAccount("acct-b", 2, "pro", null, [], "reauth", false),
           ],
         },
@@ -754,7 +756,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
           { name: "로그인 상태", ok: true, line: "로그인됨", at: now - 4 * MIN, staleAfter: HOUR, stale: false, state: "ok", file: "login.json" },
           { name: "매일 도구 통일", ok: true, line: "어제와 같음", at: now - 5 * MIN, staleAfter: HOUR, stale: false, state: "ok", file: "daily.json" },
           { name: "백업 회선", ok: false, line: "응답 없음", at: now - 12 * MIN, staleAfter: HOUR, stale: false, state: "failing", file: "backup.json" },
-          { name: "대기 봇", ok: true, line: "소식이 끊김", at: now - 3 * HOUR, staleAfter: HOUR, stale: true, state: "stale", file: "wait.json" },
+          { name: "대기 봇", ok: true, line: "연결 끊김", at: now - 3 * HOUR, staleAfter: HOUR, stale: true, state: "stale", file: "wait.json" },
         ],
       };
   const errors: BoardSnapshot["errors"] = options.sourceError ? [{ source: "quota", message: "quota source did not answer" }] : [];
@@ -847,7 +849,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
 
     // The live shape (lina-app#119). T14 and T15 are to-dos with no goal; their titles name work nothing else names.
     const looseTodo = (id: string, title: string, agent: number) =>
-      summary({ id, kind: "todo", parent: null, title, agent: agentId(agent), addedBy: agentId(agent), mine: false, state: "stopped", reason: null, stateSince: now - 2 * HOUR, due: null, doneCondition: `${title} 끝남`, todos: null });
+      summary({ id, kind: "todo", parent: null, title, agent: agentId(agent), addedBy: agentId(agent), mine: false, state: "stopped", reason: null, stateSince: now - 2 * HOUR, due: null, doneCondition: `${title} 완료`, todos: null });
     const loose = [looseTodo("T14", "야간 보고서 정리하기", 2), looseTodo("T15", "알림 문구 고르기", 0)];
     // k-108's three rounds, all stopped; r18 and r19 belong to k-190, a card outside the window the cards list holds;
     // r20 has no card and nothing replaced it; r21 waits on an agent's verdict inside k-104. No checked line is
@@ -944,10 +946,10 @@ function settingsScene(now: number, variant: SettingsVariant | null): SettingsSc
   const r1: Settings = {
     devices: {
       workers: {
-        "machine-a": { host: "machine-a", role: "work", cap: 1, named_cap: 2, fast: true },
-        "machine-b": { host: "machine-b", role: "work", cap: 1, no_repo: true },
-        "files-a": { host: "files-a", role: "files", named_cap: 1, no_repo: true },
-        "laptop-a": { role: "person" },
+        모래톱: { host: "모래톱", role: "work", cap: 1, named_cap: 2, fast: true },
+        솔방울: { host: "솔방울", role: "work", cap: 1, no_repo: true },
+        징검돌: { host: "징검돌", role: "files", named_cap: 1, no_repo: true },
+        나침반: { role: "person" },
       },
     },
     worker: {
@@ -958,14 +960,14 @@ function settingsScene(now: number, variant: SettingsVariant | null): SettingsSc
         codex: { type: "command", argv: ["codex", "exec", "-"], on: true, model: "openai/model-c:low", fallback_model: "anthropic/model-b", access: "workspace-write" },
         dsh: { type: "command", argv: ["dsh", "-"], on: true, model: "openai/model-d", access: "read-only" },
       },
-      routing: [{ name: "docs", when: { labels_any: ["docs"] }, runner: "codex" }],
+      routing: [{ name: "docs", when: { labels_any: ["문서"] }, runner: "codex" }],
     },
   };
   const r2: Settings = structuredClone(r1);
   r2.worker!.runners!.codex.model = "openai/model-c:medium";
   const r3: Settings = structuredClone(r2);
-  r3.worker!.routing!.push({ name: "quick", when: { labels_any: ["quick"], size: ["S"] }, runner: "dsh" });
-  r3.devices!.workers!["machine-a"].cap = 2;
+  r3.worker!.routing!.push({ name: "quick", when: { labels_any: ["급함"], size: ["S"] }, runner: "dsh" });
+  r3.devices!.workers!.모래톱.cap = 2;
   if (variant === "many-warnings") {
     // Four models warned about: omo's and the fallback off, codex's out of quota, dsh's off with no fallback to take.
     r3.worker!.runners!.omo.model = "openai/model-d";
@@ -974,7 +976,7 @@ function settingsScene(now: number, variant: SettingsVariant | null): SettingsSc
   const revisions = [{}, r1, r2, r3];
   const by = [
     { kind: "cli", principal: OWNER.id, device: "local", at: now - 3 * DAY },
-    { kind: "app", principal: OWNER.id, device: "laptop-a", at: now - DAY },
+    { kind: "app", principal: OWNER.id, device: "나침반", at: now - DAY },
     { kind: "outside", principal: "", device: "", at: now - 2 * HOUR },
   ] as const;
   const history = by.map(({ at, ...who }, index): SettingsAuditLine => ({ rev: `r${index + 1}`, base: `r${index}`, at, by: who, changes: diffSettings(revisions[index], revisions[index + 1]) }));

@@ -282,7 +282,6 @@ export const W = {
   settings: "설정",
   settingsReadOnly: "이 기기에서는 볼 수만 있습니다",
   settingsStale: "다른 곳에서 먼저 바뀌었습니다 · 새로 읽었습니다",
-  settingsRev: (rev: string) => `설정 ${rev}`,
   more: (n: number) => `외 ${n}개`,
   defaults: "기본값",
   defaultValue: "기본값",
@@ -290,6 +289,8 @@ export const W = {
   fallbackModel: "대체 모델",
   followDefault: "기본값 따름",
   runners: "실행기",
+  /** A runner as the screens name it: its place in the runner list, never its key in the settings. */
+  runnerNumber: (n: number) => `실행기 ${n}`,
   turnOn: "켜기",
   turnedOn: "켬",
   turnedOff: "끔",
@@ -421,4 +422,4 @@ export const REPLY_RESULT: Readonly<Record<string, string>> = {
   not_applied: "반영 안 함",
 };
 
-export const BANNED_WORDS = ["세션", "일꾼", "회차", "판정", "장부"];
+export const BANNED_WORDS = ["세션", "일꾼", "회차", "판정", "장부", "준 기다림", "멈춤", "막힘", "끝남", "끝난", "샌 것", "심박", "분째", "시간째", "일째", "작업 마침", "소식이 끊김", "오래됨", "검토 반려", "OCX"];

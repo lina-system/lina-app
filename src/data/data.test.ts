@@ -370,7 +370,7 @@ test("the synthetic core takes a settings write only against the revision the pa
   expect(await source.patchSettings({ worker: { default_runner: "codex" } }, "r3")).toMatchObject({ ok: false, status: 428 });
   await source.read("settings");
   expect(await source.patchSettings({ worker: { routing: [{ name: "docs", runner: "nobody" }] } }, "r3")).toEqual({ ok: false, status: 422, detail: "worker.routing[0].runner: unknown runner 'nobody'" });
-  expect(await source.patchSettings({ devices: { workers: { "laptop-a": { cap: 2 } } } }, "r3")).toMatchObject({ ok: false, status: 422, detail: "devices.workers.laptop-a.cap: a person device takes no work" });
+  expect(await source.patchSettings({ devices: { workers: { 나침반: { cap: 2 } } } }, "r3")).toMatchObject({ ok: false, status: 422, detail: "devices.workers.나침반.cap: a person device takes no work" });
   const written = await source.patchSettings({ worker: { default_runner: "codex" } }, "r3");
   expect(written).toMatchObject({ ok: true, data: { changes: [{ path: "worker.default_runner", from: "omo", to: "codex" }], revision: { id: "r4", base: "r3", by: { kind: "app" } } } });
   expect(await source.patchSettings({ worker: { default_runner: "omo" } }, "r3")).toMatchObject({ ok: false, status: 412, detail: "the settings changed since you read them (now r4): read again" });
@@ -384,7 +384,7 @@ test("&settings=race: another device writes right after the page's first write l
   const source = new SyntheticSource({ settings: "race" });
   await source.read("settings");
   expect(await source.patchSettings({ worker: { default_runner: "codex" } }, "r3")).toMatchObject({ ok: true, data: { revision: { id: "r4" } } });
-  expect(source.scene.settings.history.at(-1)).toMatchObject({ rev: "r5", by: { device: "phone-a" } });
+  expect(source.scene.settings.history.at(-1)).toMatchObject({ rev: "r5", by: { device: "먹물" } });
   await source.read("settings");
   expect(await source.patchSettings({ worker: { default_runner: "dsh" } }, "r4")).toEqual({ ok: false, status: 412, detail: null });
   expect(source.settingsWrites).toEqual([{ kind: "patch", ifMatch: "r3", status: 200 }]);

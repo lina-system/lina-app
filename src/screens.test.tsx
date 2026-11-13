@@ -110,6 +110,54 @@ describe.each([
   });
 });
 
+// lina-app#125: every route, in the default scene and in `&runs=ended`, read as a person reads it. No phrase the owner's
+// table rules out, no internal name (a runner, a rule, a machine id, the proxy, a revision, the owner's id), and no
+// Latin word but the allowed ones and the names the data gives (agents, models, usage rows).
+const SETTINGS_SCREENS = ["#/settings", "#/settings/default-runner", "#/settings/fallback", "#/settings/runner/omo", "#/settings/runner/codex", "#/settings/runner/codex/model", "#/settings/rule-new", "#/settings/models", "#/settings/history"];
+const DENIED = [
+  /\d+\s*(?:분|시간|일)째/,
+  /끝남|끝난 것|작업 마침|소식이 끊김|오래됨|검토 반려/,
+  /설정 r\d+/,
+  /\bOCX\b/,
+  /\b(?:omo|codex|dsh|quick|docs)\b/,
+  /\b(?:machine|files|laptop|phone)-[a-z]\b/,
+  /\b(?:owner|local)\b/,
+  /(?:^|\n)카드(?: · |\n|$)/,
+  /(?:^|\n| )나 확인 필요/,
+];
+const ALLOWED_LATIN = ["LINA", "CPU", "CLI", "Claude", "ChatGPT", "Gemini", "Grok", "Cursor"];
+
+describe.each([
+  ["default", false],
+  ["&runs=ended", true],
+])("in the %s scene", (_scene, endedRuns) => {
+  const scene = new SyntheticSource({ endedRuns }).scene;
+  const settings = scene.settings.revisions.at(-1);
+  const device = Object.keys(settings?.devices?.workers ?? {})[0];
+  const routes = [...SCREENS, "#/goals/G5", ...SETTINGS_SCREENS, `#/settings/device/${encodeURIComponent(device)}`];
+  const dataNames = [
+    ...scene.items.agents.map((agent) => agent.name),
+    ...scene.settings.models.map((model) => model.name ?? model.id),
+    ...scene.runs.flatMap((run) => (run.model?.id ? [run.model.id] : [])),
+    ...Object.values(scene.records).flatMap((record) => (record.model?.id ? [record.model.id] : [])),
+    ...scene.usage.today.byModel.map((row) => row.model ?? ""),
+    ...scene.usage.today.byMachine.map((row) => row.machine ?? ""),
+    ...Object.values(settings?.worker?.runners ?? {}).flatMap((runner) => [runner.model ?? "", runner.fallback_model ?? ""].map((value) => value.split("/").at(-1)?.split(":")[0] ?? "")),
+  ];
+  const latinData = new Set(dataNames.flatMap((name) => name.match(/[A-Za-z]{2,}/g) ?? []));
+
+  test.each(routes.flatMap((route) => [[route, true] as const, [route, false] as const]))("%s (wide %s) reads only table words and no internal name", async (hash, wide) => {
+    const view = await open(hash, { wide, source: new SyntheticSource({ now: Math.floor(Date.now() / 1000), endedRuns }) });
+    if (hash.startsWith("#/settings")) await waitFor(() => expect(view.container.querySelector("[data-testid=screen-settings], [data-testid=setting-page]")).not.toBeNull());
+    await waitFor(() => expect(view.container.textContent).not.toContain("불러오는 중"));
+    const text = screenText(view.container);
+    expect(DENIED.filter((pattern) => pattern.test(text)).map((pattern) => `${pattern} → ${text.match(pattern)?.[0]}`)).toEqual([]);
+    expect(BANNED_WORDS.filter((word) => text.includes(word))).toEqual([]);
+    const latin = (text.match(/[A-Za-z]{2,}/g) ?? []).filter((word) => !latinData.has(word) && !ALLOWED_LATIN.includes(word));
+    expect([...new Set(latin)]).toEqual([]);
+  });
+});
+
 function count(element: Element | null): number {
   return Number(element?.textContent ?? "0");
 }
@@ -263,12 +311,12 @@ describe("machines, quota and checks", () => {
     const services = [...list.querySelectorAll(":scope > .quota-row")];
     expect(services.map((row) => row.querySelector("summary .title")?.textContent)).toEqual(["Claude", "ChatGPT", "가온셈"]);
     const labels = services.map((row) => row.querySelector("summary")?.getAttribute("aria-label") ?? "");
-    expect(labels).toEqual(["Claude · 72% · 시간당 +10% · 3시간 후 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후", "가온셈 · 5% · 12일 후"]);
-    expect(services.map((row) => row.querySelector("summary .sub")?.textContent)).toEqual(["72% · 시간당 +10% · 3시간 후", "31% · 시간당 +1% · 2일 후", "5% · 12일 후"]);
+    expect(labels).toEqual(["Claude · 72% · 시간당 +1% · 3일 후 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후", "가온셈 · 5% · 12일 후"]);
+    expect(services.map((row) => row.querySelector("summary .sub")?.textContent)).toEqual(["72% · 시간당 +1% · 3일 후", "31% · 시간당 +1% · 2일 후", "5% · 12일 후"]);
     expect(services.map((row) => (row.querySelector("details") as HTMLDetailsElement).open)).toEqual([false, false, false]);
     expect(services.map((row) => row.querySelectorAll("[data-testid=account]").length)).toEqual([2, 1, 2]);
     // One convention, the service row's: the percent used, never "left".
-    expect(services[0].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 72% · 시간당 +10% · 3시간 후 · 주의");
+    expect(services[0].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 72% · 시간당 +1% · 3일 후 · 주의");
     expect(services[2].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 5% · 12일 후");
     expect(services[0].querySelector(".rate")?.getAttribute("title")).toBe("최근 5시간 평균");
     expect(services.filter((row) => row.querySelector("summary .warn-mark"))).toHaveLength(1);
@@ -278,7 +326,7 @@ describe("machines, quota and checks", () => {
     const view = await open("#/status", { wide: true });
     const list = view.getByRole("list", { name: "점검" });
     const rows = [...list.querySelectorAll(".status-check-row")];
-    expect(rows.map((row) => row.querySelector(".row-body")?.getAttribute("aria-label"))).toEqual(["백업 회선 · 응답 없음 · 실패 · 12분 전", "대기 봇 · 소식이 끊김 · 갱신 지연 · 3시간 전"]);
+    expect(rows.map((row) => row.querySelector(".row-body")?.getAttribute("aria-label"))).toEqual(["백업 회선 · 응답 없음 · 실패 · 12분 전", "대기 봇 · 연결 끊김 · 갱신 지연 · 3시간 전"]);
     expect(rows.map((row) => row.querySelector(".check-state")?.textContent)).toEqual(["실패", "갱신 지연"]);
     expect(rows.map((row) => row.className)).toEqual(["row status-check-row is-failing", "row status-check-row is-stale"]);
     // `check-row` is the to-do row with a check box: it indents past the box and lets the title size the row, so a
@@ -330,7 +378,7 @@ describe("usage, OCX and the accounts' quota", () => {
     const view = await open("#/status", { wide: true });
     const list = view.getByRole("list", { name: "쿼터" });
     const rows = [...list.querySelectorAll(":scope > li")].map((row) => row.querySelector(".row-body")?.getAttribute("aria-label") ?? row.querySelector("summary")?.getAttribute("aria-label"));
-    expect(rows).toEqual(["Claude · 72% · 시간당 +10% · 3시간 후 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후", "가온셈 · 5% · 12일 후", "Cursor · 계정 없음", "모델 3개 켜짐 · 연결 끊김: 물레방아"]);
+    expect(rows).toEqual(["Claude · 72% · 시간당 +1% · 3일 후 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후", "가온셈 · 5% · 12일 후", "Cursor · 계정 없음", "모델 3개 켜짐 · 연결 끊김: 물레방아"]);
     // Every one of them is a row of the list, with the row look: a title line and a 44 px minimum height.
     for (const row of list.querySelectorAll(":scope > li")) expect(row.querySelector(".title")).not.toBeNull();
     expect(view.getByTestId("quota-missing").textContent).toBe("Cursor · 계정 없음");
@@ -684,7 +732,7 @@ describe("answers", () => {
     try {
       const source = new SpySource();
       const view = await open("#/inbox", { wide: true, source });
-      const row = decisionButton(view, "배포를 금요일 오후에 해도 될까요");
+      const row = decisionButton(view, "배포를 금요일 오후에 할지 결정 필요");
       fireEvent.click(row);
       expect(row.getAttribute("aria-expanded")).toBe("true");
       await waitFor(() => expect(view.getByRole("button", { name: "금요일 오후 · 추천" })).toBeTruthy());
@@ -712,7 +760,7 @@ describe("answers", () => {
     try {
       const source = new SpySource();
       const view = await open("#/inbox", { wide: true, source });
-      fireEvent.click(decisionButton(view, "자주 쓰는 검색어 열 개를"));
+      fireEvent.click(decisionButton(view, "자주 쓰는 검색어 열 개"));
       const field = view.getByRole("textbox", { name: "답 달기" }) as HTMLInputElement;
       field.value = "결제, 환불, 배송";
       fireEvent.input(field);
@@ -734,7 +782,7 @@ describe("answers", () => {
     try {
       const source = new SpySource();
       const view = await open("#/inbox", { wide: true, source });
-      fireEvent.click(decisionButton(view, "카드 번호는 앞 여섯 자리까지"));
+      fireEvent.click(decisionButton(view, "카드 번호를 앞 여섯 자리까지"));
       const field = view.getByRole("textbox", { name: "답 달기" }) as HTMLInputElement;
       field.value = "네";
       fireEvent.input(field);
@@ -746,7 +794,7 @@ describe("answers", () => {
       await waitFor(() => expect(view.queryByRole("button", { name: /카드 번호는/ })).toBeNull());
 
       source.refuse.add("comment");
-      fireEvent.click(decisionButton(view, "복구 연습에 쓸 두 시간을"));
+      fireEvent.click(decisionButton(view, "복구 연습에 쓸 두 시간"));
       const act2 = view.getByRole("textbox", { name: "답 달기" }) as HTMLInputElement;
       act2.value = "목요일 오후";
       fireEvent.input(act2);
@@ -1009,7 +1057,7 @@ describe("lists while a write is in flight", () => {
     vi.useFakeTimers(TIMERS);
     try {
       const view = await open("#/inbox", { wide: true, source: new SpySource() });
-      fireEvent.click(decisionButton(view, "배포를 금요일 오후에 해도 될까요"));
+      fireEvent.click(decisionButton(view, "배포를 금요일 오후에 할지 결정 필요"));
       await waitFor(() => expect(view.getByRole("button", { name: "금요일 오후 · 추천" })).toBeTruthy());
       fireEvent.click(view.getByRole("button", { name: "금요일 오후 · 추천" }));
       expect(inboxCounts(view)).toEqual({ sidebar: 7, decide: 3, mine: 2, rows: 7 });
@@ -1485,7 +1533,7 @@ describe("live updates", () => {
       const core = new SyntheticSource();
       const view = await open("#/inbox", { wide: true, source: core });
       const screen = view.getByTestId("screen-inbox");
-      const row = decisionButton(view, "배포를 금요일 오후에 해도 될까요");
+      const row = decisionButton(view, "배포를 금요일 오후에 할지 결정 필요");
       fireEvent.click(row);
       expect(row.getAttribute("aria-expanded")).toBe("true");
       await act(async () => {
@@ -1520,7 +1568,7 @@ describe("live updates", () => {
       expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
 
       expect(view.getByTestId("screen-inbox")).toBe(screen);
-      expect(decisionButton(view, "배포를 금요일 오후에 해도 될까요")).toBe(row);
+      expect(decisionButton(view, "배포를 금요일 오후에 할지 결정 필요")).toBe(row);
       expect(row.getAttribute("aria-expanded")).toBe("true");
       expect(core.stream.filter((connection) => connection.open)).toHaveLength(1);
     } finally {
@@ -1976,8 +2024,8 @@ describe("the run's own timeline", () => {
     expect(blocks[3].querySelector(".timeline-text")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 문서만 바뀐 변경은 따로 묶어 주세요\.$/);
     expect(blocks[1].querySelector(".timeline-text")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 변경 목록은 표로 보여 주세요$/);
     // Every comment row carries its own time, then its author.
-    expect(blocks[1].querySelector(".sub")?.textContent?.trim()).toBe("나");
-    expect(blocks[2].querySelector(".sub")?.textContent?.trim()).toBe("나");
+    expect(blocks[1].querySelector(".sub")?.textContent?.trim()).toBe(SYNTHETIC_OWNER.name);
+    expect(blocks[2].querySelector(".sub")?.textContent?.trim()).toBe(SYNTHETIC_OWNER.name);
     expect(blocks[2].querySelector(".timeline-text")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 변경마다 한 줄 요약을 붙여 주세요$/);
   });
 

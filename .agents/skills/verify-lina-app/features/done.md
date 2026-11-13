@@ -12,7 +12,7 @@
 
 - Only cards in state 완료; failed or review-needed cards never show here.
 - Newest first.
-- Each card reads `완료 · <when it ended>` (`완료 · 30분 전`, `완료 · 2일 전`), with the kind icon, agent mark and name. How long it took (`20분 걸림`) is in its detail head, never on the row.
+- Each card reads `완료 · <when it ended>` (`완료 · 30분 전`, `완료 · 2일 전`), with the kind icon, agent mark and name. How long it took (`소요 20분`) is in its detail head, never on the row.
 - The sidebar count equals the rows.
 - An agent filter sits above the list: `전체` and each agent with its count. Choosing one keeps it in the address (`#/done?agent=<id>`), so a reload or a live update keeps it; each count equals the list it shows, and the filtered list shows the agent's `최근 활동` (work-cards.md).
 
@@ -36,7 +36,7 @@ Preconditions:
 
 - **Open the screen.** Choose `완료`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive done`.
 - **Read the list.** Read the list `완료`. Two links ending in `완료`, one of them `가이드 초안 다듬기` (r7; r8, the earlier run of the same task, is not a row: work-cards.md); each grey line reads `완료 · <n>분|시간|일 전`.
-- **Total in the detail.** Choose the first row: its detail head reads `완료 · <n> 전 · <n>분 걸림`.
+- **Total in the detail.** Choose the first row: its detail head reads `완료 · <n> 전 · 소요 <n>분`.
 - **Filter.** Driven in work-cards.md: the address keeps the agent, a reload keeps it pressed, counts equal lists.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/done/done-1280.{png,aria.yml,json}` and `done-390.{png,aria.yml,json}`.
 

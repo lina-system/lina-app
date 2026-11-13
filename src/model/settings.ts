@@ -43,6 +43,15 @@ export function runnerTable(settings: Settings): [string, SettingsRunner][] {
   return [...table];
 }
 
+/**
+ * A runner as the screens name it: `실행기 n` by its place in the runner table, so its key in the settings (`omo`,
+ * `codex`) never shows. A runner the table no longer holds (one a revision removed) is just `실행기`.
+ */
+export function runnerName(name: string, settings: Settings): string {
+  const index = runnerTable(settings).findIndex(([key]) => key === name);
+  return index < 0 ? W.runners : W.runnerNumber(index + 1);
+}
+
 export function defaultRunner(settings: Settings): string {
   return settings.worker?.default_runner || BUILTIN_RUNNER;
 }
@@ -117,7 +126,13 @@ export function modelLabel(value: string | undefined | null, settings: Settings,
 export function warningLines(view: SettingsModels, settings: Settings): string[] {
   const checks = [...view.runners, ...view.modes, view.fallback];
   const values = [...new Set(checks.flatMap((check) => [check.model, check.fallback]).filter((value): value is string => Boolean(value)))].sort((a, b) => b.length - a.length);
-  return view.warnings.map((line) => values.reduce((text, value) => text.split(value).join(modelLabel(value, settings, view.models)), line));
+  // A runner's own warning starts with its key; the line names it as the rows do.
+  const runnerOf = new Map(view.runners.flatMap((check) => (check.warning ? [[check.warning, check.name] as const] : [])));
+  const named = (line: string) => {
+    const runner = runnerOf.get(line);
+    return runner && line.startsWith(runner) ? `${runnerName(runner, settings)}${line.slice(runner.length)}` : line;
+  };
+  return view.warnings.map((line) => values.reduce((text, value) => text.split(value).join(modelLabel(value, settings, view.models)), named(line)));
 }
 
 /** The effort a model value runs at: its own, else the OCX model's default. */
@@ -233,15 +248,15 @@ function asRules(value: unknown): SettingsRule[] {
 }
 
 /** The rules a change of the list touched: each rule added or removed by name, each one changed, or their order. */
-function ruleWords(from: unknown, to: unknown): string[] {
+function ruleWords(from: unknown, to: unknown, settings: Settings): string[] {
   const before = asRules(from);
   const after = asRules(to);
   const was = new Map(before.map((rule) => [rule.name, rule]));
   const is = new Set(after.map((rule) => rule.name));
   const words = [
-    ...after.filter((rule) => !was.has(rule.name)).map((rule) => W.added(W.rule(rule.name))),
-    ...before.filter((rule) => !is.has(rule.name)).map((rule) => W.remove(W.rule(rule.name))),
-    ...after.filter((rule) => was.has(rule.name) && JSON.stringify(was.get(rule.name)) !== JSON.stringify(rule)).map((rule) => W.ruleTo(ruleLabel(rule), rule.runner)),
+    ...after.filter((rule) => !was.has(rule.name)).map((rule) => W.added(W.rule(ruleLabel(rule)))),
+    ...before.filter((rule) => !is.has(rule.name)).map((rule) => W.remove(W.rule(ruleLabel(rule)))),
+    ...after.filter((rule) => was.has(rule.name) && JSON.stringify(was.get(rule.name)) !== JSON.stringify(rule)).map((rule) => W.ruleTo(ruleLabel(rule), runnerName(rule.runner, settings))),
   ];
   const kept = (rules: SettingsRule[], other: Set<string>) => rules.map((rule) => rule.name).filter((name) => other.has(name));
   if (!words.length && kept(before, is).join("\n") !== kept(after, new Set(was.keys())).join("\n")) words.push(W.ruleOrder);
@@ -256,16 +271,16 @@ function changeWords(change: SettingsChange, settings: Settings, models: readonl
   const number = (value: unknown) => (typeof value === "number" ? value : W.defaultValue);
   if (isEntry(parts)) {
     const name = parts.at(-1) ?? change.path;
-    const thing = parts[2] === "aliases" ? W.alias(name) : name;
+    const thing = parts[2] === "aliases" ? W.alias(name) : parts[1] === "runners" ? runnerName(name, settings) : name;
     return [to === null ? W.remove(thing) : change.from === null ? W.added(thing) : thing];
   }
-  if (change.path === "worker.routing") return ruleWords(change.from, to);
-  if (change.path === "worker.default_runner") return [`${W.defaultRunner} ${typeof to === "string" ? to : W.defaultValue}`];
+  if (change.path === "worker.routing") return ruleWords(change.from, to, settings);
+  if (change.path === "worker.default_runner") return [`${W.defaultRunner} ${typeof to === "string" ? runnerName(to, settings) : W.defaultValue}`];
   if (change.path === "worker.models.fallback") return [`${W.fallbackModel} ${model(to)}`];
   if (parts[0] === "worker" && parts[1] === "models" && parts[2] === "defaults" && parts[3]) return [`${W.modeDefault(parts[3])} ${W.model} ${model(to)}`];
   if (parts[0] === "worker" && parts[1] === "models" && parts[2] === "aliases" && parts[3]) return [W.alias(parts[3])];
   if (parts[0] === "worker" && parts[1] === "runners" && parts[2]) {
-    const name = parts[2];
+    const name = runnerName(parts[2], settings);
     switch (parts[3]) {
       case "on":
         return [`${name} ${onOff(to)}`];
@@ -315,10 +330,16 @@ export function stamp(at: number): string {
   return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-/** One history row: `<MM-DD HH:mm> · <앱|CLI|바깥 편집|되돌리기> · <what changed>`, and who wrote it from where. */
+/** The device the core names for the CLI on the hub itself; the row's `CLI` already says it. */
+const CLI_DEVICE = "local";
+
+/**
+ * One history row: `<MM-DD HH:mm> · <앱|CLI|바깥 편집|되돌리기> · <what changed>`, and the device it was written
+ * from. The principal is the owner's id, never a name a person reads, so it is not drawn.
+ */
 export function historyLine(line: SettingsAuditLine, settings: Settings, models: readonly SettingsModel[]): { title: string; who: string } {
   return {
     title: [stamp(line.at), W.byKind[line.by.kind] ?? line.by.kind, changesLine(line, settings, models)].join(SEP),
-    who: [line.by.principal, line.by.device].filter(Boolean).join(SEP),
+    who: line.by.device === CLI_DEVICE ? "" : line.by.device,
   };
 }

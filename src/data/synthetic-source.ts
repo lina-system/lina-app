@@ -51,7 +51,7 @@ function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
 export type SettingsScript = SettingsVariant | "stale" | "race";
 
 /** Who the synthetic core says wrote from this page, and from the other device of `&settings=stale`. */
-export const SETTINGS_WRITER = { principal: SYNTHETIC_OWNER.id, device: "laptop-a", other: "phone-a" } as const;
+export const SETTINGS_WRITER = { principal: SYNTHETIC_OWNER.id, device: "나침반", other: "먹물" } as const;
 
 /** A settings write drawn over another revision than the one read last: stale, and not sent, like HttpSource. */
 const NOT_THE_READ: WriteResult<never> = { ok: false, status: 412, detail: null };
@@ -753,7 +753,7 @@ export class SyntheticSource implements Source {
    * Another device writes the settings: `devices.workers.<device>.cap` one more, as the owner on SETTINGS_WRITER.other.
    * Every page that read them before now writes against a stale revision.
    */
-  settingsWrittenElsewhere(device = "machine-b"): void {
+  settingsWrittenElsewhere(device = "솔방울"): void {
     const cap = currentSettings(this.scene.settings).devices?.workers?.[device]?.cap ?? 1;
     this.settingsPatchedElsewhere({ devices: { workers: { [device]: { cap: cap + 1 } } } });
   }

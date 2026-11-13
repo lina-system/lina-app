@@ -723,7 +723,7 @@ const drivers = {
     await step("each card has one grey state line with its time", async () => {
       const lines = await page.getByRole("list", { name: "진행 중인 작업" }).locator(".sub:not(.now)").allInnerTexts();
       check(/^중단됨 · 응답 없음 · \d+분 전$/.test(lines[0]), "stopped line reads " + lines[0]);
-      check(lines.slice(1).every((line) => /^진행 중 · \d+(분|시간)째$/.test(line)), "running lines read " + lines.join(", "));
+      check(lines.slice(1).every((line) => /^진행 중 · 시작 \d+(분|시간) 전$/.test(line)), "running lines read " + lines.join(", "));
       return lines.join(", ");
     });
     await step("a stopped card: label title, red state words, grey time", async () => stoppedCardColours(page.getByRole("list", { name: "진행 중인 작업" })));
@@ -752,8 +752,8 @@ const drivers = {
       // r14 has nothing to name it: not a row, counted in one grey line (lina-app#124).
       check(rows.length === 7, "expected 7 stopped rows, got " + rows.length + ": " + hrefs.join(" "));
       check(!hrefs.some((href) => /^#\/runs\/r(1|2|3|4|5|9|10|15|16|17|18|19|21)$/.test(href)), "a run of a card is a row of its own: " + hrefs.join(" "));
-      check(rows[0].state === "중단됨 · 나 확인 필요" && rows[1].state === "중단됨 · 나 확인 필요", "the rows waiting on the owner are not first: " + rows.map((row) => row.state).join(" | "));
-      check(rows.slice(2).every((row) => !row.state.endsWith("나 확인 필요")), "an owner row is below another row");
+      check(rows[0].state === "중단됨 · 도윤 확인 필요" && rows[1].state === "중단됨 · 도윤 확인 필요", "the rows waiting on the owner are not first: " + rows.map((row) => row.state).join(" | "));
+      check(rows.slice(2).every((row) => !row.state.endsWith("도윤 확인 필요")), "an owner row is below another row");
       check(rows.some((row) => / 검토 대기$/.test(row.state)) && rows.some((row) => row.state === "중단됨 · 다시 시도 예정") && rows.some((row) => row.state === "중단됨 · 응답 없음 · 다시 시도 안 함"), "the states read " + rows.map((row) => row.state).join(" | "));
       for (const row of rows) check(row.plain === (row.state === "중단됨 · 응답 없음") && (row.plain || row.colour === "rgb(255, 59, 48)"), row.title + " reads " + row.state + " in " + row.colour);
       check(rows.filter((row) => row.title === "제목 없음").length === 0, "rows titled 제목 없음: " + rows.filter((row) => row.title === "제목 없음").length);
@@ -832,7 +832,7 @@ const drivers = {
       await page.getByRole("list", { name: "완료" }).getByRole("link").first().click();
       await settled(page);
       const head = (await page.locator(".detail-head .sub").first().innerText()).trim();
-      check(/^완료 · \d+(분|시간|일) 전 · \d+(분|시간)( \d+분)? 걸림$/.test(head), "the detail reads " + head);
+      check(/^완료 · \d+(분|시간|일) 전 · 소요 \d+(분|시간)( \d+분)?$/.test(head), "the detail reads " + head);
       return head;
     });
   },
@@ -1002,14 +1002,14 @@ const drivers = {
     });
     await step("from 수신함, a decision's line opens 배포 순서 정하기 with its decision box", async () => {
       await openApp(page, "#/inbox");
-      const row = page.getByRole("list", { name: "결정 필요" }).locator(":scope > li").filter({ has: page.getByRole("button", { name: /배포를 금요일 오후에 해도 될까요/ }) });
+      const row = page.getByRole("list", { name: "결정 필요" }).locator(":scope > li").filter({ has: page.getByRole("button", { name: /배포를 금요일 오후에 할지 결정 필요/ }) });
       await row.locator(".row-button").click();
       await row.locator(".decision-panel a").click();
       await page.waitForFunction(() => location.hash === "#/items/T2", null, { timeout: 3_000 }).catch(() => check(false, "the decision opened " + page.url()));
       const title = (await page.locator(".detail-title").first().innerText()).trim();
       check(title === "배포 순서 정하기", "the to-do opened is " + title);
       const box = (await page.getByTestId("decision").innerText()).replace(/\s+/g, " ");
-      check(box.includes("배포를 금요일 오후에 해도 될까요?") && box.includes("질문") && /\d+일 전/.test(box), "the decision box reads " + box);
+      check(box.includes("배포를 금요일 오후에 할지 결정 필요") && box.includes("질문") && /\d+일 전/.test(box), "the decision box reads " + box);
       return "#/items/T2 " + title + ": " + box;
     });
   },
@@ -1110,7 +1110,7 @@ const drivers = {
     });
     await step("read its state, now line, to-dos, dimmed runs and comments", async () => {
       const state = await page.locator(".detail-head .sub").first().innerText();
-      check(/^진행 중 · \d+분째$/.test(state), "state reads " + state);
+      check(/^진행 중 · 시작 \d+분 전$/.test(state), "state reads " + state);
       await page.getByTestId("timeline").waitFor();
       const heads = await page.locator(".detail .box-head").allInnerTexts();
       // One round list: the record's blocks; 실행 does not stand beside them.
@@ -1156,7 +1156,7 @@ const drivers = {
       // Its raw result line is left out, with no placeholder; the round keeps its head.
       const results = await block.getByTestId("timeline-result").count();
       const text = await page.getByTestId("timeline").innerText();
-      check(/^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 작업 마침$/.test(head) && results === 0 && !text.includes("가린 문장") && !/benchmark|3f2a1c9/.test(text), "the run's timeline reads " + head + " / results " + results + " / " + text.replace(/\s+/g, " "));
+      check(/^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 완료$/.test(head) && results === 0 && !text.includes("가린 문장") && !/benchmark|3f2a1c9/.test(text), "the run's timeline reads " + head + " / results " + results + " / " + text.replace(/\s+/g, " "));
       return new URL(page.url()).hash + " " + state + "; " + head + "; no result line";
     });
     await step("a run's record never shows a model alias: the scene's models have no plain name, so no model line", async () => {
@@ -1355,7 +1355,7 @@ const drivers = {
       check(!(await list.getByTestId("account").first().isVisible()), "accounts are not folded");
       // The last two rows of the same list, with the service rows' look: the service with no account, then OCX itself.
       const plain = await list.locator(":scope > li:not(.quota-row) .row-body").evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
-      check(JSON.stringify(plain) === JSON.stringify(["Cursor · 계정 없음", "OCX · 모델 3개 켜짐 · 연결 끊김: 물레방아"]), "the quota list's last rows read " + JSON.stringify(plain));
+      check(JSON.stringify(plain) === JSON.stringify(["Cursor · 계정 없음", "모델 3개 켜짐 · 연결 끊김: 물레방아"]), "the quota list's last rows read " + JSON.stringify(plain));
       const insets = await list.evaluate((element) => {
         const box = (body) => {
           const rect = body.getBoundingClientRect();
@@ -1443,7 +1443,7 @@ const drivers = {
       );
       check(rows.length === 2, "expected 2 open checks, got " + rows.length);
       check(rows[0]?.text === "백업 회선 · 응답 없음" && rows[0].state === "실패" && rows[0].time === "12분 전" && rows[0].colour === "rgb(255, 59, 48)", "first open check " + JSON.stringify(rows[0]));
-      check(rows[1]?.text === "대기 봇 · 소식이 끊김" && rows[1].state === "오래됨" && rows[1].time === "3시간 전" && rows[1].colour === "rgb(255, 149, 0)", "second open check " + JSON.stringify(rows[1]));
+      check(rows[1]?.text === "대기 봇 · 연결 끊김" && rows[1].state === "갱신 지연" && rows[1].time === "3시간 전" && rows[1].colour === "rgb(255, 149, 0)", "second open check " + JSON.stringify(rows[1]));
       for (const row of rows) check(!row.checkRow, row.text + " carries the to-do row's check-row class");
       // The same row layout as 기기: the trail (state word over time) ends at the row's right edge, not after the title.
       const machineEdge = await page.getByRole("list", { name: "기기", exact: true }).locator(".machine-row .trail").first().evaluate((item) => item.getBoundingClientRect().right);
@@ -1460,7 +1460,8 @@ const drivers = {
     const wide = page.viewportSize().width >= 900;
     const ORANGE = "rgb(255, 149, 0)";
     const RED = "rgb(255, 59, 48)";
-    const rev = async () => (await page.getByTestId("settings-rev").innerText()).trim();
+    // The revision is never drawn (lina-app#125); the screen keeps it as data-revision.
+    const rev = async () => (await page.getByTestId("screen-settings").getAttribute("data-revision")) ?? "";
     const latest = () => page.evaluate(() => window.__linaScene.settings.revisions.at(-1));
     const writes = () => page.evaluate(() => window.__linaSettingsWrites);
     const toggle = (name) => page.getByTestId("screen-settings").getByRole("switch", { name, exact: true });
@@ -1505,48 +1506,49 @@ const drivers = {
       check((await title(page)) === "설정", "the screen is titled " + (await title(page)));
       return (wide ? "nav-status > nav-settings" : "설정 under the machines") + "; " + (await title(page));
     });
-    await step("read the groups: warnings, 기본값, 실행기, 배정 규칙, 기기, 모델 (OCX), 기록 and the revision", async () => {
+    await step("read the groups: warnings, 기본값, 실행기, 배정 규칙, 기기, 모델, 기록, and no revision drawn", async () => {
       const groups = await page.getByTestId("screen-settings").evaluate((element) => [...element.children].map((child) => child.dataset.testid).filter(Boolean));
-      check(JSON.stringify(groups) === JSON.stringify(["settings-warnings", "settings-defaults", "settings-runners", "settings-rules", "settings-devices", "settings-models", "settings-history", "settings-rev"]), "groups " + groups.join(", "));
+      check(JSON.stringify(groups) === JSON.stringify(["settings-warnings", "settings-defaults", "settings-runners", "settings-rules", "settings-devices", "settings-models", "settings-history"]), "groups " + groups.join(", "));
       const warnings = await page.getByTestId("settings-warning").evaluateAll((items) => items.map((item) => [item.textContent, getComputedStyle(item).color]));
-      check(warnings.length === 2 && warnings[0][0].startsWith("codex 모델의 쿼터가 다 찼습니다") && warnings[1][0].startsWith("dsh 모델이 꺼져 있습니다") && warnings.every(([, colour]) => colour === ORANGE), "warnings " + JSON.stringify(warnings));
+      check(warnings.length === 2 && warnings[0][0].startsWith("실행기 2 모델의 쿼터가 다 찼습니다") && warnings[1][0].startsWith("실행기 3 모델이 꺼져 있습니다") && warnings.every(([, colour]) => colour === ORANGE), "warnings " + JSON.stringify(warnings));
       // One way to write a model: the warnings name the fallback as the 기본값 row and the picker do.
       const fallback = (await page.getByTestId("settings-defaults").locator("[data-testid=row]").nth(1).locator(".settings-value").innerText()).trim();
       check(fallback === "model-b", "the 기본값 row's fallback reads " + fallback);
       check(warnings.every(([line]) => line.endsWith(" · 다음 실행은 " + fallback + "로 갑니다")), "the warnings name the fallback another way: " + JSON.stringify(warnings));
       const runners = await rows("settings-runners");
-      check(JSON.stringify(runners) === JSON.stringify(["omo / model-a · 높음", "codex / model-c · 보통", "dsh / model-d"]), "runners " + JSON.stringify(runners));
+      check(JSON.stringify(runners) === JSON.stringify(["실행기 1 / model-a · 높음", "실행기 2 / model-c · 보통", "실행기 3 / model-d"]), "runners " + JSON.stringify(runners));
       const order = await rules();
-      check(JSON.stringify(order) === JSON.stringify(["docs → codex", "quick · S → dsh", "그 외 → omo"]), "rules " + JSON.stringify(order));
+      check(JSON.stringify(order) === JSON.stringify(["문서 → 실행기 2", "급함 · S → 실행기 3", "그 외 → 실행기 1"]), "rules " + JSON.stringify(order));
       const work = await rows("devices-work");
       const files = await rows("devices-files");
       const mine = await rows("devices-mine");
-      check(JSON.stringify(work) === JSON.stringify(["machine-a / 입찰 2 · 지정 2", "machine-b / 입찰 1 · 지정 1"]) && JSON.stringify(files) === JSON.stringify(["files-a / 지정 1"]), "machines " + JSON.stringify([work, files]));
-      check(JSON.stringify(mine) === JSON.stringify(["laptop-a / 상태만 봅니다"]), "my devices " + JSON.stringify(mine));
+      check(JSON.stringify(work) === JSON.stringify(["모래톱 / 입찰 2 · 지정 2", "솔방울 / 입찰 1 · 지정 1"]) && JSON.stringify(files) === JSON.stringify(["징검돌 / 지정 1"]), "machines " + JSON.stringify([work, files]));
+      check(JSON.stringify(mine) === JSON.stringify(["나침반 / 상태만 봅니다"]), "my devices " + JSON.stringify(mine));
       check((await page.getByTestId("devices-mine").locator("a, button, [role=switch]").count()) === 0, "a person's device has a control");
       const models = (await page.getByTestId("settings-models").innerText()).replace(/\s+/g, " ");
-      check(models.includes("켜진 모델 3개") && models.includes("모델 켜고 끄기는 OCX에서 합니다"), "models " + models);
+      check(models.includes("켜진 모델 3개") && models.includes("앱에서는 모델을 켜고 끌 수 없음"), "models " + models);
       const history = await page.getByTestId("history-row").locator(".title").allInnerTexts();
-      check(history.length === 3 && / · 바깥 편집 · machine-a 입찰 2 외 1개$/.test(history[0]) && / · 앱 · codex 모델 model-c$/.test(history[1]) && / · CLI · machine-a 추가 외 9개$/.test(history[2]) && history.every((line) => /^\d\d-\d\d \d\d:\d\d · /.test(line)), "history " + JSON.stringify(history));
+      check(history.length === 3 && / · 바깥 편집 · 모래톱 입찰 2 외 1개$/.test(history[0]) && / · 앱 · 실행기 2 모델 model-c$/.test(history[1]) && / · CLI · 모래톱 추가 외 9개$/.test(history[2]) && history.every((line) => /^\d\d-\d\d \d\d:\d\d · /.test(line)), "history " + JSON.stringify(history));
       check(!history.some((line) => / · (기기|실행기|배정 규칙|모델)( 외 \d+개)?$/.test(line)), "a history line names a bare section: " + JSON.stringify(history));
       const rollback = await page.getByTestId("rollback").evaluate((button) => getComputedStyle(button).color);
       check(rollback === RED, "한 단계 되돌리기 is drawn " + rollback);
-      check((await rev()) === "설정 r3", "the revision reads " + (await rev()));
+      check((await rev()) === "r3", "the revision is " + (await rev()));
+      check(!/설정 r\d/.test(await page.getByTestId("screen-settings").innerText()), "the screen draws the revision");
       return [warnings.length + " warnings, fallback " + fallback, runners.join(", "), order.join(", "), work.concat(files, mine).join(", "), history.length + " changes", await rev()].join("; ");
     });
-    await step("a switch saves at once: machine-b off, a new revision written against the one read", async () => {
-      await toggle("machine-b 켜기").click();
-      check((await toggle("machine-b 켜기").getAttribute("aria-checked")) === "false", "machine-b did not turn off at once");
-      await until(rev, (line) => line === "설정 r4", "the revision after the switch");
-      const line = await until(firstHistory, (text) => / · 앱 · machine-b 끔$/.test(text), "the first history row");
-      const device = (await latest()).devices.workers["machine-b"];
-      check(device.off === true, "the settings copy has machine-b " + JSON.stringify(device));
+    await step("a switch saves at once: 솔방울 off, a new revision written against the one read", async () => {
+      await toggle("솔방울 켜기").click();
+      check((await toggle("솔방울 켜기").getAttribute("aria-checked")) === "false", "솔방울 did not turn off at once");
+      await until(rev, (line) => line === "r4", "the revision after the switch");
+      const line = await until(firstHistory, (text) => / · 앱 · 솔방울 끔$/.test(text), "the first history row");
+      const device = (await latest()).devices.workers["솔방울"];
+      check(device.off === true, "the settings copy has 솔방울 " + JSON.stringify(device));
       const sent = (await writes()).at(-1);
       check(sent.ifMatch === "r3" && sent.status === 200, "the write went " + JSON.stringify(sent));
       return line + "; If-Match " + sent.ifMatch;
     });
     await step("a picker pushes a list of the models OCX serves and saves the choice", async () => {
-      await page.getByRole("link", { name: "codex · model-c · 보통" }).click();
+      await page.getByRole("link", { name: "실행기 2 · model-c · 보통" }).click();
       await settled(page);
       await page.getByRole("link", { name: "모델 · model-c" }).click();
       await settled(page);
@@ -1563,21 +1565,21 @@ const drivers = {
       check((await picker.getByRole("radio", { name: names[0] }).getAttribute("aria-checked")) === "true", "model-a is not checked");
       await until(async () => (await latest()).worker.runners.codex.model, (model) => model === "anthropic/model-a:medium", "codex's model in the settings copy");
       await toSettings();
-      const runners = await until(() => rows("settings-runners"), (list) => list[1] === "codex / model-a · 보통", "codex's row");
+      const runners = await until(() => rows("settings-runners"), (list) => list[1] === "실행기 2 / model-a · 보통", "실행기 2's row");
       return services.join(", ") + ": " + names.join(" | ") + "; chose model-a, codex reads " + runners[1];
     });
     await step("a stepper and a machine's switches save each change", async () => {
-      await page.getByRole("link", { name: "machine-a · 입찰 2 · 지정 2" }).click();
+      await page.getByRole("link", { name: "모래톱 · 입찰 2 · 지정 2" }).click();
       await settled(page);
       const machine = page.getByTestId("setting-page");
       await machine.getByRole("button", { name: "동시 작업 (입찰) 늘리기" }).click();
       check((await machine.getByTestId("stepper-value").first().innerText()).trim() === "3", "the bid cap does not read 3");
-      await until(async () => (await latest()).devices.workers["machine-a"].cap, (cap) => cap === 3, "machine-a's cap in the settings copy");
+      await until(async () => (await latest()).devices.workers["모래톱"].cap, (cap) => cap === 3, "모래톱's cap in the settings copy");
       await machine.getByRole("switch", { name: "빠른 기기" }).click();
-      await until(async () => (await latest()).devices.workers["machine-a"].fast, (fast) => fast === undefined, "machine-a's 빠른 기기 in the settings copy");
+      await until(async () => (await latest()).devices.workers["모래톱"].fast, (fast) => fast === undefined, "모래톱's 빠른 기기 in the settings copy");
       check((await machine.getByRole("switch", { name: "빠른 기기" }).getAttribute("aria-checked")) === "false", "빠른 기기 is still on");
       await toSettings();
-      const work = await until(() => rows("devices-work"), (list) => list[0] === "machine-a / 입찰 3 · 지정 2", "machine-a's row");
+      const work = await until(() => rows("devices-work"), (list) => list[0] === "모래톱 / 입찰 3 · 지정 2", "모래톱's row");
       return "cap 3, 빠른 기기 off; " + work[0];
     });
     await step("편집 moves and deletes a rule, 규칙 추가 adds one last; edit mode lasts until 완료", async () => {
@@ -1586,34 +1588,34 @@ const drivers = {
       check((await editState()) === "편집 false", "the rules' button reads " + (await editState()));
       await edit.click();
       check((await editState()) === "완료 true", "편집 did not turn into 완료: " + (await editState()));
-      await page.getByRole("button", { name: "docs → codex 아래로" }).click();
-      await until(rules, (list) => list[0] === "quick · S → dsh" && list[1] === "docs → codex", "the rules after moving docs down");
-      await page.getByRole("button", { name: "quick · S → dsh 삭제" }).click();
-      await until(rules, (list) => JSON.stringify(list) === JSON.stringify(["docs → codex", "그 외 → omo"]), "the rules after deleting quick");
+      await page.getByRole("button", { name: "문서 → 실행기 2 아래로" }).click();
+      await until(rules, (list) => list[0] === "급함 · S → 실행기 3" && list[1] === "문서 → 실행기 2", "the rules after moving docs down");
+      await page.getByRole("button", { name: "급함 · S → 실행기 3 삭제" }).click();
+      await until(rules, (list) => JSON.stringify(list) === JSON.stringify(["문서 → 실행기 2", "그 외 → 실행기 1"]), "the rules after deleting quick");
       await page.getByRole("link", { name: "규칙 추가" }).click();
       await settled(page);
       const form = page.getByTestId("setting-page");
-      await form.getByRole("textbox", { name: "라벨" }).fill("review");
+      await form.getByRole("textbox", { name: "라벨" }).fill("검토");
       await form.getByRole("button", { name: "M", exact: true }).click();
-      await form.getByRole("radio", { name: "dsh", exact: true }).click();
+      await form.getByRole("radio", { name: "실행기 3", exact: true }).click();
       await form.getByTestId("rule-save").click();
       await settled(page);
       await page.getByTestId("screen-settings").waitFor();
-      const list = await until(rules, (items) => items.at(-2) === "review · M → dsh", "the rules after adding review");
+      const list = await until(rules, (items) => items.at(-2) === "검토 · M → 실행기 3", "the rules after adding review");
       const routing = (await latest()).worker.routing;
-      check(JSON.stringify(routing.at(-1)) === JSON.stringify({ name: "review", when: { labels_any: ["review"], size: ["M"] }, runner: "dsh" }), "the new rule is " + JSON.stringify(routing.at(-1)));
+      check(JSON.stringify(routing.at(-1)) === JSON.stringify({ name: "rule-2", when: { labels_any: ["검토"], size: ["M"] }, runner: "dsh" }), "the new rule is " + JSON.stringify(routing.at(-1)));
       const kept = await editState();
-      check(kept === "완료 true" && (await page.getByRole("button", { name: "review · M → dsh 삭제" }).count()) === 1, "edit mode ended on the way back from 규칙 추가: " + kept);
+      check(kept === "완료 true" && (await page.getByRole("button", { name: "검토 · M → 실행기 3 삭제" }).count()) === 1, "edit mode ended on the way back from 규칙 추가: " + kept);
       await edit.click();
-      check((await editState()) === "편집 false" && (await page.getByRole("button", { name: "review · M → dsh 삭제" }).count()) === 0, "완료 did not end edit mode: " + (await editState()));
+      check((await editState()) === "편집 false" && (await page.getByRole("button", { name: "검토 · M → 실행기 3 삭제" }).count()) === 0, "완료 did not end edit mode: " + (await editState()));
       return list.join(", ") + "; still " + kept.split(" ")[0] + " after 규칙 추가, 편집 after 완료";
     });
     await step("a refused write (422) puts the switch back and shows the core's reason under its row", async () => {
-      await toggle("omo 켜기").click();
-      const row = page.getByTestId("settings-runners").locator("li", { has: page.getByRole("switch", { name: "omo 켜기", exact: true }) });
+      await toggle("실행기 1 켜기").click();
+      const row = page.getByTestId("settings-runners").locator("li", { has: page.getByRole("switch", { name: "실행기 1 켜기", exact: true }) });
       const reason = (await text(row.getByTestId("write-error"))).trim();
       check(reason === "worker.default_runner: runner 'omo' is off", "the reason reads " + reason);
-      check((await toggle("omo 켜기").getAttribute("aria-checked")) === "true", "omo stayed off");
+      check((await toggle("실행기 1 켜기").getAttribute("aria-checked")) === "true", "omo stayed off");
       check((await writes()).at(-1).status === 422, "the write was not refused: " + JSON.stringify((await writes()).at(-1)));
       return reason;
     });
@@ -1622,23 +1624,23 @@ const drivers = {
       // Two taps in one go, so the second change waits behind the first write, which the core refuses (422).
       await page.evaluate(() => {
         const toggle = (name) => document.querySelector(`[data-testid=screen-settings] [role=switch][aria-label="${name}"]`);
-        toggle("omo 켜기").click();
-        toggle("files-a 켜기").click();
+        toggle("실행기 1 켜기").click();
+        toggle("징검돌 켜기").click();
       });
-      const row = page.getByTestId("settings-runners").locator("li", { has: page.getByRole("switch", { name: "omo 켜기", exact: true }) });
+      const row = page.getByTestId("settings-runners").locator("li", { has: page.getByRole("switch", { name: "실행기 1 켜기", exact: true }) });
       const reason = (await text(row.getByTestId("write-error"))).trim();
       check(reason === "worker.default_runner: runner 'omo' is off", "the reason reads " + reason);
-      await until(async () => toggle("files-a 켜기").getAttribute("aria-checked"), (checked) => checked === "true", "files-a's switch back on");
+      await until(async () => toggle("징검돌 켜기").getAttribute("aria-checked"), (checked) => checked === "true", "징검돌's switch back on");
       await page.waitForTimeout(300);
       const sent = (await writes()).slice(before);
       check(sent.length === 1 && sent[0].status === 422, "the writes after the taps: " + JSON.stringify(sent));
-      check((await latest()).devices.workers["files-a"].off === undefined, "files-a was turned off in the settings copy");
+      check((await latest()).devices.workers["징검돌"].off === undefined, "징검돌 was turned off in the settings copy");
       const reasons = await page.getByTestId("screen-settings").getByTestId("write-error").count();
       check(reasons === 1, reasons + " reasons show");
-      return reason + "; files-a stays on; " + sent.length + " write sent";
+      return reason + "; 징검돌 stays on; " + sent.length + " write sent";
     });
     await step("한 단계 되돌리기 asks once; 취소 writes nothing, 이전 설정으로 되돌리기 writes a new revision", async () => {
-      const before = Number((await rev()).replace("설정 r", ""));
+      const before = Number((await rev()).replace("r", ""));
       const sent = (await writes()).length;
       await page.getByTestId("rollback").click();
       const sheet = page.getByRole("dialog", { name: "한 단계 되돌리기" });
@@ -1661,7 +1663,7 @@ const drivers = {
       check((await writes()).length === sent, "취소 sent a write");
       await page.getByTestId("rollback").click();
       await sheet.getByRole("button", { name: "이전 설정으로 되돌리기", exact: true }).click();
-      await until(rev, (line) => line === "설정 r" + (before + 1), "the revision after the rollback");
+      await until(rev, (line) => line === "r" + (before + 1), "the revision after the rollback");
       const line = await until(firstHistory, (row) => / · 되돌리기 · /.test(row), "the first history row");
       check((await writes()).at(-1).status === 200, "the rollback was refused: " + JSON.stringify((await writes()).at(-1)));
       return "r" + before + " -> r" + (before + 1) + "; " + line + phone;
@@ -1669,21 +1671,21 @@ const drivers = {
     await step("a stale write (412): another device wrote first, the page reloads the settings and says so", async () => {
       await openApp(page, "#/settings", "&settings=stale");
       await page.getByTestId("screen-settings").waitFor();
-      // One raw press: the reload puts machine-a back on, and Playwright's click() would see the switch move back,
+      // One raw press: the reload puts 모래톱 back on, and Playwright's click() would see the switch move back,
       // press again and write a second time, against the new revision.
-      await page.evaluate(() => document.querySelector('[data-testid=screen-settings] [role=switch][aria-label="machine-a 켜기"]').click());
+      await page.evaluate(() => document.querySelector('[data-testid=screen-settings] [role=switch][aria-label="모래톱 켜기"]').click());
       const toast = page.getByTestId("toast");
       const said = (await text(toast)).trim();
       check(said === "다른 곳에서 먼저 바뀌었습니다 · 새로 읽었습니다", "the toast reads " + said);
       check((await toast.getByRole("button").count()) === 0, "the toast offers 되돌리기");
-      await until(rev, (line) => line === "설정 r4", "the revision after the stale write");
-      check((await toggle("machine-a 켜기").getAttribute("aria-checked")) === "true", "machine-a stayed off");
-      const work = await until(() => rows("devices-work"), (list) => list[1] === "machine-b / 입찰 2 · 지정 2", "machine-b's row after the other device's write");
+      await until(rev, (line) => line === "r4", "the revision after the stale write");
+      check((await toggle("모래톱 켜기").getAttribute("aria-checked")) === "true", "모래톱 stayed off");
+      const work = await until(() => rows("devices-work"), (list) => list[1] === "솔방울 / 입찰 2 · 지정 2", "솔방울's row after the other device's write");
       const all = await writes();
       const sent = all.at(-1);
       check(all.length === 1 && sent.status === 412 && sent.ifMatch === "r3", "the writes went " + JSON.stringify(all));
       const drawn = await lineage();
-      check(JSON.stringify(drawn.slice(3)) === JSON.stringify(["r4<r3 phone-a"]), "the revisions after r3 are " + JSON.stringify(drawn));
+      check(JSON.stringify(drawn.slice(3)) === JSON.stringify(["r4<r3 먹물"]), "the revisions after r3 are " + JSON.stringify(drawn));
       return said + "; " + work.join(", ") + "; " + (await rev()) + "; " + drawn.slice(3).join(", ");
     });
     await step("changes queued behind a write go only against the revision they were drawn over", async () => {
@@ -1693,18 +1695,18 @@ const drivers = {
       // Two taps in one go, so the second change waits behind the first write; another device writes as it lands.
       await page.evaluate(() => {
         const button = (name) => document.querySelector(`[data-testid=settings-rules] button[aria-label="${name}"]`);
-        button("docs → codex 아래로").click();
-        button("quick · S → dsh 삭제").click();
+        button("문서 → 실행기 2 아래로").click();
+        button("급함 · S → 실행기 3 삭제").click();
       });
       const said = (await text(page.getByTestId("toast"))).trim();
       check(said === "다른 곳에서 먼저 바뀌었습니다 · 새로 읽었습니다", "the toast reads " + said);
-      await until(rev, (line) => line === "설정 r5", "the revision after the other device's write");
+      await until(rev, (line) => line === "r5", "the revision after the other device's write");
       const sent = await writes();
       check(sent.length === 1 && sent[0].ifMatch === "r3" && sent[0].status === 200, "the queued change was sent: " + JSON.stringify(sent));
-      const list = await until(rules, (items) => JSON.stringify(items) === JSON.stringify(["quick · S → dsh", "docs → codex", "그 외 → omo"]), "the rules after the first change");
-      const work = await until(() => rows("devices-work"), (items) => items[1] === "machine-b / 입찰 2 · 지정 2", "machine-b's row after the other device's write");
+      const list = await until(rules, (items) => JSON.stringify(items) === JSON.stringify(["급함 · S → 실행기 3", "문서 → 실행기 2", "그 외 → 실행기 1"]), "the rules after the first change");
+      const work = await until(() => rows("devices-work"), (items) => items[1] === "솔방울 / 입찰 2 · 지정 2", "솔방울's row after the other device's write");
       const drawn = await lineage();
-      check(JSON.stringify(drawn.slice(3)) === JSON.stringify(["r4<r3 laptop-a", "r5<r4 phone-a"]), "the revisions after r3 are " + JSON.stringify(drawn));
+      check(JSON.stringify(drawn.slice(3)) === JSON.stringify(["r4<r3 나침반", "r5<r4 먹물"]), "the revisions after r3 are " + JSON.stringify(drawn));
       return said + "; sent " + sent.map((write) => write.ifMatch + " " + write.status).join(", ") + "; " + list.join(", ") + "; " + work[1] + "; " + drawn.slice(3).join(", ");
     });
     await step("OCX not read: one grey line with the list's time, every model 확인 못 함, warnings say how old", async () => {
@@ -1716,14 +1718,14 @@ const drivers = {
       });
       const line = page.getByTestId("models-stale");
       const said = [(await text(line)).trim(), await line.evaluate((item) => getComputedStyle(item).color)];
-      check(said[0] === "OCX를 읽지 못했습니다 · 모델 상태는 " + time + " 기준", "the line reads " + said[0]);
-      const grey = await page.getByTestId("settings-rev").evaluate((item) => getComputedStyle(item).color);
-      check(said[1] === grey, "the line is drawn " + said[1] + ", not the grey of 설정 <rev> " + grey);
+      check(said[0] === "모델 상태 읽기 실패 · " + time + " 기준", "the line reads " + said[0]);
+      const grey = await page.getByTestId("settings-models").locator(".settings-foot").evaluate((item) => getComputedStyle(item).color);
+      check(said[1] === grey, "the line is drawn " + said[1] + ", not the grey of the models' foot line " + grey);
       const first = await page.getByTestId("screen-settings").evaluate((element) => element.firstElementChild?.dataset.testid);
       check(first === "models-stale", "the first line of the screen is " + first);
       const warnings = await page.getByTestId("settings-warning").allInnerTexts();
       check(warnings.length === 2 && warnings.every((each) => each.endsWith(" · " + time + " 기준")), "warnings " + JSON.stringify(warnings));
-      await page.getByRole("link", { name: /^codex · / }).click();
+      await page.getByRole("link", { name: /^실행기 2 · / }).click();
       await settled(page);
       await page.getByRole("link", { name: /^모델 · / }).click();
       await settled(page);
@@ -1747,10 +1749,10 @@ const drivers = {
       await page.getByTestId("screen-settings").waitFor();
       await page.evaluate(() => (window.__sameLoad = true));
       const before = await warningLines();
-      check(before.some((line) => line.startsWith("dsh ")) && before.some((line) => line.startsWith("codex ")), "warnings before " + JSON.stringify(before));
+      check(before.some((line) => line.startsWith("실행기 3 ")) && before.some((line) => line.startsWith("실행기 2 ")), "warnings before " + JSON.stringify(before));
       const written = await elsewhere({ worker: { runners: { dsh: { model: "anthropic/model-a" } } } });
       check(written.ok, "the other device's write was refused: " + JSON.stringify(written));
-      const after = await until(warningLines, (lines) => lines.length === 1 && lines[0].startsWith("codex "), "the warnings after dsh's model changed elsewhere");
+      const after = await until(warningLines, (lines) => lines.length === 1 && lines[0].startsWith("실행기 2 "), "the warnings after dsh's model changed elsewhere");
       await page.evaluate(() => window.__linaSettingsElsewhere.model("model-c", { state: "ok", left: 55, resetAt: null }));
       await until(warningLines, (lines) => lines.length === 0, "the warnings after model-c came back");
       check(await page.evaluate(() => window.__sameLoad === true), "the page reloaded");
@@ -1762,20 +1764,20 @@ const drivers = {
       const routing = (await latest()).worker.routing.map((rule) => (rule.name === "docs" ? { ...rule, runner: "dsh" } : rule));
       const lines = [];
       for (const [patch, wanted] of [
-        [{ worker: { routing } }, "docs → dsh"],
+        [{ worker: { routing } }, "문서 → 실행기 3"],
         [{ devices: { workers: { "build-a": { host: "build-a", role: "work", cap: 1 } } } }, "build-a 추가"],
-        [{ devices: { workers: { "machine-b": null } } }, "machine-b 삭제"],
-        [{ worker: { runners: { gem: { type: "command", argv: ["gem", "-"], model: "anthropic/model-b" } } } }, "gem 추가"],
-        [{ worker: { runners: { gem: null } } }, "gem 삭제"],
+        [{ devices: { workers: { "솔방울": null } } }, "솔방울 삭제"],
+        [{ worker: { runners: { gem: { type: "command", argv: ["gem", "-"], model: "anthropic/model-b" } } } }, "실행기 4 추가"],
+        [{ worker: { runners: { gem: null } } }, "실행기 삭제"],
       ]) {
         const written = await elsewhere(patch);
         check(written.ok, "the other device's write was refused: " + JSON.stringify(written));
         lines.push(await until(firstHistory, (row) => row.endsWith(" · 앱 · " + wanted), "the first history row after " + wanted));
       }
       const list = await rules();
-      check(list[0] === "docs → dsh", "the rules read " + JSON.stringify(list));
+      check(list[0] === "문서 → 실행기 3", "the rules read " + JSON.stringify(list));
       const work = await rows("devices-work");
-      check(work.some((row) => row.startsWith("build-a")) && !work.some((row) => row.startsWith("machine-b")), "기기 (작업) " + JSON.stringify(work));
+      check(work.some((row) => row.startsWith("build-a")) && !work.some((row) => row.startsWith("솔방울")), "기기 (작업) " + JSON.stringify(work));
       return lines.map((line) => line.replace(/^.* · 앱 · /, "")).join(", ") + "; rules " + list.join(", ") + "; " + (await rev());
     });
     await step("a device that may only read: every control disabled, one grey line, nothing sent", async () => {
@@ -1788,9 +1790,9 @@ const drivers = {
       check((await page.getByTestId("rollback").count()) === 0, "한 단계 되돌리기 shows on a device that may only read");
       const pickers = await page.getByTestId("settings-defaults").locator("[data-testid=row]").evaluateAll((items) => items.map((item) => item.querySelectorAll("a, .disclosure").length));
       check(pickers.every((count) => count === 0), "기본값 rows still open a picker: " + JSON.stringify(pickers));
-      const look = await toggle("machine-a 켜기").evaluate((button) => [getComputedStyle(button).opacity, getComputedStyle(button).cursor, getComputedStyle(button.querySelector(".switch")).filter]);
+      const look = await toggle("모래톱 켜기").evaluate((button) => [getComputedStyle(button).opacity, getComputedStyle(button).cursor, getComputedStyle(button.querySelector(".switch")).filter]);
       check(look[0] === "0.5" && look[1] === "not-allowed" && look[2].includes("grayscale"), "a disabled switch looks " + JSON.stringify(look));
-      await toggle("machine-a 켜기").click({ force: true });
+      await toggle("모래톱 켜기").click({ force: true });
       check((await writes()).length === 0, "a write was sent: " + JSON.stringify(await writes()));
       // Opened by its address, a sub-page has no enabled control either: each disabled on its own, drawn grey.
       await openApp(page, "#/settings/rule-new", "&settings=readonly");
@@ -1816,7 +1818,7 @@ const drivers = {
     if (!wide) {
       for (const [where, hash] of [
         ["설정", "#/settings"],
-        ["a machine", "#/settings/device/machine-a"],
+        ["a machine", "#/settings/device/모래톱"],
         ["a runner", "#/settings/runner/codex"],
         ["a model picker", "#/settings/runner/codex/model"],
         ["a new rule", "#/settings/rule-new"],
@@ -1873,7 +1875,7 @@ const drivers = {
     await step("a row hidden for its answer's toast is out of every count; undo puts it back", async () => {
       await openApp(page, "#/inbox");
       const list = page.getByRole("list", { name: "결정 필요" });
-      await list.getByRole("button", { name: /배포를 금요일 오후에 해도 될까요/ }).click();
+      await list.getByRole("button", { name: /배포를 금요일 오후에 할지 결정 필요/ }).click();
       const pick = page.getByRole("button", { name: "금요일 오후 · 추천" });
       await pick.waitFor({ timeout: 3_000 });
       await pick.click();
@@ -1936,7 +1938,7 @@ const drivers = {
     await step("an answer with choices: the row leaves, and the answer goes after the toast", async () => {
       await openApp(page, "#/inbox");
       const list = page.getByRole("list", { name: "결정 필요" });
-      await list.getByRole("button", { name: /배포를 금요일 오후에 해도 될까요/ }).click();
+      await list.getByRole("button", { name: /배포를 금요일 오후에 할지 결정 필요/ }).click();
       const pick = page.getByRole("button", { name: "금요일 오후 · 추천" });
       await pick.waitFor({ timeout: 3_000 });
       await pick.click();
@@ -1952,12 +1954,12 @@ const drivers = {
     await step("a free-text answer and a card's question", async () => {
       await openApp(page, "#/inbox");
       const list = page.getByRole("list", { name: "결정 필요" });
-      await list.getByRole("button", { name: /자주 쓰는 검색어 열 개를/ }).click();
+      await list.getByRole("button", { name: /자주 쓰는 검색어 열 개 확인 필요/ }).click();
       await page.getByRole("textbox", { name: "답 달기" }).fill("결제, 환불, 배송");
       await page.getByRole("button", { name: "보내기", exact: true }).click();
       await toastGone();
       await page.waitForFunction(() => window.__linaScene.itemDetails.T12.comments.some((comment) => comment.kind === "answer" && comment.text === "결제, 환불, 배송"), null, { timeout: 3_000 }).catch(() => check(false, "the free-text answer did not reach the record"));
-      await list.getByRole("button", { name: /카드 번호는 앞 여섯 자리까지/ }).click();
+      await list.getByRole("button", { name: /카드 번호를 앞 여섯 자리까지/ }).click();
       await page.getByRole("textbox", { name: "답 달기" }).fill("앞 네 자리만요");
       await page.getByRole("button", { name: "보내기", exact: true }).click();
       await toastGone();
@@ -2436,7 +2438,7 @@ const drivers = {
       if (!wide) await page.setViewportSize({ width: size.width, height: 480 });
       await openApp(page, wide ? "#/items/T3" : "#/inbox", "&live=drop");
       await markPage(page);
-      const row = page.getByRole("button", { name: /배포를 금요일 오후에 해도 될까요/ });
+      const row = page.getByRole("button", { name: /배포를 금요일 오후에 할지 결정 필요/ });
       await row.click();
       check((await row.getAttribute("aria-expanded")) === "true", "the decision row did not open");
       const kept = async () =>
@@ -2519,7 +2521,7 @@ const drivers = {
     await step("the home order: one decisions line, review, the owner's to-dos, stopped then running, the last 24 hours", async () => {
       // Both waiting rows wait on review, so 대기 does not repeat them; r8 is r7's earlier run, so nothing is older.
       const lists = await home().locator("ul.rows").evaluateAll((all) => all.map((list) => list.getAttribute("aria-label")));
-      check(JSON.stringify(lists) === JSON.stringify(["수신함", "검토 필요", "내 할 일", "진행 중인 작업", "24시간 안에 끝남"]), "the home lists " + JSON.stringify(lists));
+      check(JSON.stringify(lists) === JSON.stringify(["수신함", "검토 필요", "내 할 일", "진행 중인 작업", "최근 완료"]), "the home lists " + JSON.stringify(lists));
       const own = { review: await rowsOf("검토 필요").count(), mine: await rowsOf("내 할 일").count() };
       check(own.review === 2 && own.mine === 2, "the home's own groups hold " + JSON.stringify(own));
       const decisions = (await page.getByTestId("home-decisions").getByRole("link").getAttribute("aria-label")) ?? "";
@@ -2546,7 +2548,7 @@ const drivers = {
         const red = Number((await page.getByTestId("nav-running").getByTestId("nav-stopped").innerText()).trim());
         check(Number(nav) + red === running, "the sidebar says " + nav + " and red " + red + ", the list has " + running);
         const done = Number(await sidebarCount(page, "nav-done"));
-        const finished = (await rowsOf("24시간 안에 끝남").count()) + (await rowsOf("이전에 끝남").count());
+        const finished = (await rowsOf("최근 완료").count()) + (await rowsOf("완료").count());
         check(done === finished, "완료 says " + done + ", the home lists " + finished + " finished");
       }
       return found.join(", ") + "; running list " + running;
@@ -2602,7 +2604,7 @@ const drivers = {
       check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "기록", "댓글"]), "the boxes read " + JSON.stringify(heads));
       const rounds = await detail.getByTestId("timeline-link").allInnerTexts();
       check(
-        rounds.length === 3 && /^(어제 )?\d\d:\d\d · 진행 중$/.test(rounds[0]) && /^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 검토 반려$/.test(rounds[1]) && /^(어제 )?\d\d:\d\d · 작업 마침$/.test(rounds[2]),
+        rounds.length === 3 && /^(어제 )?\d\d:\d\d · 진행 중$/.test(rounds[0]) && /^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 검토 필요$/.test(rounds[1]) && /^(어제 )?\d\d:\d\d · 완료$/.test(rounds[2]),
         "the rounds read " + JSON.stringify(rounds),
       );
       // Round 1's end is r9's own end (2시간 40분 전), so the head and the run agree.
@@ -2612,7 +2614,7 @@ const drivers = {
         const time = String(at.getHours()).padStart(2, "0") + ":" + String(at.getMinutes()).padStart(2, "0");
         return at.toDateString() === new Date(window.__linaScene.now * 1000).toDateString() ? time : "어제 " + time;
       });
-      check(rounds[2] === end + " · 작업 마침", "round 1 ends " + rounds[2] + ", its run at " + end);
+      check(rounds[2] === end + " · 완료", "round 1 ends " + rounds[2] + ", its run at " + end);
       return heads.join(", ") + "; " + rounds.join(" | ");
     });
     await step("the stopped and running group has its heading and counts; finished cards say when they ended", async () => {
@@ -2698,7 +2700,7 @@ const drivers = {
       const outcomes = await blocks.evaluateAll((items) => items.map((item) => item.getAttribute("data-outcome")));
       check(JSON.stringify(outcomes) === JSON.stringify(["going", "comment", "rejected", "comment", "ended"]), "the blocks read " + JSON.stringify(outcomes));
       const titles = await timeline.locator(".timeline-head").allInnerTexts();
-      check(/^(어제 )?\d\d:\d\d · 진행 중$/.test(titles[0]) && /^.* · 검토 반려$/.test(titles[2]) && titles[3] === "댓글" && /^(어제 )?\d\d:\d\d · 작업 마침$/.test(titles[4]) && !titles.some((title) => title.includes("라운드")) && !titles.some((title) => title.includes(" –") || title.startsWith("–")), "the heads read " + JSON.stringify(titles));
+      check(/^(어제 )?\d\d:\d\d · 진행 중$/.test(titles[0]) && /^.* · 검토 필요$/.test(titles[2]) && titles[3] === "댓글" && /^(어제 )?\d\d:\d\d · 완료$/.test(titles[4]) && !titles.some((title) => title.includes("라운드")) && !titles.some((title) => title.includes(" –") || title.startsWith("–")), "the heads read " + JSON.stringify(titles));
       const rows = await blocks.first().locator(".timeline-row").evaluateAll((items) =>
         items.map((item) => ({ kind: item.getAttribute("data-kind"), text: item.textContent.trim(), colour: getComputedStyle(item).color })),
       );
@@ -2723,10 +2725,10 @@ const drivers = {
       check(title === "릴리스 변경 목록 정리", "the run page is named " + title);
       return new URL(page.url()).hash + " " + title;
     });
-    await step("a stopped writer: one 요약 멈춤 line beside the freshness line", async () => {
+    await step("a stopped writer: one 요약 중단됨 line beside the freshness line", async () => {
       await openApp(page, "#/running", "&writer=stopped");
       const lines = await page.getByTestId("summaries-stopped").allInnerTexts();
-      check(lines.length === 1 && lines[0].trim() === "· 요약 멈춤", "the line reads " + JSON.stringify(lines));
+      check(lines.length === 1 && lines[0].trim() === "· 요약 중단됨", "the line reads " + JSON.stringify(lines));
       const row = page.getByTestId("screen-running").locator('li:has(> a[href="#/cards/k-102"])');
       check((await row.locator(".title").innerText()).trim() === "결제 화면 개편", "the card with no checked lines is not named by its goal");
       if (!wide) await phoneRules(page, "summaries stopped @390");

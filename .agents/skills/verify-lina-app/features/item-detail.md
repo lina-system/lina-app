@@ -30,7 +30,7 @@ A to-do opens on its own page: its check box, done condition, state and time, th
 ## How to get to it (user POV)
 
 - Choose a to-do on a goal page or a 마감일 row.
-- From 수신함: expand a `결정 필요` row aimed at a to-do and follow its `목표 › 할 일` line; the to-do opens with its decision box. In the scene, `배포를 금요일 오후에 해도 될까요?` opens `배포 순서 정하기` (`#/items/T2`). A decision aimed at a goal opens the goal page with the same box.
+- From 수신함: expand a `결정 필요` row aimed at a to-do and follow its `목표 › 할 일` line; the to-do opens with its decision box. In the scene, `배포를 금요일 오후에 할지 결정 필요` opens `배포 순서 정하기` (`#/items/T2`). A decision aimed at a goal opens the goal page with the same box.
 - Address `/app/#/items/<id>`.
 
 ## Driving it with verify.mjs
@@ -45,7 +45,7 @@ Preconditions:
 - **Resolved thread.** One `해결됨 · …` line, closed.
 - **Button.** `보내기` is grey while the field is empty and accent once it has text; on a phone it is at least 44 px tall.
 - **Comment.** Type `휴대폰 가로 화면도 봐 주세요` into `댓글 달기` and choose `보내기`. At once `<agent>에게 보냄 · 방금` shows and the field is empty; the synthetic record holds the owner's comment. Within 25 s the reply line `<agent> · 방금 · 반영함` shows and the pending line is gone.
-- **Entry through 수신함 (its own path, a fresh load).** On `#/inbox` expand `배포를 금요일 오후에 해도 될까요?` and follow its `릴리스 노트 정리 › 배포 순서 정하기` line. The address is `#/items/T2`, the title `배포 순서 정하기`, and its `결정 필요` box holds that sentence, `질문` and `n일 전`.
+- **Entry through 수신함 (its own path, a fresh load).** On `#/inbox` expand `배포를 금요일 오후에 할지 결정 필요` and follow its `릴리스 노트 정리 › 배포 순서 정하기` line. The address is `#/items/T2`, the title `배포 순서 정하기`, and its `결정 필요` box holds that sentence, `질문` and `n일 전`.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/item-detail/item-detail-1280.{png,aria.yml,json}` and `item-detail-390.{png,aria.yml,json}`.
 
 ## Gotchas

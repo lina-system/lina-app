@@ -355,3 +355,22 @@ test("the ended-runs scene has the live shape: runs carry their card and board, 
   // The default scene keeps the runs of cards off the board, as the counts every screen is held to assume.
   expect(scene.board.cards.every((run) => !run.card)).toBe(true);
 });
+
+// lina-app#125: the scene reads like the hub's real data, so a screen test cannot pass or fail on a shape the hub never serves.
+test("the owner has a person's name and the inbox's question lines read in the table's neutral style", () => {
+  expect(scene.items.owner?.name).not.toBe("나");
+  expect(scene.items.owner?.name).toMatch(/^[가-힣]{1,4}$/);
+  const lines = [
+    ...scene.board.inbox.decide.map((row) => row.text),
+    ...Object.values(scene.itemDetails).flatMap((detail) => (detail.decision ? [detail.decision.text] : [])),
+    ...scene.inbox.questions.map((question) => question.body),
+  ];
+  expect(lines.length).toBeGreaterThan(3);
+  expect(lines.filter((line) => !/(?:할지 결정 필요| 확인 필요)$/.test(line ?? ""))).toEqual([]);
+});
+
+test("each quota account's main window is the weekly one the core serves, with no five-hour window", () => {
+  const accounts = scene.quota.quota.filter((service) => service.service === "anthropic" || service.service === "openai").flatMap((service) => service.accounts);
+  expect(accounts.filter((account) => account.windows.length).map((account) => account.mainWindow)).toEqual(["weekly", "weekly"]);
+  expect(scene.quota.quota.flatMap((service) => service.accounts.flatMap((account) => account.windows.map((window) => window.key)))).not.toContain("fiveHour");
+});

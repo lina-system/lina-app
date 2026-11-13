@@ -108,8 +108,8 @@ test("unopened cards take their times from the list row: a finished card's end, 
   await waitFor(() => expect(store.refreshes).toBeGreaterThan(0));
   await waitFor(() => expect(rowSub(view, "k-105")).toBeTruthy());
   expect.soft(rowSub(view, "k-105")).toBe("완료 · 2시간 전");
-  expect.soft(sectionTimes(view, "recent")).toEqual(["완료 · 30분 전", "완료 · 2시간 전"]);
-  // r8, two days ago, is the earlier run of r7's task: one row, under the last 24 hours (lina-app#124).
+  // r7 and r8 are worker runs with no card: no row (lina-app#141).
+  expect.soft(sectionTimes(view, "recent")).toEqual(["완료 · 2시간 전"]);
   expect.soft(view.queryByTestId("section-older")).toBeNull();
   expect.soft(rowSub(view, "k-103")).toBe("중단됨 · 응답 없음 · 20분 전");
   expect(core.details()).toEqual([]);
@@ -127,7 +127,7 @@ test("a core whose rows carry neither time: an unopened finished card has no tim
   const { store, view } = mount("#/running", core);
   await waitFor(() => expect(store.refreshes).toBeGreaterThan(0));
   await waitFor(() => expect(rowSub(view, "k-105")).toBe("완료"));
-  expect(sectionTimes(view, "recent")).toEqual(["완료 · 30분 전"]);
+  expect(view.queryByTestId("section-recent")).toBeNull();
   expect(sectionTimes(view, "older")).toEqual(["완료"]);
   expect(rowSub(view, "k-103")).toBe("중단됨 · 응답 없음 · 52분 전");
   expect(core.details()).toEqual([]);

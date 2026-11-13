@@ -53,8 +53,11 @@ export interface ModelInput {
 
 export type MineSource = BoardSnapshot["inbox"]["mine"][number];
 
-/** A cards-list row as the core will serve it: `goalTitle` (lina#666) is optional until every core sends it. */
-export type CardSummary = WorkCardSummary & { readonly goalTitle?: string | null };
+/**
+ * A cards-list row as the core will serve it: `goalTitle` (lina#666) and a stopped row's short `ask` (lina#690) are
+ * optional until every core sends them.
+ */
+export type CardSummary = WorkCardSummary & { readonly goalTitle?: string | null; readonly ask?: string | null };
 
 export interface Pending {
   /** Inbox rows hidden while their answer waits for its toast. */
@@ -117,6 +120,8 @@ export interface CardRow {
    * an answer or a review, lina-app#134): only then does the row offer 다시 시도. Null for any other state.
    */
   readonly stop?: { readonly words: string; readonly known: boolean; readonly owner: boolean; readonly retry: boolean } | null;
+  /** A stopped card's ask from the core (lina#690): what it needs, one line under its title; null when the core has none. */
+  readonly ask?: string | null;
 }
 
 /** Where an answer to a decision goes: the record's item (comments with answer) or a work card's question. */
@@ -196,8 +201,6 @@ export interface Home {
   /** The inbox's 검토 필요 and 내 할 일, as their own groups on the home. */
   readonly review: Section<InboxRow>;
   readonly mine: Section<InboxRow>;
-  /** Listed work nothing names (no goal, checked, own, to-do or card title): counted in one grey line, never drawn. */
-  readonly untitled: number;
   /** The running cards (진행 중); with none, the home draws no such group (lina-app#134). */
   readonly active: Section<CardRow>;
   /** The stopped cards, their own group under the running one (중단됨), the owner's first: the red number, as the sidebar. */
@@ -401,9 +404,6 @@ export function buildModel(input: ModelInput, now: number): Model {
   const plainName = (title: string | null | undefined, stopped = false) => (title && mayDraw(title, stopped) ? title : null);
   // A name the Latin-word exception alone would let a stopped row draw, with no Korean in it: an internal name.
   const internal = (title: string | null | undefined) => Boolean(title) && plainName(title) === null && plainName(title, true) !== null && !HANGUL.test(title ?? "");
-  // A run that a later run of the same to-do replaced has ended for good: nobody needs to act on it.
-  const replaced = (run: RunCard) =>
-    run.todo !== null && (board?.cards ?? []).some((other) => other.id !== run.id && other.todo === run.todo && (other.startedAt ?? 0) > (run.startedAt ?? 0));
   // What the core says about a stop (lina#629); absent and null both mean it does not say.
   type StopFacts = { readonly waitingOn?: string | null; readonly retry?: string | null };
   const contextRow = (row: CardRow, goal: string | null, fallback: string | null, isRun: boolean, facts: StopFacts): CardRow => {
@@ -448,11 +448,9 @@ export function buildModel(input: ModelInput, now: number): Model {
     return contextRow(runRow(run), plainName(runGoal(run)?.title), named(run.title) ?? named(todoTitle) ?? cardTitleText ?? unnamed, true, run);
   };
 
-  // Only work with no parent is a row of its own: a worker run of a card or of a goal's to-do shows inside them.
-  // A stopped run a later run replaced, and stopped work whose card or goal is done, need nobody and are not listed.
-  const goalDone = (goal: { state: WorkState } | undefined) => goal?.state === "done";
-  const isEnded = (card: { id: string; state: WorkState }, run: RunCard | null) =>
-    run ? runOwner.has(run.id) || runGoal(run) !== undefined || (run.state === "stopped" && replaced(run)) : card.state === "stopped" && goalDone(cardGoal.get(card.id));
+  // Only work cards are rows (lina-app#141): a worker run shows inside its card, goal or to-do, and a run with none of
+  // them is not listed at all. Stopped work whose goal is done needs nobody and is not listed.
+  const isEnded = (card: { id: string; state: WorkState }) => card.state === "stopped" && cardGoal.get(card.id)?.state === "done";
   const everyCard: { row: CardRow; listed: boolean }[] = [
     ...(cards?.cards ?? []).map((card) => {
       const cardRuns = runsOf(card.id);
@@ -460,13 +458,13 @@ export function buildModel(input: ModelInput, now: number): Model {
       // its runs take on.
       const fallback = todoName(cardRuns.map((run) => run.todo));
       const goal = plainName((card as CardSummary).goalTitle) ?? plainName(cardGoal.get(card.id)?.title);
-      return { row: contextRow(workCardRow(card, input.cardDetails[card.id], receivedAt, cardRuns), goal, fallback, false, card), listed: !isEnded(card, null) };
+      const row = contextRow(workCardRow(card, input.cardDetails[card.id], receivedAt, cardRuns), goal, fallback, false, card);
+      return { row: { ...row, ask: card.state === "stopped" ? (card as CardSummary).ask || null : null }, listed: !isEnded(card) };
     }),
-    ...(board?.cards ?? []).map((run) => ({ row: runListRow(run), listed: !isEnded(run, run) })),
+    ...(board?.cards ?? []).map((run) => ({ row: runListRow(run), listed: false })),
   ];
-  // The lookup keeps every card (a goal's page and a run page link to them); only the lists leave out ended work and
-  // work nothing names, which the home counts in one grey line.
-  const untitled = everyCard.filter((each) => each.listed && each.row.title === null).length;
+  // The lookup keeps every card and run (a goal's page and a run page link to them); the lists leave out ended work
+  // and work nothing names, and no line counts it (lina-app#141).
   const allCards: CardRow[] = everyCard.filter((each) => each.listed && each.row.title !== null).map((each) => each.row);
   const unlisted = new Set(everyCard.filter((each) => !allCards.includes(each.row)).map((each) => each.row.id));
   const cardMap = new Map(everyCard.map((each) => [each.row.id, each.row]));
@@ -474,14 +472,7 @@ export function buildModel(input: ModelInput, now: number): Model {
   const stopped = allCards.filter((card) => card.state === "stopped").sort(stoppedOrder);
   const running = allCards.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt));
   const runningSections = [section("stopped", "", stopped), section("running", "", running)];
-  // A task that ran twice (a run and its replacement: the same to-do, or with none the same title) is one finished
-  // row, the newest; the others stay in the lookup. Cards are never merged.
-  const task = (card: CardRow) => (card.kind === "card" ? card.key : card.todo ? `todo:${card.todo}` : `name:${card.name}`);
-  const done = allCards
-    .filter((card) => card.state === "done")
-    .sort(newestFirst((card) => card.endedAt))
-    .filter((card, index, all) => all.findIndex((each) => task(each) === task(card)) === index);
-  for (const card of allCards) if (card.state === "done" && !done.includes(card)) unlisted.add(card.id);
+  const done = allCards.filter((card) => card.state === "done").sort(newestFirst((card) => card.endedAt));
   const waiting = allCards.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt));
   const recent = done.filter((card) => card.endedAt !== null && now - card.endedAt < RECENT_SECONDS);
 
@@ -531,19 +522,12 @@ export function buildModel(input: ModelInput, now: number): Model {
   ]
     .filter((row) => !hidden.has(row.key))
     .sort((a, b) => (a.type === "decide" && b.type === "decide" ? a.at - b.at : 0));
-  // Finished work waiting for the owner's review: runs outside any card the core lists, and work cards whose run waits
-  // for review (the board does not list a card's own runs), whoever owns them and whether or not they have a to-do.
-  const reviewRows: InboxRow[] = [
-    ...(board?.inbox.review ?? [])
-      .map((id) => runs.get(id))
-      .filter((run): run is RunCard => run !== undefined && !runOwner.has(run.id))
-      .map((run): InboxRow => ({ type: "review", key: `review:${run.id}`, href: href({ name: "run", id: run.id }), agent: run.agent, card: runListRow(run) }))
-      .filter((row) => row.type !== "review" || row.card.title !== null),
-    ...allCards
-      .filter((card) => card.kind === "card" && card.state === "waiting" && card.reason === "review")
-      .sort(newestFirst((card) => card.stateAt))
-      .map((card): InboxRow => ({ type: "review", key: `review:${card.id}`, href: card.href, agent: card.agent, card })),
-  ];
+  // Finished work waiting for the owner's review: work cards whose run waits for review, whoever owns them and whether
+  // or not they have a to-do. A worker run the core lists for review is not a row (lina-app#141): it shows in its to-do.
+  const reviewRows: InboxRow[] = allCards
+    .filter((card) => card.state === "waiting" && card.reason === "review")
+    .sort(newestFirst((card) => card.stateAt))
+    .map((card): InboxRow => ({ type: "review", key: `review:${card.id}`, href: card.href, agent: card.agent, card }));
   // An owner to-do that an open decision targets by its id is that decision's: it shows once, as the decision. Only
   // an explicit id link counts, never similar text. The inbox, the sidebar and the bell read this same set.
   const decided = new Set((board?.inbox.decide ?? []).filter((row) => !row.answered).map((row) => row.target));
@@ -643,7 +627,6 @@ export function buildModel(input: ModelInput, now: number): Model {
       decisions: inboxSections[0].count,
       review: inboxSections[1],
       mine: inboxSections[2],
-      untitled,
       active: section("active", W.agentRunning, running),
       stopped: section("stopped", STATE_WORD.stopped, stopped),
       waiting: section("waiting", STATE_WORD.waiting, waiting.filter((card) => !reviewRows.some((row) => row.type === "review" && row.card.id === card.id))),

@@ -174,15 +174,40 @@ function StoppedSection({ section }: { section: Section<CardRow> }) {
 }
 
 /**
- * The home: one line for the open decisions (only when there are any), the review items and the owner's own to-dos,
- * the running cards (only when there are any), the stopped cards in their own group under them, the cards waiting on
- * an answer, then finished cards, the last 24 hours first and older ones after, and one grey line counting the work
- * nothing names. Every number is its section's own row count, the same model the sidebar and the agent screens read.
+ * The owner's to-dos on the home: one line with their count, folded, so the stopped and running work reads first
+ * (lina-app#141). Choosing the line opens the rows in place under it.
+ */
+function MineFold({ section }: { section: Section<InboxRow> }) {
+  const [open, setOpen] = useState(false);
+  if (!section.rows.length) return null;
+  return (
+    <section class="list-section" data-testid="home-mine">
+      <ul class="rows" aria-label={section.title}>
+        <li class={`row mine-fold${open ? " is-open" : ""}`}>
+          <button type="button" class="row-button" aria-expanded={open} aria-label={`${section.title} ${section.count}`} onClick={() => setOpen(!open)}>
+            <span class="lines">
+              <span class="title one-line">{section.title}</span>
+            </span>
+            <CountPair count={section.count} />
+            <Disclosure />
+          </button>
+        </li>
+        {open ? section.rows.map((row) => <InboxRowView key={row.key} row={row} />) : null}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * The home (lina-app#141): one line for the open decisions (only when there are any) and the review items, the
+ * stopped cards in their own group, the running cards (only when there are any), the cards waiting on an answer, the
+ * owner's own to-dos folded to one line, then finished cards, the last 24 hours first and older ones after. Every
+ * number is its section's own row count, the same model the sidebar and the agent screens read.
  */
 export function RunningScreen() {
   const { model } = useApp();
   const { home } = model;
-  if (!home.decisions && !home.review.rows.length && !home.mine.rows.length && !model.running.rows.length && !home.waiting.rows.length && !model.done.length && !home.untitled) return <Empty />;
+  if (!home.decisions && !home.review.rows.length && !home.mine.rows.length && !model.running.rows.length && !home.waiting.rows.length && !model.done.length) return <Empty />;
   return (
     <div class="list" data-testid="screen-running">
       {home.decisions ? (
@@ -198,19 +223,14 @@ export function RunningScreen() {
           </li>
         </ul>
       ) : null}
-      {[home.review, home.mine].map((section) => (
-        <ListSection key={section.id} section={section} render={(row) => <InboxRowView key={row.key} row={row} />} />
-      ))}
-      <ListSection section={home.active} label={W.running} render={(card) => <CardRowView key={card.key} card={card} />} />
+      <ListSection section={home.review} render={(row) => <InboxRowView key={row.key} row={row} />} />
       <StoppedSection section={home.stopped} />
-      {[home.waiting, home.recent, home.older].map((section) => (
+      <ListSection section={home.active} label={W.running} render={(card) => <CardRowView key={card.key} card={card} />} />
+      <ListSection section={home.waiting} render={(card) => <CardRowView key={card.key} card={card} />} />
+      <MineFold section={home.mine} />
+      {[home.recent, home.older].map((section) => (
         <ListSection key={section.id} section={section} render={(card) => <CardRowView key={card.key} card={card} />} />
       ))}
-      {home.untitled ? (
-        <p class="untitled-line" data-testid="home-untitled">
-          {W.untitledCount(home.untitled)}
-        </p>
-      ) : null}
     </div>
   );
 }

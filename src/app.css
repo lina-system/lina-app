@@ -668,8 +668,13 @@ button:disabled {
   color: inherit;
 }
 
-/* A stopped row's title takes a second line before it is cut (lina-app#133): two titles that start alike read apart. */
-.card-row.is-stopped .lines > .title.one-line {
+/*
+ * A stopped row's title takes a second line before it is cut (lina-app#133): two titles that start alike read apart.
+ * So do the home's running rows and the owner's to-dos (lina-app#141).
+ */
+.card-row.is-stopped .lines > .title.one-line,
+[data-testid="section-active"] .card-row .lines > .title.one-line,
+[data-testid="home-mine"] .check-row .lines > .title.one-line {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -718,10 +723,9 @@ button:disabled {
   color: var(--label-2);
 }
 
-.untitled-line {
-  padding: 4px var(--inset) 12px;
-  font-size: var(--text-small);
-  color: var(--label-2);
+/* The owner's to-dos folded to one line on the home (lina-app#141): its chevron turns down while the rows are open. */
+.mine-fold.is-open .disclosure {
+  transform: rotate(90deg);
 }
 
 .agent-counts {

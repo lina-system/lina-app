@@ -98,6 +98,11 @@ export interface SceneOptions {
    * (owner, an agent, none) and `retry` (scheduled, none) the core serves (lina#629).
    */
   readonly endedRuns?: boolean;
+  /**
+   * The owner holds 50 more to-dos (`&todos=many`, lina-app#141), as on the hub, and the running card k-102 sits in a goal
+   * with a long title: the work tab's first screen and the titles' second line are measured on it.
+   */
+  readonly manyTodos?: boolean;
   /** The work settings (`&settings=`): this device may only read them, or no revision was ever written. */
   readonly settings?: SettingsVariant | null;
   /** The power section (`&power=`, lina-app#82): the watch stopped 25 minutes ago, or the core serves no section. */
@@ -904,7 +909,8 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     };
     const liveCards = [
       // Named by the to-do its runs take on: no checked title, and its own is a file name.
-      stoppedCard("k-108", { title: "nightly-report.md cleanup", plainTitle: null, agent: 2, reason: null, beat: now - 30 * MIN, workerRuns: ["r15", "r16", "r17"] }, { waitingOn: "owner", retry: null }),
+      // It also carries the core's short `ask` (lina#690): what the owner is asked, under its title.
+      Object.assign(stoppedCard("k-108", { title: "nightly-report.md cleanup", plainTitle: null, agent: 2, reason: null, beat: now - 30 * MIN, workerRuns: ["r15", "r16", "r17"] }, { waitingOn: "owner", retry: null }), { ask: "야간 보고서를 받을 사람 확인 필요" }),
       // Named by its own title, which may be drawn.
       stoppedCard("k-109", { title: "배포 안내 메일 다듬기", plainTitle: null, agent: 1, reason: null, beat: now - 70 * MIN, workerRuns: [] }, { waitingOn: `agent:${agentId(0)}`, retry: null }),
       stoppedCard("k-110", { title: "restore-check.sh audit", plainTitle: "백업: 복구 스크립트 점검", agent: 2, reason: "unresponsive", beat: now - 4 * HOUR, workerRuns: [] }, { waitingOn: null, retry: "none" }),
@@ -918,6 +924,14 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
   }
   // Like the core (lina#666), each card row names the title of the goal it sits in, or null (lina-app#134).
   for (const card of cardList.cards) Object.assign(card, { goalTitle: goalCards.find((goal) => goal.workCards.some((each) => each.id === card.id))?.title ?? null });
+
+  if (options.manyTodos) {
+    const topics = ["연말 행사 촬영 장소와 소품 목록을 정리하고 담당자 확인", "계약서 검토", "사진 고르기", "월간 정산 자료 모으기", "회의 일정 잡기"];
+    const extra = Array.from({ length: 50 }, (_, index) => ({ id: `T${100 + index}`, title: `${topics[index % topics.length]} ${index + 1}`, waiting: false, due: null, agent: agentId(index % 3) }));
+    board.inbox.mine.push(...extra);
+    board.counts.inbox = (board.counts.inbox ?? 0) + extra.length;
+    for (const card of cardList.cards) if (card.id === "k-102") Object.assign(card, { goalTitle: "결제 화면 개편: 카드사별 실패 문구와 다시 시도 버튼 정리" });
+  }
 
   return {
     now,
@@ -1095,12 +1109,13 @@ export const SCENE_COUNTS = {
   goals: 5,
   todos: 12,
   decisions: 4,
-  // 결정 필요 4, 검토 필요 2 (r6 outside any card, k-104 a card waiting for review), 내 할 일 2.
-  inbox: 8,
+  // 결정 필요 4, 검토 필요 1 (k-104 a card waiting for review; r6, a worker run, is no row, lina-app#141), 내 할 일 2.
+  inbox: 7,
   running: 2,
   stopped: 1,
   due: 5,
-  done: 2,
+  // k-105 alone: r7, a worker run with no card, is no row (lina-app#141).
+  done: 1,
   machines: 4,
   machinesOk: 2,
   machinesWarn: 1,

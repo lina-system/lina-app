@@ -822,12 +822,15 @@ button:disabled {
   padding: 0 var(--inset) 8px;
 }
 
-/* Runners under a node: the name, then the version and the signed-in mark, or one reason word. */
+/* Runners under a node: the name, then the version and the signed-in mark, or one reason word. The grid starts where
+   the node's name starts, past the status dot (9px) and the row's gap (10px), and a column holds a name, a reason
+   and the sign-in button on one line. */
 .runner-grid {
+  --runner-indent: 19px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13em), 1fr));
   gap: 4px 12px;
-  padding: 0 var(--inset) 10px;
+  padding: 0 var(--inset) 10px calc(var(--inset) + var(--runner-indent));
 }
 
 .runner-cell {
@@ -840,7 +843,6 @@ button:disabled {
 
 .runner-name {
   font-size: var(--text-body);
-  font-weight: 600;
 }
 
 .runner-detail,
@@ -1667,10 +1669,14 @@ html:has(.stack) body {
   padding-right: 12px;
 }
 
-.stack .runner-grid,
 .stack .person-row,
 .stack .machine-restart {
   padding-left: 12px;
+  padding-right: 12px;
+}
+
+.stack .runner-grid {
+  padding-left: calc(12px + var(--runner-indent));
   padding-right: 12px;
 }
 

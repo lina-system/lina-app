@@ -567,9 +567,11 @@ export function RunScreen({ id }: { id: string }) {
   const todo = run.todo ? model.items.get(run.todo) : undefined;
   const owner = model.runOwner.get(run.id);
   const card = owner ? model.cards.get(owner) : undefined;
+  // A lone stopped run is listed by the title the list resolved for it (its own, its to-do's); the page keeps it.
+  const listedTitle = model.running.rows.find((each) => each.kind === "run" && each.id === run.id)?.title ?? null;
   return (
     <article class="detail" data-testid="screen-run">
-      <CardHead work={row.work} title={run.plain.title}>
+      <CardHead work={row.work} title={run.plain.title ?? listedTitle}>
         <StateTime state={run.state} reason={run.reason} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} />
         <RunModelLine runId={id} />
       </CardHead>

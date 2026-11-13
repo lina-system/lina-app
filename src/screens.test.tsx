@@ -1779,6 +1779,12 @@ describe("work cards", () => {
     expect(screenText(view.container)).not.toMatch(/제목 없음|코드 작업|문서 작업|기기 작업/);
   });
 
+  test("a lone stopped run's detail keeps the title its list row shows", async () => {
+    const view = await open("#/runs/r20", { wide: true, source: new SyntheticSource({ endedRuns: true, now: Math.floor(Date.now() / 1000) }) });
+    await waitFor(() => expect(view.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("알림 문구 고르기"));
+    expect(screenText(view.container)).not.toMatch(/제목 없음/);
+  });
+
   test("a finished task that ran twice is one row, the newest run; three rounds of one card stay one card", async () => {
     const view = await open("#/done", { wide: true });
     const twins = within(view.getByTestId("screen-done")).getAllByRole("link", { name: /가이드 초안 다듬기/ });

@@ -1,5 +1,6 @@
 # Copied unchanged from lina-system/lina docs/api/work-client.yaml at dev commit df3b9926391eb9c04f5451dbd5679b12ed3f2c05,
-# plus the optional WorkCardSummary/WorkCardDetail fields endedAt and lastHeartbeatAt that lina#577 adds (lina-app#100).
+# plus the optional WorkCardSummary/WorkCardDetail fields endedAt and lastHeartbeatAt that lina#577 adds (lina-app#100)
+# and the optional WorkCardSummary fields waitingOn and retry that lina#629 adds (lina-app#119).
 # Work endpoints the app reads: goals, work cards, their worker runs and the owner inbox.
 # Served by plugins/kanban/dashboard/work_api.py under /api/plugins/kanban/work, behind the
 # dashboard auth gate (session token). lina-app's scripts/generate-client.mjs can point
@@ -225,6 +226,19 @@ components:
           type: integer
           nullable: true
           description: The card's last heartbeat (epoch seconds); null when it has none (lina#577).
+        waitingOn:
+          type: string
+          nullable: true
+          description: >
+            On a stopped card (lina#629): who has to act next, `owner`, `agent:<id>`, or null when nobody has to
+            (for example the work was replaced or its goal finished).
+        retry:
+          type: string
+          nullable: true
+          enum: [scheduled, none, null]
+          description: >
+            On a stopped card (lina#629): whether it will be tried again, `scheduled` (the core or the agent will
+            start another run), `none`, or null when unknown.
     WorkCardList:
       type: object
       additionalProperties: false

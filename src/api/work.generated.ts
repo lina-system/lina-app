@@ -239,9 +239,16 @@ export interface components {
             now: string | null;
             plain: components["schemas"]["PlainLines"];
             reason: components["schemas"]["Reason"];
+            /**
+             * @description On a stopped card (lina#629): whether it will be tried again, `scheduled` (the core or the agent will start another run), `none`, or null when unknown.
+             * @enum {string|null}
+             */
+            retry?: "scheduled" | "none" | null;
             state: components["schemas"]["WorkState"];
             title: string;
             todoProgress: components["schemas"]["TodoProgress"];
+            /** @description On a stopped card (lina#629): who has to act next, `owner`, `agent:<id>`, or null when nobody has to (for example the work was replaced or its goal finished). */
+            waitingOn?: string | null;
         };
         WorkerRun: {
             firstSeenAt: number;

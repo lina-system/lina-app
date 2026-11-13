@@ -166,6 +166,12 @@ test("a stopped row says why and who it waits on from what the core serves, and 
   expect(edited.cards.get("r14")?.stop).toEqual({ words: "실패 · 다시 시도 안 함", known: true, owner: false });
   expect(edited.cards.get("r12")?.stop).toEqual({ words: `${agent.name} 검토 대기`, known: true, owner: false });
   expect(edited.cards.get("k-107")?.stop).toEqual({ words: "검토 대기", known: true, owner: false });
+  // An agent that is to start another run is not a reviewer: the failure and the retry are what the row says.
+  const retried = endedModel({
+    ...scene,
+    board: { ...scene.board, cards: scene.board.cards.map((run) => (run.id === "r12" ? { ...run, todo: null, reason: "failed", waitingOn: `agent:${agent.id}`, retry: "scheduled" } : run)) },
+  });
+  expect(retried.cards.get("r12")?.stop).toEqual({ words: "실패 · 다시 시도 예정", known: true, owner: false });
 });
 
 // lina-app#119: the live shape, as the home sees it (no card's detail opened).

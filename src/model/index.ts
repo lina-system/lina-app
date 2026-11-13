@@ -380,7 +380,8 @@ export function buildModel(input: ModelInput, now: number): Model {
   const stopWords = (reason: string | null, isRun: boolean, { waitingOn, retry }: StopFacts): NonNullable<CardRow["stop"]> => {
     const owner = { words: ownerName ? `${ownerName} ${W.needsCheck}` : W.needsCheck, known: true, owner: true };
     if (waitingOn === "owner") return owner;
-    if (waitingOn?.startsWith("agent:")) {
+    // An agent that starts another run by itself is no reviewer: the retry words below say so.
+    if (waitingOn?.startsWith("agent:") && retry !== "scheduled") {
       const agent = agents.find((each) => each.id === waitingOn.slice(6) || each.name === waitingOn.slice(6));
       return { words: agent ? `${agent.name} ${W.waitReview}` : W.waitReview, known: true, owner: false };
     }

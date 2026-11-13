@@ -46,12 +46,12 @@ Each step below starts from a fresh load, so its counts hold on their own.
 
 - **Held done row.** In 수신함 tick `공지 문구 확인 완료로 표시`. After the record is done the row is still listed as `공지 문구 확인 완료됨`, struck through, `내 할 일` reads 2 (sidebar 수신함 8 at 1280); when the toast ends the row is gone, `내 할 일` 1 (수신함 7).
 - **Undo a held row.** Tick `저장소 접근 권한 주기 완료로 표시`, then 되돌리기 in the toast: the row is back unchecked, the record planned, `내 할 일` 2.
-- **Counts during an answer's toast.** Expand `배포를 금요일 오후에 해도 될까요?` and choose `금요일 오후 · 추천`: `결정 필요` reads 3 with 3 rows (sidebar 수신함 7); 되돌리기 in the toast: 4 rows, `결정 필요` 4, 수신함 8.
+- **Counts during an answer's toast.** Expand `배포를 금요일 오후에 할지 결정 필요` and choose `금요일 오후 · 추천`: `결정 필요` reads 3 with 3 rows (sidebar 수신함 7); 되돌리기 in the toast: 4 rows, `결정 필요` 4, 수신함 8.
 - **Done, then undo.** Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive actions`. On `#/goals/G2` tick `결제 실패 화면 검토 완료로 표시`. At once the box is `결제 실패 화면 검토 완료됨`, the title is struck through and the toast reads `완료로 표시함`; the record says done. 되돌리기 in the toast: the box is unchecked and the record is back to waiting.
 - **되돌리기 on the page.** On `#/items/T3` tick the head's box. No 되돌리기 in the head while the toast shows; after it, the head shows `되돌리기` (the record's window is 600 s); choosing it reopens the record.
 - **Done with open to-dos.** On `#/goals/G1` tick the goal. `열린 할 일 3개도 함께 완료할까요?` and nothing written yet; `함께 완료` and `취소` are accent text buttons; `함께 완료`: the goal and its 3 to-dos are done, 4 boxes checked; 되돌리기 in the toast reopens all four as they were.
-- **Answer with choices.** In 수신함 expand `배포를 금요일 오후에 해도 될까요?` and choose `금요일 오후 · 추천`. The row leaves, `답함` shows, no answer in the record yet; after the toast the record has the owner's answer `금요일 오후` and the row stays gone.
-- **Free-text answer and a card question.** Expand `자주 쓰는 검색어 열 개를 알려 주세요.`, type into `답 달기`, `보내기`; after the toast the record has the answer. Do the same on `카드 번호는 앞 여섯 자리까지 보여 줄까요?`: the card gets the owner's comment and its question leaves the work inbox. From the fresh load's 4 decisions, 2 are left.
+- **Answer with choices.** In 수신함 expand `배포를 금요일 오후에 할지 결정 필요` and choose `금요일 오후 · 추천`. The row leaves, `답함` shows, no answer in the record yet; after the toast the record has the owner's answer `금요일 오후` and the row stays gone.
+- **Free-text answer and a card question.** Expand `자주 쓰는 검색어 열 개 확인 필요`, type into `답 달기`, `보내기`; after the toast the record has the answer. Do the same on `카드 번호를 앞 여섯 자리까지 표시할지 결정 필요`: the card gets the owner's comment and its question leaves the work inbox. From the fresh load's 4 decisions, 2 are left.
 - **Retry.** On `#/running` choose `다시 시도`. The row reads `<agent>에게 요청함`; the card `결제: 오류 문구 바꾸기` has the owner's comment `다시 시도해 주세요.`; after five seconds the line goes and `다시 시도` is back.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/actions/actions-1280.{png,aria.yml,json}` and `actions-390.{png,aria.yml,json}`.
 

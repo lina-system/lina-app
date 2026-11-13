@@ -27,6 +27,7 @@ import {
   ruleLabel,
   rulesOf,
   runnerLine,
+  runnerName,
   runnerOn,
   runnerTable,
   warningLines,
@@ -47,8 +48,11 @@ function pageHref(page: string): string {
   return href({ name: "setting", page });
 }
 
-/** The title of a list the settings push, for the page itself and for the phone's back control. */
-export function settingTitle(page: string): string {
+/**
+ * The title of a list the settings push, for the page itself and for the phone's back control. A runner reads as
+ * `실행기 n` when the settings are at hand, else as `실행기`: never by its key.
+ */
+export function settingTitle(page: string, settings?: Settings): string {
   const [kind, name, field] = page.split("/");
   switch (kind) {
     case "default-runner":
@@ -60,7 +64,7 @@ export function settingTitle(page: string): string {
       if (field === "effort") return W.effort;
       if (field === "access") return W.access;
       if (field === "fallback") return W.fallbackModel;
-      return name ?? W.runners;
+      return name && settings ? runnerName(name, settings) : W.runners;
     case "device":
       return name ?? W.devices;
     case "rule-new":
@@ -281,7 +285,7 @@ function DefaultsGroup() {
   const fallback = settings.worker?.models?.fallback;
   return (
     <Group title={W.defaults} testid="settings-defaults">
-      <LinkRow to={pageHref("default-runner")} title={W.defaultRunner} value={defaultRunner(settings)} error={edits.error("default-runner")} locked={locked} />
+      <LinkRow to={pageHref("default-runner")} title={W.defaultRunner} value={runnerName(defaultRunner(settings), settings)} error={edits.error("default-runner")} locked={locked} />
       <LinkRow to={pageHref("fallback")} title={W.fallbackModel} value={fallback ? modelLabel(fallback, settings, models) : W.empty} error={edits.error("fallback")} locked={locked} />
     </Group>
   );
@@ -295,7 +299,7 @@ function RunnersGroup() {
         <LinkSwitchRow
           key={name}
           to={pageHref(`runner/${name}`)}
-          title={name}
+          title={runnerName(name, settings)}
           sub={runnerLine(runner, settings, models)}
           on={runnerOn(runner)}
           disabled={locked}
@@ -329,7 +333,7 @@ function RulesGroup() {
   return (
     <Group title={W.rules} head={head} error={edits.error("rules")} testid="settings-rules">
       {rules.map((rule, index) => {
-        const line = W.ruleTo(ruleLabel(rule), rule.runner);
+        const line = W.ruleTo(ruleLabel(rule), runnerName(rule.runner, settings));
         return (
           <li key={rule.name} class="row settings-row has-control" data-testid="rule">
             {on ? (
@@ -353,7 +357,7 @@ function RulesGroup() {
           </li>
         );
       })}
-      <PlainRow title={W.ruleTo(W.ruleOther, defaultRunner(settings))} testid="rule-other" />
+      <PlainRow title={W.ruleTo(W.ruleOther, runnerName(defaultRunner(settings), settings))} testid="rule-other" />
       {on ? <LinkRow to={pageHref("rule-new")} title={W.ruleAdd} testid="rule-add" /> : null}
     </Group>
   );
@@ -467,8 +471,7 @@ function HistoryGroup() {
   const lines = store.get("settingsHistory", SETTINGS_HISTORY.recent)?.revisions ?? [];
   const revision = edits.view?.revision.id ?? "";
   return (
-    <>
-      <Group title={W.history} testid="settings-history">
+    <Group title={W.history} testid="settings-history">
         {lines.slice(0, Number(SETTINGS_HISTORY.recent)).map((line) => (
           <HistoryRow key={line.rev} line={line} />
         ))}
@@ -481,11 +484,7 @@ function HistoryGroup() {
             <ErrorLine line={edits.error(ROLLBACK_KEY)} />
           </li>
         )}
-      </Group>
-      <p class="settings-foot settings-rev" data-testid="settings-rev">
-        {W.settingsRev(revision)}
-      </p>
-    </>
+    </Group>
   );
 }
 
@@ -498,8 +497,9 @@ function Pending() {
 export function SettingsScreen() {
   const { edits } = useSettings();
   if (!edits.view) return <Pending />;
+  // The revision is the core's record id: never drawn, kept on the screen for tests and the verify drivers.
   return (
-    <div class="list settings" data-testid="screen-settings">
+    <div class="list settings" data-testid="screen-settings" data-revision={edits.view.revision.id}>
       <StaleModelsLine />
       <Warnings />
       <ReadOnlyLine />
@@ -558,8 +558,8 @@ function RunnerPage({ name }: { name: string }) {
   const effort = effortOf(runner.model, settings, models);
   return (
     <>
-      <Group label={name}>
-        <SwitchRow title={W.turnOn} label={`${name} ${W.turnOn}`} on={runnerOn(runner)} disabled={locked} onChange={(on) => edits.change(key("on"), runnerPatch(settings, name, { on }))} error={edits.error(key("on"))} />
+      <Group label={runnerName(name, settings)}>
+        <SwitchRow title={W.turnOn} label={`${runnerName(name, settings)} ${W.turnOn}`} on={runnerOn(runner)} disabled={locked} onChange={(on) => edits.change(key("on"), runnerPatch(settings, name, { on }))} error={edits.error(key("on"))} />
       </Group>
       <Group label={W.model}>
         <LinkRow to={pageHref(`runner/${name}/model`)} title={W.model} value={modelLabel(runner.model, settings, models)} error={edits.error(key("model"))} locked={locked} />
@@ -567,15 +567,6 @@ function RunnerPage({ name }: { name: string }) {
         <LinkRow to={pageHref(`runner/${name}/access`)} title={W.access} value={runner.access ? W.accessWord[runner.access] : W.defaultValue} error={edits.error(key("access"))} locked={locked} />
         <LinkRow to={pageHref(`runner/${name}/fallback`)} title={W.fallbackModel} value={runner.fallback_model ? modelLabel(runner.fallback_model, settings, models) : W.followDefault} error={edits.error(key("fallback"))} locked={locked} />
       </Group>
-      {runner.argv?.length ? (
-        <Group title={W.command}>
-          <li class="row settings-row" data-testid="argv">
-            <span class="row-body">
-              <code class="settings-argv">{runner.argv.join(" ")}</code>
-            </span>
-          </li>
-        </Group>
-      ) : null}
     </>
   );
 }
@@ -633,7 +624,7 @@ function DefaultRunnerPicker() {
         {runnerTable(settings)
           .filter(([, runner]) => runnerOn(runner))
           .map(([name]) => (
-            <ChoiceRow key={name} title={name} chosen={name === chosen} disabled={locked} onChoose={() => edits.change("default-runner", { worker: { default_runner: name } })} />
+            <ChoiceRow key={name} title={runnerName(name, settings)} chosen={name === chosen} disabled={locked} onChoose={() => edits.change("default-runner", { worker: { default_runner: name } })} />
           ))}
       </Group>
     </PickerBody>
@@ -709,7 +700,7 @@ function RuleNewPage() {
       </section>
       <Group title={W.runners}>
         {runnerTable(settings).map(([name]) => (
-          <ChoiceRow key={name} title={name} chosen={runner === name} disabled={locked} onChoose={() => setRunner(name)} />
+          <ChoiceRow key={name} title={runnerName(name, settings)} chosen={runner === name} disabled={locked} onChoose={() => setRunner(name)} />
         ))}
       </Group>
       <div class="settings-actions">
@@ -773,17 +764,17 @@ function PageBody({ page }: { page: string }) {
 
 /** A list the settings push: a runner, a device, a picker, the models, the full history or a new rule. */
 export function SettingPage({ page }: { page: string }) {
-  const { edits, wide, selected } = useSettings();
+  const { edits, settings, wide, selected } = useSettings();
   const parent = settingParent(page);
   return (
     <article class="detail settings settings-page" data-testid="setting-page" data-page={page}>
       {wide && parent.name === "setting" ? (
         <Link href={href(parent)} class="crumb settings-crumb">
-          {`‹ ${settingTitle(parent.page)}`}
+          {`‹ ${settingTitle(parent.page, settings)}`}
         </Link>
       ) : null}
       <header class="detail-head">
-        <h1 class="detail-title">{settingTitle(page)}</h1>
+        <h1 class="detail-title">{settingTitle(page, settings)}</h1>
       </header>
       {showsModels(page) ? <StaleModelsLine /> : null}
       <ReadOnlyLine />

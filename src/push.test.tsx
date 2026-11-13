@@ -82,7 +82,7 @@ describe("알림 받기", () => {
     for (const [device, state, line] of [
       [browser({ manager: null }), "unsupported", "이 브라우저는 받을 수 없음"],
       [browser({ permission: null }), "unsupported", "이 브라우저는 받을 수 없음"],
-      [browser({ permission: "denied" }), "blocked", "브라우저에서 알림 막힘"],
+      [browser({ permission: "denied" }), "blocked", "브라우저에서 알림 차단됨"],
     ] as const) {
       const { view, row } = await openBell(new SyntheticSource(), device.host);
       await waitFor(() => expect(row().dataset.state).toBe(state));

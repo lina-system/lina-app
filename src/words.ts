@@ -129,9 +129,9 @@ export const W = {
   restart: "다시 시작",
   restartOf: (name: string) => `${name} 다시 시작`,
   restartWorker: "작업 실행기",
-  restartOcx: "OCX",
+  restartOcx: "모델 연결",
   restartWorkerConfirm: "작업 실행기를 다시 시작합니다.",
-  restartOcxConfirm: "OCX를 다시 시작합니다.",
+  restartOcxConfirm: "모델 연결을 다시 시작합니다.",
   connected: "연결됨",
   cpu: "CPU",
   memory: "메모리",
@@ -157,13 +157,13 @@ export const W = {
   cost: costValue,
   tokens: tokenCount,
 
-  /** OCX's own row last in the quota list: the models on, then only the links that are down. */
-  ocxLine: (enabled: number, down: readonly string[]) => [`OCX`, `모델 ${enabled}개 켜짐`, ...(down.length ? [`연결 끊김: ${down.join(", ")}`] : [])].join(SEP),
+  /** The model proxy's own row last in the quota list, never named: the models on, then only the links that are down. */
+  ocxLine: (enabled: number, down: readonly string[]) => [`모델 ${enabled}개 켜짐`, ...(down.length ? [`연결 끊김: ${down.join(", ")}`] : [])].join(SEP),
 
   checks: "점검",
   checksEmpty: "점검 없음",
   checksOk: (n: number) => `정상 ${n}`,
-  checkState: { failing: "실패", stale: "오래됨", error: "읽기 오류" } as Record<string, string>,
+  checkState: { failing: "실패", stale: "갱신 지연", error: "읽기 오류" } as Record<string, string>,
 
   fresh: (seconds: number) => `갱신 ${seconds}초 전`,
   live: "실시간",
@@ -228,8 +228,8 @@ export const W = {
   noTurns: "아직 나눈 대화 없음",
   historyFailed: "지난 대화를 읽지 못함",
   pickAgent: "에이전트를 고르면 대화가 열림",
-  agentCard: "카드",
-  cardGoals: (n: number) => `카드 · 목표 ${n}`,
+  agentCard: "에이전트",
+  cardGoals: (n: number) => `에이전트 · 목표 ${n}`,
 
   tabs: "탭",
   tabTalk: "대화",
@@ -250,11 +250,11 @@ export const W = {
   progress: (done: number, total: number) => `${done}/${total}`,
   runningCount: (n: number) => `진행 중 ${n}`,
 
-  doneRecent: "24시간 안에 끝남",
-  doneOlder: "이전에 끝남",
-  doneSoFar: "끝난 것",
+  doneRecent: "최근 완료",
+  doneOlder: "완료",
+  doneSoFar: "완료된 것",
   round: (n: number) => `라운드 ${n}`,
-  summariesStopped: "요약 멈춤",
+  summariesStopped: "요약 중단됨",
   folded: "접힌 댓글",
   noStart: "시작 기록 없음",
   runStarted: "작업 시작",
@@ -262,19 +262,19 @@ export const W = {
   latest: (time: string) => `최근 활동 ${time}`,
   allAgents: "전체",
   todoProgress: (done: number, total: number) => `할 일 ${done}/${total}`,
-  took: (time: string) => `${time} 걸림`,
+  took: (time: string) => `소요 ${time}`,
   record: "기록",
   toolSteps: (n: number) => `도구 사용 ${n}번`,
   repeated: (n: number) => `×${n}`,
   result: "결과",
-  outcome: { accepted: "검토 통과", rejected: "검토 반려", stopped: "작업 중단", ended: "작업 마침", unknown: "완료 기록 없음", going: "진행 중" },
+  outcome: { accepted: "검토 통과", rejected: "검토 필요", stopped: "중단됨", ended: "완료", unknown: "완료 기록 없음", going: "진행 중" },
   yesterday: "어제",
 
   pushRow: "알림 받기",
   pushNotSetUp: "푸시 설정 안 됨",
   pushAddToHome: "공유 › 홈 화면에 추가 후 켤 수 있음",
   pushUnsupported: "이 브라우저는 받을 수 없음",
-  pushBlocked: "브라우저에서 알림 막힘",
+  pushBlocked: "브라우저에서 알림 차단됨",
   pushUnknown: "알림 설정을 읽지 못함",
   pushOnFailed: "켜지 못함",
   pushOffFailed: "끄지 못함",
@@ -282,7 +282,6 @@ export const W = {
   settings: "설정",
   settingsReadOnly: "이 기기에서는 볼 수만 있습니다",
   settingsStale: "다른 곳에서 먼저 바뀌었습니다 · 새로 읽었습니다",
-  settingsRev: (rev: string) => `설정 ${rev}`,
   more: (n: number) => `외 ${n}개`,
   defaults: "기본값",
   defaultValue: "기본값",
@@ -290,6 +289,8 @@ export const W = {
   fallbackModel: "대체 모델",
   followDefault: "기본값 따름",
   runners: "실행기",
+  /** A runner as the screens name it: its place in the runner list, never its key in the settings. */
+  runnerNumber: (n: number) => `실행기 ${n}`,
   turnOn: "켜기",
   turnedOn: "켬",
   turnedOff: "끔",
@@ -325,13 +326,13 @@ export const W = {
   moreOf: (what: string) => `${what} 늘리기`,
   repoWork: "저장소 작업",
   fastDevice: "빠른 기기",
-  modelsOcx: "모델 (OCX)",
+  modelsOcx: "모델",
   modelsOn: (n: number) => `켜진 모델 ${n}개`,
-  modelsFoot: "모델 켜고 끄기는 OCX에서 합니다",
+  modelsFoot: "앱에서는 모델을 켜고 끌 수 없음",
   quotaLeft: (left: number, reset: string | null) => [`남은 양 ${Math.round(left)}%`, reset].filter(Boolean).join(SEP),
   usedUp: "다 씀",
   quotaUnknown: "확인 못 함",
-  ocxDown: (time: string) => `OCX를 읽지 못했습니다 · 모델 상태는 ${time} 기준`,
+  ocxDown: (time: string) => `모델 상태 읽기 실패 · ${time} 기준`,
   asOf: (time: string) => `${time} 기준`,
   noAccount: "계정 없음",
   history: "기록",
@@ -352,7 +353,7 @@ export const W = {
  * A push notification's first body line, by the kind of item it is about (push-client.yaml ShowMessage.kind).
  * public/sw.js keeps a copy; src/sw.test.ts holds the two equal.
  */
-export const PUSH_LINE = { ask: "결정 필요", reply: "답글", blocked: "멈춤 · 기다림", question: "멈춤 · 기다림" } as const;
+export const PUSH_LINE = { ask: "결정 필요", reply: "답글", blocked: "중단됨 · 피드백 대기", question: "중단됨 · 피드백 대기" } as const;
 
 /** The kind word beside a work card's icon in its detail. */
 export const KIND_WORD = { code: "코드", docs: "문서", research: "조사", device: "기기" } as const;
@@ -421,4 +422,4 @@ export const REPLY_RESULT: Readonly<Record<string, string>> = {
   not_applied: "반영 안 함",
 };
 
-export const BANNED_WORDS = ["세션", "일꾼", "회차", "판정", "장부"];
+export const BANNED_WORDS = ["세션", "일꾼", "회차", "판정", "장부", "준 기다림", "멈춤", "막힘", "끝남", "끝난", "샌 것", "심박", "분째", "시간째", "일째", "작업 마침", "소식이 끊김", "오래됨", "검토 반려", "OCX"];

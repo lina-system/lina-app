@@ -117,7 +117,7 @@ const SCREENS: readonly { id: string; hash: string; query?: string; line?: strin
     id: "settings-refused",
     hash: "#/settings",
     open: async (page) => {
-      await page.getByTestId("screen-settings").getByRole("switch", { name: "omo 켜기" }).click();
+      await page.getByTestId("screen-settings").getByRole("switch", { name: "실행기 1 켜기" }).click();
       await expect(page.getByTestId("write-error")).toHaveText("worker.default_runner: runner 'omo' is off");
     },
   },

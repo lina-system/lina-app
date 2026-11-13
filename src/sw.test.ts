@@ -83,7 +83,7 @@ describe("the service worker's push messages", () => {
     await sw.push(show({ kind: "blocked", tag: "blocked:k-101", target: "k-101", title: "에이전트 · 결제 화면", body: "키를 기다려요" }));
     await sw.push(show());
     expect(sw.shown().map((note) => [note.tag, note.body])).toEqual([
-      ["blocked:k-101", "멈춤 · 기다림\n키를 기다려요"],
+      ["blocked:k-101", "중단됨 · 피드백 대기\n키를 기다려요"],
       ["ask:T2:1700000000", "결정 필요\n오늘 저녁에 배포할까요?"],
     ]);
   });

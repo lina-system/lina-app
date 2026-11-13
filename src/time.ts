@@ -4,10 +4,9 @@ const MIN = 60;
 const HOUR = 3600;
 const DAY = 86400;
 
+/** How long something has been running, from its start: 시작 n분 전, then hours and days. */
 export function duration(seconds: number): string {
-  if (seconds < HOUR) return `${Math.max(1, Math.floor(seconds / MIN))}분째`;
-  if (seconds < DAY) return `${Math.floor(seconds / HOUR)}시간째`;
-  return `${Math.floor(seconds / DAY)}일째`;
+  return `시작 ${seconds < MIN ? `1분 전` : ago(seconds)}`;
 }
 
 /** How long ago: 방금 under a minute, then minutes, hours and days. */

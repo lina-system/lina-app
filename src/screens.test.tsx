@@ -1279,6 +1279,70 @@ describe("agent talk", () => {
     }
   });
 
+  test("the same message sent twice with the same reply is two exchanges, each shown once", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const view = await open("#/talk/ag-1", { wide: true, source: new SyntheticSource() });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const { field } = parts(view);
+      for (let n = 0; n < 2; n++) {
+        field.value = "오늘 어디까지 했어요?";
+        fireEvent.input(field);
+        fireEvent.keyDown(field, { key: "Enter" });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 12);
+        });
+      }
+      const box = within(view.getByTestId("agent-talk"));
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "오늘 어디까지 했어요?", "오늘 어디까지 했어요?"]);
+      expect(box.getAllByTestId("talk-reply")).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a turn the core has not accepted yet blocks a second send from a reopened chat, and its refusal shows there", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      let refuse: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => (refuse = resolve));
+      let posts = 0;
+      class Refusing extends SyntheticSource {
+        override async agentTalk(_agent: string, _body: { message: string }, _signal?: AbortSignal) {
+          posts += 1;
+          await gate;
+          return { ok: false as const, status: 503, code: null };
+        }
+      }
+      const view = await open("#/talk/ag-1", { wide: true, source: new Refusing() });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const box = await leaveAndReturn(view, "오늘 어디까지 했어요?");
+      expect(parts(view).send.disabled).toBe(true);
+      const { field } = parts(view);
+      field.value = "또 보냅니다";
+      fireEvent.input(field);
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(posts).toBe(1);
+      refuse();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(view.getByTestId("agent-talk").textContent).toContain("에이전트 연결 안 됨");
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?"]);
+      // Nothing is going any more: the second message typed meanwhile can be sent.
+      expect(parts(view).send.disabled).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("a reply that breaks off while the owner is in another window shows as not received when they come back", async () => {
     vi.useFakeTimers(TIMERS);
     try {

@@ -2,7 +2,7 @@ import { act, fireEvent, render, waitFor, within } from "@testing-library/preact
 import { render as renderPreact } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import type { RouteName, RunnerCell } from "./api/client";
+import type { RouteName, RunnerCell, WorkCardSummary } from "./api/client";
 import { App } from "./app";
 import { AGENT_REPLY_DELTAS, STREAM_TICK_MS, SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS } from "./data/synthetic-source";
 import type { ReadResult, Source } from "./data/source";
@@ -1734,9 +1734,9 @@ describe("work cards", () => {
     // r12 (replaced by r13) and r11 (under the finished goal G4) are gone, and so is every run that names its card
     // (lina-app#119); nothing else is listed by its kind. The rows waiting on the owner come first.
     // r14 has nothing to name it: not a row, counted in one grey line (lina-app#124).
-    expect(new Set(hrefs)).toEqual(new Set(["#/cards/k-103", "#/cards/k-107", "#/cards/k-108", "#/cards/k-109", "#/cards/k-110", "#/cards/k-111", "#/runs/r20"]));
-    expect(hrefs.slice(0, 2)).toEqual(["#/cards/k-108", "#/cards/k-107"]);
-    expect(view.getByTestId("nav-running").querySelector("[data-testid=nav-stopped]")?.textContent).toBe("7");
+    expect(new Set(hrefs)).toEqual(new Set(["#/cards/k-103", "#/cards/k-107", "#/cards/k-108", "#/cards/k-109", "#/cards/k-110", "#/cards/k-111", "#/cards/k-112", "#/runs/r20"]));
+    expect(hrefs.slice(0, 3)).toEqual(["#/cards/k-108", "#/cards/k-107", "#/cards/k-112"]);
+    expect(view.getByTestId("nav-running").querySelector("[data-testid=nav-stopped]")?.textContent).toBe("8");
     expect(view.getByTestId("home-untitled").textContent).toBe("제목 없는 1건");
     const row = (href: string) => stopped.find((each) => each.querySelector("a")?.getAttribute("href") === href) as Element;
     const state = (href: string) => row(href).querySelector("[data-testid=state]") as Element;
@@ -1753,6 +1753,36 @@ describe("work cards", () => {
     expect(state("#/cards/k-110").classList.contains("is-plain")).toBe(false);
     expect(stopped.filter((each) => each.querySelector(".title")?.textContent === "제목 없음")).toHaveLength(0);
     expect(screenText(view.container)).not.toMatch(/코드 작업|문서 작업|기기 작업/);
+  });
+
+  test("a stopped card is drawn by its own title with a Latin word in it; a finished one with such a title stays in the grey line", async () => {
+    const source = new SyntheticSource({ endedRuns: true });
+    const stoppedCard = source.scene.cards.cards.find((card) => card.id === "k-112") as WorkCardSummary;
+    const finished: WorkCardSummary = { ...stoppedCard, id: "k-113", title: "AAS 회차 점검 마무리", state: "done", reason: null, waitingOn: null, endedAt: Math.floor(Date.now() / 1000) - 3600 };
+    const scene = { ...source.scene, cards: { cards: [...source.scene.cards.cards, finished] } };
+    const view = await open("#/", { wide: true, source: new SyntheticSource({ scene }) });
+    const screen = view.getByTestId("screen-running");
+    const row = within(screen).getAllByTestId("row").find((item) => item.querySelector("a")?.getAttribute("href") === "#/cards/k-112");
+    expect(row?.classList.contains("is-stopped")).toBe(true);
+    expect(row?.querySelector(".title")?.textContent).toBe("CLI 배포 순서 정하기");
+    expect(row?.querySelector("[data-testid=state]")?.textContent).toBe(`중단됨 · ${SYNTHETIC_OWNER.name} 확인 필요`);
+    // The finished card keeps the Latin-word rule: not drawn, counted with r14 in one grey line.
+    expect(screen.querySelector('a[href="#/cards/k-113"]')).toBeNull();
+    expect(screenText(view.container)).not.toContain("AAS");
+    expect(view.getByTestId("home-untitled").textContent).toBe("제목 없는 2건");
+    expect(view.getByTestId("nav-running").querySelector("[data-testid=nav-stopped]")?.textContent).toBe("8");
+  });
+
+  test("a stopped card's detail keeps the own title with a Latin word that its list row shows", async () => {
+    const view = await open("#/cards/k-112", { wide: true, source: new SyntheticSource({ endedRuns: true, now: Math.floor(Date.now() / 1000) }) });
+    await waitFor(() => expect(view.getByTestId("screen-card").querySelector(".detail-title")?.textContent).toBe("CLI 배포 순서 정하기"));
+    expect(screenText(view.container)).not.toMatch(/제목 없음|코드 작업|문서 작업|기기 작업/);
+  });
+
+  test("a lone stopped run's detail keeps the title its list row shows", async () => {
+    const view = await open("#/runs/r20", { wide: true, source: new SyntheticSource({ endedRuns: true, now: Math.floor(Date.now() / 1000) }) });
+    await waitFor(() => expect(view.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("알림 문구 고르기"));
+    expect(screenText(view.container)).not.toMatch(/제목 없음/);
   });
 
   test("a finished task that ran twice is one row, the newest run; three rounds of one card stay one card", async () => {

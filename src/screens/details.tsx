@@ -412,7 +412,7 @@ export function CardScreen({ id }: { id: string }) {
     if (!round) return W.outcome.unknown;
     return round.endedAt !== null ? W.outcome.ended : STATE_WORD.stopped;
   };
-  const workTitle = cardTitle(detail.plain.title, detail.title) || W.untitledRun;
+  const workTitle = cardTitle(detail.plain.title, detail.title, detail.state === "stopped") || W.untitledRun;
   // The worker run a round was: the same run its head opens. A card's 기록 holds several runs' rounds in one record.
   const roundRun = (runId: string, n: number) => rounds.find((round) => round.n === n)?.workers[0] ?? runId;
   // The goal (project) the card serves, in its head; a goal title that would show raw text is left out.
@@ -420,7 +420,7 @@ export function CardScreen({ id }: { id: string }) {
   const goalLine = goal && !foldReason(goal.title) ? goal.title : null;
   return (
     <article class="detail" data-testid="screen-card">
-      <CardHead work={row?.work ?? "code"} title={cardTitle(detail.plain.title, detail.title)}>
+      <CardHead work={row?.work ?? "code"} title={cardTitle(detail.plain.title, detail.title, detail.state === "stopped")}>
         <StateTime state={detail.state} reason={detail.reason} time={row ? [cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP) : ""} />
         {goalLine ? (
           <span class="sub" data-testid="card-goal">
@@ -567,9 +567,11 @@ export function RunScreen({ id }: { id: string }) {
   const todo = run.todo ? model.items.get(run.todo) : undefined;
   const owner = model.runOwner.get(run.id);
   const card = owner ? model.cards.get(owner) : undefined;
+  // A lone stopped run is listed by the title the list resolved for it (its own, its to-do's); the page keeps it.
+  const listedTitle = model.running.rows.find((each) => each.kind === "run" && each.id === run.id)?.title ?? null;
   return (
     <article class="detail" data-testid="screen-run">
-      <CardHead work={row.work} title={run.plain.title}>
+      <CardHead work={row.work} title={run.plain.title ?? listedTitle}>
         <StateTime state={run.state} reason={run.reason} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} />
         <RunModelLine runId={id} />
       </CardHead>

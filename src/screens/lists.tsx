@@ -3,6 +3,7 @@ import { USAGE_RANGES, type Machine, type PersonDevice, type PowerStation, type 
 import type { CardRow, DueRow, GoalRow, InboxRow, Section } from "../model";
 import { agentView, doneFor, localDay } from "../model";
 import type { OpenCheck } from "../model/checks";
+import { stopReason } from "../model/stop-reason";
 import type { UsageLine } from "../model/usage";
 import { href, navigate } from "../router";
 import { ago, dayLabel, until } from "../time";
@@ -166,7 +167,7 @@ function StoppedSection({ section }: { section: Section<CardRow> }) {
       </h2>
       <ul class="rows" aria-label={section.title}>
         {section.rows.map((card) => (
-          <CardRowView key={card.key} card={card} action={card.stop?.retry ? <RetryControl card={card} /> : undefined} error={actions.error(`retry:${card.key}`)?.line} />
+          <CardRowView key={card.key} card={card.stop ? { ...card, stop: { ...card.stop, words: stopReason(card).word } } : card} action={card.stop?.retry ? <RetryControl card={card} /> : undefined} error={actions.error(`retry:${card.key}`)?.line} />
         ))}
       </ul>
     </section>

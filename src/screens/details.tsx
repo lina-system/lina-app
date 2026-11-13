@@ -1,19 +1,21 @@
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import type { ItemDetail, ItemSummary, WorkCardDetail } from "../api/client";
-import { cardName, cardTitle, goalCards, runRow, type Model } from "../model";
+import type { ItemDetail, ItemSummary, WorkCardDetail, WorkState } from "../api/client";
+import { KoreanInput } from "../korean-input";
+import { cardName, cardTitle, goalCards, runRow, type CardRow, type Model } from "../model";
 import { foldReason } from "../model/fold";
 import { holds } from "../model/rounds";
-import { outcomeOf } from "../model/timeline";
+import { stopReason } from "../model/stop-reason";
+import { firstSentence, goalHistory, outcomeOf } from "../model/timeline";
 import type { CardKind } from "../model/kind";
 import { isRunId } from "../data/store";
 import { href } from "../router";
 import { ago, clockAt } from "../time";
 import { useActions } from "../ui/actions";
-import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, useApp } from "../ui/parts";
+import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, stateWords, useApp } from "../ui/parts";
 import { SEP, STATE_WORD, stateLabel, W } from "../words";
 import { PastEvents, RunModelLine, Timeline, type PastEvent } from "./timeline";
-import { Comments } from "./comments";
+import { Comments, SendButton } from "./comments";
 import { Talk } from "./talk";
 
 function Missing() {
@@ -48,9 +50,72 @@ function DecisionBox({ text, agent, ask, at }: { text: string; agent: string | n
   );
 }
 
+/**
+ * Where the owner answers, in the detail frame (lina-app#142): the choices, or a field with 보내기. The answer goes
+ * the way it goes from 수신함 (Actions.answer, keyed as its 수신함 row), so the row leaves there too.
+ */
+function AnswerPlace({ answerKey, target, label, choices = [], recommended = null, testid }: { answerKey: string; target: { kind: "item" | "card"; id: string }; label: string; choices?: readonly string[]; recommended?: string | null; testid: string }) {
+  const actions = useActions();
+  const error = actions.error(answerKey);
+  const [text, setText] = useState(error?.text ?? "");
+  const busy = actions.busy(answerKey);
+  const send = (answer: string) => {
+    const body = answer.trim();
+    if (!body || busy) return;
+    actions.answer(answerKey, target, body);
+    setText("");
+  };
+  return (
+    <div class="answer-place" data-testid={testid}>
+      {choices.length ? (
+        <div class="choices" role="group" aria-label={label}>
+          {choices.map((choice) => (
+            <button key={choice} type="button" class="choice" disabled={busy} aria-label={choice === recommended ? `${choice}${SEP}${W.recommended}` : choice} onClick={() => send(choice)}>
+              {choice}
+              {choice === recommended ? <span class="tag">{W.recommended}</span> : null}
+            </button>
+          ))}
+          {busy ? (
+            <span class="send-why" data-testid="send-why">
+              {W.sendWhyBusy}
+            </span>
+          ) : null}
+        </div>
+      ) : (
+        <form
+          class="comment-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            send(text);
+          }}
+        >
+          <KoreanInput label={label} value={text} onValue={setText} inline />
+          <SendButton busy={busy} empty={!text.trim()} />
+        </form>
+      )}
+      <ErrorLine line={error?.line} />
+    </div>
+  );
+}
+
 function ItemDecision({ detail }: { detail: ItemDetail }) {
   if (!detail.decision || detail.decision.answered) return null;
-  return <DecisionBox text={detail.decision.text} agent={detail.agent} ask={detail.decision.kind === "ask"} at={detail.decision.at} />;
+  return (
+    <>
+      <DecisionBox text={detail.decision.text} agent={detail.agent} ask={detail.decision.kind === "ask"} at={detail.decision.at} />
+      <AnswerPlace answerKey={`decide:${detail.id}`} target={{ kind: "item", id: detail.id }} label={W.answerField} choices={detail.decision.choices} recommended={detail.decision.recommended} testid="decision-answer" />
+    </>
+  );
+}
+
+/** A history (기록) row: `time · one sentence` on one line (lina-app#123). */
+function HistoryLine({ at, text, kind, who }: { at: number; text: string; kind?: string; who?: string }) {
+  const { now } = useApp();
+  return (
+    <li class="history-row one-line" data-testid="history-row" data-kind={kind} title={who || undefined}>
+      {[clockAt(at, now), text].join(SEP)}
+    </li>
+  );
 }
 
 /** The head's check box with its state line, 되돌리기 while the owner's mark can be taken back, and a goal's question. */
@@ -118,11 +183,13 @@ function TodoLine({ todo }: { todo: ItemSummary }) {
 }
 
 function GoalBody({ detail }: { detail: ItemDetail }) {
-  const { model, store, now } = useApp();
+  const { model, store } = useApp();
   const { cards, evidence } = goalCards(model, detail, {
     goals: detail.workCards.map((id) => store.get("goal", id)).filter((goal) => goal !== undefined),
   });
   const words = [detail.why, ...detail.basis.map((basis) => basis.text)].filter((text, index, all): text is string => Boolean(text) && all.indexOf(text) === index);
+  // Its merges (the finished cards' evidence), question, runs, comments and close, one line each.
+  const history = goalHistory(detail, evidence);
   return (
     <article class="detail" data-testid="screen-goal">
       <Header title={detail.title}>
@@ -162,14 +229,13 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
           </ul>
         </Box>
       ) : null}
-      {evidence.length ? (
-        <Box title={W.evidence} testid="evidence">
-          {evidence.map((entry) => (
-            <div key={entry.key} class="comment">
-              <p class="box-text">{entry.text}</p>
-              {entry.at ? <span class="sub">{ago(now - entry.at)}</span> : null}
-            </div>
-          ))}
+      {history.length ? (
+        <Box title={W.record} testid="goal-history">
+          <ul class="history-rows" aria-label={W.record}>
+            {history.map((row, index) => (
+              <HistoryLine key={`${row.at}:${index}`} at={row.at} text={row.text} kind={row.kind} />
+            ))}
+          </ul>
         </Box>
       ) : null}
       <Comments detail={detail} />
@@ -297,55 +363,40 @@ export function roundHead(round: Round, now: number): string {
 }
 
 /**
- * One comment on a work card: its sentence with author and time. A comment that would show a path, a command, a
- * hash, an issue number, an address or a cut-off fragment is one folded entry (접힌 댓글) instead; its text opens
- * only on demand.
+ * One comment on a work card, one history line: its time and its first sentence, with any id, hash, path or command
+ * taken out (lina-app#142); its author is the line's tooltip. Only a comment with no sentence left reads 접힌 댓글.
  */
 function CardComment({ comment }: { comment: WorkCardDetail["comments"][number] }) {
-  const { model, now } = useApp();
-  const meta = [agentName(model, comment.author), ago(now - comment.createdAt)].filter(Boolean).join(SEP);
-  const reason = foldReason(comment.body);
-  const [open, setOpen] = useState(false);
-  if (!reason)
-    return (
-      <li class="comment" data-testid="comment">
-        <p class="comment-text">{comment.body}</p>
-        <span class="sub">{meta}</span>
-      </li>
-    );
-  return (
-    <li class="comment is-folded" data-testid="comment" data-folded={reason}>
-      <details class="comment-fold" onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}>
-        <summary class="sub">{[W.folded, meta].join(SEP)}</summary>
-        {open ? <p class="comment-raw">{comment.body}</p> : null}
-      </details>
-    </li>
-  );
+  const { model } = useApp();
+  return <HistoryLine at={comment.createdAt} text={firstSentence(comment.body) ?? W.folded} kind="comment" who={agentName(model, comment.author)} />;
 }
 
-/** A round's worker runs, dimmed; a round's single run does not repeat the state and time its round head carries. */
+/** A detail head's state line: a stopped one reads the words and the time its list row reads (stopReason, cardTime). */
+function HeadState({ state, reason, row, time }: { state: WorkState; reason: string | null; row: CardRow | undefined; time: string }) {
+  const stop = state === "stopped" && row?.stop ? { ...row.stop, words: stopReason(row).word } : undefined;
+  return <StateTime state={state} reason={reason} stop={stop} time={time} />;
+}
+
 /**
- * A round's worker runs, dimmed. The board does not list the worker runs a card started (only runs outside any
- * card), so such a run is still drawn, by its kind of work in grey, as a link to its own page: no worker row is ever
- * left out because its target is not in a list.
+ * A round's worker runs, one line each: when it started and what happened, never the card's title again (the card's
+ * head carries it, lina-app#142). The board does not list the worker runs a card started (only runs outside any
+ * card), so such a run is still drawn as a link to its own page: no worker row is ever left out because its target
+ * is not in a list.
  */
-function WorkerRows({ ids, model, title, state }: { ids: readonly string[]; model: Model; title: string; state: (runId: string) => string }) {
+function WorkerRows({ ids, model, seen, state }: { ids: readonly string[]; model: Model; seen: (runId: string) => number | null; state: (runId: string) => string }) {
+  const { now } = useApp();
   return (
     <ul class="rows" aria-label={W.workerRuns}>
       {ids.map((workerId) => {
         const run = model.runs.get(workerId);
-        if (run) return <CardRowView key={workerId} card={runRow(run)} dim bare={ids.length === 1} kindIcon={false} />;
+        const row = run ? runRow(run) : null;
+        const at = run?.startedAt ?? seen(workerId);
+        const line = [at ? clockAt(at, now) : "", row ? stateWords(row.state, row.reason, row.stop) : state(workerId)].filter(Boolean).join(SEP);
         return (
           <li key={workerId} class="row card-row is-dim" data-testid="row">
-            <Link href={href({ name: "run", id: workerId })} label={[title, state(workerId)].join(SEP)}>
+            <Link href={row?.href ?? href({ name: "run", id: workerId })} label={line}>
               <span class="lines">
-                <span class="one-line">
-                  <span class="title">{title}</span>
-                  <span class="sub">
-                    {SEP}
-                    {state(workerId)}
-                  </span>
-                </span>
+                <span class="sub one-line">{line}</span>
               </span>
             </Link>
           </li>
@@ -389,7 +440,7 @@ export function CardScreen({ id }: { id: string }) {
     return (
       <article class="detail" data-testid="screen-card">
         <CardHead work={row.work} title={row.title}>
-          <StateTime state={row.state} reason={row.reason} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} />
+          <HeadState state={row.state} reason={row.reason} row={row} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} />
         </CardHead>
         {row.now && row.state === "in_progress" ? (
           <Box title={W.now} testid="card-now">
@@ -412,7 +463,9 @@ export function CardScreen({ id }: { id: string }) {
     if (!round) return W.outcome.unknown;
     return round.endedAt !== null ? W.outcome.ended : STATE_WORD.stopped;
   };
-  const workTitle = cardTitle(detail.plain.title, detail.title, detail.state === "stopped") || W.untitledRun;
+  const seen = (runId: string) => workerRuns.find((worker) => worker.id === runId)?.firstSeenAt ?? null;
+  // A stop that waits on the owner's answer has the place to answer right here (lina-app#142).
+  const ask = row ? stopReason(row).ask : undefined;
   // The worker run a round was: the same run its head opens. A card's 기록 holds several runs' rounds in one record.
   const roundRun = (runId: string, n: number) => rounds.find((round) => round.n === n)?.workers[0] ?? runId;
   // The goal (project) the card serves, in its head; a goal title that would show raw text is left out.
@@ -421,7 +474,7 @@ export function CardScreen({ id }: { id: string }) {
   return (
     <article class="detail" data-testid="screen-card">
       <CardHead work={row?.work ?? "code"} title={cardTitle(detail.plain.title, detail.title, detail.state === "stopped")}>
-        <StateTime state={detail.state} reason={detail.reason} time={row ? [cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP) : ""} />
+        <HeadState state={detail.state} reason={detail.reason} row={row} time={row ? [cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP) : ""} />
         {goalLine ? (
           <span class="sub" data-testid="card-goal">
             {[W.goals, goalLine].join(SEP)}
@@ -432,6 +485,11 @@ export function CardScreen({ id }: { id: string }) {
       {questions.map((question) => (
         <DecisionBox key={question.commentId} text={question.body} agent={question.agent} ask at={question.askedAt} />
       ))}
+      {ask ? (
+        <Box>
+          <AnswerPlace answerKey={questions[0] ? `question:${id}:${questions[0].commentId}` : `answer:${id}`} target={{ kind: "card", id }} label={ask} testid="card-answer" />
+        </Box>
+      ) : null}
       {detail.plain.now && detail.state === "in_progress" ? (
         <Box title={W.now} testid="card-now">
           <p class="box-text">{detail.plain.now}</p>
@@ -473,17 +531,17 @@ export function CardScreen({ id }: { id: string }) {
                   <h3 class="round-head">{roundHead(round, now)}</h3>
                   {/* The round's own line is its content; one that would show a path or a command reads 접힌 댓글. */}
                   {round.line ? <p class="round-line" data-testid="round-line">{foldReason(round.line) ? W.folded : round.line}</p> : null}
-                  {round.workers.length ? <WorkerRows ids={round.workers} model={model} title={workTitle} state={workerState} /> : null}
+                  {round.workers.length ? <WorkerRows ids={round.workers} model={model} seen={seen} state={workerState} /> : null}
                 </section>
               ))}
-              {outside.length ? <WorkerRows ids={outside} model={model} title={workTitle} state={workerState} /> : null}
+              {outside.length ? <WorkerRows ids={outside} model={model} seen={seen} state={workerState} /> : null}
             </Box>
           ) : null
         }
       />
       {detail.comments.length ? (
-        <Box title={W.comments}>
-          <ul class="thread" aria-label={W.comments}>
+        <Box title={W.comments} testid="card-comments">
+          <ul class="history-rows" aria-label={W.comments}>
             {detail.comments.map((comment) => (
               <CardComment key={comment.id} comment={comment} />
             ))}
@@ -568,11 +626,12 @@ export function RunScreen({ id }: { id: string }) {
   const owner = model.runOwner.get(run.id);
   const card = owner ? model.cards.get(owner) : undefined;
   // A lone stopped run is listed by the title the list resolved for it (its own, its to-do's); the page keeps it.
-  const listedTitle = model.running.rows.find((each) => each.kind === "run" && each.id === run.id)?.title ?? null;
+  const listed = model.running.rows.find((each) => each.kind === "run" && each.id === run.id);
+  const listedTitle = listed?.title ?? null;
   return (
     <article class="detail" data-testid="screen-run">
       <CardHead work={row.work} title={run.plain.title ?? listedTitle}>
-        <StateTime state={run.state} reason={run.reason} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} />
+        <HeadState state={run.state} reason={run.reason} row={listed ?? row} time={[cardTime(listed ?? row, now), cardTook(row)].filter(Boolean).join(SEP)} />
         <RunModelLine runId={id} />
       </CardHead>
       {run.plain.now && run.state === "in_progress" ? (

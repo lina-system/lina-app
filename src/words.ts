@@ -210,6 +210,9 @@ export const W = {
 
   commentField: "댓글 달기",
   send: "보내기",
+  /** Why 보내기 cannot send yet, one line beside it (lina-app#142): the field is empty, or the last one is on its way. */
+  sendWhyEmpty: "글 입력 대기",
+  sendWhyBusy: "보내는 중",
   sentTo: (agent: string) => `${agent}에게 보냄`,
   justNow: "방금",
   resolved: "해결됨",

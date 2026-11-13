@@ -3,7 +3,7 @@ import { useState } from "preact/hooks";
 import type { RecordRow, Settings } from "../api/client";
 import { foldReason } from "../model/fold";
 import { runModelLine } from "../model/settings";
-import { timelineBlocks, type TimelineBlock } from "../model/timeline";
+import { firstSentence, timelineBlocks, type TimelineBlock } from "../model/timeline";
 import { clockAt } from "../time";
 import { agentName, Box, useApp } from "../ui/parts";
 import { SEP, W } from "../words";
@@ -47,12 +47,11 @@ function Row({ row, owner }: { row: RecordRow; owner: string }) {
       </li>
     );
   if (row.kind === "comment") {
-    // The owner's comment stays, folded when its text would show raw text (접힌 댓글), as in the comments box.
-    const text = clean(row.text) ? row.text : null;
+    // The owner's comment is its first sentence on one line, as in the comments box; its author is the tooltip.
+    const text = firstSentence(row.text);
     return (
-      <li class={text ? "timeline-row is-comment" : "timeline-row is-comment is-dim"} data-kind="comment">
+      <li class={text ? "timeline-row is-comment" : "timeline-row is-comment is-dim"} data-kind="comment" title={owner || undefined}>
         <span class="timeline-text">{timed(row.at, text ?? W.folded, now)}</span>
-        {owner ? <span class="sub">{` ${owner}`}</span> : null}
       </li>
     );
   }
@@ -65,15 +64,15 @@ function Row({ row, owner }: { row: RecordRow; owner: string }) {
 }
 
 /**
- * A round's head: its own start and end (the end alone when its start is not on record) and its outcome, with no round
- * number (lina-app#61: rounds are not for the owner to count). Comments between rounds head their block with 댓글.
+ * A round's head is one history line, `time · what happened` (lina-app#123, #142): a going round its start and 진행 중,
+ * an ended one its end (its start when the end is not on record) and its outcome, then its result sentence when it
+ * left one a person may read. No round number (lina-app#61). Comments between rounds head their block with 댓글.
  */
 function head(block: TimelineBlock, now: number): string {
   if (block.type === "comment") return W.comments;
-  const start = block.start === null ? "" : clockAt(block.start, now);
-  const end = block.end === null ? "" : clockAt(block.end, now);
-  const span = start && end ? `${start}–${end}` : start || end;
-  return [span, W.outcome[block.outcome]].filter(Boolean).join(SEP);
+  const at = block.outcome === "going" ? (block.start ?? block.end) : (block.end ?? block.start);
+  const result = clean(block.result) ? firstSentence(block.result) : null;
+  return [at === null ? "" : clockAt(at, now), W.outcome[block.outcome], result].filter(Boolean).join(SEP);
 }
 
 /**
@@ -86,7 +85,6 @@ function Block({ block, owner, link, modelRun }: { block: TimelineBlock; owner: 
   const [open, setOpen] = useState(true);
   // A sentence or a result line that would show raw text is left out; the round still shows its head.
   const rows = block.rows.filter((row) => row.kind !== "said" || clean(row.text));
-  const result = block.type === "round" && clean(block.result) ? block.result : null;
   const title = head(block, now);
   return (
     <details class="timeline-block" open={open} onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)} data-testid="timeline-block" data-outcome={block.type === "round" ? block.outcome : "comment"}>
@@ -107,11 +105,6 @@ function Block({ block, owner, link, modelRun }: { block: TimelineBlock; owner: 
             <Row key={`${row.at}:${index}`} row={row} owner={owner} />
           ))}
         </ul>
-      ) : null}
-      {result ? (
-        <p class="timeline-result" data-testid="timeline-result">
-          {timed(block.type === "round" ? (block.end ?? block.at) : block.at, result, now)}
-        </p>
       ) : null}
     </details>
   );

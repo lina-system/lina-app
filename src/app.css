@@ -81,6 +81,7 @@ button:disabled {
 .split {
   display: grid;
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   height: 100%;
 }
 
@@ -93,10 +94,13 @@ button:disabled {
   padding: calc(var(--toolbar) - 8px) 10px 16px;
 }
 
+/* The window never scrolls: the list and the detail frame each scroll in their own pane under a fixed toolbar, so a
+   detail opens where the owner is looking however far down the list they tapped (lina-app#142). */
 .content {
   display: grid;
   grid-template-rows: var(--toolbar) minmax(0, 1fr);
   min-width: 0;
+  min-height: 0;
 }
 
 .toolbar {
@@ -197,6 +201,41 @@ button:disabled {
 
 .detail-pane {
   padding: 0 0 32px;
+}
+
+/* A detail opened from 대화 takes the agent card's place, as wide as a detail beside a list. */
+.talk-panes:has(> .detail-pane) {
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--list-width));
+}
+
+/* History rows (기록, comments): one line each, `time · one sentence` (lina-app#123). */
+.history-rows {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-row {
+  color: var(--label);
+  font-size: var(--text-small);
+}
+
+/* Why 보내기 is off, one line under the field (lina-app#142). */
+.comment-form {
+  flex-wrap: wrap;
+}
+
+.send-why {
+  flex-basis: 100%;
+  color: var(--label-2);
+  font-size: var(--text-small);
+}
+
+.answer-place + .write-error,
+.answer-place .choices + .write-error {
+  margin-top: 6px;
 }
 
 /* Sidebar rows. */
@@ -2067,6 +2106,65 @@ html:has(.stack) body {
   from {
     transform: translateY(100%);
   }
+}
+
+/* The one detail frame on a phone (lina-app#142): a sheet rising from the bottom over the screen it was opened from,
+   which stays where it was under the scrim. Under the toast, so an answer's toast still shows. */
+/* The bar above stays usable: back closes the sheet, the bell's own sheet opens over it. */
+.stack:has(> .detail-sheet) > .navbar {
+  z-index: 20;
+}
+
+.detail-scrim {
+  position: fixed;
+  inset: calc(var(--safe-top) + 44px) 0 0;
+  z-index: 18;
+  background: rgba(0, 0, 0, 0.3);
+  animation: fade-in var(--motion);
+}
+
+.detail-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: calc(var(--safe-top) + 56px);
+  z-index: 19;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px 14px 0 0;
+  background: var(--bg-2);
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.18);
+  animation: sheet-up var(--stack-motion);
+}
+
+.detail-sheet-bar {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: var(--hit);
+  padding: 6px calc(8px + var(--safe-right)) 0 calc(8px + var(--safe-left));
+}
+
+.detail-sheet-grabber {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 36px;
+  height: 5px;
+  margin-left: -18px;
+  border-radius: 3px;
+  background: var(--label-3);
+}
+
+.detail-sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--safe-right) calc(24px + var(--safe-bottom) + var(--keyboard-inset, 0px)) var(--safe-left);
 }
 
 @keyframes fade-in {

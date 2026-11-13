@@ -79,6 +79,30 @@ export function isList(route: Route): boolean {
   return route.name === "agent" || (LISTS as readonly string[]).includes(route.name);
 }
 
+/**
+ * A goal, a to-do, a work card or a run: each opens in the one detail frame, never as a screen of its own (lina-app#142).
+ * So does a goal chosen on an agent's card in 대화 (`#/talk/<agent>?goal=<id>`, lina-app#143).
+ */
+export function isFrame(route: Route): boolean {
+  return route.name === "goal" || route.name === "item" || route.name === "card" || route.name === "run" || (route.name === "talk" && Boolean(route.goal));
+}
+
+/**
+ * The screen a detail frame stands over or beside: the nearest screen under it in the stack that is not a frame (the
+ * list, the home or the agent window it was opened from, whatever its tab), else the list it falls back to; a goal
+ * chosen in 대화 always its agent's window. Any other route is its own screen.
+ */
+export function baseOf(route: Route, stack: readonly string[]): Route {
+  if (!isFrame(route)) return route;
+  // A goal chosen on an agent's card stands beside that agent's window, wherever the address came from.
+  if (route.name === "talk") return { name: "talk", id: route.id };
+  for (let index = stack.length - 2; index >= 0; index -= 1) {
+    const below = parse(stack[index]);
+    if (!isFrame(below)) return below;
+  }
+  return defaultListFor(route);
+}
+
 /** The list a detail falls back to when it was opened directly (a shared link or a reload). */
 export function defaultListFor(route: Route): Route {
   switch (route.name) {

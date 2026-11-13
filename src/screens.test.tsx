@@ -615,7 +615,7 @@ describe("freshness", () => {
 });
 
 describe("phone navigation", () => {
-  test("a row pushes the next screen and back names the screen it returns to", async () => {
+  test("a row pushes the next screen and back names the screen it returns to; a detail rises as a sheet over its list", async () => {
     const view = await open("#/", { wide: false });
     fireEvent.click(view.getByRole("button", { name: "메뉴" }));
     expect(within(view.getByTestId("sidebar")).getByText("수신함")).toBeTruthy();
@@ -625,14 +625,19 @@ describe("phone navigation", () => {
     expect(view.getByTestId("back").textContent).toBe("작업");
     const row = view.getByTestId("screen-running").querySelector("[data-testid=row] a") as HTMLElement;
     fireEvent.click(row);
-    await waitFor(() => expect(view.container.querySelector("[data-testid=screen-card], [data-testid=screen-run]")).not.toBeNull());
+    await waitFor(() => expect(view.container.querySelector("[data-testid=detail-frame] :is([data-testid=screen-card], [data-testid=screen-run])")).not.toBeNull());
+    // The list it came from stays under the sheet with its own title and back (lina-app#142).
+    expect(view.getByTestId("detail-frame").getAttribute("data-frame")).toBe("sheet");
+    expect(view.getByTestId("screen-title").textContent).toBe("진행 중인 작업");
+    // While the sheet is open, back reads the screen it returns to: the list under it.
     expect(view.getByTestId("back").textContent).toBe("진행 중인 작업");
     expect((window.history.state as { stack: string[] }).stack).toEqual(["#/", "#/running", window.location.hash]);
     await act(async () => {
       window.history.back();
       await new Promise((resolve) => window.addEventListener("popstate", resolve, { once: true }));
     });
-    await waitFor(() => expect(view.getByTestId("screen-title").textContent).toBe("진행 중인 작업"));
+    await waitFor(() => expect(view.queryByTestId("detail-frame")).toBeNull());
+    expect(view.getByTestId("screen-title").textContent).toBe("진행 중인 작업");
   });
 });
 
@@ -1243,13 +1248,18 @@ describe("agent talk", () => {
     expect([...card.querySelectorAll("[data-testid=section-goals] [data-testid=row] .title")].map((title) => title.textContent)).toContain("결제 화면 개편");
   });
 
-  test("a goal chosen on the card opens in the right column under 대화, beside the window, and back returns to the card (lina-app#143)", async () => {
+  test("a goal chosen on the card opens in the one detail frame in the right column under 대화, beside the window, and back returns to the card (lina-app#142, #143)", async () => {
     const view = await open("#/talk", { wide: true });
     fireEvent.click(view.getByTestId("nav-talk-0").querySelector("a") as HTMLElement);
     await waitFor(() => expect(view.getByTestId("card-pane")).toBeTruthy());
+    const title = view.getByTestId("screen-title").textContent;
     fireEvent.click(view.getByTestId("card-pane").querySelector("[data-testid=section-goals] [data-testid=row] a") as HTMLElement);
     await waitFor(() => expect(view.getByTestId("card-pane").querySelector("article.detail")).not.toBeNull());
     expect(window.location.hash).toBe("#/talk/ag-1?goal=G1");
+    // The same frame every detail opens in (lina-app#142); the header and the window stay.
+    expect(view.getByTestId("card-pane").querySelector("[data-testid=detail-frame]")?.getAttribute("data-frame")).toBe("panel");
+    expect(view.container.querySelector("[data-testid=screen-goals]")).toBeNull();
+    expect(view.getByTestId("screen-title").textContent).toBe(title);
     expect(view.getByTestId("tabs").querySelector("[aria-current=page]")?.getAttribute("data-testid")).toBe("tab-talk");
     expect(view.getByTestId("agent-talk")).toBeTruthy();
     expect(view.getByTestId("card-pane").querySelector(".detail-title")?.textContent).toBe("릴리스 노트 정리");
@@ -1271,6 +1281,9 @@ describe("agent talk", () => {
     expect(window.location.hash).toBe("#/talk/ag-1?goal=G1");
     expect(view.getByTestId("back").textContent).toBe(source.scene.items.agents[0].name);
     expect(view.queryByTestId("agent-talk")).toBeNull();
+    // It rises as the phone's one detail frame, over the card it was chosen on (lina-app#142).
+    expect(view.getByTestId("detail-frame").getAttribute("data-frame")).toBe("sheet");
+    expect(within(view.getByTestId("detail-frame")).getByTestId("screen-goal")).toBeTruthy();
     fireEvent.click(view.getByTestId("back"));
     await waitFor(() => expect(window.location.hash).toBe("#/talk/ag-1"));
     await waitFor(() => expect(view.getByTestId("agent-talk")).toBeTruthy());
@@ -2005,8 +2018,12 @@ describe("work cards", () => {
     expect(within(detail).queryByTestId("worker-runs")).toBeNull();
     // Each round's head is the link to its worker run.
     const links = within(detail).getAllByTestId("timeline-link");
-    // No round number: each head is its own span and outcome (lina-app#61).
-    expect(links.map((link) => link.textContent)).toEqual([expect.stringMatching(/^(어제 )?\d\d:\d\d · 진행 중$/), expect.stringMatching(/^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 검토 필요$/), expect.stringMatching(/^(어제 )?\d\d:\d\d · 완료$/)]);
+    // No round number: each head is one line, its time and what happened (lina-app#61, #142).
+    expect(links.map((link) => link.textContent)).toEqual([
+      expect.stringMatching(/^(어제 )?\d\d:\d\d · 진행 중$/),
+      expect.stringMatching(/^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/),
+      expect.stringMatching(/^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/),
+    ]);
     expect(links.map((link) => link.getAttribute("href"))).toEqual(["#/runs/r1", "#/runs/r10", "#/runs/r9"]);
     view.unmount();
     const waiting = await open("#/cards/k-104", { wide: true });
@@ -2056,17 +2073,17 @@ describe("work cards", () => {
 describe("work cards, round 4", () => {
   beforeEach(() => setWide(true));
 
-  test("a comment that would show a path, a hash or a cut-off fragment is one folded entry; its text opens on demand", async () => {
+  test("a comment that would show a path, a hash or a cut-off fragment reads its first sentence with those left out, one line, never folded (lina-app#142)", async () => {
     const view = await open("#/cards/k-103", { wide: true });
-    const comments = view.getAllByTestId("comment");
-    expect(comments.map((comment) => comment.getAttribute("data-folded"))).toEqual([null, "hash", "fragment"]);
-    expect(comments[0].querySelector(".comment-text")?.textContent).toBe("오류 문구 초안을 공유했어요.");
-    expect(comments[1].querySelector("summary")?.textContent).toMatch(/^접힌 댓글 · \S+ · \d+(분|시간) 전$/);
-    expect(screenText(view.container)).not.toContain("errors.json");
-    const fold = comments[1].querySelector("details") as HTMLDetailsElement;
-    fold.open = true;
-    fireEvent(fold, new Event("toggle"));
-    await waitFor(() => expect(comments[1].querySelector(".comment-raw")?.textContent).toContain("errors.json"));
+    const comments = within(view.getByTestId("card-comments")).getAllByTestId("history-row");
+    expect(comments.map((comment) => comment.textContent)).toEqual([
+      expect.stringMatching(/^(어제 )?\d\d:\d\d · 오류 문구 초안을 공유했어요\.$/),
+      expect.stringMatching(/^(어제 )?\d\d:\d\d · 키 12개를 바꿈$/),
+      expect.stringMatching(/^(어제 )?\d\d:\d\d · 결제 실패 문구를 새 문체로 바꾸는 중인데 카드사별로…$/),
+    ]);
+    // Who wrote it is the line's tooltip, not a second line.
+    expect(comments.every((comment) => Boolean(comment.getAttribute("title")))).toBe(true);
+    expect(screenText(view.container)).not.toMatch(/errors\.json|3f2a1c9|접힌 댓글/);
   });
 
   test("완료's agent filter is the address: it survives a reload and a live update, and each count is its list", async () => {
@@ -2212,7 +2229,7 @@ describe("work cards, round 6", () => {
 describe("the run's own timeline", () => {
   beforeEach(() => setWide(true));
 
-  test("a card's detail reads its rounds newest first, each headed by its own span and outcome, below its boxes", async () => {
+  test("a card's detail reads its rounds newest first, each headed by its time and what happened, below its boxes", async () => {
     const view = await open("#/cards/k-101", { wide: true });
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const heads = [...view.getByTestId("detail-pane").querySelectorAll(".detail > .box > .box-head")].map((head) => head.textContent);
@@ -2222,10 +2239,10 @@ describe("the run's own timeline", () => {
     const titles = blocks.map((block) => block.querySelector(".timeline-head")?.textContent);
     expect(titles[0]).toMatch(/^(어제 )?\d\d:\d\d · 진행 중$/);
     expect(titles[1]).toBe("댓글");
-    expect(titles[2]).toMatch(/^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 검토 필요$/);
+    expect(titles[2]).toMatch(/^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/);
     // No start on record: the end alone, no dangling dash; the dim line below says the start is missing.
     expect(titles[3]).toBe("댓글");
-    expect(titles[4]).toMatch(/^(어제 )?\d\d:\d\d · 완료$/);
+    expect(titles[4]).toMatch(/^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/);
     expect(titles.join("\n")).not.toMatch(/ –|^–/m);
   });
 
@@ -2245,18 +2262,20 @@ describe("the run's own timeline", () => {
     expect(text).not.toContain("가린 문장");
   });
 
-  test("a round with no start on record shows one dim line at its top; the owner's comments show with author and time", async () => {
+  test("a round with no start on record shows one dim line at its top; the owner's comments read time · sentence, the author as the tooltip", async () => {
     const view = await open("#/cards/k-101", { wide: true });
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const blocks = view.getAllByTestId("timeline-block");
     expect(blocks[4].querySelector("[data-testid=timeline-no-start]")?.textContent).toBe("시작 기록 없음");
-    expect(blocks[4].querySelector("[data-testid=timeline-result]")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 병합된 변경 41개를 모음$/);
+    // The round's result is its head's sentence: one line, no second result line (lina-app#142).
+    expect(blocks[4].querySelector(".timeline-head")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/);
+    expect(blocks[4].querySelector("[data-testid=timeline-result]")).toBeNull();
     // The owner asked for the doc-only group between rounds 1 and 2, before round 2 did it.
     expect(blocks[3].querySelector(".timeline-text")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 문서만 바뀐 변경은 따로 묶어 주세요\.$/);
     expect(blocks[1].querySelector(".timeline-text")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 변경 목록은 표로 보여 주세요$/);
-    // Every comment row carries its own time, then its author.
-    expect(blocks[1].querySelector(".sub")?.textContent?.trim()).toBe(SYNTHETIC_OWNER.name);
-    expect(blocks[2].querySelector(".sub")?.textContent?.trim()).toBe(SYNTHETIC_OWNER.name);
+    // Every comment row carries its own time on its one line; its author is the row's tooltip.
+    expect(blocks[1].querySelector(".timeline-row")?.getAttribute("title")).toBe(SYNTHETIC_OWNER.name);
+    expect(blocks[2].querySelector(".timeline-row.is-comment")?.getAttribute("title")).toBe(SYNTHETIC_OWNER.name);
     expect(blocks[2].querySelector(".timeline-text")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 변경마다 한 줄 요약을 붙여 주세요$/);
   });
 
@@ -2317,7 +2336,7 @@ describe("the run's own timeline", () => {
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const block = view.getByTestId("timeline-block");
     expect(block.getAttribute("data-outcome")).toBe("ended");
-    expect(block.querySelector(".timeline-head")?.textContent).toMatch(/^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 완료$/);
+    expect(block.querySelector(".timeline-head")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 완료$/);
     expect(block.querySelector("[data-testid=timeline-result]")).toBeNull();
     expect(block.querySelector(".timeline-rows")).toBeNull();
     const text = screenText(view.getByTestId("timeline"));
@@ -2376,7 +2395,7 @@ describe("the run's own timeline", () => {
     expect(boxes).toEqual(["지금", "할 일", "기록", "실행", "댓글"]);
     expect([...view.getByTestId("worker-runs").querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual(["#/runs/r1", "#/runs/r10", "#/runs/r9"]);
     expect(view.getByTestId("card-now").textContent).toContain("변경마다 한 줄 요약을 붙이는 중");
-    expect(view.getAllByTestId("comment")).toHaveLength(4);
+    expect(within(view.getByTestId("card-comments")).getAllByTestId("history-row")).toHaveLength(4);
   });
 });
 
@@ -2612,10 +2631,12 @@ describe("a card's detail (lina-app#128)", () => {
     expect(run.getByTestId("detail-pane").getAttribute("aria-label")).toBe("릴리스 변경 목록 정리");
     expect(screenText(run.container)).not.toContain("코드 작업");
     run.unmount();
-    // k-104's worker run r4 has no record: 실행 stands, one line per run with its title and state word.
+    // k-104's worker run r4 has no record: 실행 stands, one line per run with its time and state word; the card's
+    // title is its head's, never repeated on its runs (lina-app#142).
     const card = await open("#/cards/k-104", { wide: true });
     const lines = within(card.getByTestId("worker-runs")).getAllByRole("link");
-    expect(lines.map((line) => line.getAttribute("aria-label"))).toEqual(["결제: 실패 화면 검토 · 완료 기록 없음"]);
+    expect(lines.map((line) => line.getAttribute("aria-label"))).toEqual([expect.stringMatching(new RegExp(`^${TIME} · 완료 기록 없음$`))]);
+    expect(card.getByTestId("screen-card").querySelector(".detail-title")?.textContent).toBe("결제: 실패 화면 검토");
     expect(screenText(card.container)).not.toContain("코드 작업");
   });
 
@@ -2639,10 +2660,11 @@ describe("a card's detail (lina-app#128)", () => {
     expect(screenText(timeline)).not.toContain("라운드");
     const heads = [...timeline.querySelectorAll(".timeline-head")].map((head) => head.textContent);
     expect(heads[0]).toMatch(new RegExp(`^${TIME} · 진행 중$`));
-    const lines = [...timeline.querySelectorAll("li.timeline-row, [data-testid=timeline-result]")].map((row) => row.textContent ?? "");
+    const rounds = [...timeline.querySelectorAll(".timeline-head")].map((head) => head.textContent ?? "").filter((head) => head !== "댓글");
+    const lines = [...rounds, ...[...timeline.querySelectorAll("li.timeline-row")].map((row) => row.textContent ?? "")];
     expect(lines.length).toBeGreaterThan(5);
     for (const line of lines) expect(line).toMatch(EVENT);
-    expect(lines).toContainEqual(expect.stringMatching(new RegExp(`^${TIME} · 병합된 변경 41개를 모음$`)));
+    expect(lines).toContainEqual(expect.stringMatching(new RegExp(`^${TIME} · 완료 · 병합된 변경 41개를 모음$`)));
   });
 
   test("a finished run outside any card lists its past events: started, then what it left", async () => {

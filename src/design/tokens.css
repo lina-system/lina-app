@@ -14,6 +14,9 @@
   --on-accent: #ffffff;
   --red: #ff3b30;
   --orange: #ff9500;
+  /* The top tabs: the track the other tabs show and the selected one, the same at every width (lina-app#143). */
+  --tab-track: rgba(120, 120, 128, 0.12);
+  --tab-current: #ffffff;
 
   --agent-0: #007aff;
   --agent-1: #af52de;
@@ -69,6 +72,8 @@
     --accent: #0a84ff;
     --red: #ff453a;
     --orange: #ff9f0a;
+    --tab-track: rgba(120, 120, 128, 0.12);
+    --tab-current: #737377;
 
     --agent-0: #0a84ff;
     --agent-1: #bf5af2;

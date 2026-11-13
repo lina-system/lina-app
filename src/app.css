@@ -2506,7 +2506,7 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   gap: 2px;
   padding: 2px;
   border-radius: 9px;
-  background: var(--fill);
+  background: var(--tab-track);
 }
 
 .tab {
@@ -2520,8 +2520,9 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   transition: background-color var(--motion);
 }
 
+/* One selected look at every width; on a dark phone it was the page's grey on a grey track (lina-app#143). */
 .tab.is-current {
-  background: var(--bg);
+  background: var(--tab-current);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   font-weight: 600;
 }
@@ -2575,6 +2576,36 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 
 .card-pane {
   padding: 12px 0 24px;
+}
+
+.card-pane.is-goal {
+  padding-top: 0;
+}
+
+.card-back {
+  min-height: 36px;
+  max-width: none;
+  padding: 0 var(--inset) 0 8px;
+  font-size: var(--text-body);
+}
+
+/* An agent row's last message under its name, in the sidebar and on a phone's list (lina-app#143). */
+.nav-row a:has(> .nav-lines) {
+  height: auto;
+  min-height: var(--row-dense);
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+/* A zero basis: the preview's one line must not widen the row past the sidebar and push its counts out. */
+.nav-lines {
+  flex: 1 1 0;
+  width: 0;
+  gap: 1px;
+}
+
+.split .nav-row.is-current .talk-preview {
+  color: var(--on-accent);
 }
 
 .agent-talk {
@@ -2649,6 +2680,11 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 .stack .agent-talk-turns {
   overflow: visible;
   padding: 8px var(--inset);
+}
+
+/* The field and the strip cover the bottom of the screen: a row brought into view stops above both (lina-app#143). */
+.stack .phone-main:has(> .agent-talk) {
+  scroll-padding-bottom: calc(var(--hit) + 96px + var(--safe-bottom) + var(--keyboard-inset, 0px));
 }
 
 .stack .agent-talk-form {

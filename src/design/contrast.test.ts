@@ -51,3 +51,17 @@ test.each([
     expect(contrast(parse(token(block, "label-2")), surface), surfaceName).toBeGreaterThanOrEqual(4.5);
   }
 });
+
+// lina-app#143: on a dark phone the selected tab was the page's own grey on a grey track. The selected segment needs
+// 3:1 against the track its neighbours show, on the phone's page and in the wide toolbar, and its word stays legible.
+test("the selected top tab stands out from its neighbours in dark (3:1)", () => {
+  // The phone's tabs sit on its page (bg-2); the wide ones on the toolbar (bar over the window's bg).
+  for (const layers of [["bg-2"], ["bg", "bar"]]) {
+    const surfaceName = layers.join(" + ");
+    const surface = layers.reduce((under, name) => over(parse(token(dark, name)), under), parse("#000000"));
+    const track = over(parse(token(dark, "tab-track")), surface);
+    const selected = over(parse(token(dark, "tab-current")), track);
+    expect(contrast(selected, track), surfaceName).toBeGreaterThanOrEqual(3);
+    expect(contrast(parse(token(dark, "label")), selected), surfaceName).toBeGreaterThanOrEqual(4.5);
+  }
+});

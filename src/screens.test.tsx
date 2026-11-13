@@ -1243,16 +1243,74 @@ describe("agent talk", () => {
     expect([...card.querySelectorAll("[data-testid=section-goals] [data-testid=row] .title")].map((title) => title.textContent)).toContain("결제 화면 개편");
   });
 
-  test("a goal chosen on the card opens under 작업 with the goals beside it, not the agents", async () => {
+  test("a goal chosen on the card opens in the right column under 대화, beside the window, and back returns to the card (lina-app#143)", async () => {
     const view = await open("#/talk", { wide: true });
     fireEvent.click(view.getByTestId("nav-talk-0").querySelector("a") as HTMLElement);
     await waitFor(() => expect(view.getByTestId("card-pane")).toBeTruthy());
     fireEvent.click(view.getByTestId("card-pane").querySelector("[data-testid=section-goals] [data-testid=row] a") as HTMLElement);
+    await waitFor(() => expect(view.getByTestId("card-pane").querySelector("article.detail")).not.toBeNull());
+    expect(window.location.hash).toBe("#/talk/ag-1?goal=G1");
+    expect(view.getByTestId("tabs").querySelector("[aria-current=page]")?.getAttribute("data-testid")).toBe("tab-talk");
+    expect(view.getByTestId("agent-talk")).toBeTruthy();
+    expect(view.getByTestId("card-pane").querySelector(".detail-title")?.textContent).toBe("릴리스 노트 정리");
+    const back = within(view.getByTestId("card-pane")).getByTestId("back");
+    expect(back.textContent).toBe("에이전트");
+    fireEvent.click(back);
+    await waitFor(() => expect(window.location.hash).toBe("#/talk/ag-1"));
+    await waitFor(() => expect(view.getByTestId("agent-card")).toBeTruthy());
+  });
+
+  test("on a phone a goal chosen on the folded card opens one step deeper under 대화, and back reads the agent (lina-app#143)", async () => {
+    const source = new SyntheticSource();
+    const view = await open("#/talk/ag-1", { wide: false, source });
+    const card = view.getByTestId("agent-card");
+    fireEvent.click(within(card).getByRole("button"));
+    await waitFor(() => expect(card.querySelector("[data-testid=section-goals]")).not.toBeNull());
+    fireEvent.click(card.querySelector("[data-testid=section-goals] [data-testid=row] a") as HTMLElement);
     await waitFor(() => expect(view.container.querySelector("article.detail")).not.toBeNull());
-    expect(view.getByTestId("tabs").querySelector("[aria-current=page]")?.getAttribute("data-testid")).toBe("tab-work");
-    expect(view.container.querySelector(".list-pane [data-testid=screen-goals]")).not.toBeNull();
-    expect(view.container.querySelector(".list-pane [data-testid=talk-agents]")).toBeNull();
-    expect(view.getByTestId("screen-title").textContent).toBe("목표");
+    expect(window.location.hash).toBe("#/talk/ag-1?goal=G1");
+    expect(view.getByTestId("back").textContent).toBe(source.scene.items.agents[0].name);
+    expect(view.queryByTestId("agent-talk")).toBeNull();
+    fireEvent.click(view.getByTestId("back"));
+    await waitFor(() => expect(window.location.hash).toBe("#/talk/ag-1"));
+    await waitFor(() => expect(view.getByTestId("agent-talk")).toBeTruthy());
+  });
+
+  test("each agent row shows the first line of its last message, or one plain line when there is none (lina-app#143)", async () => {
+    class Multiline extends SyntheticSource {
+      override async agentTalkHistory(agent: string) {
+        const result = await super.agentTalkHistory(agent);
+        if (agent !== "ag-3" || result.kind !== "data") return result;
+        return { ...result, data: { ...result.data, messages: [{ role: "user" as const, content: "[LINA app] web\n배포 전에 확인\n둘째 줄", timestamp: 1 }] } };
+      }
+    }
+    for (const wide of [true, false]) {
+      const view = await open("#/talk", { wide, source: new Multiline() });
+      const row = (index: number) => view.getByTestId(wide ? `nav-talk-${index}` : `talk-agent-${index}`);
+      await waitFor(() => expect(row(0).querySelector("[data-testid=talk-preview]")?.textContent).toBe("변경 목록을 모으는 중이에요. 배포 순서는 답을 기다려요."));
+      await waitFor(() => expect(row(1).querySelector("[data-testid=talk-preview]")?.textContent).toBe("아직 나눈 대화 없음"));
+      await waitFor(() => expect(row(2).querySelector("[data-testid=talk-preview]")?.textContent).toBe("배포 전에 확인"));
+      view.unmount();
+    }
+  });
+
+  test("on a phone each agent row shows its stopped count with the same red marker as the wide sidebar (lina-app#143)", async () => {
+    const wide = await open("#/talk", { wide: true });
+    const marker = (root: Element) => [...root.querySelectorAll(".count.is-stopped-count")].map((count) => [count.textContent, count.getAttribute("aria-label")]);
+    const sidebar = [0, 1, 2].map((index) => marker(wide.getByTestId(`nav-talk-${index}`)));
+    expect(sidebar.flat()).toContainEqual(["1", "중단됨 1"]);
+    wide.unmount();
+    const phone = await open("#/talk", { wide: false });
+    expect([0, 1, 2].map((index) => marker(phone.getByTestId(`talk-agent-${index}`)))).toEqual(sidebar);
+  });
+
+  test("every number on the agent's card has its word, and red marks only 중단됨 (lina-app#143)", async () => {
+    const view = await open("#/talk/ag-2", { wide: true });
+    const counts = view.getByTestId("agent-card-counts");
+    expect(counts.textContent).toBe("진행 중 1 · 중단됨 1 · 검토 필요 2 · 목표 2");
+    // No number stands alone: each one follows its word inside the same part.
+    for (const part of counts.querySelectorAll("[data-testid=agent-count]")) expect(part.textContent).toMatch(/^[가-힣 ]+ \d+$/);
+    expect([...counts.querySelectorAll(".is-red")].map((red) => red.textContent)).toEqual(["중단됨 1"]);
   });
 
   test("a message sent before the earlier turns arrive shows once, even when they already hold it", async () => {

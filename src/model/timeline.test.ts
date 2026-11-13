@@ -111,3 +111,10 @@ test("a goal's history: comments, its question, its runs, the merge and the clos
     [200, "comment", "첫 화면 문구는 짧게 해 주세요."],
   ]);
 });
+
+test("the owner's comment that opens with a bracketed word is history, a machine notice with the same tag is not (lina-app#149)", () => {
+  expect(isMachineNotice("[중요] 배포 전에 검토해 주세요.", "owner")).toBe(false);
+  expect(isMachineNotice("[받음] 대화에 들어감", "sion")).toBe(true);
+  expect(isMachineNotice("[중요] 배포 전에 검토해 주세요.", "lina-worker")).toBe(true);
+  expect(isMachineNotice("[받음] 대화에 들어감")).toBe(true);
+});

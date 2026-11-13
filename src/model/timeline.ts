@@ -14,8 +14,12 @@ const MACHINE_AUTHORS = new Set(["kanban-dispatcher", "dispatcher", "lina-worker
 /** A machine notice opens with a bracketed tag ([받음], [대기 충족], [현황]). */
 const MACHINE_TAG = /^\s*\[[^\]\n]{1,20}\]/;
 
-/** Whether a comment is a machine notice, by its author or its opening tag (lina-app#149): it is no history line. */
+/**
+ * Whether a comment is a machine notice, by its author or its opening tag (lina-app#149): it is no history line. The
+ * owner's own comment is never one, even when it opens with a bracketed word such as `[중요]`.
+ */
 export function isMachineNotice(text: string | null | undefined, author?: string | null): boolean {
+  if (author === "owner") return false;
   return (author ? MACHINE_AUTHORS.has(author) : false) || MACHINE_TAG.test(text ?? "");
 }
 

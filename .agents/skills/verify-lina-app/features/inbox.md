@@ -42,7 +42,7 @@ Preconditions:
 - The page is `/app/?source=synthetic`, the synthetic scene; the drive opens it fresh for each width.
 
 - **Open 수신함.** Load `/app/?source=synthetic#/inbox`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive inbox`. The title reads `수신함`.
-- **Read the groups.** Read the lists named `결정 필요`, `검토 필요`, `내 할 일`. 4 row buttons, 2 and 2 links (검토 필요: the run outside any card and the card `결제: 실패 화면 검토`); two decision names end in `질문`, two in `요청`; no name repeats; the sidebar `수신함` count is `8`.
+- **Read the groups.** Read the lists named `결정 필요`, `검토 필요`, `내 할 일`. 4 row buttons, 2 and 2 links (검토 필요: the run outside any card and the card k-104, titled by its goal `결제 화면 개편`); two decision names end in `질문`, two in `요청`; no name repeats; the sidebar `수신함` count is `8`.
 - **Order.** Read the ages on the decision rows. Each is the same age as or newer than the one above it.
 - **Each decision reaches its record.** Expand every decision row and follow its `목표 › 할 일` link in turn. A row aimed at a record opens `#/items/<id>` or `#/goals/<id>`, whose `결정 필요` box holds the same sentence, kind word and age, and whose title ends the row's small line. The card question opens `#/cards/<id>`, whose first box is that question and whose title ends the row's `목표 › 작업` line. The scene has decisions on to-dos and on a goal, and one card question.
 - **Expand, then open.** Choose the first decision. It expands without leaving `#/inbox` and shows `금요일 오후` marked `추천`; its line opens `#/items/<id>` with the item title.

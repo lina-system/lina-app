@@ -12,7 +12,7 @@ import { AgentCard, AgentTalk, TalkAgents } from "./screens/talk";
 import { CardScreen, GoalScreen, ItemScreen, RunScreen } from "./screens/details";
 import { RollbackSheet, SettingPage, settingParent, SettingsScreen, settingTitle } from "./screens/settings";
 import { SETTINGS_HISTORY } from "./api/client";
-import { BackIcon, BellIcon, CalendarIcon, DeviceIcon, DoneIcon, GearIcon, GoalIcon, InboxIcon, PlusIcon, RunningIcon } from "./ui/icons";
+import { BackIcon, BellIcon, CalendarIcon, DeviceIcon, DoneIcon, GearIcon, GoalIcon, InboxIcon, RunningIcon } from "./ui/icons";
 import { AgentMark, CountPair, Ctx, Disclosure, useApp, type AppContext } from "./ui/parts";
 import { ActionsCtx, useActions, useActionsFor } from "./ui/actions";
 import { SettingsCtx, useSettingsEditsFor } from "./ui/settings-edits";
@@ -98,7 +98,7 @@ function wantsFor(route: Route, store: Store): Want {
 function Screen({ route }: { route: Route }) {
   switch (route.name) {
     case "home":
-      return <Sidebar />;
+      return <RunningScreen />;
     case "today":
       return <TodayScreen />;
     case "talks":
@@ -419,11 +419,45 @@ export function Toast() {
   );
 }
 
-function QuickAdd() {
+/**
+ * 작업's menu on a phone (오늘, the lists, the agents, 목표): the first screen is the lines, and the menu opens from the
+ * header as a sheet; choosing a row goes there and closes it (lina-app#124).
+ */
+function MenuButton() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const close = (event: Event) => {
+      if (event instanceof KeyboardEvent ? event.key === "Escape" : !ref.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [open]);
   return (
-    <button type="button" class="tool" aria-label={W.quickAdd} disabled data-testid="quick-add">
-      <PlusIcon />
-    </button>
+    <div class="menu" ref={ref}>
+      <button type="button" class="text-button menu-button" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(!open)} data-testid="menu">
+        {W.sidebar}
+      </button>
+      {open ? <div class="sheet-scrim" aria-hidden="true" onClick={() => setOpen(false)} /> : null}
+      {open ? (
+        <div
+          class="popover menu-sheet"
+          role="dialog"
+          aria-label={W.sidebar}
+          data-testid="menu-sheet"
+          onClick={(event) => {
+            if ((event.target as Element).closest("a")) setOpen(false);
+          }}
+        >
+          <Sidebar />
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -535,7 +569,6 @@ function WideShell({ route, stack, scroll }: { route: Route; stack: readonly str
           <Tabs current={tab} />
           <div class="toolbar-tools">
             <Bell />
-            <QuickAdd />
           </div>
         </header>
         <div class={detailRoute ? "panes" : "panes is-folded"} data-testid="panes">
@@ -579,7 +612,9 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
   return (
     <div class="stack" data-layout="phone">
       <header class="navbar">
-        {isRoot ? (
+        {route.name === "home" ? (
+          <MenuButton />
+        ) : isRoot ? (
           <span />
         ) : (
           <button type="button" class="back" onClick={goBack} data-testid="back">
@@ -609,7 +644,7 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
       <footer class="bottombar">
         <span />
         <Freshness />
-        <QuickAdd />
+        <span />
       </footer>
     </div>
   );

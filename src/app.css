@@ -708,6 +708,12 @@ button:disabled {
   color: var(--label-2);
 }
 
+.untitled-line {
+  padding: 4px var(--inset) 12px;
+  font-size: var(--text-small);
+  color: var(--label-2);
+}
+
 .agent-counts {
   padding: 4px var(--inset) 4px;
   font-size: var(--text-small);
@@ -1956,6 +1962,10 @@ html:has(.stack) body {
   box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.18);
   overscroll-behavior: contain;
   animation: sheet-up var(--stack-motion);
+}
+
+.stack .menu-sheet {
+  background: var(--bg-2);
 }
 
 .stack .popover::before {

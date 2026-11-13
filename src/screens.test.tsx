@@ -516,6 +516,7 @@ describe("freshness", () => {
 describe("phone navigation", () => {
   test("a row pushes the next screen and back names the screen it returns to", async () => {
     const view = await open("#/", { wide: false });
+    fireEvent.click(view.getByRole("button", { name: "메뉴" }));
     expect(within(view.getByTestId("sidebar")).getByText("수신함")).toBeTruthy();
     fireEvent.click(view.getByTestId("nav-running").querySelector("a") as HTMLElement);
     await waitFor(() => expect(view.getByTestId("screen-title").textContent).toBe("진행 중인 작업"));
@@ -1044,7 +1045,9 @@ describe("tabs", () => {
         expect(tabs.querySelector("[aria-current=page]")?.getAttribute("data-testid")).toBe(`tab-${tab}`);
         if (!wide) expect(view.queryByTestId("back")).toBeNull();
         if (tab === "talk") expect(view.container.querySelectorAll(wide ? "[data-testid^=nav-talk-]" : "[data-testid^=talk-agent-]")).toHaveLength(3);
-        if (tab === "work" && (wide || hash === "#/")) {
+        if (tab === "work") {
+          // On a phone the first screen is the lines; the menu opens from the header (lina-app#124).
+          if (!wide) fireEvent.click(view.getByRole("button", { name: "메뉴" }));
           const rows = [...view.getByTestId("sidebar").querySelectorAll("li[data-testid^=nav-]")].map((row) => row.getAttribute("data-testid"));
           expect(rows.slice(0, 5)).toEqual(["nav-today", "nav-inbox", "nav-running", "nav-due", "nav-done"]);
           expect(rows).not.toContain("nav-status");
@@ -1485,25 +1488,26 @@ class WritingSource extends SyntheticSource {
 describe("work cards", () => {
   beforeEach(() => setWide(true));
 
-  test("the home reads: decisions in one line, stopped then running, waiting, the last 24 hours, then older", async () => {
+  test("the home reads: decisions in one line, review, the owner's to-dos, stopped then running, the last 24 hours, then older", async () => {
     const view = await open("#/running", { wide: true });
     const screen = view.getByTestId("screen-running");
     const lists = [...screen.querySelectorAll("ul.rows")].map((list) => list.getAttribute("aria-label"));
-    expect(lists).toEqual(["수신함", "진행 중인 작업", "대기", "24시간 안에 끝남", "이전에 끝남"]);
+    // Both waiting rows wait on review, so 대기 does not repeat them; r8 is r7's earlier run, so nothing is older.
+    expect(lists).toEqual(["수신함", "검토 필요", "내 할 일", "진행 중인 작업", "24시간 안에 끝남"]);
     expect(view.getByTestId("home-decisions").textContent).toContain(String(SCENE_COUNTS.decisions));
     const names = (label: string) => [...(screen.querySelector(`[aria-label="${label}"]`)?.querySelectorAll(":scope > li > a") ?? [])].map((link) => link.getAttribute("aria-label") ?? "");
     expect(names("진행 중인 작업")[0]).toMatch(/중단됨 · 응답 없음$/);
     // k-105 is never opened here: its list row's own end (lina#577) places it.
     expect(names("24시간 안에 끝남")).toHaveLength(2);
-    expect(names("이전에 끝남")).toHaveLength(1);
-    for (const id of ["waiting", "recent", "older"]) {
+    expect(names("이전에 끝남")).toHaveLength(0);
+    for (const id of ["review", "mine", "recent"]) {
       const section = view.getByTestId(`section-${id}`);
       expect(rowsIn(section)).toBe(count(section.querySelector("[data-testid=count]")));
     }
     expect(names("24시간 안에 끝남").length + names("이전에 끝남").length).toBe(count(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")));
   });
 
-  test("a work card with no checked title is named by its own title, not its kind, on the home, its detail and its agent", async () => {
+  test("a work card with no checked title is named by its own title on its detail, and by its goal on the home and its agent", async () => {
     const source = new SyntheticSource();
     const raw = [
       ...source.scene.cards.cards.filter((card) => card.plain.title !== null).map((card) => card.title),
@@ -1530,15 +1534,16 @@ describe("work cards", () => {
     expect(head?.classList.contains("is-kind")).toBe(false);
     expect(within(detail).getByTestId("kind").textContent).toBe("문서");
     expect(within(detail).queryByTestId("card-now")).toBeNull();
+    // A row is titled by its goal first (lina-app#122).
     const row = within(view.getByTestId("screen-running")).getAllByTestId("row").find((item) => item.querySelector("a")?.getAttribute("href") === "#/cards/k-102");
-    expect(row?.querySelector(".title")?.textContent).toBe("위키: 결제 화면 문서 정리");
+    expect(row?.querySelector(".title")?.textContent).toBe("결제 화면 개편");
     expect(row?.querySelector(".title")?.classList.contains("is-kind")).toBe(false);
-    expect(row?.querySelector("a")?.getAttribute("aria-label")).toMatch(/ · 위키: 결제 화면 문서 정리 · 진행 중/);
+    expect(row?.querySelector("a")?.getAttribute("aria-label")).toMatch(/ · 결제 화면 개편 · 진행 중/);
     expect(row?.querySelector(".state")?.textContent).toBe("진행 중");
     view.unmount();
     const agent = await open("#/agents/ag-2", { wide: true });
     const agentRow = agent.container.querySelector('.list-pane li:has(> a[href="#/cards/k-102"]) .title');
-    expect(agentRow?.textContent).toBe("위키: 결제 화면 문서 정리");
+    expect(agentRow?.textContent).toBe("결제 화면 개편");
     expect(agentRow?.classList.contains("is-kind")).toBe(false);
   });
 
@@ -1574,35 +1579,35 @@ describe("work cards", () => {
     const hrefs = stopped.map((row) => row.querySelector("a")?.getAttribute("href"));
     // r12 (replaced by r13) and r11 (under the finished goal G4) are gone, and so is every run that names its card
     // (lina-app#119); nothing else is listed by its kind. The rows waiting on the owner come first.
-    expect(new Set(hrefs)).toEqual(new Set(["#/cards/k-103", "#/cards/k-107", "#/cards/k-108", "#/cards/k-109", "#/cards/k-110", "#/cards/k-111", "#/runs/r14", "#/runs/r20"]));
+    // r14 has nothing to name it: not a row, counted in one grey line (lina-app#124).
+    expect(new Set(hrefs)).toEqual(new Set(["#/cards/k-103", "#/cards/k-107", "#/cards/k-108", "#/cards/k-109", "#/cards/k-110", "#/cards/k-111", "#/runs/r20"]));
     expect(hrefs.slice(0, 2)).toEqual(["#/cards/k-108", "#/cards/k-107"]);
-    expect(view.getByTestId("nav-running").querySelector("[data-testid=nav-stopped]")?.textContent).toBe("8");
+    expect(view.getByTestId("nav-running").querySelector("[data-testid=nav-stopped]")?.textContent).toBe("7");
+    expect(view.getByTestId("home-untitled").textContent).toBe("제목 없는 1건");
     const row = (href: string) => stopped.find((each) => each.querySelector("a")?.getAttribute("href") === href) as Element;
     const state = (href: string) => row(href).querySelector("[data-testid=state]") as Element;
     expect(state("#/cards/k-107").textContent).toBe(`중단됨 · ${SYNTHETIC_OWNER.name} 확인 필요`);
     expect(state("#/cards/k-107").classList.contains("is-plain")).toBe(false);
     // The core does not say who an unresponsive stop waits on: the line stays grey.
-    expect(state("#/runs/r14").textContent).toBe("중단됨 · 응답 없음");
-    expect(state("#/runs/r14").classList.contains("is-plain")).toBe(true);
-    expect(row("#/runs/r14").querySelector(".title")?.textContent).toBe("제목 없음");
-    expect(row("#/runs/r14").querySelector(".title")?.classList.contains("is-kind")).toBe(true);
+    expect(state("#/cards/k-103").textContent).toBe("중단됨 · 응답 없음");
+    expect(state("#/cards/k-103").classList.contains("is-plain")).toBe(true);
     // Who waits, from waitingOn and retry (lina#629), in red; the card whose runs carry its to-do is named by it.
     expect(row("#/cards/k-108").querySelector(".title")?.textContent).toBe("야간 보고서 정리하기");
     expect(state("#/cards/k-108").textContent).toBe(`중단됨 · ${SYNTHETIC_OWNER.name} 확인 필요`);
     expect(state("#/cards/k-109").textContent).toMatch(/^중단됨 · \S+ 검토 대기$/);
     expect(state("#/cards/k-110").textContent).toBe("중단됨 · 응답 없음 · 다시 시도 안 함");
     expect(state("#/cards/k-110").classList.contains("is-plain")).toBe(false);
-    expect(stopped.filter((each) => each.querySelector(".title")?.textContent === "제목 없음")).toHaveLength(1);
+    expect(stopped.filter((each) => each.querySelector(".title")?.textContent === "제목 없음")).toHaveLength(0);
     expect(screenText(view.container)).not.toMatch(/코드 작업|문서 작업|기기 작업/);
   });
 
-  test("two jobs on one to-do with one generated title stay two cards; three rounds of one card stay one card", async () => {
+  test("a finished task that ran twice is one row, the newest run; three rounds of one card stay one card", async () => {
     const view = await open("#/done", { wide: true });
     const twins = within(view.getByTestId("screen-done")).getAllByRole("link", { name: /가이드 초안 다듬기/ });
-    expect(new Set(twins.map((link) => link.getAttribute("href")))).toEqual(new Set(["#/runs/r7", "#/runs/r8"]));
+    expect(twins.map((link) => link.getAttribute("href"))).toEqual(["#/runs/r7"]);
     view.unmount();
     const home = await open("#/running", { wide: true });
-    expect(within(home.getByTestId("screen-running")).getAllByRole("link", { name: /릴리스 변경 목록 정리/ })).toHaveLength(1);
+    expect(within(home.getByTestId("screen-running")).getAllByRole("link", { name: /릴리스 노트 정리/ })).toHaveLength(1);
     expect(home.container.querySelectorAll('a[href="#/runs/r9"], a[href="#/runs/r10"]')).toHaveLength(0);
   });
 
@@ -1643,7 +1648,7 @@ describe("work cards", () => {
       const view = await open("#/running", { wide: true, source });
       const row = () => within(view.getByTestId("screen-running")).getAllByTestId("row").find((item) => item.querySelector("a")?.getAttribute("href") === "#/cards/k-102");
       const before = row();
-      expect(before?.querySelector(".title")?.textContent).toBe("위키: 결제 화면 문서 정리");
+      expect(before?.querySelector(".title")?.textContent).toBe("결제 화면 개편");
       // Let the reads the page started on its own (the first tail, the open screen's wants) finish first.
       await act(async () => {
         await vi.advanceTimersByTimeAsync(STREAM_TICK_MS);
@@ -1653,8 +1658,9 @@ describe("work cards", () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(STREAM_TICK_MS * 2);
       });
-      await waitFor(() => expect(row()?.querySelector(".title")?.textContent).toBe("결제: 카드 입력 폼 다듬기"));
-      expect(row()?.querySelector(".now")?.textContent).toBe("보안 코드 칸을 맞추는 중");
+      await waitFor(() => expect(row()?.querySelector(".now")?.textContent).toBe("보안 코드 칸을 맞추는 중"));
+      // Its goal still names the row (lina-app#122); the checked title is what its detail head reads.
+      expect(row()?.querySelector(".title")?.textContent).toBe("결제 화면 개편");
       expect(row()).toBe(before);
       const routes = new Set(read.mock.calls.map(([name, id]) => (id ? `${name}:${id}` : name)));
       expect(routes.has("cards")).toBe(true);
@@ -1688,9 +1694,9 @@ describe("work cards, round 4", () => {
       const core = new SyntheticSource();
       const view = await open("#/done?agent=ag-1", { wide: true, source: core });
       const listed = () => [...view.getByTestId("screen-done").querySelectorAll('[aria-label="완료"] > li > a')].map((link) => link.getAttribute("href"));
-      expect(listed()).toEqual(["#/runs/r7", "#/runs/r8"]);
+      expect(listed()).toEqual(["#/runs/r7"]);
       const choices = within(view.getByTestId("done-filter")).getAllByRole("button");
-      expect(choices.find((button) => button.getAttribute("aria-pressed") === "true")?.getAttribute("aria-label")).toMatch(/ 2$/);
+      expect(choices.find((button) => button.getAttribute("aria-pressed") === "true")?.getAttribute("aria-label")).toMatch(/ 1$/);
       for (const button of choices) {
         const id = button.getAttribute("aria-label")?.startsWith("전체") ? "" : null;
         if (id === "") expect(button.getAttribute("aria-label")).toBe(`전체 ${SCENE_COUNTS.done}`);
@@ -1701,10 +1707,10 @@ describe("work cards, round 4", () => {
         await vi.advanceTimersByTimeAsync(STREAM_TICK_MS * 3);
       });
       expect(window.location.hash).toBe("#/done?agent=ag-1");
-      expect(listed()).toEqual(["#/runs/r7", "#/runs/r8"]);
+      expect(listed()).toEqual(["#/runs/r7"]);
       view.unmount();
       const reloaded = await open("#/done?agent=ag-1", { wide: true, source: new SyntheticSource({ scene: core.scene }) });
-      expect([...reloaded.getByTestId("screen-done").querySelectorAll('[aria-label="완료"] > li > a')]).toHaveLength(2);
+      expect([...reloaded.getByTestId("screen-done").querySelectorAll('[aria-label="완료"] > li > a')]).toHaveLength(1);
       fireEvent.click(within(reloaded.getByTestId("done-filter")).getByRole("button", { name: /^전체/ }));
       await waitFor(() => expect(window.location.hash).toBe("#/done"));
       expect(window.localStorage.length + window.sessionStorage.length).toBe(0);
@@ -1765,10 +1771,11 @@ describe("work cards, round 5", () => {
     const times = (id: string) => [...view.getByTestId(`section-${id}`).querySelectorAll(".sub")].map((line) => line.textContent);
     // k-105's detail is not read on the home; its list row's own end (lina#577) says when it ended.
     expect(times("recent")).toEqual(["완료 · 30분 전", "완료 · 2시간 전"]);
-    expect(times("older")).toEqual(["완료 · 2일 전"]);
+    // r8 (2일 전) is r7's earlier run: one row (lina-app#124).
+    expect(view.queryByTestId("section-older")).toBeNull();
     view.unmount();
     const agent = await open("#/done?agent=ag-1", { wide: true });
-    expect([...agent.getByTestId("screen-done").querySelectorAll(".sub")].map((line) => line.textContent)).toEqual(["완료 · 30분 전", "완료 · 2일 전"]);
+    expect([...agent.getByTestId("screen-done").querySelectorAll(".sub")].map((line) => line.textContent)).toEqual(["완료 · 30분 전"]);
     agent.unmount();
     const detail = await open("#/runs/r7", { wide: true });
     expect(detail.container.querySelector(".detail-head .sub")?.textContent).toBe("완료 · 30분 전 · 20분 걸림");
@@ -2014,6 +2021,68 @@ describe("#13 audit, round 7", () => {
     const view = await open("#/cards/k-103", { wide: true });
     expect(view.getByTestId("card-goal").textContent).toBe("목표 · 결제 화면 개편");
     expect(view.container.querySelector(".detail-head [data-testid=state]")?.textContent).toBe("중단됨 · 응답 없음");
+  });
+});
+
+describe("the work tab's first screen (lina-app#124)", () => {
+  test("at 390 the first screen is the lines: the first running row reads without a tap, and the menu opens from the header", async () => {
+    const view = await open("#/", { wide: false });
+    const running = within(view.getByTestId("screen-running")).getByRole("list", { name: "진행 중인 작업" });
+    expect(running.querySelector("[data-testid=row] .title")?.textContent).toBeTruthy();
+    expect(view.queryByTestId("sidebar")).toBeNull();
+    fireEvent.click(view.getByRole("button", { name: "메뉴" }));
+    const menu = view.getByRole("dialog", { name: "메뉴" });
+    for (const id of ["nav-today", "nav-inbox", "nav-due", "nav-done", "nav-goals"]) expect(within(menu).getByTestId(id)).toBeTruthy();
+    expect(within(menu).getByRole("list", { name: "에이전트" })).toBeTruthy();
+    fireEvent.click(within(menu).getByTestId("nav-done").querySelector("a") as HTMLElement);
+    await waitFor(() => expect(view.getByTestId("screen-title").textContent).toBe("완료"));
+    expect(view.queryByRole("dialog", { name: "메뉴" })).toBeNull();
+    expect(view.getByTestId("back").textContent).toBe("작업");
+  });
+
+  describe.each([
+    ["1280", true],
+    ["390", false],
+  ])("at %s", (_width, wide) => {
+    test("the owner's to-dos and the review items are their own groups beside the decisions line", async () => {
+      const view = await open("#/", { wide });
+      const screen = view.getByTestId("screen-running");
+      expect(view.getByTestId("home-decisions")).toBeTruthy();
+      expect(rowsIn(within(screen).getByRole("list", { name: "검토 필요" }))).toBe(2);
+      expect(rowsIn(within(screen).getByRole("list", { name: "내 할 일" }))).toBe(2);
+      expect(window.location.hash).not.toBe("#/inbox");
+    });
+
+    test("no row is untitled: the ended scene counts them in one grey line", async () => {
+      for (const hash of ["#/", "#/running"]) {
+        const view = await open(hash, { wide, source: new SyntheticSource({ endedRuns: true }) });
+        const screen = view.getByTestId("screen-running");
+        expect([...screen.querySelectorAll("[data-testid=row] .title")].map((title) => title.textContent)).not.toContain("제목 없음");
+        expect(view.getByTestId("home-untitled").textContent).toBe("제목 없는 1건");
+        view.unmount();
+      }
+    });
+
+    test("every group header's number is the rows under it, the finished groups included, and r7 and r8 are one row", async () => {
+      for (const source of [new SyntheticSource(), new SyntheticSource({ endedRuns: true })]) {
+        const view = await open("#/", { wide, source });
+        const sections = view.getByTestId("screen-running").querySelectorAll("[data-testid^=section-]");
+        const ids = [...sections].map((section) => section.getAttribute("data-testid"));
+        expect(ids).toEqual(expect.arrayContaining(["section-active", "section-recent"]));
+        for (const section of sections) {
+          expect(rowsIn(section) - stoppedRows(section), section.getAttribute("data-testid") ?? "").toBe(count(section.querySelector("[data-testid=count]")));
+          expect(stoppedRows(section)).toBe(count(section.querySelector("[data-testid=stopped-count]")));
+        }
+        expect(view.container.querySelectorAll('a[href="#/runs/r7"], a[href="#/runs/r8"]')).toHaveLength(1);
+        view.unmount();
+      }
+    });
+
+    test("the add button is not drawn while no write route exists", async () => {
+      const view = await open("#/", { wide });
+      expect(view.queryByTestId("quick-add")).toBeNull();
+      expect(view.container.querySelector("button[disabled][aria-label='할 일 추가']")).toBeNull();
+    });
   });
 });
 

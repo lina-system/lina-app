@@ -87,10 +87,10 @@ test("a row is named by what the work is for, never by its kind: a run with noth
   const model = endedModel({ ...scene, cards: { cards: scene.cards.cards.map((card) => (card.id === "k-102" ? { ...card, title: "LINA-41 release notes / CHANGES.md" } : card)) } });
   const kindWords: string[] = Object.values(KIND_TITLE);
   for (const row of model.cards.values()) expect(kindWords).not.toContain(row.name);
-  // k-102 has no checked title and its own would show raw text: the to-do its run takes on names it.
+  // k-102 has no checked title and its own would show raw text: its goal names it.
   expect(raw?.plain.title).toBeNull();
-  expect(model.cards.get("k-102")).toMatchObject({ title: "카드 입력 폼 다듬기", name: "카드 입력 폼 다듬기" });
-  // r14 has no checked title, no goal or card, and its own title is a file name: one grey 제목 없음.
+  expect(model.cards.get("k-102")).toMatchObject({ title: "결제 화면 개편", name: "결제 화면 개편" });
+  // r14 has no checked title, no goal or card, and its own title is a file name: no title, and its page says 제목 없음.
   expect(model.cards.get("r14")).toMatchObject({ title: null, name: "제목 없음" });
   // A run with no checked title but a plain own name is named by it.
   const named = endedModel({ ...scene, board: { ...scene.board, cards: scene.board.cards.map((run) => (run.id === "r14" ? { ...run, title: "밤마다 미러 맞추기" } : run)) } });
@@ -102,8 +102,10 @@ test("a worker run of a card or of a goal's to-do is not a row of its own; a run
   const listed = new Set([...model.cards.keys()].filter((id) => !model.unlisted.has(id)));
   // r1-r5, r9, r10 belong to cards; r11 to G4's to-do T10.
   for (const id of ["r1", "r2", "r3", "r4", "r5", "r9", "r10", "r11"]) expect(listed.has(id), id).toBe(false);
-  // r13 is on T13, a to-do with no goal; r14 has no to-do at all.
-  for (const id of ["r6", "r7", "r8", "r13", "r14"]) expect(listed.has(id), id).toBe(true);
+  // r13 is on T13, a to-do with no goal. r8 is the earlier run of r7's finished task and r14 has nothing to name it
+  // (lina-app#124): neither is a row, both stay in the lookup.
+  for (const id of ["r6", "r7", "r13"]) expect(listed.has(id), id).toBe(true);
+  for (const id of ["r8", "r14"]) expect(model.cards.has(id) && !listed.has(id), id).toBe(true);
   // The board does list r11 (it is outside any card): only its goal keeps it out.
   expect(generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true }).board.cards.some((run) => run.id === "r11")).toBe(true);
 });
@@ -113,14 +115,15 @@ test("the stopped group holds only work that still needs someone: replaced runs 
   const model = endedModel(scene);
   const stopped = () => model.running.sections[0].rows.map((row) => row.id);
   // r12 was cancelled and r13, a later run of the same to-do, replaced it; r11 sits under the finished goal G4.
-  expect(new Set(stopped())).toEqual(new Set(["k-103", "k-107", "k-108", "k-109", "k-110", "k-111", "r14", "r20"]));
-  expect(model.counts.stopped).toBe(8);
+  // r14 has nothing to name it: it is counted on the home, not a row (lina-app#124).
+  expect(new Set(stopped())).toEqual(new Set(["k-103", "k-107", "k-108", "k-109", "k-110", "k-111", "r20"]));
+  expect(model.counts.stopped).toBe(7);
   // Without the later run, r12 still needs someone.
   const alone = endedModel({ ...scene, board: { ...scene.board, cards: scene.board.cards.filter((run) => run.id !== "r13") } });
   expect(alone.running.sections[0].rows.map((row) => row.id)).toContain("r12");
   // A stopped card whose goal is done leaves too.
   const goalDone = endedModel({ ...scene, goals: { goals: scene.goals.goals.map((goal) => (goal.id === "kg-2" ? { ...goal, state: "done" } : goal)) } });
-  expect(new Set(goalDone.running.sections[0].rows.map((row) => row.id))).toEqual(new Set(["k-108", "k-109", "k-110", "r14", "r20"]));
+  expect(new Set(goalDone.running.sections[0].rows.map((row) => row.id))).toEqual(new Set(["k-108", "k-109", "k-110", "r20"]));
 });
 
 test("ended work leaves the lists but stays in the lookup that a goal page and a run page link through", () => {
@@ -205,7 +208,8 @@ test("the stopped group is the stopped cards plus the runs with no card nothing 
   // r12 was replaced by r13 and r11 sits under the finished goal G4; every other stopped run has a card.
   const lone = scene.board.cards.filter((run) => run.state === "stopped" && !run.card).map((run) => run.id);
   expect(lone.sort()).toEqual(["r11", "r12", "r14", "r20"]);
-  const expected = [...stoppedCards, "r14", "r20"];
+  // r14 has nothing to name it: counted on the home, not a row (lina-app#124).
+  const expected = [...stoppedCards, "r20"];
   expect(new Set(model.running.sections[0].rows.map((row) => row.id))).toEqual(new Set(expected));
   expect(model.counts.stopped).toBe(expected.length);
   expect(model.home.active.stopped).toBe(expected.length);
@@ -216,18 +220,21 @@ test("the stopped group is the stopped cards plus the runs with no card nothing 
   expect(goalDone.counts.stopped).toBe(expected.length - 3);
 });
 
-test("a row is named by its own checked title, its own title, its to-do's title, its card's title, and its goal's title last", () => {
+test("a row is named by its goal's title first, then its own checked title, its own title, its to-do's title and its card's title", () => {
   const scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
   const model = homeModel(scene);
   const name = (id: string) => model.cards.get(id)?.name;
+  expect(name("k-102")).toBe("결제 화면 개편"); // its goal, before its own title
+  expect(name("k-111")).toBe("결제 화면 개편"); // its goal
+  // With no goal: its checked title, its own title, the to-do of its runs.
   expect(name("k-110")).toBe("백업: 복구 스크립트 점검"); // its checked title
   expect(name("k-109")).toBe("배포 안내 메일 다듬기"); // its own title
   expect(name("k-108")).toBe("야간 보고서 정리하기"); // the to-do of its runs, found through run.card
   expect(name("r20")).toBe("알림 문구 고르기"); // a run's to-do
-  expect(name("k-102")).toBe("위키: 결제 화면 문서 정리"); // its own title comes before its run's to-do
-  const rawOwn = homeModel({ ...scene, cards: { cards: scene.cards.cards.map((card) => (card.id === "k-102" ? { ...card, title: "card-form.tsx polish" } : card)) } });
-  expect(rawOwn.cards.get("k-102")?.name).toBe("카드 입력 폼 다듬기"); // then its run's to-do, before its goal
-  expect(name("k-111")).toBe("결제 화면 개편"); // nothing of its own: its goal
+  const noGoal = { ...scene, goals: { goals: scene.goals.goals.map((goal) => ({ ...goal, workCards: goal.workCards.filter((card) => card.id !== "k-102") })) } };
+  expect(homeModel(noGoal).cards.get("k-102")?.name).toBe("위키: 결제 화면 문서 정리"); // its own title before its run's to-do
+  const rawOwn = homeModel({ ...noGoal, cards: { cards: scene.cards.cards.map((card) => (card.id === "k-102" ? { ...card, title: "card-form.tsx polish" } : card)) } });
+  expect(rawOwn.cards.get("k-102")?.name).toBe("카드 입력 폼 다듬기"); // then its run's to-do
   expect(name("r14")).toBe("제목 없음");
   expect(model.cards.get("r14")?.title).toBeNull();
   // A run of a card with no to-do is named by its card's title.
@@ -258,4 +265,46 @@ test("a stopped row says who waits from waitingOn and retry, and the rows waitin
     const first = own.findIndex((row) => !row.stop?.owner);
     expect(own.slice(first < 0 ? own.length : first).some((row) => row.stop?.owner), each.id).toBe(false);
   }
+});
+
+// lina-app#124: the work tab's first screen reads at a glance.
+
+test("no row is untitled: work nothing names is counted on the home, not drawn, and stays in the lookup", () => {
+  const model = homeModel();
+  const rows = [...model.running.rows, ...model.home.waiting.rows, ...model.home.recent.rows, ...model.home.older.rows, ...model.done, ...model.home.review.rows.flatMap((row) => (row.type === "review" ? [row.card] : []))];
+  expect(rows.filter((row) => row.title === null).map((row) => row.id)).toEqual([]);
+  // r14 has no goal, to-do, card or checked title, and its own title is a file name.
+  expect(model.home.untitled).toBe(1);
+  expect(model.cards.get("r14")?.name).toBe("제목 없음");
+  expect(model.unlisted.has("r14")).toBe(true);
+  expect(model.counts.stopped).toBe(model.running.sections[0].rows.length);
+  expect(homeModel(generateScene(SYNTHETIC_SEED, { now: NOW })).home.untitled).toBe(0);
+});
+
+test("a finished task that ran twice is one row in the finished groups, the newest run; the other stays in the lookup", () => {
+  const model = homeModel(generateScene(SYNTHETIC_SEED, { now: NOW }));
+  const names = model.done.map((row) => row.name);
+  expect(new Set(names).size).toBe(names.length);
+  expect(model.done.filter((row) => row.name === "가이드 초안 다듬기").map((row) => row.id)).toEqual(["r7"]);
+  expect(model.cards.has("r8") && model.unlisted.has("r8")).toBe(true);
+  expect(model.counts.done).toBe(model.home.recent.rows.length + model.home.older.rows.length);
+  expect(model.home.older.rows.map((row) => row.id)).not.toContain("r8");
+});
+
+test("a row is titled by its goal first; with no goal by its card's title (lina-app#122)", () => {
+  const model = homeModel(generateScene(SYNTHETIC_SEED, { now: NOW }));
+  // k-101's checked title (릴리스 변경 목록 정리) differs from its goal's: the goal names the row.
+  expect(model.cards.get("k-101")?.name).toBe("릴리스 노트 정리");
+  const scene = generateScene(SYNTHETIC_SEED, { now: NOW });
+  const noGoal = homeModel({ ...scene, goals: { goals: scene.goals.goals.map((goal) => ({ ...goal, workCards: goal.workCards.filter((card) => card.id !== "k-101") })) } });
+  expect(noGoal.cards.get("k-101")?.name).toBe("릴리스 변경 목록 정리");
+});
+
+test("the home holds the owner's to-dos and the review items as their own groups, and the waiting group does not repeat them", () => {
+  const model = homeModel(generateScene(SYNTHETIC_SEED, { now: NOW }));
+  expect(model.home.review.rows.map((row) => row.key)).toEqual(model.inbox.sections[1].rows.map((row) => row.key));
+  expect(model.home.review.rows).toHaveLength(2);
+  expect(model.home.mine.rows).toHaveLength(2);
+  const reviewed = new Set(model.home.review.rows.flatMap((row) => (row.type === "review" ? [row.card.id] : [])));
+  expect(model.home.waiting.rows.filter((row) => reviewed.has(row.id))).toEqual([]);
 });

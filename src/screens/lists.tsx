@@ -152,15 +152,16 @@ function RetryControl({ card }: { card: CardRow }) {
 }
 
 /**
- * The home: one line for the open decisions (only when there are any), the stopped and running cards (stopped on
- * top), the cards waiting on review or an answer, then finished cards, the last 24 hours first and older ones after.
- * Every number is its section's own row count, the same model the sidebar and the agent screens read.
+ * The home: one line for the open decisions (only when there are any), the review items and the owner's own to-dos,
+ * the stopped and running cards (stopped on top), the cards waiting on an answer, then finished cards, the last 24
+ * hours first and older ones after, and one grey line counting the work nothing names. Every number is its section's
+ * own row count, the same model the sidebar and the agent screens read.
  */
 export function RunningScreen() {
   const { model } = useApp();
   const actions = useActions();
   const { home } = model;
-  if (!home.decisions && !model.running.rows.length && !home.waiting.rows.length && !model.done.length) return <Empty />;
+  if (!home.decisions && !home.review.rows.length && !home.mine.rows.length && !model.running.rows.length && !home.waiting.rows.length && !model.done.length && !home.untitled) return <Empty />;
   return (
     <div class="list" data-testid="screen-running">
       {home.decisions ? (
@@ -176,6 +177,9 @@ export function RunningScreen() {
           </li>
         </ul>
       ) : null}
+      {[home.review, home.mine].map((section) => (
+        <ListSection key={section.id} section={section} render={(row) => <InboxRowView key={row.key} row={row} />} />
+      ))}
       <ListSection
         section={home.active}
         label={W.running}
@@ -184,6 +188,11 @@ export function RunningScreen() {
       {[home.waiting, home.recent, home.older].map((section) => (
         <ListSection key={section.id} section={section} render={(card) => <CardRowView key={card.key} card={card} />} />
       ))}
+      {home.untitled ? (
+        <p class="untitled-line" data-testid="home-untitled">
+          {W.untitledCount(home.untitled)}
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -1065,7 +1065,7 @@ export const SCENE_COUNTS = {
   running: 2,
   stopped: 1,
   due: 5,
-  done: 3,
+  done: 2,
   machines: 4,
   machinesOk: 2,
   machinesWarn: 1,

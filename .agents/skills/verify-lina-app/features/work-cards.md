@@ -10,11 +10,12 @@ Each piece of work is one card: a work card (a kanban sub-card an agent runs a s
 
 ## Intended behavior
 
-- Home order: one `결정 필요 <n>` line (only when there are any, the inbox's number), the stopped and running cards under `진행 중` with the running count and the stopped one in red (stopped on top, `중단됨 · <reason>` in red), then `대기`, `24시간 안에 끝남` and `이전에 끝남`, each with its count.
+- Home order: one `결정 필요 <n>` line (only when there are any, the inbox's number), then the inbox's `검토 필요` and `내 할 일` as their own groups (lina-app#124), the stopped and running cards under `진행 중` with the running count and the stopped one in red (stopped on top, `중단됨 · <reason>` in red), then `대기` (the waiting cards `검토 필요` does not already hold), `24시간 안에 끝남` and `이전에 끝남`, each with its count; last, one grey `제목 없는 n건` when work nothing names is left out (running.md).
 - A finished card says when it ended (`완료 · 20분 전`, `완료 · 2일 전`); how long it took (`20분 걸림`) is in its detail. Cards under `이전에 끝남` ended more than 24 hours ago. A work card's end and a stopped card's last beat come from its list row (`endedAt`, `lastHeartbeatAt`, lina#577), so they are right before the card is ever opened. A core whose rows carry neither leaves an unopened finished card at `완료` with no time under `이전에 끝남`, and a stopped one timed from its elapsed time, until it opens (lina-app#100).
 - The first load reads the lists only, never each card's detail: every list area reads `불러오는 중` until the lists answer, then its rows (or `없음`).
-- A wide window opens on the home; on a phone it is the `진행 중인 작업` row of the menu. On a phone nothing but the large title sits above the list.
-- One card per run: follow-up rounds of one card stay one card; two jobs stay two cards even when they share a to-do and one generated title. Worker runs started by a card show only inside its detail.
+- A wide window opens on the home, and so does the phone: the 작업 tab's first screen is the home under the large title and the tabs, its lines readable without a tap. The menu (오늘, 수신함, 진행 중인 작업, 마감일, 완료, the agents, 목표) opens from `메뉴` at the left of the phone's header as a bottom sheet; choosing a row goes there and closes it (lina-app#124).
+- No add button is drawn, on either width, while no route writes a new to-do (lina-app#95 brings it back); a control is never drawn disabled without a reason.
+- One card per run: follow-up rounds of one card stay one card. A finished task that ran twice (a run and a later run of the same to-do, or with no to-do the same title) is one row in the finished groups, 완료 and the agent screen: the newest; the earlier one keeps its own page. Cards are never merged. Worker runs started by a card show only inside its detail.
 - The title is `plain.title`; a running card's now line (wide windows) is `plain.now`. A work card without a checked title shows its own title, shortened to the row width (never sliced), on the home, 완료, the agent screen and its detail head, and its kind is read from the same text — but only while that own title passes the app's raw-text rule (a path, a command, an English word and so on). An own title the rule refuses draws nothing: the card keeps its kind of work in grey (`코드 작업`, `문서 작업`, `조사`, `기기 작업`), and its kind is read from the checked title alone. A run without a checked title keeps its kind of work in grey. A line the core has not written, or one that failed its check, is null and never shows raw text; a missing now line draws nothing.
 - When the writer of the checked lines has stopped, the freshness line adds one orange `· 요약 멈춤`.
 - Every count equals its list: the sidebar's `진행 중인 작업` grey and red numbers are the running list, `완료` is the two finished sections, and each section head is its rows.
@@ -54,14 +55,14 @@ Each piece of work is one card: a work card (a kanban sub-card an agent runs a s
 Preconditions:
 
 - `verify.mjs doctor` reports `"healthy": true` for this run.
-- The page is `/app/?source=synthetic`. In its scene k-101 is in its third follow-up round, k-102 has no checked lines at all (its own title `위키: 결제 화면 문서 정리` and kind `문서` stand in), r7 and r8 are two jobs on one to-do with one generated title (r7 finished 30 minutes ago, r8 two days ago), k-103 is stopped with no response, r1 (k-101's job) and r6 have records (lina#201), and k-106 was just created (예정 · ready, no run yet). `&writer=stopped` (`/app/?source=synthetic&writer=stopped#/running`) stops the writer.
+- The page is `/app/?source=synthetic`. In its scene k-101 is in its third follow-up round, k-102 has no checked lines at all (its own title `위키: 결제 화면 문서 정리` and kind `문서` stand in), r7 and r8 are two runs of one task with one title and no to-do, so the finished groups draw r7 alone (r7 finished 30 minutes ago, r8 two days ago), k-103 is stopped with no response, r1 (k-101's job) and r6 have records (lina#201), and k-106 was just created (예정 · ready, no run yet). `&writer=stopped` (`/app/?source=synthetic&writer=stopped#/running`) stops the writer.
 
-- **Home.** Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive work-cards`. On `#/` (1280) or the menu's `진행 중인 작업` (390) the lists read `수신함`, `진행 중인 작업`, `대기`, `24시간 안에 끝남`, `이전에 끝남`; the decisions line is `결정 필요 4`; the first card ends `중단됨 · 응답 없음`.
-- **Counts.** Each section's count equals its rows; at 1280 the sidebar's 진행 중인 작업 numbers add up to the running list and 완료 equals the two finished sections.
-- **One card per run.** `릴리스 변경 목록 정리` shows once and r9, r10 not at all; `가이드 초안 다듬기` shows twice, to `#/runs/r7` and `#/runs/r8`.
-- **Own title.** No raw run title or live line (`adding one-line summaries`, `editing card-form.tsx`, `guide-draft.md`) is on the home; `변경마다 한 줄 요약을 붙이는 중` shows at 1280 only. The k-102 card is named `위키: 결제 화면 문서 정리` in the title colour with the `문서` icon; its detail head reads the same, the kind `문서` and no `지금`.
+- **Home.** Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive work-cards`. On `#/` at both widths, with no tap, the lists read `수신함`, `검토 필요` (2 rows), `내 할 일` (2 rows), `진행 중인 작업`, `24시간 안에 끝남` (both waiting rows wait on review, so no `대기`; nothing is older once r8 is r7's row); the decisions line is `결정 필요 4`; the first card ends `중단됨 · 응답 없음`.
+- **Counts.** Each section's count (and red count) equals its rows; at 1280 the sidebar's 진행 중인 작업 numbers add up to the running list and 완료 equals the two finished sections.
+- **One card per run.** `릴리스 노트 정리` (k-101, titled by its goal) shows once and r9, r10 not at all; `가이드 초안 다듬기` shows once, to `#/runs/r7`.
+- **Own title.** No raw run title or live line (`adding one-line summaries`, `editing card-form.tsx`, `guide-draft.md`) is on the home; `변경마다 한 줄 요약을 붙이는 중` shows at 1280 only. The k-102 card's row is named by its goal, `결제 화면 개편`, in the title colour with the `문서` icon; its detail head reads its own title `위키: 결제 화면 문서 정리`, the kind `문서` and no `지금`.
 - **Detail.** `#/cards/k-101` shows `지금`, `할 일`, `기록`, `댓글` and no `실행`; its round heads read `라운드 3 · <hh:mm> · 진행 중`, `라운드 2 · <hh:mm>–<hh:mm> · 검토 반려`, `라운드 1 · <hh:mm> · 작업 마침`, where round 1's time is r9's own end (2시간 40분 전).
-- **Group heading and finished times.** The home's `진행 중` head reads `2` and a red `1`; `24시간 안에 끝남` reads `완료 · <n>분 전` or `<n>시간 전`, `이전에 끝남` `완료 · <n>일 전`; `백업: 지난 기록 살펴보기` (k-105, never opened) reads `완료 · 2시간 전` under `24시간 안에 끝남`.
+- **Group heading and finished times.** The home's `진행 중` head reads `2` and a red `1`; `24시간 안에 끝남` reads `완료 · <n>분 전` or `<n>시간 전`, `이전에 끝남` (when there is any) `완료 · <n>일 전`; k-105 (`백업 주기 점검`, its goal; never opened) reads `완료 · 2시간 전` under `24시간 안에 끝남`.
 - **Folded comments.** `#/cards/k-103` has three comments: the first reads as written; the second (a file and a hash) and the third (cut off) read `접힌 댓글 · …`, and the page shows neither `errors.json` nor `3f2a1c9` until the second is opened.
 - **No start on record.** `#/cards/k-103` shows `라운드 3 · <hh:mm> · 중단됨` (no end, its run no longer beats) and `라운드 1 · 시작 기록 없음` (regular weight) with the line it left under it, `오류 문구 초안을 남김`, dimmed; round 2, which kept only its end, is not drawn. Its head reads `중단됨 · 응답 없음` in red and its time in grey.
 - **완료 filter.** On `#/done` choose the first agent: the address becomes `#/done?agent=<id>`, a reload keeps it pressed, its count equals its rows, `최근 활동` equals the agent screen's, and web storage stays empty.
@@ -78,6 +79,6 @@ Preconditions:
 
 ## Not goals
 
-- No tabs on the phone's first screen; the menu stays the first screen and the home is its `진행 중인 작업` row.
+- No menu on the phone's first screen; the home is the first screen and the menu is one header button away.
 - No interactive filter on the home; filtering by agent is the agent screen (agent-screen.md).
 - No goal-level card grouping on the home (goals.md).

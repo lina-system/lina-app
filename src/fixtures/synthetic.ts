@@ -18,6 +18,7 @@ import type {
   UsageView,
   WorkCardDetail,
   WorkCardList,
+  WorkCardSummary,
   WorkGoal,
   WorkInbox,
   WorkState,
@@ -44,6 +45,8 @@ function modelFields(id: string): Pick<RunCard, "model" | "settingsRevision"> {
  * Every route the app reads has its body here, shaped by the generated schema types.
  */
 export const SYNTHETIC_SEED = 0x5eed;
+/** The board slug the scene's cards are on (RunCard.board, lina#630). */
+const BOARD = "main";
 
 const AGENT_NAMES = ["Mirel", "Tavo", "Quenna", "Orli", "Pesk"] as const;
 const MACHINE_NAMES = ["솔방울", "징검돌", "모래톱", "물레방아"] as const;
@@ -86,7 +89,10 @@ export interface SceneOptions {
   /**
    * Ended runs and a card waiting on the owner (`&runs=ended`, lina-app#116): a run cancelled under the finished goal
    * G4, a cancelled run a later run of its to-do replaced, a stalled run with no parent and no name that may be drawn,
-   * and a stopped card waiting for the owner's feedback.
+   * and a stopped card waiting for the owner's feedback. In the live shape (lina-app#119): the board lists the runs
+   * of cards too, each carrying its card's id as the cards list serves it and the board; one stopped card has three
+   * stopped runs, two runs point at a card the cards list does not hold, and the stopped cards carry each `waitingOn`
+   * (owner, an agent, none) and `retry` (scheduled, none) the core serves (lina#629).
    */
   readonly endedRuns?: boolean;
   /** The work settings (`&settings=`): this device may only read them, or no revision was ever written. */
@@ -260,7 +266,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     { id: "r8", title: "guide-draft.md pass", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: null, host: machines[0], startedAt: now - 2 * DAY - 40 * MIN, endedAt: now - 2 * DAY, now: null, plain: plain("가이드 초안 다듬기", null, "첫 화면 설명을 세 문장으로 줄임") },
     { id: "r9", title: "release-notes: collect merged PRs (round 1)", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[0], startedAt: now - 3 * HOUR, endedAt: now - 2 * HOUR - 40 * MIN, now: null, plain: plain("변경 목록 모으기", null, "병합된 변경 41개를 모음") },
     { id: "r10", title: "release-notes: collect merged PRs (round 2)", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[1], startedAt: now - HOUR, endedAt: now - 40 * MIN, now: null, plain: plain("변경 목록 모으기", null, "문서만 바뀐 변경을 따로 묶음") },
-  ] satisfies Omit<RunCard, "model" | "settingsRevision">[]).map((run) => ({ ...run, ...modelFields(run.id) }));
+  ] satisfies Omit<RunCard, "model" | "settingsRevision">[]).map((run): RunCard => ({ ...run, ...modelFields(run.id) }));
 
   // k-101 is in its third follow-up round (one card); k-102's checked lines are all missing, so its own title stands
   // in until they are written (its kind is read from that title too: 문서).
@@ -289,6 +295,12 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       { id: 3, profile: null, status: "running", outcome: null, startedAt: now - 12 * MIN, endedAt: null, lastHeartbeatAt: now - 20, summary: null, live: true },
     ],
   };
+
+  // Like the core (lina#630), a run started by a card names that card by the id the cards list serves, and its board.
+  for (const run of runCards) {
+    const card = cardSeeds.find((seed) => (seed.runs as readonly string[]).includes(run.id))?.id ?? null;
+    Object.assign(run, { card, board: card ? BOARD : null });
+  }
 
   const todoTitle = (id: string) => todoSeeds.find((todo) => todo.id === id)?.title ?? "";
   const cardDetails: Record<string, WorkCardDetail> = {};
@@ -798,6 +810,8 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       { id: "r13", title: "rebuild search index", state: "in_progress", reason: null, agent: agentId(1), kind: "ulw", todo: "T13", host: machines[0], startedAt: now - HOUR, endedAt: null, now: null, plain: plain("검색 색인 다시 만들기", "색인을 새로 만드는 중") },
       { id: "r14", title: "nightly mirror sync / mirror.sh", state: "stopped", reason: "unresponsive", agent: agentId(2), kind: "ulw", todo: null, host: machines[1], startedAt: now - 5 * HOUR, endedAt: null, now: null, plain: NO_LINES },
     ] satisfies Omit<RunCard, "model" | "settingsRevision">[]).map((run) => ({ ...run, ...modelFields(run.id) }));
+    // The live board lists the runs of cards too (lina#630): r1-r5, r9 and r10 join the runs outside any card.
+    board.cards.push(...runCards.filter((run) => run.card !== null && !board.cards.includes(run)));
     runCards.push(...ended);
     board.cards.push(...ended);
     listItems.push({ ...lone, runCount: 2 });
@@ -828,6 +842,68 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     const { todos: _todos, workerRuns: _runs, gates: _gates, comments: _comments, runs: _cardRuns, ...waitingSummary } = waiting;
     cardList.cards.push(waitingSummary);
     goalCards.find((goal) => goal.id === "kg-2")?.workCards.push(waitingSummary);
+
+    // The live shape (lina-app#119). T14 and T15 are to-dos with no goal; their titles name work nothing else names.
+    const looseTodo = (id: string, title: string, agent: number) =>
+      summary({ id, kind: "todo", parent: null, title, agent: agentId(agent), addedBy: agentId(agent), mine: false, state: "stopped", reason: null, stateSince: now - 2 * HOUR, due: null, doneCondition: `${title} 끝남`, todos: null });
+    const loose = [looseTodo("T14", "야간 보고서 정리하기", 2), looseTodo("T15", "알림 문구 고르기", 0)];
+    // k-108's three rounds, all stopped; r18 and r19 belong to k-190, a card outside the window the cards list holds;
+    // r20 has no card and nothing replaced it; r21 waits on an agent's verdict inside k-104. No checked line is
+    // written yet and every own title is a worker's raw text, as on a live board.
+    const live: RunCard[] = ([
+      { id: "r15", title: "nightly-report.md cleanup", state: "stopped", reason: "rejected", agent: agentId(2), kind: "ulw", todo: "T14", card: "k-108", board: BOARD, startedAt: now - 4 * HOUR, endedAt: now - 4 * HOUR + 20 * MIN, now: null, plain: NO_LINES },
+      { id: "r16", title: "nightly-report.md cleanup (round 2)", state: "stopped", reason: "cancelled", agent: agentId(2), kind: "ulw", todo: "T14", card: "k-108", board: BOARD, startedAt: now - 2 * HOUR, endedAt: now - 2 * HOUR + 5 * MIN, now: null, plain: NO_LINES },
+      { id: "r17", title: "nightly-report.md cleanup (round 3)", state: "stopped", reason: "unresponsive", agent: agentId(2), kind: "ulw", todo: "T14", card: "k-108", board: BOARD, startedAt: now - HOUR, endedAt: null, now: null, plain: NO_LINES },
+      { id: "r18", title: "cache-warmup.sh retry", state: "stopped", reason: "rejected", agent: agentId(1), kind: "ulw", todo: null, card: "k-190", board: BOARD, startedAt: now - 9 * HOUR, endedAt: now - 9 * HOUR + 3 * MIN, now: null, plain: NO_LINES },
+      { id: "r19", title: "cache-warmup.sh retry 2", state: "stopped", reason: "unresponsive", agent: agentId(1), kind: "ulw", todo: null, card: "k-190", board: BOARD, startedAt: now - 8 * HOUR, endedAt: null, now: null, plain: NO_LINES },
+      { id: "r20", title: "notification-copy.json picks", state: "stopped", reason: "failed", retry: "none", agent: agentId(0), kind: "ulw", todo: "T15", card: null, board: null, startedAt: now - 2 * HOUR, endedAt: now - 90 * MIN, now: null, plain: NO_LINES },
+      { id: "r21", title: "payment failure review follow-up", state: "waiting", reason: "review", waitingOn: `agent:${agentId(1)}`, agent: agentId(1), kind: "research", todo: "T6", card: "k-104", board: BOARD, startedAt: now - 2 * HOUR, endedAt: now - HOUR, now: null, plain: NO_LINES },
+    ] satisfies Omit<RunCard, "model" | "settingsRevision" | "host">[]).map((run): RunCard => ({ ...run, host: null, ...modelFields(run.id) }));
+    runCards.push(...live);
+    board.cards.push(...live);
+    for (const todo of loose) {
+      listItems.push({ ...todo, runCount: itemRuns(todo.id).length });
+      itemDetails[todo.id] = { ...todo, runCount: itemRuns(todo.id).length, why: null, basis: [], children: [], comments: [], runs: itemRuns(todo.id), links: [], workCards: [], decision: null, ownerDone: null };
+    }
+    // Stopped cards whose detail the home never opens, each saying who it waits on and whether it is tried again.
+    const stoppedCard = (
+      id: string,
+      fields: { title: string; plainTitle: string | null; agent: number; reason: string | null; beat: number; workerRuns: readonly string[] },
+      facts: Pick<WorkCardSummary, "waitingOn" | "retry">,
+    ): WorkCardSummary => {
+      const detail: WorkCardDetail = {
+        id,
+        title: fields.title,
+        agent: agentId(fields.agent),
+        state: "stopped",
+        reason: fields.reason,
+        elapsedSeconds: now - fields.beat,
+        todoProgress: { done: 0, total: 1 },
+        now: null,
+        plain: plain(fields.plainTitle),
+        endedAt: null,
+        lastHeartbeatAt: fields.beat,
+        todos: [{ id: "check-1", title: fields.plainTitle ?? "할 일", kind: "check", done: false }],
+        workerRuns: fields.workerRuns.map((run) => ({ id: run, kind: "lina-worker", firstSeenAt: runCards.find((each) => each.id === run)?.startedAt ?? now, lastSeenAt: fields.beat })),
+        gates: [],
+        comments: [],
+        runs: [{ id: 1, profile: null, status: "blocked", outcome: null, startedAt: fields.beat - 20 * MIN, endedAt: null, lastHeartbeatAt: fields.beat, summary: null, live: false }],
+      };
+      cardDetails[id] = detail;
+      const { todos: _t, workerRuns: _w, gates: _g, comments: _c, runs: _r, ...fieldsOnly } = detail;
+      return { ...fieldsOnly, ...facts };
+    };
+    const liveCards = [
+      // Named by the to-do its runs take on: no checked title, and its own is a file name.
+      stoppedCard("k-108", { title: "nightly-report.md cleanup", plainTitle: null, agent: 2, reason: null, beat: now - 30 * MIN, workerRuns: ["r15", "r16", "r17"] }, { waitingOn: "owner", retry: null }),
+      // Named by its own title, which may be drawn.
+      stoppedCard("k-109", { title: "배포 안내 메일 다듬기", plainTitle: null, agent: 1, reason: null, beat: now - 70 * MIN, workerRuns: [] }, { waitingOn: `agent:${agentId(0)}`, retry: null }),
+      stoppedCard("k-110", { title: "restore-check.sh audit", plainTitle: "백업: 복구 스크립트 점검", agent: 2, reason: "unresponsive", beat: now - 4 * HOUR, workerRuns: [] }, { waitingOn: null, retry: "none" }),
+      // Nothing of its own names it: its goal kg-2 does, last.
+      stoppedCard("k-111", { title: "checkout budget tuning", plainTitle: null, agent: 1, reason: "budget", beat: now - 6 * HOUR, workerRuns: [] }, { waitingOn: null, retry: "scheduled" }),
+    ];
+    cardList.cards.push(...liveCards);
+    goalCards.find((goal) => goal.id === "kg-2")?.workCards.push(liveCards[3]);
   }
 
   return {

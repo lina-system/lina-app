@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import type { WorkCardDetail, WorkCardList, WorkCardSummary } from "../api/client";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type Scene } from "../fixtures/synthetic";
 import { KIND_TITLE } from "../words";
-import { buildModel } from "./index";
+import { agentView, buildModel } from "./index";
 
 const NOW = 1_793_700_000;
 
@@ -76,15 +76,20 @@ function endedModel(scene: Scene = generateScene(SYNTHETIC_SEED, { now: NOW, end
   return buildModel({ board: scene.board, items: scene.items, goals: scene.goals, cards: scene.cards, cardsAt: scene.now, inbox: scene.inbox, cardDetails: scene.cardDetails, failed: [] }, scene.now);
 }
 
+/** The same scene as the home sees it (lina-app#119): no card's detail is opened. */
+function homeModel(scene: Scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true })) {
+  return buildModel({ board: scene.board, items: scene.items, goals: scene.goals, cards: scene.cards, cardsAt: scene.now, inbox: scene.inbox, cardDetails: {}, failed: [] }, scene.now);
+}
+
 test("a row is named by what the work is for, never by its kind: a run with nothing to name it says 제목 없음", () => {
   const scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
   const raw = scene.cards.cards.find((card) => card.id === "k-102");
   const model = endedModel({ ...scene, cards: { cards: scene.cards.cards.map((card) => (card.id === "k-102" ? { ...card, title: "LINA-41 release notes / CHANGES.md" } : card)) } });
   const kindWords: string[] = Object.values(KIND_TITLE);
   for (const row of model.cards.values()) expect(kindWords).not.toContain(row.name);
-  // k-102 has no checked title and its own would show raw text: the goal it sits in names it.
+  // k-102 has no checked title and its own would show raw text: the to-do its run takes on names it.
   expect(raw?.plain.title).toBeNull();
-  expect(model.cards.get("k-102")).toMatchObject({ title: "결제 화면 개편", name: "결제 화면 개편" });
+  expect(model.cards.get("k-102")).toMatchObject({ title: "카드 입력 폼 다듬기", name: "카드 입력 폼 다듬기" });
   // r14 has no checked title, no goal or card, and its own title is a file name: one grey 제목 없음.
   expect(model.cards.get("r14")).toMatchObject({ title: null, name: "제목 없음" });
   // A run with no checked title but a plain own name is named by it.
@@ -108,15 +113,14 @@ test("the stopped group holds only work that still needs someone: replaced runs 
   const model = endedModel(scene);
   const stopped = () => model.running.sections[0].rows.map((row) => row.id);
   // r12 was cancelled and r13, a later run of the same to-do, replaced it; r11 sits under the finished goal G4.
-  expect(stopped()).toEqual(expect.arrayContaining(["k-103", "k-107", "r14"]));
-  expect(stopped()).toHaveLength(3);
-  expect(model.counts.stopped).toBe(3);
+  expect(new Set(stopped())).toEqual(new Set(["k-103", "k-107", "k-108", "k-109", "k-110", "k-111", "r14", "r20"]));
+  expect(model.counts.stopped).toBe(8);
   // Without the later run, r12 still needs someone.
   const alone = endedModel({ ...scene, board: { ...scene.board, cards: scene.board.cards.filter((run) => run.id !== "r13") } });
   expect(alone.running.sections[0].rows.map((row) => row.id)).toContain("r12");
   // A stopped card whose goal is done leaves too.
   const goalDone = endedModel({ ...scene, goals: { goals: scene.goals.goals.map((goal) => (goal.id === "kg-2" ? { ...goal, state: "done" } : goal)) } });
-  expect(goalDone.running.sections[0].rows.map((row) => row.id)).toEqual(["r14"]);
+  expect(new Set(goalDone.running.sections[0].rows.map((row) => row.id))).toEqual(new Set(["k-108", "k-109", "k-110", "r14", "r20"]));
 });
 
 test("ended work leaves the lists but stays in the lookup that a goal page and a run page link through", () => {
@@ -144,9 +148,9 @@ test("a goal's title that would show raw text does not name a row: 제목 없음
 test("a stopped row says why and who it waits on from what the core serves, and is plain when the core does not say", () => {
   const scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
   const model = endedModel(scene);
-  expect(model.cards.get("k-107")?.stop).toEqual({ words: `${SYNTHETIC_OWNER.name} 확인 필요`, known: true });
-  expect(model.cards.get("k-103")?.stop).toEqual({ words: "응답 없음", known: false });
-  expect(model.cards.get("r14")?.stop).toEqual({ words: "응답 없음", known: false });
+  expect(model.cards.get("k-107")?.stop).toEqual({ words: `${SYNTHETIC_OWNER.name} 확인 필요`, known: true, owner: true });
+  expect(model.cards.get("k-103")?.stop).toEqual({ words: "응답 없음", known: false, owner: false });
+  expect(model.cards.get("r14")?.stop).toEqual({ words: "응답 없음", known: false, owner: false });
   expect(model.cards.get("k-101")?.stop).toBeNull();
   const agent = scene.items.agents[0];
   const edited = endedModel({
@@ -159,7 +163,99 @@ test("a stopped row says why and who it waits on from what the core serves, and 
     },
     cards: { cards: scene.cards.cards.map((card) => (card.id === "k-107" ? { ...card, reason: "review" } : card)) },
   });
-  expect(edited.cards.get("r14")?.stop).toEqual({ words: "실패 · 다시 시도 안 함", known: true });
-  expect(edited.cards.get("r12")?.stop).toEqual({ words: `${agent.name} 검토 대기`, known: true });
-  expect(edited.cards.get("k-107")?.stop).toEqual({ words: "검토 대기", known: true });
+  expect(edited.cards.get("r14")?.stop).toEqual({ words: "실패 · 다시 시도 안 함", known: true, owner: false });
+  expect(edited.cards.get("r12")?.stop).toEqual({ words: `${agent.name} 검토 대기`, known: true, owner: false });
+  expect(edited.cards.get("k-107")?.stop).toEqual({ words: "검토 대기", known: true, owner: false });
+  // An agent that is to start another run is not a reviewer: the failure and the retry are what the row says.
+  const retried = endedModel({
+    ...scene,
+    board: { ...scene.board, cards: scene.board.cards.map((run) => (run.id === "r12" ? { ...run, todo: null, reason: "failed", waitingOn: `agent:${agent.id}`, retry: "scheduled" } : run)) },
+  });
+  expect(retried.cards.get("r12")?.stop).toEqual({ words: "실패 · 다시 시도 예정", known: true, owner: false });
+});
+
+// lina-app#119: the live shape, as the home sees it (no card's detail opened).
+
+test("a run with a card is never a row of its own, whether or not the cards list holds its card or its detail was opened", () => {
+  const scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
+  const model = homeModel(scene);
+  const carded = scene.board.cards.filter((run) => run.card).map((run) => run.id);
+  // r18 and r19 point at k-190, which the cards list does not hold; r15-r17 are k-108's, whose detail is not open.
+  expect(carded).toEqual(expect.arrayContaining(["r1", "r3", "r15", "r16", "r17", "r18", "r19", "r21"]));
+  expect(scene.cards.cards.some((card) => card.id === "k-190")).toBe(false);
+  const shown = [
+    ...model.running.rows,
+    ...model.home.waiting.rows,
+    ...model.home.recent.rows,
+    ...model.home.older.rows,
+    ...model.done,
+    ...model.inbox.rows.flatMap((row) => (row.type === "review" ? [row.card] : [])),
+    ...model.agents.flatMap((agent) => Object.values(agentView(model, agent.id) ?? {}).flatMap((section) => (section && typeof section === "object" && "rows" in section ? (section.rows as { id: string }[]) : []))),
+  ].map((row) => row.id);
+  for (const id of carded) expect(shown, id).not.toContain(id);
+  // The run still knows its card, for its own page.
+  expect(model.runOwner.get("r18")).toBe("k-190");
+  expect(model.runOwner.get("r15")).toBe("k-108");
+});
+
+test("the stopped group is the stopped cards plus the runs with no card nothing replaced; the header, the sidebar and the agent pages agree", () => {
+  const scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
+  const model = homeModel(scene);
+  const stoppedCards = scene.cards.cards.filter((card) => card.state === "stopped").map((card) => card.id);
+  // r12 was replaced by r13 and r11 sits under the finished goal G4; every other stopped run has a card.
+  const lone = scene.board.cards.filter((run) => run.state === "stopped" && !run.card).map((run) => run.id);
+  expect(lone.sort()).toEqual(["r11", "r12", "r14", "r20"]);
+  const expected = [...stoppedCards, "r14", "r20"];
+  expect(new Set(model.running.sections[0].rows.map((row) => row.id))).toEqual(new Set(expected));
+  expect(model.counts.stopped).toBe(expected.length);
+  expect(model.home.active.stopped).toBe(expected.length);
+  expect(model.agents.reduce((sum, agent) => sum + (agentView(model, agent.id)?.running.stopped ?? 0), 0)).toBe(expected.length);
+  for (const agent of model.agents) expect(agentView(model, agent.id)?.running.stopped).toBe(model.counts.agents[agent.id].stopped);
+  // A stopped card whose goal is done leaves, with the runs found through its id.
+  const goalDone = homeModel({ ...scene, goals: { goals: scene.goals.goals.map((goal) => (goal.id === "kg-2" ? { ...goal, state: "done" } : goal)) } });
+  expect(goalDone.counts.stopped).toBe(expected.length - 3);
+});
+
+test("a row is named by its own checked title, its own title, its to-do's title, its card's title, and its goal's title last", () => {
+  const scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
+  const model = homeModel(scene);
+  const name = (id: string) => model.cards.get(id)?.name;
+  expect(name("k-110")).toBe("백업: 복구 스크립트 점검"); // its checked title
+  expect(name("k-109")).toBe("배포 안내 메일 다듬기"); // its own title
+  expect(name("k-108")).toBe("야간 보고서 정리하기"); // the to-do of its runs, found through run.card
+  expect(name("r20")).toBe("알림 문구 고르기"); // a run's to-do
+  expect(name("k-102")).toBe("위키: 결제 화면 문서 정리"); // its own title comes before its run's to-do
+  const rawOwn = homeModel({ ...scene, cards: { cards: scene.cards.cards.map((card) => (card.id === "k-102" ? { ...card, title: "card-form.tsx polish" } : card)) } });
+  expect(rawOwn.cards.get("k-102")?.name).toBe("카드 입력 폼 다듬기"); // then its run's to-do, before its goal
+  expect(name("k-111")).toBe("결제 화면 개편"); // nothing of its own: its goal
+  expect(name("r14")).toBe("제목 없음");
+  expect(model.cards.get("r14")?.title).toBeNull();
+  // A run of a card with no to-do is named by its card's title.
+  const noTodo = homeModel({ ...scene, board: { ...scene.board, cards: scene.board.cards.map((run) => (run.id === "r3" ? { ...run, todo: null, plain: { ...run.plain, title: null } } : run)) } });
+  expect(noTodo.cards.get("r3")?.name).toBe("결제: 오류 문구 바꾸기");
+  // A to-do title that would show raw text does not name a row.
+  const rawTodo = homeModel({ ...scene, items: { ...scene.items, items: scene.items.items.map((item) => (item.id === "T15" ? { ...item, title: "notification copy picks" } : item)) } });
+  expect(rawTodo.cards.get("r20")?.name).toBe("제목 없음");
+});
+
+test("a stopped row says who waits from waitingOn and retry, and the rows waiting on the owner come first", () => {
+  const scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
+  const model = homeModel(scene);
+  const stop = (id: string) => model.cards.get(id)?.stop;
+  const agent = scene.items.agents[0];
+  expect(stop("k-108")).toEqual({ words: `${SYNTHETIC_OWNER.name} 확인 필요`, known: true, owner: true });
+  expect(stop("k-109")).toEqual({ words: `${agent.name} 검토 대기`, known: true, owner: false });
+  expect(stop("k-110")).toEqual({ words: "응답 없음 · 다시 시도 안 함", known: true, owner: false });
+  expect(stop("k-111")).toEqual({ words: "다시 시도 예정", known: true, owner: false });
+  expect(stop("r20")).toEqual({ words: "실패 · 다시 시도 안 함", known: true, owner: false });
+  // Neither waitingOn nor retry: the core does not say, one grey line.
+  expect(stop("k-103")).toEqual({ words: "응답 없음", known: false, owner: false });
+  const rows = model.running.sections[0].rows;
+  expect(rows.slice(0, 2).map((row) => row.id)).toEqual(["k-108", "k-107"]);
+  expect(rows.slice(2).every((row) => !row.stop?.owner)).toBe(true);
+  for (const each of model.agents) {
+    const own = agentView(model, each.id)?.running.rows.filter((row) => row.state === "stopped") ?? [];
+    const first = own.findIndex((row) => !row.stop?.owner);
+    expect(own.slice(first < 0 ? own.length : first).some((row) => row.stop?.owner), each.id).toBe(false);
+  }
 });

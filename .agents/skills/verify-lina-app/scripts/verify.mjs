@@ -727,6 +727,34 @@ const drivers = {
       await openApp(page, "#/running");
       return names[0] + "; " + retry;
     });
+    // The live shape (lina-app#119): the board lists the runs of cards, each naming its card; none is a row of its own.
+    await step("live shape: the stopped group is the stopped cards and the lone runs, owner first, each saying who waits", async () => {
+      await openApp(page, "#/running", "&runs=ended");
+      const list = page.getByRole("list", { name: "진행 중인 작업", exact: true });
+      const rows = await list.locator("[data-testid=row].is-stopped").evaluateAll((items) =>
+        items.map((item) => {
+          const state = item.querySelector("[data-testid=state]");
+          return { href: item.querySelector("a").getAttribute("href"), title: item.querySelector(".title").textContent, state: state.textContent, plain: state.classList.contains("is-plain"), colour: getComputedStyle(state).color };
+        }),
+      );
+      const hrefs = rows.map((row) => row.href);
+      check(rows.length === 8, "expected 8 stopped rows, got " + rows.length + ": " + hrefs.join(" "));
+      check(!hrefs.some((href) => /^#\/runs\/r(1|2|3|4|5|9|10|15|16|17|18|19|21)$/.test(href)), "a run of a card is a row of its own: " + hrefs.join(" "));
+      check(rows[0].state === "중단됨 · 나 확인 필요" && rows[1].state === "중단됨 · 나 확인 필요", "the rows waiting on the owner are not first: " + rows.map((row) => row.state).join(" | "));
+      check(rows.slice(2).every((row) => !row.state.endsWith("나 확인 필요")), "an owner row is below another row");
+      check(rows.some((row) => / 검토 대기$/.test(row.state)) && rows.some((row) => row.state === "중단됨 · 다시 시도 예정") && rows.some((row) => row.state === "중단됨 · 응답 없음 · 다시 시도 안 함"), "the states read " + rows.map((row) => row.state).join(" | "));
+      for (const row of rows) check(row.plain === (row.state === "중단됨 · 응답 없음") && (row.plain || row.colour === "rgb(255, 59, 48)"), row.title + " reads " + row.state + " in " + row.colour);
+      check(rows.filter((row) => row.title === "제목 없음").length === 1, "rows titled 제목 없음: " + rows.filter((row) => row.title === "제목 없음").length);
+      const grey = await sidebarCount(page, "nav-running");
+      if (grey !== null) {
+        const red = (await page.getByTestId("nav-running").getByTestId("nav-stopped").innerText()).trim();
+        check(red === "8", "the sidebar's red number is " + red + ", the list has 8 stopped rows");
+      }
+      const header = (await page.getByTestId("screen-running").getByTestId("stopped-count").first().innerText()).trim();
+      check(header === "8", "the group header's red number is " + header);
+      await openApp(page, "#/running");
+      return rows.map((row) => row.title + " — " + row.state).join(" | ");
+    });
     await step("the now line shows at 1280 only", async () => {
       const wide = page.viewportSize().width >= 900;
       const shown = await page.getByText("변경마다 한 줄 요약을 붙이는 중").first().isVisible();

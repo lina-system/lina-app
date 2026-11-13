@@ -767,6 +767,10 @@ export interface components {
         };
         RunCard: {
             agent: string | null;
+            /** @description The board slug the run's card is on (lina#630); null when no card started the run. */
+            board?: string | null;
+            /** @description The work card that started the run (lina#630): exactly the `id` the card has in `GET /work/cards` and `GET /work/cards/{id}`, source prefix included; null when no card started the run. The cards list holds a window of cards and may not hold this one. */
+            card?: string | null;
             endedAt: number | null;
             host: string | null;
             id: string;
@@ -778,13 +782,18 @@ export interface components {
             plain: components["schemas"]["PlainLines"];
             /** @description planned: new, queued; waiting: review, decision; stopped: failed, unresponsive, result_missing, cancelled, rejected. */
             reason: string | null;
+            /**
+             * @description On a stopped run (lina#629): whether it will be tried again, `scheduled` (the core or the agent will start another run), `none`, or null when unknown.
+             * @enum {string|null}
+             */
+            retry?: "scheduled" | "none" | null;
             settingsRevision: components["schemas"]["SettingsRevision"];
             startedAt: number | null;
             state: components["schemas"]["WorkState"];
             title: string;
             /** @description The work record to-do the run takes on. */
             todo: string | null;
-            /** @description Who the run waits on: `agent:<name>` for a finished run waiting for the verdict of the agent that handed it out. Such a run is counted under that agent in `counts.agents`, never in `inbox.review`, the `review` notices or `counts.inbox`; null otherwise (shown as before). */
+            /** @description Who the run waits on: `agent:<name>` for a finished run waiting for the verdict of the agent that handed it out. Such a run is counted under that agent in `counts.agents`, never in `inbox.review`, the `review` notices or `counts.inbox`; null otherwise (shown as before). On a stopped run (lina#629): who has to act next, `owner`, `agent:<id>`, or null when nobody has to (for example the work was replaced or its goal finished). */
             waitingOn?: string | null;
         };
         /** @description The model the run started with (lina#257); null when it runs on the runner's own default. A follow-up keeps it. */

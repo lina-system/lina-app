@@ -1,4 +1,6 @@
-# Copied unchanged from lina-system/lina docs/api/board-client.yaml at dev commit 602f689aaf51e2cb21dd08104f25034eb275a07c.
+# Copied unchanged from lina-system/lina docs/api/board-client.yaml at dev commit 602f689aaf51e2cb21dd08104f25034eb275a07c,
+# plus the optional RunCard fields card and board (lina#630) and retry, with waitingOn on a stopped run (lina#629)
+# (lina-app#119).
 # Board endpoints the app reads beyond docs/api/work-client.yaml (lina#112): the owner's to-dos, decisions and due
 # groups from the work record, `lina worker` runs that are not kanban work cards, devices, quota and the inbox
 # notices; each agent's goals and to-dos (lina#166); one worker run's record, round by round (lina#201); the owner's
@@ -639,7 +641,27 @@ components:
           description: >
             Who the run waits on: `agent:<name>` for a finished run waiting for the verdict of the agent that
             handed it out. Such a run is counted under that agent in `counts.agents`, never in `inbox.review`, the
-            `review` notices or `counts.inbox`; null otherwise (shown as before).
+            `review` notices or `counts.inbox`; null otherwise (shown as before). On a stopped run (lina#629): who
+            has to act next, `owner`, `agent:<id>`, or null when nobody has to (for example the work was replaced
+            or its goal finished).
+        retry:
+          type: string
+          nullable: true
+          enum: [scheduled, none, null]
+          description: >
+            On a stopped run (lina#629): whether it will be tried again, `scheduled` (the core or the agent will
+            start another run), `none`, or null when unknown.
+        card:
+          type: string
+          nullable: true
+          description: >
+            The work card that started the run (lina#630): exactly the `id` the card has in `GET /work/cards` and
+            `GET /work/cards/{id}`, source prefix included; null when no card started the run. The cards list holds
+            a window of cards and may not hold this one.
+        board:
+          type: string
+          nullable: true
+          description: The board slug the run's card is on (lina#630); null when no card started the run.
         kind:
           type: string
           nullable: true

@@ -329,3 +329,29 @@ test("cards differ in kind: code, docs, research and device all appear", () => {
   const running = model(scene).running.rows.filter((card) => card.state === "in_progress");
   expect(new Set(running.map((card) => card.work)).size).toBe(running.length);
 });
+
+test("the ended-runs scene has the live shape: runs carry their card and board, and stopped cards say who waits (lina-app#119)", () => {
+  const live = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
+  const listed = new Set(live.cards.cards.map((card) => card.id));
+  const carded = live.board.cards.filter((run) => run.card);
+  // The board lists the runs of cards, each naming its card by the id the cards list serves, and its board.
+  expect(carded.length).toBeGreaterThan(0);
+  expect(carded.every((run) => typeof run.board === "string" && run.board.length > 0)).toBe(true);
+  expect(live.board.cards.filter((run) => !run.card).every((run) => !run.board)).toBe(true);
+  // Several runs of one card, and runs whose card the cards list does not hold.
+  const perCard = new Map<string, number>();
+  for (const run of carded) perCard.set(run.card as string, (perCard.get(run.card as string) ?? 0) + 1);
+  expect(Math.max(...perCard.values())).toBeGreaterThanOrEqual(3);
+  expect(carded.filter((run) => listed.has(run.card as string)).length).toBeGreaterThan(0);
+  expect(carded.filter((run) => !listed.has(run.card as string)).length).toBeGreaterThanOrEqual(2);
+  // Card rows have no checked title, as on a live install; the stopped cards carry each waitingOn and retry.
+  const stopped = live.cards.cards.filter((card) => card.state === "stopped");
+  const waits = stopped.map((card) => card.waitingOn);
+  expect(waits).toContain("owner");
+  expect(waits.some((who) => who?.startsWith("agent:"))).toBe(true);
+  expect(waits).toContain(null);
+  expect(waits).toContain(undefined);
+  expect(new Set(stopped.map((card) => card.retry))).toEqual(new Set([undefined, null, "none", "scheduled"]));
+  // The default scene keeps the runs of cards off the board, as the counts every screen is held to assume.
+  expect(scene.board.cards.every((run) => !run.card)).toBe(true);
+});

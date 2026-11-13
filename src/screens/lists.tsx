@@ -3,11 +3,11 @@ import { USAGE_RANGES, type Machine, type PersonDevice, type PowerStation, type 
 import type { CardRow, DueRow, GoalRow, InboxRow, Section } from "../model";
 import { agentView, doneFor, localDay } from "../model";
 import type { OpenCheck } from "../model/checks";
+import { stopReason } from "../model/stop-reason";
 import type { UsageLine } from "../model/usage";
 import { href, navigate } from "../router";
 import { ago, dayLabel, until } from "../time";
 import { useEffect, useState } from "preact/hooks";
-import { KoreanInput } from "../korean-input";
 import { useActions } from "../ui/actions";
 import { AgentMark, agentName, CardRowView, CountPair, Dial, Disclosure, DoneCheck, Empty, ErrorLine, Link, ListSection, useApp } from "../ui/parts";
 import { machineWhy, metricsReason, serviceName, SEP, versionOf, W } from "../words";
@@ -16,75 +16,27 @@ import { writeError } from "./write-error";
 type DecideRow = Extract<InboxRow, { type: "decide" }>;
 
 /**
- * A decision expands in place: the full sentence, a link to its record, `진행 대기:` when to-dos wait on it, and
- * the answer buttons (the recommended one marked) or a field. Answering hides the row and holds the answer back
- * for the toast (see Actions.answer).
+ * A decision is one row that opens its record in the one detail frame at once (lina-app#142): the full sentence, `진행
+ * 대기:` when to-dos wait on it, and the answer buttons (the recommended one marked) or a field stand there. Answering
+ * hides the row and holds the answer back for the toast (see Actions.answer).
  */
 function DecisionRow({ row }: { row: DecideRow }) {
-  const { model, store, now } = useApp();
-  const actions = useActions();
-  const error = actions.error(row.key);
-  const [open, setOpen] = useState(Boolean(error));
-  const [text, setText] = useState(error?.text ?? "");
-  useEffect(() => {
-    if (open && row.target.kind === "item") store.ensure([["item", row.target.id]]);
-  }, [open]);
+  const { model, now, selected } = useApp();
   const name = agentName(model, row.agent);
   const kind = row.ask ? W.ask : W.act;
-  const detail = row.target.kind === "item" ? store.get("item", row.target.id) : undefined;
-  const choices = detail?.decision?.choices ?? [];
-  const recommended = detail?.decision?.recommended ?? null;
-  const waiting = (detail?.children ?? []).filter((child) => child.reason === "blocked_by_item").map((child) => child.title);
-  const busy = actions.busy(row.key);
-  const send = (answer: string) => {
-    const body = answer.trim();
-    if (body) actions.answer(row.key, row.target, body);
-  };
   return (
-    <li class={`row inbox-row decision-row${open ? " is-open" : ""}`} data-testid="row">
-      <button type="button" class="row-button" aria-expanded={open} aria-label={[name, row.text, kind].filter(Boolean).join(SEP)} onClick={() => setOpen(!open)}>
+    <li class="row inbox-row decision-row" data-testid="row">
+      <Link href={row.href} label={[name, row.text, kind].filter(Boolean).join(SEP)} current={selected === row.href}>
         <AgentMark id={row.agent} />
         <span class="lines">
-          {open ? null : <span class="context one-line">{row.context}</span>}
-          <span class={open ? "title" : "title one-line"}>{row.text}</span>
+          <span class="context one-line">{row.context}</span>
+          <span class="title one-line">{row.text}</span>
         </span>
         <span class="trail">
           <span class="kind-word">{kind}</span>
           <span class="time">{ago(now - row.at)}</span>
         </span>
-      </button>
-      {open ? (
-        <div class="decision-panel" data-testid="decision-panel">
-          <Link href={row.href} class="context crumb">
-            {row.context}
-          </Link>
-          {waiting.length ? <p class="sub" data-testid="waiting-on">{W.waitingOn(waiting.join(", "))}</p> : null}
-          {choices.length ? (
-            <div class="choices" role="group" aria-label={row.text}>
-              {choices.map((choice) => (
-                <button key={choice} type="button" class="choice" disabled={busy} aria-label={choice === recommended ? `${choice}${SEP}${W.recommended}` : choice} onClick={() => send(choice)}>
-                  {choice}
-                  {choice === recommended ? <span class="tag">{W.recommended}</span> : null}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <form
-              class="comment-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                send(text);
-              }}
-            >
-              <KoreanInput label={W.answerField} value={text} onValue={setText} inline />
-              <button type="submit" class="text-button" disabled={busy || !text.trim()}>
-                {W.send}
-              </button>
-            </form>
-          )}
-          <ErrorLine line={error?.line} />
-        </div>
-      ) : null}
+      </Link>
     </li>
   );
 }
@@ -166,7 +118,7 @@ function StoppedSection({ section }: { section: Section<CardRow> }) {
       </h2>
       <ul class="rows" aria-label={section.title}>
         {section.rows.map((card) => (
-          <CardRowView key={card.key} card={card} action={card.stop?.retry ? <RetryControl card={card} /> : undefined} error={actions.error(`retry:${card.key}`)?.line} />
+          <CardRowView key={card.key} card={card.stop ? { ...card, stop: { ...card.stop, words: stopReason(card).word } } : card} action={card.stop?.retry ? <RetryControl card={card} /> : undefined} error={actions.error(`retry:${card.key}`)?.line} />
         ))}
       </ul>
     </section>

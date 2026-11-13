@@ -323,7 +323,7 @@ async function stoppedCardColours(list) {
 
 async function decisionNames(list) {
   await list.first().waitFor({ timeout: 10_000 });
-  return list.locator(":scope > li > .row-button").evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label")));
+  return list.locator(":scope > li > a").evaluateAll((links) => links.map((link) => link.getAttribute("aria-label")));
 }
 
 const ACCENT = "rgb(0, 122, 255)";
@@ -629,6 +629,7 @@ async function dividerSteps(page, step, width) {
 
 const drivers = {
   async inbox(page, step) {
+    const wide = page.viewportSize().width >= 900;
     await step("open the app on 수신함", async () => {
       await openApp(page, "#/inbox");
       return await title(page);
@@ -657,10 +658,9 @@ const drivers = {
     });
     await step("each decision opens the record it is aimed at, which shows the decision", async () => {
       const list = page.getByRole("list", { name: "결정 필요" });
-      const buttons = list.locator(":scope > li > .row-button");
-      for (let index = 0; index < (await buttons.count()); index += 1) await buttons.nth(index).click();
+      // Each row is a link to its record (lina-app#142): its line names the record, its address opens it in the frame.
       const rows = await list.locator(":scope > li").evaluateAll((items) =>
-        items.map((item) => ({ href: item.querySelector(".decision-panel a").getAttribute("href"), text: item.querySelector(".row-button .title").textContent.trim(), context: item.querySelector(".decision-panel a").textContent.trim(), kind: item.querySelector(".kind-word").textContent.trim() })),
+        items.map((item) => ({ href: item.querySelector(":scope > a").getAttribute("href"), text: item.querySelector(":scope > a .title").textContent.trim(), context: item.querySelector(":scope > a .context").textContent.trim(), kind: item.querySelector(".kind-word").textContent.trim() })),
       );
       const seen = { item: 0, card: 0 };
       for (const row of rows) {
@@ -687,16 +687,15 @@ const drivers = {
       await openApp(page, "#/inbox");
       return rows.length + " decisions: " + seen.item + " on goals or to-dos, " + seen.card + " on a card";
     });
-    await step("a decision expands in place, and its line opens the record", async () => {
+    await step("a decision's row opens its record in the detail frame at once, with its answers there", async () => {
       const first = page.getByRole("list", { name: "결정 필요" }).locator(":scope > li").first();
-      await first.locator(".row-button").click();
-      check((await first.locator(".row-button").getAttribute("aria-expanded")) === "true", "the row did not expand");
-      check(/#\/inbox$/.test(page.url()), "expanding the row navigated to " + page.url());
-      await first.getByRole("button", { name: /추천$/ }).waitFor({ timeout: 5_000 }).catch(() => check(false, "the first decision shows no recommended answer"));
-      await first.locator(".decision-panel a").click();
-      await page.locator(".detail-title").waitFor();
+      await first.locator(":scope > a").click();
+      const frame = page.getByTestId("detail-frame");
+      await frame.locator(".detail-title").waitFor();
       check(/#\/items\//.test(page.url()), "the row opened " + page.url());
-      return (await page.locator(".detail-title").innerText()) + " at " + new URL(page.url()).hash;
+      check((await frame.getAttribute("data-frame")) === (wide ? "panel" : "sheet"), "the decision opens in " + (await frame.getAttribute("data-frame")));
+      await frame.getByRole("button", { name: /추천$/ }).waitFor({ timeout: 5_000 }).catch(() => check(false, "the first decision shows no recommended answer in its frame"));
+      return (await frame.locator(".detail-title").innerText()) + " at " + new URL(page.url()).hash;
     });
   },
 
@@ -968,10 +967,16 @@ const drivers = {
       check(await page.getByRole("textbox", { name: "댓글 달기" }).isVisible(), "the goal page has no comment field");
       return heads.join(", ") + "; cards " + cards.join(" | ");
     });
-    await step("a done goal shows the evidence that closed it", async () => {
+    await step("a done goal's history (기록) reads the evidence that closed it and its close, one line each", async () => {
       await openApp(page, "#/goals/G4");
-      await page.getByTestId("evidence").waitFor();
-      return await page.getByTestId("evidence").innerText();
+      const rows = page.getByTestId("goal-history").getByTestId("history-row");
+      await rows.first().waitFor();
+      const lines = (await rows.allInnerTexts()).map((line) => line.trim());
+      const event = /^(어제 |\d+월 \d+일 )?\d\d:\d\d · \S/;
+      check(lines.every((line) => event.test(line) && !line.includes("\n")), "a history row is not time · sentence: " + JSON.stringify(lines));
+      check(lines.some((line) => line.endsWith(" · 새 가이드를 문서 사이트에 올리고 첫 화면에 연결함")), "no evidence row: " + JSON.stringify(lines));
+      check(lines.at(-1).endsWith(" · 완료"), "the last row is not the close: " + lines.at(-1));
+      return lines.join(" | ");
     });
   },
 
@@ -1027,9 +1032,8 @@ const drivers = {
     });
     await step("from 수신함, a decision's line opens 배포 순서 정하기 with its decision box", async () => {
       await openApp(page, "#/inbox");
-      const row = page.getByRole("list", { name: "결정 필요" }).locator(":scope > li").filter({ has: page.getByRole("button", { name: /배포를 금요일 오후에 할지 결정 필요/ }) });
-      await row.locator(".row-button").click();
-      await row.locator(".decision-panel a").click();
+      const row = page.getByRole("list", { name: "결정 필요" }).locator(":scope > li").filter({ has: page.getByRole("link", { name: /배포를 금요일 오후에 할지 결정 필요/ }) });
+      await row.locator(":scope > a").click();
       await page.waitForFunction(() => location.hash === "#/items/T2", null, { timeout: 3_000 }).catch(() => check(false, "the decision opened " + page.url()));
       const title = (await page.locator(".detail-title").first().innerText()).trim();
       check(title === "배포 순서 정하기", "the to-do opened is " + title);
@@ -1152,7 +1156,8 @@ const drivers = {
       const links = page.getByTestId("timeline-link");
       const hrefs = await links.evaluateAll((items) => items.map((item) => item.getAttribute("href")));
       check(JSON.stringify(hrefs) === JSON.stringify(["#/runs/r1", "#/runs/r10", "#/runs/r9"]), "the round heads link to " + JSON.stringify(hrefs));
-      check((await page.getByTestId("comment").count()) === 4, "expected 4 comments");
+      const comments = await page.getByTestId("card-comments").getByTestId("history-row").allInnerTexts();
+      check(comments.length === 4 && comments.every((line) => /^(어제 )?\d\d:\d\d · \S[^\n]*$/.test(line.trim())), "expected 4 one-line comments, got " + JSON.stringify(comments));
       return state + "; " + heads.join(", ") + "; " + order.join(", ");
     });
     await step("a work card with no checked title shows its own title and kind in its head", async () => {
@@ -1181,7 +1186,7 @@ const drivers = {
       // Its raw result line is left out, with no placeholder; the round keeps its head.
       const results = await block.getByTestId("timeline-result").count();
       const text = await page.getByTestId("timeline").innerText();
-      check(/^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 완료$/.test(head) && results === 0 && !text.includes("가린 문장") && !/benchmark|3f2a1c9/.test(text), "the run's timeline reads " + head + " / results " + results + " / " + text.replace(/\s+/g, " "));
+      check(/^(어제 )?\d\d:\d\d · 완료$/.test(head) && results === 0 && !text.includes("가린 문장") && !/benchmark|3f2a1c9/.test(text), "the run's timeline reads " + head + " / results " + results + " / " + text.replace(/\s+/g, " "));
       return new URL(page.url()).hash + " " + state + "; " + head + "; no result line";
     });
     await step("a run's record never shows a model alias: the scene's models have no plain name, so no model line", async () => {
@@ -1207,7 +1212,8 @@ const drivers = {
       await openApp(page, "#/cards/k-104");
       await page.getByTestId("worker-runs").waitFor();
       const lines = await page.getByTestId("worker-runs").getByRole("link").evaluateAll((items) => items.map((item) => item.getAttribute("aria-label")));
-      check(JSON.stringify(lines) === JSON.stringify(["결제: 실패 화면 검토 · 완료 기록 없음"]), "k-104's run lines read " + JSON.stringify(lines));
+      // One line per run, its time and state word; the card's title is its head's, never repeated (lina-app#142).
+      check(lines.length === 1 && /^(어제 )?\d\d:\d\d · 완료 기록 없음$/.test(lines[0]), "k-104's run lines read " + JSON.stringify(lines));
       check(!(await page.locator("article.detail").innerText()).includes("코드 작업"), "k-104 reads 코드 작업");
       return title + " · " + state + "; k-104 " + lines.join(", ");
     });
@@ -1979,7 +1985,7 @@ const drivers = {
     await step("a row hidden for its answer's toast is out of every count; undo puts it back", async () => {
       await openApp(page, "#/inbox");
       const list = page.getByRole("list", { name: "결정 필요" });
-      await list.getByRole("button", { name: /배포를 금요일 오후에 할지 결정 필요/ }).click();
+      await list.getByRole("link", { name: /배포를 금요일 오후에 할지 결정 필요/ }).click();
       const pick = page.getByRole("button", { name: "금요일 오후 · 추천" });
       await pick.waitFor({ timeout: 3_000 });
       await pick.click();
@@ -2042,30 +2048,33 @@ const drivers = {
     await step("an answer with choices: the row leaves, and the answer goes after the toast", async () => {
       await openApp(page, "#/inbox");
       const list = page.getByRole("list", { name: "결정 필요" });
-      await list.getByRole("button", { name: /배포를 금요일 오후에 할지 결정 필요/ }).click();
+      await list.getByRole("link", { name: /배포를 금요일 오후에 할지 결정 필요/ }).click();
       const pick = page.getByRole("button", { name: "금요일 오후 · 추천" });
       await pick.waitFor({ timeout: 3_000 });
       await pick.click();
-      check((await list.getByRole("button", { name: /배포를 금요일/ }).count()) === 0, "the row is still listed");
+      check((await list.getByRole("link", { name: /배포를 금요일/ }).count()) === 0, "the row is still listed");
       check((await page.getByTestId("toast").innerText()).startsWith("답함"), "no 답함 toast");
       const early = await scene(() => window.__linaScene.itemDetails.T2.comments.filter((comment) => comment.kind === "answer").length);
       check(early === 0, "the answer was sent before the toast ended");
       await toastGone();
       await page.waitForFunction(() => window.__linaScene.itemDetails.T2.comments.some((comment) => comment.kind === "answer" && comment.text === "금요일 오후"), null, { timeout: 3_000 }).catch(() => check(false, "the answer did not reach the record"));
-      check((await list.getByRole("button", { name: /배포를 금요일/ }).count()) === 0, "the row came back");
+      check((await list.getByRole("link", { name: /배포를 금요일/ }).count()) === 0, "the row came back");
       return "row gone, answer 금요일 오후 recorded after the toast";
     });
     await step("a free-text answer and a card's question", async () => {
       await openApp(page, "#/inbox");
       const list = page.getByRole("list", { name: "결정 필요" });
-      await list.getByRole("button", { name: /자주 쓰는 검색어 열 개 확인 필요/ }).click();
+      await list.getByRole("link", { name: /자주 쓰는 검색어 열 개 확인 필요/ }).click();
+      // The decision opens in the frame (lina-app#142); its 보내기 is the answer's, not the comment box's.
       await page.getByRole("textbox", { name: "답 달기" }).fill("결제, 환불, 배송");
-      await page.getByRole("button", { name: "보내기", exact: true }).click();
+      await page.getByTestId("decision-answer").getByRole("button", { name: "보내기", exact: true }).click();
       await toastGone();
+      // On a phone the frame is a sheet over the list: close it to reach the next row.
+      if (!wide) await page.getByTestId("frame-close").click();
       await page.waitForFunction(() => window.__linaScene.itemDetails.T12.comments.some((comment) => comment.kind === "answer" && comment.text === "결제, 환불, 배송"), null, { timeout: 3_000 }).catch(() => check(false, "the free-text answer did not reach the record"));
-      await list.getByRole("button", { name: /카드 번호를 앞 여섯 자리까지/ }).click();
+      await list.getByRole("link", { name: /카드 번호를 앞 여섯 자리까지/ }).click();
       await page.getByRole("textbox", { name: "답 달기" }).fill("앞 네 자리만요");
-      await page.getByRole("button", { name: "보내기", exact: true }).click();
+      await page.getByTestId("decision-answer").getByRole("button", { name: "보내기", exact: true }).click();
       await toastGone();
       await page.waitForFunction(() => window.__linaScene.cardDetails["k-102"].comments.some((comment) => comment.body === "앞 네 자리만요") && window.__linaScene.inbox.questions.length === 0, null, { timeout: 3_000 }).catch(() => check(false, "the card answer did not reach the card"));
       const left = await decisionNames(list);
@@ -2325,10 +2334,10 @@ const drivers = {
         check(selected === 1, "no selected row");
         return new URL(page.url()).hash;
       });
-      await step("browser back restores the list without a selection and folds the detail pane", async () => {
+      await step("browser back closes the detail and folds the pane; the chosen row stays highlighted", async () => {
         await page.goBack();
         await page.waitForFunction(() => location.hash === "#/running");
-        check((await page.locator(".list-pane [aria-current=page]").count()) === 0, "a row is still selected");
+        check((await page.locator(".list-pane [aria-current=page]").count()) === 1, "the chosen row is no longer highlighted");
         check((await page.getByTestId("detail-pane").count()) === 0, "the empty detail pane is still drawn");
         const width = await page.locator(".list-pane").evaluate((pane) => pane.getBoundingClientRect().width);
         const room = await page.getByTestId("panes").evaluate((panes) => panes.getBoundingClientRect().width);
@@ -2346,17 +2355,21 @@ const drivers = {
       const name = (await first.getAttribute("aria-label")) ?? "";
       return "작업; first row " + name;
     });
-    await step("a row pushes the next screen; back names the screen it returns to", async () => {
+    await step("a row pushes the next screen; back names the screen it returns to; a card rises as a sheet over its list", async () => {
       await openMenu(page);
       await page.getByRole("link", { name: /^진행 중인 작업/ }).click();
       await page.waitForFunction(() => location.hash === "#/running");
       const back = (await page.getByTestId("back").innerText()).trim();
       check(back === "작업", "back reads " + back);
       await page.getByRole("list", { name: "진행 중인 작업" }).getByRole("link").first().click();
-      await page.getByTestId("screen-card").waitFor();
+      await page.getByTestId("detail-frame").getByTestId("screen-card").waitFor();
+      // The detail is the one frame, a sheet over the list (lina-app#142): the list keeps its title and its back.
+      const frame = await page.getByTestId("detail-frame").getAttribute("data-frame");
+      check(frame === "sheet", "the card opens in " + frame);
+      check((await title(page)) === "진행 중인 작업", "the list under the sheet reads " + (await title(page)));
       const back2 = (await page.getByTestId("back").innerText()).trim();
-      check(back2 === "진행 중인 작업", "back reads " + back2);
-      return "작업 → 진행 중인 작업 → card";
+      check(back2 === "진행 중인 작업", "back over the sheet reads " + back2);
+      return "작업 → 진행 중인 작업 → card sheet";
     });
     await step("the browser back button restores the screen and its scroll", async () => {
       await page.goBack();
@@ -2542,9 +2555,11 @@ const drivers = {
       if (!wide) await page.setViewportSize({ width: size.width, height: 480 });
       await openApp(page, wide ? "#/items/T3" : "#/inbox", "&live=drop");
       await markPage(page);
-      const row = page.getByRole("button", { name: /배포를 금요일 오후에 할지 결정 필요/ });
+      // The decision opens in the frame (lina-app#142) and its row is the selected one.
+      const row = page.getByRole("link", { name: /배포를 금요일 오후에 할지 결정 필요/ });
       await row.click();
-      check((await row.getAttribute("aria-expanded")) === "true", "the decision row did not open");
+      await page.getByTestId("detail-frame").getByTestId("decision").waitFor();
+      check((await row.getAttribute("aria-current")) === "page", "the decision row is not the selected one");
       const kept = async () =>
         page.evaluate(() => ({
           selected: document.querySelector(".list-pane [aria-current=page]")?.textContent?.trim() ?? null,
@@ -2562,7 +2577,7 @@ const drivers = {
       const { connections } = await stream(page);
       check(connections.length === 2, "the stream had " + connections.length + " connections");
       check(connections[1].since !== null && connections[1].first === "missed" && connections[1].missed === 1, "the reconnect was " + JSON.stringify(connections[1]));
-      check((await row.getAttribute("aria-expanded")) === "true", "the open decision row closed");
+      check((await row.getAttribute("aria-current")) === "page" && (await page.getByTestId("detail-frame").getByTestId("decision").count()) === 1, "the open decision closed");
       const after = await kept();
       check(JSON.stringify(after) === JSON.stringify(before), "the screen moved: " + JSON.stringify(before) + " -> " + JSON.stringify(after));
       check(await notReloaded(page), "the page reloaded");
@@ -2712,7 +2727,7 @@ const drivers = {
       check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "기록", "댓글"]), "the boxes read " + JSON.stringify(heads));
       const rounds = await detail.getByTestId("timeline-link").allInnerTexts();
       check(
-        rounds.length === 3 && /^(어제 )?\d\d:\d\d · 진행 중$/.test(rounds[0]) && /^(어제 )?\d\d:\d\d–(어제 )?\d\d:\d\d · 검토 필요$/.test(rounds[1]) && /^(어제 )?\d\d:\d\d · 완료$/.test(rounds[2]),
+        rounds.length === 3 && /^(어제 )?\d\d:\d\d · 진행 중$/.test(rounds[0]) && /^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/.test(rounds[1]) && /^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/.test(rounds[2]),
         "the rounds read " + JSON.stringify(rounds),
       );
       // Round 1's end is r9's own end (2시간 40분 전), so the head and the run agree.
@@ -2722,7 +2737,7 @@ const drivers = {
         const time = String(at.getHours()).padStart(2, "0") + ":" + String(at.getMinutes()).padStart(2, "0");
         return at.toDateString() === new Date(window.__linaScene.now * 1000).toDateString() ? time : "어제 " + time;
       });
-      check(rounds[2] === end + " · 완료", "round 1 ends " + rounds[2] + ", its run at " + end);
+      check(rounds[2] === end + " · 완료 · 병합된 변경 41개를 모음", "round 1 ends " + rounds[2] + ", its run at " + end);
       return heads.join(", ") + "; " + rounds.join(" | ");
     });
     await step("the running and stopped groups have their heading and one number each; finished cards say when they ended", async () => {
@@ -2740,19 +2755,16 @@ const drivers = {
       check(older.every((line) => /^완료 · \d+일 전$/.test(line)), "older cards read " + older.join(", "));
       return words + " " + grey + " / " + red + "; " + recent.join(", ") + "; " + older.join(", ");
     });
-    await step("a comment with a path, a hash or a cut-off fragment is one folded entry; it opens on demand", async () => {
+    await step("a comment with a path, a hash or a cut-off fragment reads its first sentence with those left out, one line", async () => {
       await openApp(page, "#/cards/k-103");
-      const comments = page.getByTestId("comment");
-      const folded = await comments.evaluateAll((items) => items.map((item) => item.getAttribute("data-folded")));
-      check(JSON.stringify(folded) === JSON.stringify([null, "hash", "fragment"]), "the comments fold as " + JSON.stringify(folded));
+      const rows = page.getByTestId("card-comments").getByTestId("history-row");
+      await rows.first().waitFor();
+      const lines = (await rows.allInnerTexts()).map((line) => line.trim());
+      check(lines.length === 3 && lines.every((line) => /^(어제 )?\d\d:\d\d · \S[^\n]*$/.test(line)), "the comments read " + JSON.stringify(lines));
+      check(/ · 키 12개를 바꿈$/.test(lines[1]), "the comment with a path and a hash reads " + lines[1]);
       const text = await page.getByTestId("screen-card").innerText();
-      check(!text.includes("errors.json") && !text.includes("3f2a1c9"), "a folded comment shows its text closed");
-      const label = (await comments.nth(1).locator("summary").innerText()).trim();
-      check(/^접힌 댓글 · \S+ · \d+(분|시간) 전$/.test(label), "the folded entry reads " + label);
-      await comments.nth(1).locator("summary").click();
-      const raw = (await comments.nth(1).locator(".comment-raw").innerText()).trim();
-      check(raw.includes("errors.json"), "the opened entry reads " + raw);
-      return label + "; opened: " + raw;
+      check(!/errors\.json|3f2a1c9|접힌 댓글/.test(text), "raw text or a folded entry in the card");
+      return lines.join(" | ");
     });
     await step("a round with no start on record is one dim line when it holds content; an end alone shows nothing", async () => {
       const heads = await page.getByTestId("round").locator(".round-head").allInnerTexts();
@@ -2800,7 +2812,7 @@ const drivers = {
       check(head === "할 일 1/3", "the detail head's bar reads " + head);
       return (wide ? bars.join(", ") : "no bar on the phone home") + "; detail " + head;
     });
-    await step("the run's own timeline: rounds newest first with their span and outcome; sentences bright, tools dim, raw text left out", async () => {
+    await step("the run's own timeline: rounds newest first, each head time · outcome · result; sentences bright, tools dim, raw text left out", async () => {
       await openApp(page, "#/cards/k-101");
       const timeline = page.getByTestId("timeline");
       await timeline.waitFor();
@@ -2810,7 +2822,7 @@ const drivers = {
       const outcomes = await blocks.evaluateAll((items) => items.map((item) => item.getAttribute("data-outcome")));
       check(JSON.stringify(outcomes) === JSON.stringify(["going", "comment", "rejected", "comment", "ended"]), "the blocks read " + JSON.stringify(outcomes));
       const titles = await timeline.locator(".timeline-head").allInnerTexts();
-      check(/^(어제 )?\d\d:\d\d · 진행 중$/.test(titles[0]) && /^.* · 검토 필요$/.test(titles[2]) && titles[3] === "댓글" && /^(어제 )?\d\d:\d\d · 완료$/.test(titles[4]) && !titles.some((title) => title.includes("라운드")) && !titles.some((title) => title.includes(" –") || title.startsWith("–")), "the heads read " + JSON.stringify(titles));
+      check(/^(어제 )?\d\d:\d\d · 진행 중$/.test(titles[0]) && /^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/.test(titles[2]) && titles[3] === "댓글" && /^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/.test(titles[4]) && !titles.some((title) => title.includes("라운드")) && !titles.some((title) => title.includes(" –") || title.startsWith("–")), "the heads read " + JSON.stringify(titles));
       const rows = await blocks.first().locator(".timeline-row").evaluateAll((items) =>
         items.map((item) => ({ kind: item.getAttribute("data-kind"), text: item.textContent.trim(), colour: getComputedStyle(item).color })),
       );

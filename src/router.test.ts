@@ -1,7 +1,7 @@
 import { act, cleanup, render } from "@testing-library/preact";
 import { h } from "preact";
 import { afterEach, describe, expect, test } from "vitest";
-import { back, defaultListFor, directionOf, href, navigate, onSaveScroll, onStackMotion, parse, tabOf, tabRoot, TABS, useNav, type Direction } from "./router";
+import { back, baseOf, defaultListFor, directionOf, href, navigate, onSaveScroll, onStackMotion, parse, tabOf, tabRoot, TABS, useNav, type Direction } from "./router";
 
 // Preact runs a passive effect's cleanup after paint; unmounting inside act flushes it before the test ends, so no
 // timer outlives the test environment (and no old listener sees the next test's history).
@@ -170,5 +170,18 @@ describe("the motion learns the direction before the screen swaps", () => {
     await late;
     expect(view.getByTestId("shown").textContent).toBe("#/");
     expect(scrolls.at(-1)).toBe(120);
+  });
+});
+
+describe("the screen a detail frame stands over (lina-app#142)", () => {
+  test("a link followed inside a frame that was opened directly keeps the screen that frame stood on", () => {
+    expect(baseOf(parse("#/items/T4"), ["#/goals/G1", "#/items/T4"])).toEqual(baseOf(parse("#/goals/G1"), ["#/goals/G1"]));
+    expect(baseOf(parse("#/items/T4"), ["#/talk/ag-1?goal=G1", "#/items/T4"])).toEqual({ name: "talk", id: "ag-1" });
+    expect(baseOf(parse("#/runs/r1"), ["#/talk/ag-1?goal=G1", "#/items/T4", "#/runs/r1"])).toEqual({ name: "talk", id: "ag-1" });
+  });
+
+  test("a frame opened from a screen stands on that screen, and a lone frame falls back to its list", () => {
+    expect(baseOf(parse("#/items/T4"), ["#/done", "#/items/T4"])).toEqual(parse("#/done"));
+    expect(baseOf(parse("#/items/T4"), ["#/items/T4"])).toEqual(defaultListFor(parse("#/items/T4")));
   });
 });

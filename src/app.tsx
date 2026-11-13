@@ -4,7 +4,7 @@ import { startLive } from "./data/live";
 import { nowSeconds } from "./data/source";
 import { useClock, useStore, type Store, type Want } from "./data/store";
 import { buildModel, runRow, type Model } from "./model";
-import { back, defaultListFor, href, isList, linkClick, navigate, onSaveScroll, onStackMotion, parse, tabOf, tabRoot, TABS, useNav, type Route, type Tab } from "./router";
+import { back, baseOf, defaultListFor, href, isFrame, isList, linkClick, navigate, onSaveScroll, onStackMotion, parse, tabOf, tabRoot, TABS, useNav, type Route, type Tab } from "./router";
 import { slideMotion } from "./stack-motion";
 import { bindSwipeBack, isStandalone } from "./swipe-back";
 import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RestartSheet, RunningScreen, StatusScreen, TodayScreen } from "./screens/lists";
@@ -521,17 +521,30 @@ function useScrollKeeping(panes: Panes, keys: Record<keyof Panes, string>, saved
 }
 
 /**
- * 대화 on a wide window: the agents, the chosen agent's window in the middle and its card on the right. A goal chosen
- * on the card opens in the right column with a back control to the card; the window stays open (lina-app#143).
+ * The one detail frame on a wide window (lina-app#142): a goal, a to-do, a work card or a run, in the right-hand pane
+ * that scrolls on its own beside the list, so it opens where the owner is looking whatever the list's scroll.
  */
-function TalkShell({ route, stack }: { route: Route; stack: readonly string[] }) {
+function PanelFrame({ route }: { route: Route }) {
+  return (
+    <div class="detail-frame" data-testid="detail-frame" data-frame="panel">
+      {/* One record's screen at a time: a draft, a fold or an answer typed for one never shows on the next. */}
+      <Screen key={href(route)} route={route} />
+    </div>
+  );
+}
+
+/**
+ * 대화 on a wide window: the agents, the chosen agent's window in the middle and its card on the right. A goal chosen
+ * on the card (`#/talk/<agent>?goal=<id>`, lina-app#143), or any detail opened from the card, opens in the one detail
+ * frame in that right column, under a back control to the card; the window stays open.
+ */
+function TalkShell({ route, frame, stack }: { route: Route; frame: Route | null; stack: readonly string[] }) {
   const { model, store } = useApp();
   const agent = route.name === "talk" ? route.id : null;
-  const goal = route.name === "talk" ? route.goal : undefined;
   const windowRoute: Route = agent ? { name: "talk", id: agent } : route;
+  // Back from the frame stands on the agent's card, or on the bare 대화 list when no agent is chosen.
   const toCard = () => {
-    if (!agent) return;
-    const card = href({ name: "talk", id: agent });
+    const card = href(agent ? { name: "talk", id: agent } : { name: "talks" });
     if (stack.length > 1 && stack[stack.length - 2] === card) back();
     else navigate(card, { replace: true });
   };
@@ -557,19 +570,17 @@ function TalkShell({ route, stack }: { route: Route; stack: readonly string[] })
           <section class="pane talk-pane" aria-label={titleOf(windowRoute, model, store)}>
             {agent ? <AgentTalk key={agent} agent={agent} /> : <p class="empty" data-testid="pick-agent">{W.pickAgent}</p>}
           </section>
-          {agent ? (
-            <aside class={goal ? "pane card-pane is-goal" : "pane card-pane"} aria-label={goal ? titleOf(route, model, store) : W.agentCard} data-testid="card-pane">
-              {goal ? (
-                <>
-                  <button type="button" class="back card-back" onClick={toCard} data-testid="back">
-                    <BackIcon />
-                    <span class="one-line">{W.agentCard}</span>
-                  </button>
-                  <GoalScreen key={goal} id={goal} />
-                </>
-              ) : (
-                <AgentCard agent={agent} />
-              )}
+          {frame ? (
+            <aside key={href(frame)} class="pane card-pane is-goal" aria-label={titleOf(frame, model, store)} data-testid="card-pane">
+              <button type="button" class="back card-back" onClick={toCard} data-testid="back">
+                <BackIcon />
+                <span class="one-line">{agent ? W.agentCard : W.talk}</span>
+              </button>
+              <PanelFrame route={frame} />
+            </aside>
+          ) : agent ? (
+            <aside class="pane card-pane" aria-label={W.agentCard} data-testid="card-pane">
+              <AgentCard agent={agent} />
             </aside>
           ) : null}
         </div>
@@ -580,9 +591,12 @@ function TalkShell({ route, stack }: { route: Route; stack: readonly string[] })
 
 function WideShell({ route, stack, scroll }: { route: Route; stack: readonly string[]; scroll: Readonly<Record<string, number>> }) {
   const { model, store } = useApp();
-  const tab = tabOf(route);
-  const listRoute: Route = route.name === "home" ? { name: "running" } : isList(route) ? route : (lastListIn(stack, tabOf(route)) ?? defaultListFor(route));
-  const detailRoute = isList(route) || route.name === "home" ? null : route;
+  // A detail opened from a list, the home or another tab's screen stands beside that screen and keeps its tab.
+  const frame = isFrame(route) ? route : null;
+  const base = baseOf(route, stack);
+  const tab = tabOf(base);
+  const listRoute: Route = base.name === "home" ? { name: "running" } : isList(base) ? base : (lastListIn(stack, tab) ?? defaultListFor(base));
+  const detailRoute = frame ?? (isList(route) || route.name === "home" ? null : route);
   const listRef = useRef<HTMLElement>(null);
   const detailRef = useRef<HTMLElement>(null);
   useScrollKeeping({ list: listRef, detail: detailRef }, { list: href(listRoute), detail: detailRoute ? href(detailRoute) : "", main: "" }, scroll);
@@ -610,7 +624,7 @@ function WideShell({ route, stack, scroll }: { route: Route; stack: readonly str
           </section>
           {detailRoute ? (
             <section class="pane detail-pane" ref={detailRef} aria-label={titleOf(detailRoute, model, store)} data-testid="detail-pane">
-              <Screen route={detailRoute} />
+              {frame ? <PanelFrame route={frame} /> : <Screen route={detailRoute} />}
             </section>
           ) : null}
         </div>
@@ -622,20 +636,30 @@ function WideShell({ route, stack, scroll }: { route: Route; stack: readonly str
 function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly string[]; scroll: Readonly<Record<string, number>> }) {
   const { model, store } = useApp();
   const mainRef = useRef<HTMLElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  // A detail is a sheet rising over the screen it was opened from (lina-app#142): that screen stays drawn under it,
+  // with its own back, title and scroll; closing the sheet is one step back.
+  const sheet = isFrame(route) ? route : null;
+  const screen = baseOf(route, stack);
+  const below = stack.slice(0, sheet ? -1 : stack.length);
+  while (sheet && below.length && isFrame(parse(below[below.length - 1]))) below.splice(-1);
+  const screenStack = below.length ? below : [href(screen)];
   // The scroll comes from the history entry the router read for this screen, not from whatever entry is current
   // when the swap finally renders.
-  useScrollKeeping({ main: mainRef }, { list: "", detail: "", main: href(route) }, scroll);
-  const parent = parentOf(route, stack);
-  const isRoot = isTabRoot(route);
-  const large = isRoot || isList(route);
+  useScrollKeeping({ main: mainRef, detail: sheetRef }, { list: "", detail: sheet ? href(sheet) : "", main: href(screen) }, scroll);
+  const parent = parentOf(screen, screenStack);
+  const isRoot = isTabRoot(screen);
+  const large = isRoot || isList(screen);
   const goBack = () => {
     if (stack.length > 1) back();
-    else navigate(parent, { replace: true, direction: "pop" });
+    else navigate(sheet ? screen : parent, { replace: true, direction: sheet ? "none" : "pop" });
   };
-  const current = useRef({ isRoot, goBack });
-  current.current = { isRoot, goBack };
+  const current = useRef({ isRoot, goBack, sheet: Boolean(sheet) });
+  current.current = { isRoot: isRoot && !sheet, goBack, sheet: Boolean(sheet) };
   useLayoutEffect(() => {
-    onStackMotion(slideMotion());
+    const slide = slideMotion();
+    // The sheet rises and falls by itself: the screen under it never slides.
+    onStackMotion((direction, apply) => (current.current.sheet || isFrame(parse(window.location.hash)) ? void apply() : slide(direction, apply)));
     const unbind = bindSwipeBack({ standalone: () => isStandalone(), atRoot: () => current.current.isRoot, onBack: () => current.current.goBack() });
     return () => {
       onStackMotion(null);
@@ -645,7 +669,13 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
   return (
     <div class="stack" data-layout="phone">
       <header class="navbar">
-        {route.name === "home" ? (
+        {sheet ? (
+          // Back closes the sheet: it reads the screen under it, the one it returns to (the agent from a goal in 대화).
+          <button type="button" class="back" onClick={goBack} data-testid="back">
+            <BackIcon />
+            <span class="one-line">{isRoot ? TAB_WORD[tabOf(screen)] : titleOf(screen, model, store)}</span>
+          </button>
+        ) : screen.name === "home" ? (
           <MenuButton />
         ) : isRoot ? (
           <span />
@@ -662,23 +692,40 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
       <main class="phone-main" ref={mainRef}>
         {large ? (
           <h1 class="large-title" data-testid="screen-title">
-            {isRoot ? TAB_WORD[tabOf(route)] : titleOf(route, model, store)}
+            {isRoot ? TAB_WORD[tabOf(screen)] : titleOf(screen, model, store)}
           </h1>
         ) : null}
-        {isRoot ? <Tabs current={tabOf(route)} /> : null}
-        {route.name === "status" ? (
+        {isRoot ? <Tabs current={tabOf(screen)} /> : null}
+        {screen.name === "status" ? (
           <p class="status-sum">
             <DeviceLine class="one-line" />
           </p>
         ) : null}
-        <Screen route={route} />
-        {route.name === "status" ? <StatusMore /> : null}
+        {/* Under a goal chosen in 대화 stands the card it was chosen on, not the window and its field (lina-app#143). */}
+        {sheet?.name === "talk" && screen.name === "talk" ? <AgentCard agent={screen.id} /> : <Screen route={screen} />}
+        {screen.name === "status" ? <StatusMore /> : null}
       </main>
       <footer class="bottombar">
         <span />
         <Freshness />
         <span />
       </footer>
+      {sheet ? (
+        <>
+          <div class="detail-scrim" aria-hidden="true" onClick={goBack} />
+          <section class="detail-sheet" role="dialog" aria-modal="true" aria-label={titleOf(sheet, model, store)} data-testid="detail-frame" data-frame="sheet">
+            <div class="detail-sheet-bar">
+              <span class="detail-sheet-grabber" aria-hidden="true" />
+              <button type="button" class="text-button" onClick={goBack} data-testid="frame-close">
+                {W.close}
+              </button>
+            </div>
+            <div class="detail-sheet-body" ref={sheetRef}>
+              <Screen key={href(sheet)} route={sheet} />
+            </div>
+          </section>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -720,13 +767,19 @@ export function App({ store, pushHost }: { store: Store; pushHost?: PushHost }) 
     if (nav.route.name !== "settings" && nav.route.name !== "setting") settingsEdits.editRules(false);
   }, [nav.route.name]);
 
-  const context: AppContext = { model, store, now, wide, selected: isList(nav.route) ? null : nav.hash };
+  // The row a closed detail was opened from stays highlighted while its screen is the one shown (lina-app#142).
+  const base = baseOf(nav.route, nav.state.stack);
+  const kept = useRef<{ base: string; hash: string } | null>(null);
+  if (isFrame(nav.route)) kept.current = { base: href(base), hash: nav.hash };
+  else if (kept.current && kept.current.base !== nav.hash) kept.current = null;
+  const selected = isFrame(nav.route) ? nav.hash : (kept.current?.hash ?? (isList(nav.route) ? null : nav.hash));
+  const context: AppContext = { model, store, now, wide, selected };
   return (
     <Ctx.Provider value={context}>
       <ActionsCtx.Provider value={actions}>
         <PushCtx.Provider value={push}>
           <SettingsCtx.Provider value={settingsEdits}>
-            {wide && tabOf(nav.route) === "talk" ? <TalkShell route={nav.route} stack={nav.state.stack} /> : wide ? <WideShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} /> : <PhoneShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} />}
+            {wide && tabOf(base) === "talk" ? <TalkShell route={base} frame={isFrame(nav.route) ? nav.route : null} stack={nav.state.stack} /> : wide ? <WideShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} /> : <PhoneShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} />}
             <Toast />
             <RollbackSheet />
             <RestartSheet />

@@ -61,6 +61,23 @@ export function Thread({ comments, agent }: { comments: readonly ItemComment[]; 
   );
 }
 
+/** 보내기, and while it cannot send one line beside it saying why (lina-app#142): the field is empty, or the last one is on its way. */
+export function SendButton({ busy, empty }: { busy: boolean; empty: boolean }) {
+  const why = busy ? W.sendWhyBusy : empty ? W.sendWhyEmpty : null;
+  return (
+    <>
+      <button type="submit" class="text-button" disabled={why !== null}>
+        {W.send}
+      </button>
+      {why ? (
+        <span class="send-why" data-testid="send-why">
+          {why}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 /**
  * The comment box at the bottom of a goal or to-do: the thread, then a one-line field and 보내기. The sent
  * comment shows at once with `<agent>에게 보냄 · 방금`; the record's own copy replaces it after the core takes it,
@@ -95,9 +112,7 @@ export function Comments({ detail }: { detail: ItemDetail }) {
       {shown.length ? <Thread comments={shown} agent={agent} /> : null}
       <form class="comment-form" onSubmit={send}>
         <KoreanInput label={W.commentField} value={text} onValue={setText} inline />
-        <button type="submit" class="text-button" disabled={Boolean(sending) || !text.trim()}>
-          {W.send}
-        </button>
+        <SendButton busy={Boolean(sending)} empty={!text.trim()} />
       </form>
       {error ? (
         <p class="write-error" role="alert" data-testid="write-error">

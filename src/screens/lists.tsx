@@ -437,8 +437,10 @@ function chooseRestart(step: "worker" | "ocx"): void {
 }
 
 /**
- * A fine runner shows its installed version and the signed-in mark.
- * The sign-in button shows only for why sign_in, or for a signed-out runner with no why. Any other why shows its reason.
+ * A fine runner shows its installed version and the signed-in mark. The core's ready decides it, whatever signIn says
+ * (the hub serves magpie and unknown for ready runners); only when ready is null does a known signed-in value decide.
+ * The sign-in button shows only for why sign_in, or for a signed-out runner with no why. Any other why shows its reason;
+ * a runner not ready with no reason of its own reads 준비 필요, never 확인 중.
  * 로그인 중 has no button while the post is in flight or the core still reports signingIn. When that turns false,
  * a signed-in runner shows the mark; a sign-in cell shows the reason and the button again.
  */
@@ -452,7 +454,8 @@ function RunnerCellView({ machine, runner }: { machine: Machine; runner: RunnerC
     if (!runner.signingIn) return;
     void store.invalidate([["devices"]]);
   }, [runner.signingIn, store]);
-  const fine = !signingIn && !runner.why && (runner.signIn === "signed_in" || runner.signIn === "api_key" || runner.signIn === "ocx");
+  const signedIn = runner.signIn === "signed_in" || runner.signIn === "api_key" || runner.signIn === "ocx";
+  const fine = !signingIn && (runner.ready === true || (runner.ready === null && !runner.why && signedIn));
   const needsSignIn = !signingIn && (runner.why === "sign_in" || (runner.signIn === "signed_out" && runner.why == null));
   const signIn = () => {
     setError(undefined);
@@ -486,7 +489,7 @@ function RunnerCellView({ machine, runner }: { machine: Machine; runner: RunnerC
           </button>
         </>
       ) : (
-        <span class="runner-detail">{runnerReason(runner.why)}</span>
+        <span class="runner-detail">{runner.ready === false && runner.why == null ? W.runnerWhy.prepare : runnerReason(runner.why)}</span>
       )}
       {error ? <ErrorLine line={error} /> : null}
     </div>

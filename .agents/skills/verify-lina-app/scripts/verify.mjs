@@ -1214,11 +1214,29 @@ const drivers = {
       check((await rows.last().getAttribute("data-role")) === "files", "the last row is " + (await rows.last().getAttribute("data-role")));
       const files = (await rows.last().getByTestId("runner-cell").innerText()).replace(/\s+/g, " ").trim();
       check(files.includes("2.0") && !/업데이트 필요|준비 필요|로그인 필요|연결 끊김|확인 중/.test(files), "the file node reads " + files);
+      // Ready runners with the hub's other sign-in values (magpie, unknown) read their version and the mark.
+      const ready = await page.getByRole("list", { name: "기기", exact: true }).getByTestId("runner-cell").filter({ has: page.getByRole("img", { name: "로그인됨" }) }).count();
+      check(ready === 3, "expected 3 runners with the signed-in mark, got " + ready);
+      // The runner row starts where the node's name starts, and a sign-in button stays on its runner's line.
+      const edges = await rows.evaluateAll((items) =>
+        items.map((row) => {
+          const name = row.querySelector(".title").getBoundingClientRect();
+          const first = row.querySelector(".runner-name").getBoundingClientRect();
+          return { name: Math.round(name.left), runner: Math.round(first.left) };
+        }),
+      );
+      check(edges.every((edge) => Math.abs(edge.name - edge.runner) <= 1), "name and first runner start at " + JSON.stringify(edges));
+      const line = await page.getByTestId("runner-cell").filter({ has: page.getByRole("button", { name: "로그인", exact: true }) }).evaluate((cell) => {
+        const name = cell.querySelector(".runner-name").getBoundingClientRect();
+        const button = cell.querySelector("button").getBoundingClientRect();
+        return Math.round(Math.abs(button.top + button.height / 2 - (name.top + name.height / 2)));
+      });
+      check(line <= 2, "the sign-in button sits " + line + " px off its runner's line");
       const down = await page.locator(".machine-row.is-down").getByTestId("runner-cell").allInnerTexts();
       check(down.length > 0 && down.every((cell) => cell.includes("연결 끊김") && !/\d/.test(cell)), "down cells " + JSON.stringify(down));
       const grid = await page.getByRole("list", { name: "기기", exact: true }).innerText();
       check(grid.includes("업데이트 필요") && grid.includes("로그인 필요"), "the grid has no update or sign-in cell");
-      return "update, sign-in, unreachable; file node " + files;
+      return "update, sign-in, unreachable; file node " + files + "; edges " + JSON.stringify(edges);
     });
     // Phone checks run before 로그인 is pressed, and the viewport comes back to the drive width for the proof shot.
     // The push into this screen is still sliding for a moment; a press during it misses the button.

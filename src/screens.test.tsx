@@ -2,7 +2,7 @@ import { act, fireEvent, render, waitFor, within } from "@testing-library/preact
 import { render as renderPreact } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import type { RouteName } from "./api/client";
+import type { RouteName, RunnerCell } from "./api/client";
 import { App } from "./app";
 import { AGENT_REPLY_DELTAS, STREAM_TICK_MS, SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS } from "./data/synthetic-source";
 import type { ReadResult, Source } from "./data/source";
@@ -168,7 +168,7 @@ describe("machines, quota and checks", () => {
     const machine = source.scene.devices.machines.find((item) => item.role === "work" && item.state === "ok");
     const base = machine?.runners[0];
     expect(base).toBeTruthy();
-    const cell = (name: string, why: NonNullable<typeof base>["why"]) => ({ ...base!, name, signIn: "signed_out" as const, signingIn: false, why, ready: why === null });
+    const cell = (name: string, why: NonNullable<typeof base>["why"]) => ({ ...base!, name, signIn: "signed_out" as const, signingIn: false, why, ready: false });
     machine!.runners = [cell("고침", "update"), cell("마련", "prepare"), cell("단절", "unreachable"), cell("빈칸", null)];
     const view = await open("#/status", { wide: true, source });
     const row = view.container.querySelector(".machine-row.is-ok[data-role=work]") as HTMLElement;
@@ -189,6 +189,31 @@ describe("machines, quota and checks", () => {
     const openCell = find("빈칸");
     expect(openCell.textContent).toContain("로그인 필요");
     expect(within(openCell).getByRole("button", { name: "로그인" })).toBeTruthy();
+  });
+
+  test("a runner the core reports ready shows its version and the mark, whatever its sign-in value", async () => {
+    const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
+    const [work, other] = source.scene.devices.machines.filter((item) => item.role === "work" && item.reachable);
+    // The real hub's /api/lina/devices: omo and claude sign in through magpie, grok signed_in, dsh unknown, and an
+    // omo that is not ready. magpie is outside the schema's enum, which is how the core serves it today.
+    const real = (name: string, installed: string, signIn: string | null, ready: boolean | null, why: RunnerCell["why"] = null): RunnerCell =>
+      ({ name, type: null, fleet: installed, installed, signIn: signIn as RunnerCell["signIn"], signingIn: false, ready, why });
+    work.runners = [real("omo", "5.1.69", "magpie", true), real("claude", "2.1.4", "magpie", true), real("grok", "1.0.77", "signed_in", true), real("dsh", "0.9.2", "unknown", true)];
+    other.runners = [real("omo", "5.1.60", "magpie", false, "update"), real("dsh", "0.9.2", "magpie", false)];
+    const view = await open("#/status", { wide: true, source });
+    const cellOf = (machine: string, name: string) => {
+      const row = view.getByRole("group", { name: `${machine} 실행기` });
+      return [...row.querySelectorAll("[data-testid=runner-cell]")].find((item) => item.querySelector(".runner-name")?.textContent === name) as HTMLElement;
+    };
+    for (const [name, version] of [["omo", "5.1.69"], ["claude", "2.1.4"], ["grok", "1.0.77"], ["dsh", "0.9.2"]]) {
+      const cell = cellOf(work.name, name);
+      expect(cell.textContent).toContain(version);
+      expect(within(cell).getByRole("img", { name: "로그인됨" })).toBeTruthy();
+      expect(cell.textContent).not.toContain("확인 중");
+    }
+    expect(cellOf(other.name, "omo").textContent).toBe("omo업데이트 필요");
+    // Not ready with no reason of its own is not ready, never 확인 중.
+    expect(cellOf(other.name, "dsh").textContent).toBe("dsh준비 필요");
   });
 
   test("the sign-in button reads 로그인 중 and then the signed-in mark", async () => {

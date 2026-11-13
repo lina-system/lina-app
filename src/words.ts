@@ -194,6 +194,8 @@ export const W = {
   retry: "다시 시도",
   /** A row the core cannot describe: no checked title, no goal or card, no own name that may be drawn. */
   untitled: "제목 없음",
+  /** The home's one grey line for the work nothing names (lina-app#124). */
+  untitledCount: (n: number) => `제목 없는 ${n}건`,
   /** A stopped row's words for who it waits on (lina-app#116). */
   needsCheck: "확인 필요",
   waitReview: "검토 대기",
@@ -255,6 +257,8 @@ export const W = {
   summariesStopped: "요약 멈춤",
   folded: "접힌 댓글",
   noStart: "시작 기록 없음",
+  runStarted: "작업 시작",
+  untitledRun: "제목 없음",
   latest: (time: string) => `최근 활동 ${time}`,
   allAgents: "전체",
   todoProgress: (done: number, total: number) => `할 일 ${done}/${total}`,

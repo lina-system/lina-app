@@ -35,7 +35,7 @@ Preconditions:
 - The page is `/app/?source=synthetic`, the synthetic scene; the drive opens it fresh for each width.
 
 - **Open the screen.** Choose `완료`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive done`.
-- **Read the list.** Read the list `완료`. Three links ending in `완료`, two of them `가이드 초안 다듬기` (two jobs, two cards); each grey line reads `완료 · <n>분|시간|일 전`.
+- **Read the list.** Read the list `완료`. Two links ending in `완료`, one of them `가이드 초안 다듬기` (r7; r8, the earlier run of the same task, is not a row: work-cards.md); each grey line reads `완료 · <n>분|시간|일 전`.
 - **Total in the detail.** Choose the first row: its detail head reads `완료 · <n> 전 · <n>분 걸림`.
 - **Filter.** Driven in work-cards.md: the address keeps the agent, a reload keeps it pressed, counts equal lists.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/done/done-1280.{png,aria.yml,json}` and `done-390.{png,aria.yml,json}`.

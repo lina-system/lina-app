@@ -152,15 +152,16 @@ function RetryControl({ card }: { card: CardRow }) {
 }
 
 /**
- * The home: one line for the open decisions (only when there are any), the stopped and running cards (stopped on
- * top), the cards waiting on review or an answer, then finished cards, the last 24 hours first and older ones after.
- * Every number is its section's own row count, the same model the sidebar and the agent screens read.
+ * The home: one line for the open decisions (only when there are any), the review items and the owner's own to-dos,
+ * the stopped and running cards (stopped on top), the cards waiting on an answer, then finished cards, the last 24
+ * hours first and older ones after, and one grey line counting the work nothing names. Every number is its section's
+ * own row count, the same model the sidebar and the agent screens read.
  */
 export function RunningScreen() {
   const { model } = useApp();
   const actions = useActions();
   const { home } = model;
-  if (!home.decisions && !model.running.rows.length && !home.waiting.rows.length && !model.done.length) return <Empty />;
+  if (!home.decisions && !home.review.rows.length && !home.mine.rows.length && !model.running.rows.length && !home.waiting.rows.length && !model.done.length && !home.untitled) return <Empty />;
   return (
     <div class="list" data-testid="screen-running">
       {home.decisions ? (
@@ -176,6 +177,9 @@ export function RunningScreen() {
           </li>
         </ul>
       ) : null}
+      {[home.review, home.mine].map((section) => (
+        <ListSection key={section.id} section={section} render={(row) => <InboxRowView key={row.key} row={row} />} />
+      ))}
       <ListSection
         section={home.active}
         label={W.running}
@@ -184,6 +188,11 @@ export function RunningScreen() {
       {[home.waiting, home.recent, home.older].map((section) => (
         <ListSection key={section.id} section={section} render={(card) => <CardRowView key={card.key} card={card} />} />
       ))}
+      {home.untitled ? (
+        <p class="untitled-line" data-testid="home-untitled">
+          {W.untitledCount(home.untitled)}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -437,8 +446,10 @@ function chooseRestart(step: "worker" | "ocx"): void {
 }
 
 /**
- * A fine runner shows its installed version and the signed-in mark.
- * The sign-in button shows only for why sign_in, or for a signed-out runner with no why. Any other why shows its reason.
+ * A fine runner shows its installed version and the signed-in mark. The core's ready decides it, whatever signIn says
+ * (the hub serves magpie and unknown for ready runners); only when ready is null does a known signed-in value decide.
+ * The sign-in button shows only for why sign_in, or for a signed-out runner with no why. Any other why shows its reason;
+ * a runner not ready with no reason of its own reads 준비 필요, never 확인 중.
  * 로그인 중 has no button while the post is in flight or the core still reports signingIn. When that turns false,
  * a signed-in runner shows the mark; a sign-in cell shows the reason and the button again.
  */
@@ -452,7 +463,8 @@ function RunnerCellView({ machine, runner }: { machine: Machine; runner: RunnerC
     if (!runner.signingIn) return;
     void store.invalidate([["devices"]]);
   }, [runner.signingIn, store]);
-  const fine = !signingIn && !runner.why && (runner.signIn === "signed_in" || runner.signIn === "api_key" || runner.signIn === "ocx");
+  const signedIn = runner.signIn === "signed_in" || runner.signIn === "api_key" || runner.signIn === "ocx";
+  const fine = !signingIn && (runner.ready === true || (runner.ready === null && !runner.why && signedIn));
   const needsSignIn = !signingIn && (runner.why === "sign_in" || (runner.signIn === "signed_out" && runner.why == null));
   const signIn = () => {
     setError(undefined);
@@ -486,7 +498,7 @@ function RunnerCellView({ machine, runner }: { machine: Machine; runner: RunnerC
           </button>
         </>
       ) : (
-        <span class="runner-detail">{runnerReason(runner.why)}</span>
+        <span class="runner-detail">{runner.ready === false && runner.why == null ? W.runnerWhy.prepare : runnerReason(runner.why)}</span>
       )}
       {error ? <ErrorLine line={error} /> : null}
     </div>

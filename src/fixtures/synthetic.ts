@@ -13,6 +13,7 @@ import type {
   SettingsModel,
   StatusChecks,
   RunRecord,
+  RunnerCell,
   UsageRange,
   UsageRow,
   UsageView,
@@ -504,13 +505,14 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
 
   // Runners (lina#234): one work node needs an update, one needs sign-in, one is unreachable, then the file node.
   // Names stay Korean. type and fleet are not drawn. The file node is the machine name the three work nodes did not take.
+  // signIn takes the hub's real values too: magpie (outside the schema's enum) and unknown on a ready runner.
   const runner = (
     name: string,
     installed: string | null,
-    signIn: "signed_in" | "signed_out" | "api_key" | "ocx" | "unknown" | null,
+    signIn: "signed_in" | "signed_out" | "api_key" | "ocx" | "unknown" | "magpie" | null,
     why: "update" | "prepare" | "sign_in" | "unreachable" | "unknown" | null,
     fleet: string | null = installed,
-  ) => ({ name, type: null, fleet, installed, signIn, signingIn: false, ready: why === null, why });
+  ) => ({ name, type: null, fleet, installed, signIn: signIn as RunnerCell["signIn"], signingIn: false, ready: why === null, why });
   const filesName = MACHINE_NAMES.find((name) => !machines.includes(name)) ?? MACHINE_NAMES[0];
   const machineList: BoardSnapshot["machines"] = [
     {
@@ -529,7 +531,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       cap: 4,
       freeGb: 210,
       metricsAt: now - 20,
-      runners: [runner("글결", "1.2", "signed_out", "sign_in", "1.4"), runner("탐색", "1.4", "signed_in", null)],
+      runners: [runner("글결", "1.2", "signed_out", "sign_in", "1.4"), runner("탐색", "1.4", "magpie", null)],
     },
     {
       name: machines[1],
@@ -583,7 +585,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       cap: 2,
       freeGb: 400,
       metricsAt: now - 15,
-      runners: [runner("보관", "2.0", "signed_in", null)],
+      runners: [runner("보관", "2.0", "unknown", null)],
     },
   ];
   const person: DevicesView["person"] = [
@@ -1063,7 +1065,7 @@ export const SCENE_COUNTS = {
   running: 2,
   stopped: 1,
   due: 5,
-  done: 3,
+  done: 2,
   machines: 4,
   machinesOk: 2,
   machinesWarn: 1,

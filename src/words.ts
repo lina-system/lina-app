@@ -196,6 +196,8 @@ export const W = {
   untitled: "제목 없음",
   /** The home's one grey line for the work nothing names (lina-app#124). */
   untitledCount: (n: number) => `제목 없는 ${n}건`,
+  /** A lone stopped run whose only name is an internal one in Latin, never shown (lina-app#134). */
+  unnamedRun: "이름 없는 실행",
   /** A stopped row's words for who it waits on (lina-app#116). */
   needsCheck: "확인 필요",
   waitReview: "검토 대기",

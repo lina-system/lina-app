@@ -432,10 +432,11 @@ describe("every count equals the length of the list it labels", () => {
       const view = await open(hash, { wide: true });
       const shown = count(view.getByTestId(nav).querySelector("[data-testid=nav-count]"));
       const red = count(view.getByTestId(nav).querySelector("[data-testid=nav-stopped]"));
-      // The home lists the running and stopped cards first, in their own list; waiting and finished cards follow.
+      // The home lists the running cards and the stopped ones in their own lists; waiting and finished cards follow.
       const list = nav === "nav-running" ? view.container.querySelector('.list-pane [aria-label="진행 중인 작업"]') : view.container.querySelector(".list-pane .list");
+      const stopped = nav === "nav-running" ? view.container.querySelector('.list-pane [aria-label="중단됨"]') : list;
       expect(shown).toBeGreaterThan(0);
-      expect(red).toBe(stoppedRows(list));
+      expect(red).toBe(stoppedRows(stopped));
       expect(rowsIn(list) - stoppedRows(list)).toBe(shown);
       view.unmount();
     }
@@ -1068,10 +1069,16 @@ describe("lists while a write is in flight", () => {
     }
   });
 
-  test("with no running card, 진행 중인 작업 still lists the stopped one with 다시 시도", async () => {
+  test("with no running card there is no 진행 중 group: the stopped one is under 중단됨 with one number, with 다시 시도", async () => {
     const view = await open("#/running", { wide: true, source: new SyntheticSource({ noRunning: true }) });
     expect(view.queryByText("없음")).toBeNull();
-    const rows = view.getByRole("list", { name: "진행 중인 작업" }).querySelectorAll("[data-testid=row]");
+    expect(view.queryByTestId("section-active")).toBeNull();
+    expect(view.queryByRole("list", { name: "진행 중인 작업" })).toBeNull();
+    const head = view.getByTestId("head-stopped");
+    expect(head.querySelector("span")?.textContent).toBe("중단됨");
+    expect(head.querySelector("[data-testid=count]")).toBeNull();
+    expect(head.querySelector("[data-testid=stopped-count]")?.textContent).toBe("1");
+    const rows = view.getByRole("list", { name: "중단됨" }).querySelectorAll("[data-testid=row]");
     expect(rows).toHaveLength(1);
     expect(rows[0].classList.contains("is-stopped")).toBe(true);
     expect(view.getByRole("button", { name: /다시 시도$/ })).toBeTruthy();
@@ -1647,10 +1654,12 @@ describe("work cards", () => {
     const screen = view.getByTestId("screen-running");
     const lists = [...screen.querySelectorAll("ul.rows")].map((list) => list.getAttribute("aria-label"));
     // Both waiting rows wait on review, so 대기 does not repeat them; r8 is r7's earlier run, so nothing is older.
-    expect(lists).toEqual(["수신함", "검토 필요", "내 할 일", "진행 중인 작업", "최근 완료"]);
+    expect(lists).toEqual(["수신함", "검토 필요", "내 할 일", "진행 중인 작업", "중단됨", "최근 완료"]);
     expect(view.getByTestId("home-decisions").textContent).toContain(String(SCENE_COUNTS.decisions));
     const names = (label: string) => [...(screen.querySelector(`[aria-label="${label}"]`)?.querySelectorAll(":scope > li > a") ?? [])].map((link) => link.getAttribute("aria-label") ?? "");
-    expect(names("진행 중인 작업")[0]).toMatch(/중단됨 · 응답 없음$/);
+    expect(names("진행 중인 작업").every((name) => / · 진행 중( · 할 일 \d+\/\d+)?$/.test(name))).toBe(true);
+    expect(names("중단됨")).toHaveLength(1);
+    expect(names("중단됨")[0]).toMatch(/중단됨 · 응답 없음$/);
     // k-105 is never opened here: its list row's own end (lina#577) places it.
     expect(names("최근 완료")).toHaveLength(2);
     expect(names("완료")).toHaveLength(0);
@@ -1728,8 +1737,9 @@ describe("work cards", () => {
 
   test("ended runs do not pile up as stopped: the stopped rows say who they wait on, or are one grey line", async () => {
     const view = await open("#/running", { wide: true, source: new SyntheticSource({ endedRuns: true }) });
-    const list = within(view.getByTestId("screen-running")).getByRole("list", { name: "진행 중인 작업" });
+    const list = within(view.getByTestId("screen-running")).getByRole("list", { name: "중단됨" });
     const stopped = [...list.querySelectorAll("[data-testid=row].is-stopped")];
+    expect(within(view.getByTestId("screen-running")).getByRole("list", { name: "진행 중인 작업" }).querySelectorAll("[data-testid=row].is-stopped")).toHaveLength(0);
     const hrefs = stopped.map((row) => row.querySelector("a")?.getAttribute("href"));
     // r12 (replaced by r13) and r11 (under the finished goal G4) are gone, and so is every run that names its card
     // (lina-app#119); nothing else is listed by its kind. The rows waiting on the owner come first.
@@ -1777,6 +1787,30 @@ describe("work cards", () => {
     const view = await open("#/cards/k-112", { wide: true, source: new SyntheticSource({ endedRuns: true, now: Math.floor(Date.now() / 1000) }) });
     await waitFor(() => expect(view.getByTestId("screen-card").querySelector(".detail-title")?.textContent).toBe("CLI 배포 순서 정하기"));
     expect(screenText(view.container)).not.toMatch(/제목 없음|코드 작업|문서 작업|기기 작업/);
+  });
+
+  test("다시 시도 sits only on the stopped rows running again can clear; a row waiting on an answer or a review has none", async () => {
+    const view = await open("#/running", { wide: true, source: new SyntheticSource({ endedRuns: true }) });
+    const rows = [...view.getByRole("list", { name: "중단됨" }).querySelectorAll("[data-testid=row]")];
+    const withRetry = rows.filter((row) => row.querySelector("[data-testid=retry]")).map((row) => row.querySelector("a")?.getAttribute("href"));
+    expect(new Set(withRetry)).toEqual(new Set(["#/cards/k-103", "#/cards/k-110", "#/cards/k-111", "#/runs/r20"]));
+    for (const row of rows.filter((each) => /확인 필요|검토 대기/.test(each.querySelector("[data-testid=state]")?.textContent ?? ""))) {
+      expect(row.querySelector("[data-testid=retry]")).toBeNull();
+      expect(row.classList.contains("has-action")).toBe(false);
+    }
+  });
+
+  test("a lone stopped run named only in Latin reads 이름 없는 실행 on its row and its page", async () => {
+    const source = new SyntheticSource({ endedRuns: true, now: Math.floor(Date.now() / 1000) });
+    const scene = { ...source.scene, board: { ...source.scene.board, cards: source.scene.board.cards.map((run) => (run.id === "r20" ? { ...run, title: "device smoke node-a", todo: null } : run)) } };
+    const home = await open("#/running", { wide: true, source: new SyntheticSource({ scene }) });
+    const row = home.getByRole("list", { name: "중단됨" }).querySelector('li:has(> a[href="#/runs/r20"])');
+    expect(row?.querySelector(".title")?.textContent).toBe("이름 없는 실행");
+    expect(screenText(home.container)).not.toContain("device smoke");
+    home.unmount();
+    const view = await open("#/runs/r20", { wide: true, source: new SyntheticSource({ scene }) });
+    await waitFor(() => expect(view.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("이름 없는 실행"));
+    expect(screenText(view.container)).not.toContain("device smoke");
   });
 
   test("a lone stopped run's detail keeps the title its list row shows", async () => {
@@ -1940,15 +1974,20 @@ describe("work cards, round 4", () => {
 describe("work cards, round 5", () => {
   beforeEach(() => setWide(true));
 
-  test("the stopped and running group has its heading and counts like every other group", async () => {
+  test("the running group and the stopped group under it each have their heading and their own rows' number", async () => {
     const view = await open("#/running", { wide: true });
     const head = view.getByTestId("head-active");
     expect(head.querySelector("span")?.textContent).toBe("진행 중");
     expect(count(head.querySelector("[data-testid=count]"))).toBe(SCENE_COUNTS.running);
-    expect(count(head.querySelector("[data-testid=stopped-count]"))).toBe(SCENE_COUNTS.stopped);
+    expect(head.querySelector("[data-testid=stopped-count]")).toBeNull();
     const section = view.getByTestId("section-active");
-    expect(rowsIn(section) - stoppedRows(section)).toBe(SCENE_COUNTS.running);
+    expect(rowsIn(section)).toBe(SCENE_COUNTS.running);
+    expect(stoppedRows(section)).toBe(0);
     expect(within(section).getByRole("list").getAttribute("aria-label")).toBe("진행 중인 작업");
+    const stopped = view.getByTestId("section-stopped");
+    expect(view.getByTestId("head-stopped").textContent).toBe(`중단됨${SCENE_COUNTS.stopped}`);
+    expect(stoppedRows(stopped)).toBe(SCENE_COUNTS.stopped);
+    expect(section.compareDocumentPosition(stopped) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   test("a finished card says when it ended on the home and the agent screen; how long it took is in its detail", async () => {

@@ -17,7 +17,8 @@ function manyCards(): SyntheticSource {
   const { scene } = new SyntheticSource();
   const template = scene.cards.cards.find((card) => card.state === "done");
   if (!template) throw new Error("the synthetic scene has no finished card");
-  const extra = Array.from({ length: CARDS - scene.cards.cards.length }, (_, index) => ({ ...template, id: `k-${1000 + index}` }));
+  // The copies sit in no goal: the core names none on their rows.
+  const extra = Array.from({ length: CARDS - scene.cards.cards.length }, (_, index) => ({ ...template, id: `k-${1000 + index}`, goalTitle: null }));
   const details = Object.fromEntries(extra.map((card) => [card.id, { ...scene.cardDetails[template.id], id: card.id, workerRuns: [] }]));
   return new SyntheticSource({ scene: { ...scene, cards: { cards: [...scene.cards.cards, ...extra] }, cardDetails: { ...scene.cardDetails, ...details } } });
 }

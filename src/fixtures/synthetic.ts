@@ -911,6 +911,8 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     cardList.cards.push(...liveCards);
     goalCards.find((goal) => goal.id === "kg-2")?.workCards.push(liveCards[3]);
   }
+  // Like the core (lina#666), each card row names the title of the goal it sits in, or null (lina-app#134).
+  for (const card of cardList.cards) Object.assign(card, { goalTitle: goalCards.find((goal) => goal.workCards.some((each) => each.id === card.id))?.title ?? null });
 
   return {
     now,

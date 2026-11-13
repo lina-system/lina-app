@@ -706,13 +706,17 @@ const drivers = {
       await settled(page);
       return await title(page);
     });
-    await step("stopped cards come first, then running cards", async () => {
-      const names = await rowNames(page.getByRole("list", { name: "진행 중인 작업" }));
-      check(names.length === 3, "expected 3 cards, got " + names.length);
-      check(names[0].endsWith("중단됨 · 응답 없음"), "the first card is not stopped: " + names[0]);
+    await step("running cards under 진행 중, then the stopped card in its own 중단됨 group", async () => {
+      const names = await rowNames(page.getByRole("list", { name: "진행 중인 작업", exact: true }));
+      check(names.length === 2, "expected 2 running cards, got " + names.length);
       // A running card's name ends with its state, then on a wide window its to-do count (할 일 n/m).
-      check(names.slice(1).every((name) => / · 진행 중( · 할 일 \d+\/\d+)?$/.test(name)), "the rest are not running: " + names.join(" | "));
-      check((await page.getByRole("list", { name: "진행 중인 작업" }).locator('a[href="#/cards/k-104"]').count()) === 0, "a waiting card is in the list");
+      check(names.every((name) => / · 진행 중( · 할 일 \d+\/\d+)?$/.test(name)), "a card under 진행 중 is not running: " + names.join(" | "));
+      const stopped = await rowNames(page.getByRole("list", { name: "중단됨", exact: true }));
+      check(stopped.length === 1 && stopped[0].endsWith("중단됨 · 응답 없음"), "the 중단됨 group reads " + stopped.join(" | "));
+      const order = await page.getByTestId("section-active").evaluate((active) => Boolean(active.compareDocumentPosition(document.querySelector("[data-testid=section-stopped]")) & Node.DOCUMENT_POSITION_FOLLOWING));
+      check(order, "the 중단됨 group is not under 진행 중");
+      check((await page.getByTestId("screen-running").locator('ul[aria-label="진행 중인 작업"], ul[aria-label="중단됨"]').locator('a[href="#/cards/k-104"]').count()) === 0, "a waiting card is in the list");
+      names.push(...stopped);
       const grey = await sidebarCount(page, "nav-running");
       if (grey !== null) {
         const red = (await page.getByTestId("nav-running").getByTestId("nav-stopped").innerText()).trim();
@@ -721,18 +725,22 @@ const drivers = {
       return names.join(" | ");
     });
     await step("each card has one grey state line with its time", async () => {
-      const lines = await page.getByRole("list", { name: "진행 중인 작업" }).locator(".sub:not(.now)").allInnerTexts();
-      check(/^중단됨 · 응답 없음 · \d+분 전$/.test(lines[0]), "stopped line reads " + lines[0]);
-      check(lines.slice(1).every((line) => /^진행 중 · 시작 \d+(분|시간) 전$/.test(line)), "running lines read " + lines.join(", "));
-      return lines.join(", ");
+      const lines = await page.getByRole("list", { name: "진행 중인 작업", exact: true }).locator(".sub:not(.now)").allInnerTexts();
+      const stopped = await page.getByRole("list", { name: "중단됨", exact: true }).locator(".sub:not(.now)").allInnerTexts();
+      check(stopped.length === 1 && /^중단됨 · 응답 없음 · \d+분 전$/.test(stopped[0]), "stopped line reads " + stopped.join(", "));
+      check(lines.every((line) => /^진행 중 · 시작 \d+(분|시간) 전$/.test(line)), "running lines read " + lines.join(", "));
+      return [...stopped, ...lines].join(", ");
     });
-    await step("a stopped card: label title, red state words, grey time", async () => stoppedCardColours(page.getByRole("list", { name: "진행 중인 작업" })));
-    await step("with no running card the stopped one is still listed, with 다시 시도", async () => {
+    await step("a stopped card: label title, red state words, grey time", async () => stoppedCardColours(page.getByTestId("screen-running").locator('ul[aria-label="진행 중인 작업"], ul[aria-label="중단됨"]')));
+    await step("with no running card there is no 진행 중 group: the stopped one is under 중단됨 1, with 다시 시도", async () => {
       await openApp(page, "#/running", "&running=none");
-      const list = page.getByRole("list", { name: "진행 중인 작업", exact: true });
+      const list = page.getByRole("list", { name: "중단됨", exact: true });
       await list.waitFor({ timeout: 5_000 }).catch(() => check(false, "the screen shows its empty state with a stopped card"));
       const names = await rowNames(list);
       check(names.length === 1 && names[0].endsWith("중단됨 · 응답 없음"), "the list reads " + names.join(" | "));
+      check((await page.getByTestId("section-active").count()) === 0, "a 진행 중 group is drawn with nothing running");
+      const head = (await page.getByTestId("head-stopped").innerText()).replace(/\s+/g, " ").trim();
+      check(head === "중단됨 1" && (await page.getByTestId("head-stopped").getByTestId("count").count()) === 0, "the group heads " + head);
       const retry = await buttonLook(page, page.getByRole("button", { name: /다시 시도$/ }));
       check((await page.getByText("없음", { exact: true }).count()) === 0, "the empty state shows beside the stopped card");
       await openApp(page, "#/running");
@@ -741,11 +749,13 @@ const drivers = {
     // The live shape (lina-app#119): the board lists the runs of cards, each naming its card; none is a row of its own.
     await step("live shape: the stopped group is the stopped cards and the lone runs, owner first, each saying who waits", async () => {
       await openApp(page, "#/running", "&runs=ended");
-      const list = page.getByRole("list", { name: "진행 중인 작업", exact: true });
+      const list = page.getByRole("list", { name: "중단됨", exact: true });
       const rows = await list.locator("[data-testid=row].is-stopped").evaluateAll((items) =>
         items.map((item) => {
           const state = item.querySelector("[data-testid=state]");
-          return { href: item.querySelector("a").getAttribute("href"), title: item.querySelector(".title").textContent, state: state.textContent, plain: state.classList.contains("is-plain"), colour: getComputedStyle(state).color };
+          const title = item.querySelector(".title");
+          const lines = Math.round(title.getBoundingClientRect().height / parseFloat(getComputedStyle(title).lineHeight));
+          return { href: item.querySelector("a").getAttribute("href"), title: title.textContent, state: state.textContent, plain: state.classList.contains("is-plain"), colour: getComputedStyle(state).color, retry: Boolean(item.querySelector("[data-testid=retry]")), cut: title.scrollHeight > title.clientHeight + 1, lines };
         }),
       );
       const hrefs = rows.map((row) => row.href);
@@ -766,10 +776,16 @@ const drivers = {
         const red = (await page.getByTestId("nav-running").getByTestId("nav-stopped").innerText()).trim();
         check(red === "8", "the sidebar's red number is " + red + ", the list has 8 stopped rows");
       }
-      const header = (await page.getByTestId("screen-running").getByTestId("stopped-count").first().innerText()).trim();
+      const header = (await page.getByTestId("head-stopped").getByTestId("stopped-count").innerText()).trim();
       check(header === "8", "the group header's red number is " + header);
+      // 다시 시도 only where running again can clear the stop (lina-app#134): never on a row waiting on an answer or a review.
+      const asks = rows.filter((row) => / 확인 필요$| 검토 대기$/.test(row.state));
+      check(asks.length === 4 && asks.every((row) => !row.retry), "a row waiting on an answer or a review offers 다시 시도: " + asks.filter((row) => row.retry).map((row) => row.title).join(" | "));
+      check(rows.filter((row) => !asks.includes(row)).every((row) => row.retry), "a row running again can clear has no 다시 시도");
+      // A stopped title takes up to two lines before it is cut (lina-app#133).
+      check(rows.every((row) => !row.cut && row.lines <= 2), "a stopped title is cut: " + rows.filter((row) => row.cut || row.lines > 2).map((row) => row.title).join(" | "));
       await openApp(page, "#/running");
-      return rows.map((row) => row.title + " — " + row.state).join(" | ");
+      return rows.map((row) => row.title + " — " + row.state + (row.retry ? " [다시 시도]" : "") + (row.lines > 1 ? " (" + row.lines + "줄)" : "")).join(" | ");
     });
     await step("the now line shows at 1280 only", async () => {
       const wide = page.viewportSize().width >= 900;
@@ -2523,28 +2539,29 @@ const drivers = {
     await step("the home order: one decisions line, review, the owner's to-dos, stopped then running, the last 24 hours", async () => {
       // Both waiting rows wait on review, so 대기 does not repeat them; r8 is r7's earlier run, so nothing is older.
       const lists = await home().locator("ul.rows").evaluateAll((all) => all.map((list) => list.getAttribute("aria-label")));
-      check(JSON.stringify(lists) === JSON.stringify(["수신함", "검토 필요", "내 할 일", "진행 중인 작업", "최근 완료"]), "the home lists " + JSON.stringify(lists));
+      check(JSON.stringify(lists) === JSON.stringify(["수신함", "검토 필요", "내 할 일", "진행 중인 작업", "중단됨", "최근 완료"]), "the home lists " + JSON.stringify(lists));
       const own = { review: await rowsOf("검토 필요").count(), mine: await rowsOf("내 할 일").count() };
       check(own.review === 2 && own.mine === 2, "the home's own groups hold " + JSON.stringify(own));
       const decisions = (await page.getByTestId("home-decisions").getByRole("link").getAttribute("aria-label")) ?? "";
       check(decisions === "결정 필요 4", "the decisions line reads " + decisions);
-      const first = (await rowsOf("진행 중인 작업").first().getAttribute("aria-label")) ?? "";
-      check(first.endsWith("중단됨 · 응답 없음"), "the first card is " + first);
-      const reason = (await rowsOf("진행 중인 작업").first().locator(".state").innerText()).trim();
+      const first = (await rowsOf("중단됨").first().getAttribute("aria-label")) ?? "";
+      check(first.endsWith("중단됨 · 응답 없음"), "the first stopped card is " + first);
+      const reason = (await rowsOf("중단됨").first().locator(".state").innerText()).trim();
       check(reason === "중단됨 · 응답 없음", "the stopped card's state reads " + reason);
       return lists.join(" → ") + "; " + decisions + "; first " + first;
     });
     await step("every count equals its list", async () => {
       const found = [];
-      for (const id of ["review", "mine", "active", "recent"]) {
+      for (const id of ["review", "mine", "active", "stopped", "recent"]) {
         const section = page.getByTestId("section-" + id);
-        const shown = Number((await section.getByTestId("count").innerText()).trim());
+        // The 중단됨 group's head is its one red number (lina-app#134).
+        const shown = id === "stopped" ? 0 : Number((await section.getByTestId("count").innerText()).trim());
         const stopped = Number((await section.getByTestId("stopped-count").count()) ? (await section.getByTestId("stopped-count").innerText()).trim() : 0);
         const rows = await section.locator(":scope li[data-testid=row]").count();
         check(shown + stopped === rows, id + " says " + shown + (stopped ? " and red " + stopped : "") + " and lists " + rows);
         found.push(id + " " + rows);
       }
-      const running = await rowsOf("진행 중인 작업").count();
+      const running = (await rowsOf("진행 중인 작업").count()) + (await rowsOf("중단됨").count());
       const nav = await sidebarCount(page, "nav-running");
       if (nav !== null) {
         const red = Number((await page.getByTestId("nav-running").getByTestId("nav-stopped").innerText()).trim());
@@ -2619,13 +2636,15 @@ const drivers = {
       check(rounds[2] === end + " · 완료", "round 1 ends " + rounds[2] + ", its run at " + end);
       return heads.join(", ") + "; " + rounds.join(" | ");
     });
-    await step("the stopped and running group has its heading and counts; finished cards say when they ended", async () => {
+    await step("the running and stopped groups have their heading and one number each; finished cards say when they ended", async () => {
       await openApp(page, "#/running");
       const head = page.getByTestId("head-active");
       const words = (await head.locator("span").first().innerText()).trim();
       const grey = (await head.getByTestId("count").innerText()).trim();
-      const red = (await head.getByTestId("stopped-count").innerText()).trim();
-      check(words === "진행 중" && grey === "2" && red === "1", "the group heads " + words + " " + grey + " red " + red);
+      check(words === "진행 중" && grey === "2" && (await head.getByTestId("stopped-count").count()) === 0, "the 진행 중 group heads " + words + " " + grey);
+      const stoppedHead = page.getByTestId("head-stopped");
+      const red = (await stoppedHead.getByTestId("stopped-count").innerText()).trim();
+      check((await stoppedHead.locator("span").first().innerText()).trim() === "중단됨" && red === "1" && (await stoppedHead.getByTestId("count").count()) === 0, "the 중단됨 group heads red " + red);
       const recent = await page.getByTestId("section-recent").locator(".sub").allInnerTexts();
       const older = await page.getByTestId("section-older").locator(".sub").allInnerTexts();
       check(recent.every((line) => /^완료 · \d+(분|시간) 전$/.test(line)), "the last 24 hours read " + recent.join(", "));

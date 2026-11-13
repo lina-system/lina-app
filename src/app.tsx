@@ -541,9 +541,9 @@ function TalkShell({ route, frame, stack }: { route: Route; frame: Route | null;
   const { model, store } = useApp();
   const agent = route.name === "talk" ? route.id : null;
   const windowRoute: Route = agent ? { name: "talk", id: agent } : route;
+  // Back from the frame stands on the agent's card, or on the bare 대화 list when no agent is chosen.
   const toCard = () => {
-    if (!agent) return;
-    const card = href({ name: "talk", id: agent });
+    const card = href(agent ? { name: "talk", id: agent } : { name: "talk" });
     if (stack.length > 1 && stack[stack.length - 2] === card) back();
     else navigate(card, { replace: true });
   };
@@ -569,11 +569,11 @@ function TalkShell({ route, frame, stack }: { route: Route; frame: Route | null;
           <section class="pane talk-pane" aria-label={titleOf(windowRoute, model, store)}>
             {agent ? <AgentTalk key={agent} agent={agent} /> : <p class="empty" data-testid="pick-agent">{W.pickAgent}</p>}
           </section>
-          {agent && frame ? (
+          {frame ? (
             <aside class="pane card-pane is-goal" aria-label={titleOf(frame, model, store)} data-testid="card-pane">
               <button type="button" class="back card-back" onClick={toCard} data-testid="back">
                 <BackIcon />
-                <span class="one-line">{W.agentCard}</span>
+                <span class="one-line">{agent ? W.agentCard : W.talk}</span>
               </button>
               <PanelFrame route={frame} />
             </aside>

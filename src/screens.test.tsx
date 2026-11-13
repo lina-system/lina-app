@@ -981,6 +981,22 @@ describe("retry", () => {
 });
 
 describe("bell", () => {
+  test("a notice chosen on a wide 대화 with no agent opens its record in the detail frame, and back returns to the bare 대화 (lina-app#142)", async () => {
+    const view = await open("#/talk", { wide: true });
+    expect(view.getByTestId("pick-agent")).toBeTruthy();
+    fireEvent.click(view.getByTestId("bell"));
+    const dialog = view.getByRole("dialog", { name: "알림" });
+    const first = within(dialog).getAllByRole("link")[0];
+    const target = first.getAttribute("href");
+    fireEvent.click(first);
+    expect(window.location.hash).toBe(target);
+    await waitFor(() => expect(view.container.querySelector("[data-testid=detail-frame] article.detail")).not.toBeNull());
+    expect(view.getByTestId("pick-agent")).toBeTruthy();
+    fireEvent.click(view.getByTestId("back"));
+    await waitFor(() => expect(window.location.hash).toBe("#/talk"));
+    expect(view.container.querySelector("[data-testid=detail-frame]")).toBeNull();
+  });
+
   test("choosing a notice opens its item and marks it read on the core; 모두 읽음 marks all", async () => {
     const setItem = vi.spyOn(Storage.prototype, "setItem");
     const source = new SpySource();

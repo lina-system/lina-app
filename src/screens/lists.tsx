@@ -1,6 +1,6 @@
 import type { ComponentChildren } from "preact";
 import { USAGE_RANGES, type Machine, type PersonDevice, type QuotaAccount, type QuotaService, type RunnerCell, type UsageRange } from "../api/client";
-import type { CardRow, DueRow, GoalRow, InboxRow } from "../model";
+import type { CardRow, DueRow, GoalRow, InboxRow, Section } from "../model";
 import { agentView, doneFor, localDay } from "../model";
 import type { OpenCheck } from "../model/checks";
 import type { UsageLine } from "../model/usage";
@@ -152,14 +152,35 @@ function RetryControl({ card }: { card: CardRow }) {
 }
 
 /**
+ * The stopped cards' own group (lina-app#134): `중단됨` and one red number, its rows. 다시 시도 sits only on a row
+ * running again can clear; a row waiting on an answer or a review opens its detail.
+ */
+function StoppedSection({ section }: { section: Section<CardRow> }) {
+  const actions = useActions();
+  if (!section.rows.length) return null;
+  return (
+    <section class="list-section" data-testid={`section-${section.id}`}>
+      <h2 class="section-head" data-testid={`head-${section.id}`}>
+        <span>{section.title}</span>
+        <CountPair count={0} stopped={section.stopped} />
+      </h2>
+      <ul class="rows" aria-label={section.title}>
+        {section.rows.map((card) => (
+          <CardRowView key={card.key} card={card} action={card.stop?.retry ? <RetryControl card={card} /> : undefined} error={actions.error(`retry:${card.key}`)?.line} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
  * The home: one line for the open decisions (only when there are any), the review items and the owner's own to-dos,
- * the stopped and running cards (stopped on top), the cards waiting on an answer, then finished cards, the last 24
- * hours first and older ones after, and one grey line counting the work nothing names. Every number is its section's
- * own row count, the same model the sidebar and the agent screens read.
+ * the running cards (only when there are any), the stopped cards in their own group under them, the cards waiting on
+ * an answer, then finished cards, the last 24 hours first and older ones after, and one grey line counting the work
+ * nothing names. Every number is its section's own row count, the same model the sidebar and the agent screens read.
  */
 export function RunningScreen() {
   const { model } = useApp();
-  const actions = useActions();
   const { home } = model;
   if (!home.decisions && !home.review.rows.length && !home.mine.rows.length && !model.running.rows.length && !home.waiting.rows.length && !model.done.length && !home.untitled) return <Empty />;
   return (
@@ -180,11 +201,8 @@ export function RunningScreen() {
       {[home.review, home.mine].map((section) => (
         <ListSection key={section.id} section={section} render={(row) => <InboxRowView key={row.key} row={row} />} />
       ))}
-      <ListSection
-        section={home.active}
-        label={W.running}
-        render={(card) => <CardRowView key={card.key} card={card} action={card.state === "stopped" ? <RetryControl card={card} /> : undefined} error={actions.error(`retry:${card.key}`)?.line} />}
-      />
+      <ListSection section={home.active} label={W.running} render={(card) => <CardRowView key={card.key} card={card} />} />
+      <StoppedSection section={home.stopped} />
       {[home.waiting, home.recent, home.older].map((section) => (
         <ListSection key={section.id} section={section} render={(card) => <CardRowView key={card.key} card={card} />} />
       ))}

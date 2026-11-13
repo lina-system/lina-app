@@ -52,6 +52,9 @@ export interface ModelInput {
 
 export type MineSource = BoardSnapshot["inbox"]["mine"][number];
 
+/** A cards-list row as the core will serve it: `goalTitle` (lina#666) is optional until every core sends it. */
+export type CardSummary = WorkCardSummary & { readonly goalTitle?: string | null };
+
 export interface Pending {
   /** Inbox rows hidden while their answer waits for its toast. */
   readonly hidden: ReadonlySet<string>;
@@ -79,9 +82,10 @@ export interface CardRow {
   readonly id: string;
   readonly href: string;
   /**
-   * The name in colour. The title order (lina-app#122): its goal's title; else a work card's checked title, or its own
+   * The name in colour. The title order (lina-app#122): its goal's title (the card's own `goalTitle` first, lina-app#134); else a work card's checked title, or its own
    * title until that exists when it may be drawn (cardTitle), a run's checked title, then its own name; else its
-   * to-do's title; else its card's title. Null when none may be drawn: the row is not listed (lina-app#124).
+   * to-do's title; else its card's title. A lone stopped run whose only name is in Latin reads 이름 없는 실행. Null when
+   * none may be drawn: the row is not listed (lina-app#124).
    */
   readonly title: string | null;
   /** The card's own title, the one its page's head shows, before its goal's title is put first: null when none may be drawn. */
@@ -108,9 +112,10 @@ export interface CardRow {
   /**
    * A stopped row's few words after 중단됨: why and who it waits on, from what the core serves. `known` is false when
    * the core does not say who (lina#629): the line is then grey. `owner` is true when the owner has to act: those rows
-   * come first in the stopped group. Null for any other state.
+   * come first in the stopped group. `retry` is true when running it again can clear the stop (not when it waits on
+   * an answer or a review, lina-app#134): only then does the row offer 다시 시도. Null for any other state.
    */
-  readonly stop?: { readonly words: string; readonly known: boolean; readonly owner: boolean } | null;
+  readonly stop?: { readonly words: string; readonly known: boolean; readonly owner: boolean; readonly retry: boolean } | null;
 }
 
 /** Where an answer to a decision goes: the record's item (comments with answer) or a work card's question. */
@@ -192,14 +197,18 @@ export interface Home {
   readonly mine: Section<InboxRow>;
   /** Listed work nothing names (no goal, checked, own, to-do or card title): counted in one grey line, never drawn. */
   readonly untitled: number;
-  /** The stopped and running cards, stopped on top: the running number and the red stopped number, as the sidebar. */
+  /** The running cards (진행 중); with none, the home draws no such group (lina-app#134). */
   readonly active: Section<CardRow>;
+  /** The stopped cards, their own group under the running one (중단됨), the owner's first: the red number, as the sidebar. */
+  readonly stopped: Section<CardRow>;
   /** Waiting cards the 검토 필요 group does not already hold. */
   readonly waiting: Section<CardRow>;
   /** Finished in the last 24 hours, newest first. */
   readonly recent: Section<CardRow>;
   readonly older: Section<CardRow>;
 }
+
+const HANGUL = /\p{Script=Hangul}/u;
 
 /** How long a finished card counts as recent on the home. */
 export const RECENT_SECONDS = 86_400;
@@ -387,6 +396,8 @@ export function buildModel(input: ModelInput, now: number): Model {
   const ownerName = items?.owner?.name ?? null;
   // An unchecked title (a row's own, its to-do's, its goal's) names a row only when it passes the raw-text rule.
   const plainName = (title: string | null | undefined, stopped = false) => (title && mayDraw(title, stopped) ? title : null);
+  // A name the Latin-word exception alone would let a stopped row draw, with no Korean in it: an internal name.
+  const internal = (title: string | null | undefined) => Boolean(title) && plainName(title) === null && plainName(title, true) !== null && !HANGUL.test(title ?? "");
   // A run that a later run of the same to-do replaced has ended for good: nobody needs to act on it.
   const replaced = (run: RunCard) =>
     run.todo !== null && (board?.cards ?? []).some((other) => other.id !== run.id && other.todo === run.todo && (other.startedAt ?? 0) > (run.startedAt ?? 0));
@@ -399,20 +410,22 @@ export function buildModel(input: ModelInput, now: number): Model {
     return { ...row, title, name: title ?? W.untitled, stop: row.state === "stopped" ? stopWords(row.reason, isRun, facts) : null };
   };
   const stopWords = (reason: string | null, isRun: boolean, { waitingOn, retry }: StopFacts): NonNullable<CardRow["stop"]> => {
-    const owner = { words: ownerName ? `${ownerName} ${W.needsCheck}` : W.needsCheck, known: true, owner: true };
+    // A stop that waits on an answer, a review or another to-do does not clear by running again: no 다시 시도.
+    const owner = { words: ownerName ? `${ownerName} ${W.needsCheck}` : W.needsCheck, known: true, owner: true, retry: false };
     if (waitingOn === "owner") return owner;
     // An agent that starts another run by itself is no reviewer: the retry words below say so.
     if (waitingOn?.startsWith("agent:") && retry !== "scheduled") {
       const agent = agents.find((each) => each.id === waitingOn.slice(6) || each.name === waitingOn.slice(6));
-      return { words: agent ? `${agent.name} ${W.waitReview}` : W.waitReview, known: true, owner: false };
+      return { words: agent ? `${agent.name} ${W.waitReview}` : W.waitReview, known: true, owner: false, retry: false };
     }
     if (reason === "decision" || reason === "feedback") return owner;
-    if (reason === "review") return { words: W.waitReview, known: true, owner: false };
+    if (reason === "review") return { words: W.waitReview, known: true, owner: false, retry: false };
     const why = reasonWord(reason);
-    if (retry === "scheduled") return { words: [why, W.retryScheduled].filter(Boolean).join(SEP), known: true, owner: false };
+    const again = reason !== "blocked_by_item";
+    if (retry === "scheduled") return { words: [why, W.retryScheduled].filter(Boolean).join(SEP), known: true, owner: false, retry: again };
     // A failed run still listed has no later run of its to-do: nobody tried it again.
-    if (retry === "none" || (isRun && (reason === "failed" || reason === "rejected"))) return { words: [why, W.notRetried].filter(Boolean).join(SEP), known: true, owner: false };
-    return { words: why ?? "", known: false, owner: false };
+    if (retry === "none" || (isRun && (reason === "failed" || reason === "rejected"))) return { words: [why, W.notRetried].filter(Boolean).join(SEP), known: true, owner: false, retry: again };
+    return { words: why ?? "", known: false, owner: false, retry: again };
   };
   // The title of a to-do in the work record (never a goal: a goal names a row last), when it may be drawn.
   const todoName = (ids: readonly (string | null)[], stopped = false) =>
@@ -422,9 +435,14 @@ export function buildModel(input: ModelInput, now: number): Model {
     const ownerCard = owner ? (cards?.cards ?? []).find((card) => card.id === owner) : undefined;
     const cardTitleText = ownerCard ? cardTitle(ownerCard.plain.title, ownerCard.title) : null;
     // Its goal's title, then its checked title, its own name, its to-do's title and its card's title. A stopped run with
-    // no card or goal waits on someone: a Latin word alone does not hide its own or its to-do's title.
+    // no card or goal waits on someone: a Latin word alone does not hide its own or its to-do's title, but a name in
+    // Latin alone is an internal one (lina-app#134): it is never drawn, and the row reads 이름 없는 실행.
     const lone = run.state === "stopped" && !owner && runGoal(run) === undefined;
-    return contextRow(runRow(run), plainName(runGoal(run)?.title), plainName(run.title, lone) ?? todoName([run.todo], lone) ?? cardTitleText, true, run);
+    const todo = run.todo ? itemMap.get(run.todo) : undefined;
+    const todoTitle = todo && todo.kind !== "goal" ? todo.title : null;
+    const named = (title: string | null | undefined) => (internal(title) ? null : plainName(title, lone));
+    const unnamed = lone && (internal(run.title) || internal(todoTitle)) ? W.unnamedRun : null;
+    return contextRow(runRow(run), plainName(runGoal(run)?.title), named(run.title) ?? named(todoTitle) ?? cardTitleText ?? unnamed, true, run);
   };
 
   // Only work with no parent is a row of its own: a worker run of a card or of a goal's to-do shows inside them.
@@ -435,9 +453,11 @@ export function buildModel(input: ModelInput, now: number): Model {
   const everyCard: { row: CardRow; listed: boolean }[] = [
     ...(cards?.cards ?? []).map((card) => {
       const cardRuns = runsOf(card.id);
-      // Its goal's title, then its own names (workCardRow), then the to-do its runs take on.
+      // Its goal's title (the one the core puts on the row first), then its own names (workCardRow), then the to-do
+      // its runs take on.
       const fallback = todoName(cardRuns.map((run) => run.todo));
-      return { row: contextRow(workCardRow(card, input.cardDetails[card.id], receivedAt, cardRuns), plainName(cardGoal.get(card.id)?.title), fallback, false, card), listed: !isEnded(card, null) };
+      const goal = plainName((card as CardSummary).goalTitle) ?? plainName(cardGoal.get(card.id)?.title);
+      return { row: contextRow(workCardRow(card, input.cardDetails[card.id], receivedAt, cardRuns), goal, fallback, false, card), listed: !isEnded(card, null) };
     }),
     ...(board?.cards ?? []).map((run) => ({ row: runListRow(run), listed: !isEnded(run, run) })),
   ];
@@ -620,7 +640,8 @@ export function buildModel(input: ModelInput, now: number): Model {
       review: inboxSections[1],
       mine: inboxSections[2],
       untitled,
-      active: section("active", W.agentRunning, runningRows),
+      active: section("active", W.agentRunning, running),
+      stopped: section("stopped", STATE_WORD.stopped, stopped),
       waiting: section("waiting", STATE_WORD.waiting, waiting.filter((card) => !reviewRows.some((row) => row.type === "review" && row.card.id === card.id))),
       recent: section("recent", W.doneRecent, recent),
       older: section("older", W.doneOlder, done.filter((card) => !recent.includes(card))),

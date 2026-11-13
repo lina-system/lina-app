@@ -668,6 +668,16 @@ button:disabled {
   color: inherit;
 }
 
+/* A stopped row's title takes a second line before it is cut (lina-app#133): two titles that start alike read apart. */
+.card-row.is-stopped .lines > .title.one-line {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
 /* A list row's state line stays one line beside its action, like its title. */
 .card-row .lines > .sub {
   display: block;

@@ -979,7 +979,8 @@ const drivers = {
       const event = /^(어제 |\d+월 \d+일 )?\d\d:\d\d · \S/;
       check(lines.every((line) => event.test(line) && !line.includes("\n")), "a history row is not time · sentence: " + JSON.stringify(lines));
       check(lines.some((line) => line.endsWith(" · 새 가이드를 문서 사이트에 올리고 첫 화면에 연결함")), "no evidence row: " + JSON.stringify(lines));
-      check(lines.at(-1).endsWith(" · 완료"), "the last row is not the close: " + lines.at(-1));
+      // Newest first, as every history (lina-app#149): the close is the top row.
+      check(lines[0].endsWith(" · 완료"), "the first row is not the close: " + lines[0]);
       return lines.join(" | ");
     });
   },
@@ -1225,7 +1226,7 @@ const drivers = {
       await openApp(page, "#/runs/r7");
       await page.getByTestId("timeline").waitFor();
       const lines = (await page.getByTestId("timeline").locator("li.timeline-row").allInnerTexts()).map((line) => line.trim());
-      check(lines.length === 2 && /^(어제 )?\d\d:\d\d · 작업 시작$/.test(lines[0]) && /^(어제 )?\d\d:\d\d · 용어 표를 맨 앞으로 옮김$/.test(lines[1]), "r7's history reads " + JSON.stringify(lines));
+      check(lines.length === 2 && /^(어제 )?\d\d:\d\d · 용어 표를 맨 앞으로 옮김$/.test(lines[0]) && /^(어제 )?\d\d:\d\d · 작업 시작$/.test(lines[1]), "r7's history reads " + JSON.stringify(lines));
       return lines.join(" | ");
     });
   },
@@ -2834,7 +2835,7 @@ const drivers = {
       const label = await page.locator(".detail-title").evaluate((title) => getComputedStyle(title).color);
       // Each row is one event, time · one sentence (lina-app#128).
       const said = rows.map((row) => row.text.replace(/^(어제 )?\d\d:\d\d · /, "")).join(" | ");
-      check(rows.every((row) => /^(어제 )?\d\d:\d\d · \S/.test(row.text)) && said === "변경마다 한 줄 요약을 붙이는 중 | 도구 사용 4번 | 요약을 표로 옮기는 중 ×3", "the going round reads " + rows.map((row) => row.text).join(" | "));
+      check(rows.every((row) => /^(어제 )?\d\d:\d\d · \S/.test(row.text)) && said === "요약을 표로 옮기는 중 ×3 | 도구 사용 4번 | 변경마다 한 줄 요약을 붙이는 중", "the going round reads " + rows.map((row) => row.text).join(" | "));
       check(rows[0].colour === label && rows[1].colour !== label && rows[2].colour === label, "sentence and dim colours " + JSON.stringify(rows.map((row) => row.colour)) + ", label " + label);
       const noStart = (await blocks.nth(4).getByTestId("timeline-no-start").innerText()).trim();
       check(noStart === "시작 기록 없음", "the start-unknown round reads " + noStart);

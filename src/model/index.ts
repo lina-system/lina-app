@@ -133,6 +133,8 @@ export interface CardRow {
    * ask. It is the card's own name; with none, or the same again, when the row last moved.
    */
   readonly sub?: string | null;
+  /** The card lives on a board the core only reads (lina#481): no write control is drawn for it. */
+  readonly readOnly?: boolean;
 }
 
 /** Where an answer to a decision goes: the record's item (comments with answer) or a work card's question. */
@@ -395,6 +397,7 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
     result: card.plain.result,
     progress: card.todoProgress.total > 0 ? { done: card.todoProgress.done, total: card.todoProgress.total } : null,
     todo: cardRuns.map((run) => run.todo).find((todo): todo is string => Boolean(todo)) ?? null,
+    readOnly: card.readOnly === true,
   };
 }
 

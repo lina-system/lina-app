@@ -132,7 +132,7 @@ describe("history rows (lina-app#123)", () => {
     for (const line of lines) expect(line.textContent).not.toContain(title);
   });
 
-  test("a goal with a merge, a question, a close, comments and runs lists one row per event in time order", async () => {
+  test("a goal with a merge, a question, a close, comments and runs lists one row per event, newest first", async () => {
     const base = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
     const { scene } = base;
     const now = scene.now;
@@ -149,13 +149,13 @@ describe("history rows (lina-app#123)", () => {
     await frame(view);
     const rows = within(view.getByTestId("goal-history")).getAllByTestId("history-row");
     for (const row of rows) expect(row.textContent).toMatch(EVENT);
-    expect(rows.map((row) => row.getAttribute("data-kind"))).toEqual(["comment", "question", "run", "merge", "close"]);
+    expect(rows.map((row) => row.getAttribute("data-kind"))).toEqual(["close", "merge", "run", "question", "comment"]);
     expect(rows.map((row) => (row.textContent ?? "").replace(new RegExp(`^${TIME} · `), ""))).toEqual([
-      "첫 화면 문구는 짧게 해 주세요.",
-      "질문: 가이드를 문서 사이트 첫 화면에 걸지 결정 필요",
       "완료",
       "새 가이드를 문서 사이트에 올리고 첫 화면에 연결함",
       "완료",
+      "질문: 가이드를 문서 사이트 첫 화면에 걸지 결정 필요",
+      "첫 화면 문구는 짧게 해 주세요.",
     ]);
   });
 });

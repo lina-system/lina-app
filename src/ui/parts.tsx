@@ -122,8 +122,10 @@ export function StateTime({ state, reason, stop, time }: { state: WorkState; rea
   );
 }
 
-export function CardRowView({ card, dim = false, bare = false, kindIcon = true, action, error }: { card: CardRow; dim?: boolean; bare?: boolean; kindIcon?: boolean; action?: ComponentChildren; error?: string }) {
+export function CardRowView({ card, dim = false, bare = false, kindIcon = true, action: offered, error }: { card: CardRow; dim?: boolean; bare?: boolean; kindIcon?: boolean; action?: ComponentChildren; error?: string }) {
   const { model, now, wide, selected } = useApp();
+  // A card from a board the core only reads (lina#481) offers no write, such as 다시 시도 (lina-app#149).
+  const action = card.readOnly ? undefined : offered;
   const time = cardTime(card, now);
   const progress = wide && card.state === "in_progress" && card.progress ? card.progress : null;
   const label = [agentName(model, card.agent), card.name, card.sub ?? "", card.ask ?? "", stateWords(card.state, card.reason, card.stop), progress ? W.todoProgress(progress.done, progress.total) : ""].filter(Boolean).join(SEP);

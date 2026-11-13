@@ -1921,7 +1921,7 @@ describe("work cards", () => {
     expect(agentRow?.classList.contains("is-kind")).toBe(false);
   });
 
-  test("a work card whose own title would show raw text is named by its goal on the home, and keeps its kind word on its detail", async () => {
+  test("a work card whose own title would show raw text is named by its goal on the home and on its detail's head, never by its kind", async () => {
     const source = new SyntheticSource();
     const ownTitle = "LINA-41 release notes / CHANGES.md";
     const scene = {
@@ -1940,9 +1940,11 @@ describe("work cards", () => {
     view.unmount();
     const detail = await open("#/cards/k-102", { wide: true, source: new SyntheticSource({ scene }) });
     expect(screenText(detail.container)).not.toContain(ownTitle);
+    // The kind is never a title (lina-app#149): the head reads the goal title its row reads.
     const head = detail.getByTestId("screen-card").querySelector(".detail-title");
-    expect(head?.textContent).toBe("코드 작업");
-    expect(head?.classList.contains("is-kind")).toBe(true);
+    expect(head?.textContent).toBe("결제 화면 개편");
+    expect(head?.classList.contains("is-kind")).toBe(false);
+    expect(screenText(detail.container)).not.toMatch(/코드 작업|문서 작업|기기 작업/);
     expect(within(detail.getByTestId("screen-card")).getByTestId("kind").textContent).toBe("코드");
   });
 
@@ -2103,10 +2105,11 @@ describe("work cards, round 4", () => {
   test("a comment that would show a path, a hash or a cut-off fragment reads its first sentence with those left out, one line, never folded (lina-app#142)", async () => {
     const view = await open("#/cards/k-103", { wide: true });
     const comments = within(view.getByTestId("card-comments")).getAllByTestId("history-row");
+    // Newest first, as every history (lina-app#149).
     expect(comments.map((comment) => comment.textContent)).toEqual([
-      expect.stringMatching(/^(어제 )?\d\d:\d\d · 오류 문구 초안을 공유했어요\.$/),
-      expect.stringMatching(/^(어제 )?\d\d:\d\d · 키 12개를 바꿈$/),
       expect.stringMatching(/^(어제 )?\d\d:\d\d · 결제 실패 문구를 새 문체로 바꾸는 중인데 카드사별로…$/),
+      expect.stringMatching(/^(어제 )?\d\d:\d\d · 키 12개를 바꿈$/),
+      expect.stringMatching(/^(어제 )?\d\d:\d\d · 오류 문구 초안을 공유했어요\.$/),
     ]);
     // Who wrote it is the line's tooltip, not a second line.
     expect(comments.every((comment) => Boolean(comment.getAttribute("title")))).toBe(true);
@@ -2274,15 +2277,15 @@ describe("the run's own timeline", () => {
     expect(titles.join("\n")).not.toMatch(/ –|^–/m);
   });
 
-  test("rows read oldest first: sentences bright, tools one dim line with its count, a repeat once with ×n, raw text left out", async () => {
+  test("rows read newest first: sentences bright, tools one dim line with its count, a repeat once with ×n, raw text left out", async () => {
     const view = await open("#/cards/k-101", { wide: true });
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const going = view.getAllByTestId("timeline-block")[0];
     const rows = [...going.querySelectorAll(".timeline-row")].map((row) => [row.getAttribute("data-kind"), row.classList.contains("is-dim"), row.textContent]);
     expect(rows).toEqual([
-      ["said", false, expect.stringMatching(/^(어제 )?\d\d:\d\d · 변경마다 한 줄 요약을 붙이는 중$/)],
-      ["tools", true, expect.stringMatching(/^(어제 )?\d\d:\d\d · 도구 사용 4번$/)],
       ["said", false, expect.stringMatching(/^(어제 )?\d\d:\d\d · 요약을 표로 옮기는 중 ×3$/)],
+      ["tools", true, expect.stringMatching(/^(어제 )?\d\d:\d\d · 도구 사용 4번$/)],
+      ["said", false, expect.stringMatching(/^(어제 )?\d\d:\d\d · 변경마다 한 줄 요약을 붙이는 중$/)],
     ]);
     expect(going.querySelector("[data-testid=timeline-result]")).toBeNull();
     const text = screenText(view.getByTestId("timeline"));
@@ -2697,12 +2700,12 @@ describe("a card's detail (lina-app#128)", () => {
     expect(lines).toContainEqual(expect.stringMatching(new RegExp(`^${TIME} · 완료 · 병합된 변경 41개를 모음$`)));
   });
 
-  test("a finished run outside any card lists its past events: started, then what it left", async () => {
+  test("a finished run outside any card lists its past events newest first: what it left, then started", async () => {
     const view = await open("#/runs/r7", { wide: true });
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const lines = [...view.getByTestId("timeline").querySelectorAll(".timeline-row")].map((row) => row.textContent ?? "");
     expect(lines).toHaveLength(2);
-    expect(lines[0]).toMatch(new RegExp(`^${TIME} · 작업 시작$`));
-    expect(lines[1]).toMatch(new RegExp(`^${TIME} · 용어 표를 맨 앞으로 옮김$`));
+    expect(lines[0]).toMatch(new RegExp(`^${TIME} · 용어 표를 맨 앞으로 옮김$`));
+    expect(lines[1]).toMatch(new RegExp(`^${TIME} · 작업 시작$`));
   });
 });

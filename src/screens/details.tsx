@@ -2,11 +2,11 @@ import { Fragment, type ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
-import { cardName, cardTitle, goalCards, runRow, type CardRow, type Model } from "../model";
+import { cardTitle, goalCards, runRow, type CardRow, type Model } from "../model";
 import { foldReason } from "../model/fold";
 import { holds } from "../model/rounds";
 import { stopReason } from "../model/stop-reason";
-import { firstSentence, goalHistory, outcomeOf } from "../model/timeline";
+import { firstSentence, goalHistory, historyLines, isMachineNotice, outcomeOf } from "../model/timeline";
 import type { CardKind } from "../model/kind";
 import { isRunId } from "../data/store";
 import { href } from "../router";
@@ -141,11 +141,13 @@ function DoneHead({ detail }: { detail: ItemDetail }) {
   const shown = actions.isDone(detail.id, detail.state === "done");
   const until = actions.undoUntil(detail.id, detail.ownerDone?.undoUntil);
   const showUndo = shown && until !== null && now < until && actions.toast?.owner !== detail.id;
+  // An open decision dates the head as its 수신함 row does, from when it was asked (lina-app#149).
+  const since = detail.decision && !detail.decision.answered && detail.decision.at ? detail.decision.at : detail.stateSince;
   return (
     <>
       <div class="head-check">
         <DoneCheck id={detail.id} title={detail.title} done={detail.state === "done"} undoUntil={detail.ownerDone?.undoUntil} withOpen={withIds} openTodos={open.length} onOpenTodos={() => setAsking(true)} />
-        <StateTime state={detail.state} reason={detail.reason} time={sinceText(detail.state, detail.stateSince, now)} />
+        <StateTime state={detail.state} reason={detail.reason} time={sinceText(detail.state, since, now)} />
         {showUndo ? (
           <button type="button" class="text-button head-undo" disabled={actions.busy(`done:${detail.id}`)} onClick={() => void actions.undoDone(detail.id, withIds)}>
             {W.undo}
@@ -313,13 +315,14 @@ export const GoalScreen = ItemScreen;
 
 /**
  * A work card's head: its kind icon and word, its name (the checked title, or the card's own title until that exists
- * and may be drawn; a run without a checked title keeps its kind word in grey) and its state line.
+ * and may be drawn, else the title its row reads, its goal's) and its state line. The kind is never the title
+ * (lina-app#149): with no title at all the head reads 제목 없음 in grey.
  */
 function CardHead({ work, title, untitled, children }: { work: CardKind; title: string | null; untitled?: string; children: ComponentChildren }) {
   return (
     <header class="detail-head">
       <KindMark work={work} word />
-      <h1 class={title ? "detail-title" : "detail-title is-kind"}>{title ? cardName(title, work) : (untitled ?? cardName(null, work))}</h1>
+      <h1 class={title ? "detail-title" : "detail-title is-kind"}>{title ?? untitled ?? W.untitled}</h1>
       {children}
     </header>
   );
@@ -376,12 +379,32 @@ export function roundHead(round: Round, now: number): string {
 }
 
 /**
- * One comment on a work card, one history line: its time and its first sentence, with any id, hash, path or command
- * taken out (lina-app#142); its author is the line's tooltip. Only a comment with no sentence left reads 접힌 댓글.
+ * A work card's comments, one history line each, newest first: its time and its first sentence a person may read,
+ * with any id, hash, path or command taken out (lina-app#142); its author is the line's tooltip. A machine notice is
+ * no line, and each run of comments with no sentence left is one 접힌 댓글 line with their count (lina-app#149).
  */
-function CardComment({ comment }: { comment: WorkCardDetail["comments"][number] }) {
+function CardComments({ comments }: { comments: WorkCardDetail["comments"] }) {
   const { model } = useApp();
-  return <HistoryLine at={comment.createdAt} text={firstSentence(comment.body) ?? W.folded} kind="comment" who={agentName(model, comment.author)} />;
+  const lines = historyLines(comments.filter((comment) => !isMachineNotice(comment.body, comment.author)).map((comment) => ({ id: comment.id, at: comment.createdAt, author: comment.author, text: firstSentence(comment.body) })));
+  if (!lines.length) return null;
+  return (
+    <Box title={W.comments} testid="card-comments">
+      <ul class="history-rows" aria-label={W.comments}>
+        {lines.map((line) => (
+          <HistoryLine key={line.id} at={line.at} text={line.text ?? W.foldedRun(line.folded)} kind="comment" who={line.text ? agentName(model, line.author) : undefined} />
+        ))}
+      </ul>
+    </Box>
+  );
+}
+
+/** The one line a read-only card has where the owner would write (lina-app#149): it is changed on its board. */
+function ReadOnlyLine() {
+  return (
+    <span class="sub" data-testid="read-only">
+      {W.readOnly}
+    </span>
+  );
 }
 
 /** A detail head's state line: a stopped one reads the words and the time its list row reads (stopReason, cardTime). */
@@ -455,6 +478,7 @@ export function CardScreen({ id }: { id: string }) {
       <article class="detail" data-testid="screen-card">
         <CardHead work={row.work} title={row.title}>
           <HeadState state={row.state} reason={row.reason} row={row} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} />
+          {row.readOnly ? <ReadOnlyLine /> : null}
         </CardHead>
         {row.now && row.state === "in_progress" ? (
           <Box title={W.now} testid="card-now">
@@ -487,9 +511,13 @@ export function CardScreen({ id }: { id: string }) {
   // The goal (project) the card serves, in its head; a goal title that would show raw text is left out.
   const goal = store.get("goals")?.goals.find((candidate) => candidate.workCards.some((card) => card.id === id));
   const goalLine = goal && !foldReason(goal.title) ? goal.title : null;
+  // A card from a board the core only reads (lina#481) has no place to answer and no other write (lina-app#149).
+  const readOnly = Boolean(detail.readOnly || row?.readOnly);
+  // An old done card the core keeps no history for (`detail: false`) says so instead of an empty frame.
+  const kept = store.get("cards")?.cards.find((card) => card.id === id)?.detail !== false;
   return (
     <article class="detail" data-testid="screen-card">
-      <CardHead work={row?.work ?? "code"} title={cardTitle(detail.plain.title, detail.title, detail.state === "stopped")}>
+      <CardHead work={row?.work ?? "code"} title={cardTitle(detail.plain.title, detail.title, detail.state === "stopped") ?? row?.title ?? null}>
         <HeadState state={detail.state} reason={detail.reason} row={row} time={row ? [cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP) : ""} />
         {goalLine ? (
           <span class="sub" data-testid="card-goal">
@@ -497,15 +525,16 @@ export function CardScreen({ id }: { id: string }) {
           </span>
         ) : null}
         {detail.state === "in_progress" && detail.todoProgress.total > 0 ? <Progress done={detail.todoProgress.done} total={detail.todoProgress.total} word /> : null}
+        {readOnly ? <ReadOnlyLine /> : null}
       </CardHead>
       {/* Each question with the place to answer it, keyed as its 수신함 row, so answering here hides that row too. */}
       {questions.map((question) => (
         <Fragment key={question.commentId}>
           <DecisionBox text={question.body} agent={question.agent} ask at={question.askedAt} />
-          <AnswerPlace key={question.commentId} answerKey={`question:${id}:${question.commentId}`} target={{ kind: "card", id }} label={W.answerField} testid="decision-answer" />
+          {readOnly ? null : <AnswerPlace key={question.commentId} answerKey={`question:${id}:${question.commentId}`} target={{ kind: "card", id }} label={W.answerField} testid="decision-answer" />}
         </Fragment>
       ))}
-      {ask && !everyQuestion.length && !answering(`answer:${id}`) ? (
+      {ask && !readOnly && !everyQuestion.length && !answering(`answer:${id}`) ? (
         <Box>
           <AnswerPlace key={`answer:${id}`} answerKey={`answer:${id}`} target={{ kind: "card", id }} label={ask} testid="card-answer" />
         </Box>
@@ -536,6 +565,11 @@ export function CardScreen({ id }: { id: string }) {
           </ul>
         </Box>
       ) : null}
+      {kept ? null : (
+        <p class="empty" data-testid="no-history">
+          {W.noHistory}
+        </p>
+      )}
       {/* One round list: the record's blocks (기록), each head the link to its worker run. 실행 stands only while the
           record is not shown, and under its error line when the read failed, so the worker links never disappear. */}
       <Timeline
@@ -559,15 +593,7 @@ export function CardScreen({ id }: { id: string }) {
           ) : null
         }
       />
-      {detail.comments.length ? (
-        <Box title={W.comments} testid="card-comments">
-          <ul class="history-rows" aria-label={W.comments}>
-            {detail.comments.map((comment) => (
-              <CardComment key={comment.id} comment={comment} />
-            ))}
-          </ul>
-        </Box>
-      ) : null}
+      <CardComments comments={detail.comments} />
     </article>
   );
 }
@@ -650,7 +676,7 @@ export function RunScreen({ id }: { id: string }) {
   const listedTitle = listed?.title ?? null;
   return (
     <article class="detail" data-testid="screen-run">
-      <CardHead work={row.work} title={run.plain.title ?? listedTitle}>
+      <CardHead work={row.work} title={run.plain.title ?? listedTitle ?? model.cards.get(id)?.title ?? null}>
         <HeadState state={run.state} reason={run.reason} row={listed ?? row} time={[cardTime(listed ?? row, now), cardTook(row)].filter(Boolean).join(SEP)} />
         <RunModelLine runId={id} />
       </CardHead>

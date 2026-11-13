@@ -297,6 +297,12 @@ export const W = {
   round: (n: number) => `라운드 ${n}`,
   summariesStopped: "요약 중단됨",
   folded: "접힌 댓글",
+  /** A run of comments with nothing left to read, one line (lina-app#149). */
+  foldedRun: (n: number) => (n > 1 ? `접힌 댓글 ${n}건` : "접힌 댓글"),
+  /** A card from a board the core only reads (lina#481): it is changed there, never here. */
+  readOnly: "읽기 전용 · 칸반에서 변경",
+  /** An old done card whose history the core does not keep (`detail: false`). */
+  noHistory: "기록 보관 안 됨",
   noStart: "시작 기록 없음",
   runStarted: "작업 시작",
   untitledRun: "제목 없음",

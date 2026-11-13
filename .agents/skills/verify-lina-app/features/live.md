@@ -13,7 +13,7 @@ The screens follow the core's change stream: what another device, an agent or a 
 - The app opens one change stream (`/api/lina/events`, a WebSocket) for the whole page, whatever screen is open; moving between screens opens no other.
 - A change from anywhere (another device, the owning agent, a worker run, a kanban card) shows on every open screen it touches within 2 s. Only the routes it touches are read again; a route that did not change answers 304 and its rows stay as they are.
 - Nothing polls. A still page reads nothing.
-- The freshness line reads `실시간` while the stream is open. While it is down it reads grey `갱신 지연`, and the screens keep what they last drew.
+- The freshness line reads `실시간` while the stream is open. Once it has been down for the settle time (3 s) it reads grey `갱신 지연`, and the screens keep what they last drew; a drop the reconnect mends within the settle time never shows, and a reconnect reads `실시간` at once (lina-app#150).
 - After a drop (sleep, a network change, the tab hidden and shown) the app connects again with its last cursor and draws what it missed. A connection that fails is tried again after a wait that doubles, with jitter, up to 30 s; showing the tab or coming back online tries at once.
 - When the core restarts with a new session token (its reads answer 401 or 403, or the stream is refused at the upgrade), the page reads its own address (`/app/`) once more, uncached, for the new token, reads every snapshot with it and reconnects at once with its cursor. One renewal per run of refusals: refused again, the line turns red `연결 끊김` and the page asks nothing more until it is shown again or comes back online. The token is never stored. A page signed in by cookie (no token in it) leaves a 401 to its sign-in and renews nothing.
 - When the stream says to resync (the cursor is too old, or a store that was down reads again), the app reads every snapshot once.
@@ -44,10 +44,10 @@ Preconditions:
 - **One socket.** Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive live`. On `#/inbox`, open 진행 중인 작업, 목표 and 마감일 in turn: `window.__linaStream.connections` holds one open connection, and the line reads `실시간`.
 - **No polling.** Leave the page still for 12 s: `window.__linaStream.reads` does not move.
 - **A change from elsewhere.** On `#/items/T4`, send `폭도 봐 주세요` in `댓글 달기`: the agent's reply is drawn about 5 s later, with no reload.
-- **Drop and resume.** Load `&live=drop` on `#/items/T3` at 1280 (the 내 할 일 row 공지 문구 확인 selected, its detail beside the list) or on `#/inbox` in a 480 px tall window at 390 (the list scrolled to 40), and open the decision `배포를 금요일 오후에 할지 결정 필요`. The line turns `갱신 지연`, then `실시간`; the second connection resumed with a cursor and got one missed event; the bell reads `알림 4`; the row is still open, and the selection and its detail (1280) or the scroll (390) did not move.
+- **Drop and resume.** Load `&live=drop` on `#/items/T3` at 1280 (the 내 할 일 row 공지 문구 확인 selected, its detail beside the list) or on `#/inbox` in a 480 px tall window at 390 (the list scrolled to 40), and open the decision `배포를 금요일 오후에 할지 결정 필요`. The line never leaves `실시간` (the reconnect lands within the settle time; every word it showed is recorded); the second connection resumed with a cursor and got one missed event; the bell reads `알림 4`; the row is still open, and the selection and its detail (1280) or the scroll (390) did not move.
 - **Resync.** Load `#/inbox` with `&live=resync`: about 2 s in, the page reads one refresh's worth of routes (5 lists and every card) and nothing more; still one connection.
-- **New token.** Load `#/inbox` with `&live=token`: the line turns `갱신 지연`, then `실시간`; `window.__linaStream.renewals` is 1; the last connection resumed with a cursor and got one missed event; the bell reads `알림 4`; nothing in web storage; no reload.
-- **Down.** Load `#/inbox` with `&live=down`: the line reads `갱신 지연`, 결정 필요 still has 4 rows, and 5 s bring 2 to 5 tries, none open.
+- **New token.** Load `#/inbox` with `&live=token`: the line never leaves `실시간`; `window.__linaStream.renewals` is 1; the last connection resumed with a cursor and got one missed event; the bell reads `알림 4`; nothing in web storage; no reload.
+- **Down.** Load `#/inbox` with `&live=down`: after the settle time the line reads `갱신 지연`, 결정 필요 still has 4 rows, and 5 s bring 2 to 5 tries, none open.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/live/live-1280.{png,aria.yml,json}` and `live-390.{png,aria.yml,json}`.
 
 ## Gotchas

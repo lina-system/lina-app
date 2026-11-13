@@ -1,6 +1,6 @@
 import { render, waitFor, within } from "@testing-library/preact";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import type { Machine, PersonDevice, RunnerCell, StatusChecks } from "../api/client";
+import type { Machine, PersonDevice, RunnerCell, Settings, StatusChecks } from "../api/client";
 import { App } from "../app";
 import { SyntheticSource } from "../data/synthetic-source";
 import { Store } from "../data/store";
@@ -64,14 +64,14 @@ const rowOf = (view: Awaited<ReturnType<typeof open>>, name: string) => {
   return row as HTMLElement;
 };
 
-const cellOf = (row: HTMLElement, name: string) => {
-  const cell = [...row.querySelectorAll("[data-testid=runner-cell]")].find((item) => item.querySelector(".runner-name")?.textContent === name);
-  expect(cell).toBeTruthy();
-  return cell as HTMLElement;
-};
+/** A node's runner cells in the hub's order: the cells name runners by display name, never by id (lina-app#150). */
+const cellsOf = (row: HTMLElement) => [...row.querySelectorAll("[data-testid=runner-cell]")] as HTMLElement[];
 
 const RUNNER_SYNC =
   'hold: dsh on hub 0.2.2-rc.1 (trial): trial: ACP error: Internal error: turn failed: llm-deepseek: no API key for provider route "deepseek-official"; store DEEPSEEK_API_KEY through the credentials service (the web Mo';
+
+/** The hub's line cut at its last whole word: `(the web Mo` loses `Mo` and ends in one ellipsis (lina-app#150). */
+const RUNNER_SYNC_WHOLE = `${RUNNER_SYNC.slice(0, RUNNER_SYNC.lastIndexOf(" "))}…`;
 
 describe("status tab on the hub's real shapes (lina-app#144)", () => {
   test("a check whose line is not Korean reads one Korean line, with the original folded behind 자세히", async () => {
@@ -90,7 +90,7 @@ describe("status tab on the hub's real shapes (lina-app#144)", () => {
     expect(rows).toHaveLength(2);
     expect(rows.map((row) => row.querySelector(".title")?.textContent)).toEqual(["실행기 업데이트 보류", "점검 실패"]);
     for (const [row, line] of [
-      [rows[0], RUNNER_SYNC],
+      [rows[0], RUNNER_SYNC_WHOLE],
       [rows[1], "fail: probe timed out"],
     ] as const) {
       const fold = row.querySelector("details") as HTMLDetailsElement;
@@ -151,15 +151,16 @@ describe("status tab on the hub's real shapes (lina-app#144)", () => {
     ];
     const view = await open(source);
     expect(view.getByTestId("section-machines").textContent).not.toContain("확인 중");
-    const row = rowOf(view, "모래톱");
-    expect(cellOf(row, "dsh").textContent).toBe("dsh0.2.1-rc.5");
-    expect(cellOf(row, "dsh-command").textContent).toBe("dsh-command");
-    expect(cellOf(row, "cursor").textContent).toBe("cursor2026.11.11");
-    expect(cellOf(row, "omo").textContent).toBe("omo업데이트 필요5.1.60 → 5.1.69");
-    expect(cellOf(rowOf(view, "물레방아"), "omo").textContent).toBe("omo업데이트 필요5.1.51 → 5.1.69");
+    // The scene's settings list omo, codex and dsh: dsh is 실행기 3, a runner they do not list is 실행기.
+    const [dsh, dshCommand, cursor, omo] = cellsOf(rowOf(view, "모래톱"));
+    await waitFor(() => expect(dsh.textContent).toBe("실행기 30.2.1-rc.5"));
+    expect(dshCommand.textContent).toBe("실행기확인 안 됨");
+    expect(cursor.textContent).toBe("실행기2026.11.11");
+    expect(omo.textContent).toBe("실행기 1업데이트 필요5.1.60 → 5.1.69");
+    expect(cellsOf(rowOf(view, "물레방아"))[0].textContent).toBe("실행기 1업데이트 필요5.1.51 → 5.1.69");
   });
 
-  test("a node without readings says why once; numbers still draw as bars", async () => {
+  test("a node without readings says why once, after a dash for each reading it lacks (lina-app#150)", async () => {
     const source = fresh();
     source.scene.devices.machines = [
       node("모래톱", { metricsWhy: "no_source" }),
@@ -175,15 +176,14 @@ describe("status tab on the hub's real shapes (lina-app#144)", () => {
       ["솔방울", "측정 기록 없음"],
       ["물레방아", "기기 응답 없음"],
     ] as const) {
-      expect(readings(name).textContent).toBe(line);
+      expect(readings(name).textContent).toBe(`CPU—메모리—디스크—${line}`);
       expect(readings(name).querySelectorAll(".meter")).toHaveLength(0);
       expect(rowOf(view, name).querySelector(".row-body")?.getAttribute("aria-label")).toContain(line);
     }
     expect(readings("바람개비").querySelectorAll(".meter")).toHaveLength(3);
-    expect(readings("바람개비").textContent).toBe("CPU메모리디스크");
+    expect(readings("바람개비").textContent).toBe("CPU22%메모리41%디스크37%");
     expect(readings("징검다리").querySelectorAll(".meter")).toHaveLength(2);
-    expect(readings("징검다리").textContent).toBe("CPU디스크측정 기록 없음");
-    expect(view.getByTestId("section-machines").textContent).not.toContain("—");
+    expect(readings("징검다리").textContent).toBe("CPU22%메모리—디스크37%측정 기록 없음");
   });
 
   test("다시 시작 says what it restarts, and is gone while the node is down", async () => {
@@ -193,5 +193,66 @@ describe("status tab on the hub's real shapes (lina-app#144)", () => {
     const button = within(rowOf(view, "모래톱")).getByRole("button", { name: "모래톱 서비스 다시 시작" });
     expect(button.textContent).toBe("서비스 다시 시작");
     expect(within(rowOf(view, "솔방울")).queryByRole("button")).toBeNull();
+  });
+});
+
+// lina-app#150: QA round 4 on the hub's /api/lina/devices and /api/lina/status/checks (11-14). Invented names; the
+// values, the runners with every field null and metricsWhy are the hub's own shapes.
+describe("status tab, QA round 4 (lina-app#150)", () => {
+  test("each reading draws its percent beside its bar, the hub's fractions rounded", async () => {
+    const source = fresh();
+    source.scene.devices.machines = [node("모래톱", { cpu: 0.68, memory: 12.55, disk: 32.7, metricsWhy: null })];
+    const view = await open(source);
+    const meters = [...rowOf(view, "모래톱").querySelectorAll("[data-testid=machine-meter]")] as HTMLElement[];
+    expect(meters.map((meter) => meter.textContent)).toEqual(["CPU1%", "메모리13%", "디스크33%"]);
+    expect(meters.map((meter) => meter.querySelectorAll(".meter").length)).toEqual([1, 1, 1]);
+    expect(rowOf(view, "모래톱").querySelector(".mini-none")).toBeNull();
+  });
+
+  test("a runner with no version and no state reads 확인 안 됨, never a bare name", async () => {
+    const source = fresh();
+    source.scene.devices.machines = [node("모래톱", { cpu: 11.8, memory: 34.79, disk: 19.07, metricsWhy: null, runners: [runner("omo", { type: "omo", fleet: "5.1.69", installed: "5.1.69", signIn: "magpie" as RunnerCell["signIn"], ready: true }), runner("dsh-command"), runner("aside"), runner("cursor")] })];
+    const view = await open(source);
+    const cells = cellsOf(rowOf(view, "모래톱"));
+    expect(cells).toHaveLength(4);
+    for (const cell of cells.slice(1)) expect(cell.querySelector(".runner-detail")?.textContent).toBe("확인 안 됨");
+  });
+
+  test("runners read by the settings screen's display name; no runner id is on the screen", async () => {
+    const source = fresh();
+    const ids = ["omo", "codex-command", "dsh-command", "claude-command", "omo-astra"];
+    const settings = source.scene.settings.revisions.at(-1) as Settings;
+    settings.worker = { ...settings.worker, runners: Object.fromEntries(ids.slice(1).map((id) => [id, { type: "command" }])) };
+    source.scene.devices.machines = [node("모래톱", { cpu: 11.8, memory: 34.79, disk: 19.07, metricsWhy: null, runners: [...ids.map((id) => runner(id, { fleet: "1.0", installed: "1.0", ready: true })), runner("aside")] })];
+    const view = await open(source);
+    const names = () => cellsOf(rowOf(view, "모래톱")).map((cell) => cell.querySelector(".runner-name")?.textContent);
+    await waitFor(() => expect(names()).toEqual(["실행기 1", "실행기 2", "실행기 3", "실행기 4", "실행기 5", "실행기"]));
+    const text = view.getByTestId("section-machines").textContent ?? "";
+    for (const id of [...ids, "aside"]) expect(text).not.toContain(id);
+  });
+
+  test("a check cut by the hub mid-word reads a neutral summary, and its fold holds whole words only", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const at = now - 2 * 60 * 60;
+    const checks: StatusChecks = { version: 1, at, checks: [{ name: "runner-sync", ok: false, line: RUNNER_SYNC, at, staleAfter: 172800, stale: false, state: "failing", file: "runner-sync.json" }] };
+    const view = await open(new SyntheticSource({ now, scene: { ...fresh().scene, checks } }));
+    const row = view.getByRole("list", { name: "점검" }).querySelector(".status-check-row") as HTMLElement;
+    expect(row.querySelector(".title")?.textContent).toBe("실행기 업데이트 보류");
+    expect(row.querySelector(".check-state")?.textContent).toBe("실패");
+    const original = row.querySelector(".check-original")?.textContent ?? "";
+    expect(original).toBe(RUNNER_SYNC_WHOLE);
+    expect(original).not.toMatch(/\bMo…?$/);
+  });
+
+  test("요약 중단됨 stays out of the header and shows in 점검 only", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} }));
+    window.history.replaceState(null, "", "/app/#/status");
+    const view = render(<App store={new Store(new SyntheticSource({ writerStopped: true }))} />);
+    await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("실시간"));
+    expect(view.getByTestId("freshness").textContent).toBe("실시간");
+    expect(view.queryByTestId("summaries-stopped")).toBeNull();
+    const row = view.getByTestId("summaries-check");
+    expect(view.getByRole("list", { name: "점검" }).contains(row)).toBe(true);
+    expect(row.textContent).toBe("요약 중단됨");
   });
 });

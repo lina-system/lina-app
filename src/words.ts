@@ -119,6 +119,8 @@ export const W = {
     unreachable: "연결 끊김",
     unknown: "확인 중",
   } as Readonly<Record<string, string>>,
+  /** A runner the core reports nothing on: no version, no state (lina-app#150). */
+  runnerUnchecked: "확인 안 됨",
   signedIn: "로그인됨",
   signIn: "로그인",
   signingIn: "로그인 중",
@@ -137,6 +139,8 @@ export const W = {
   /** A runner's update: the version the node has, then the fleet's. */
   versionGap: (installed: string, fleet: string) => `${installed} → ${fleet}`,
   checkMore: "자세히",
+  /** A line the core cut short, ended at its last whole word. */
+  cutShort: (text: string) => `${text}…`,
   restartWorker: "작업 실행기",
   restartOcx: "모델 연결",
   restartWorkerConfirm: "작업 실행기를 다시 시작합니다.",

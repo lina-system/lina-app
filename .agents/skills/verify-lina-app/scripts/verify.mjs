@@ -267,6 +267,18 @@ async function freshnessLine(page) {
   return (await page.getByTestId("freshness-line").innerText()).trim();
 }
 
+// Records every word the freshness line shows from now on (window.__linaWords), so a drive can tell that a word never
+// showed, however briefly (lina-app#150).
+async function recordFreshness(page) {
+  await page.evaluate(() => {
+    const line = () => document.querySelector("[data-testid=freshness-line]")?.textContent ?? "";
+    window.__linaWords = [line()];
+    new MutationObserver(() => {
+      if (window.__linaWords.at(-1) !== line()) window.__linaWords.push(line());
+    }).observe(document.querySelector("[data-testid=freshness]"), { subtree: true, childList: true, characterData: true });
+  });
+}
+
 // The synthetic stream's connections and the page's snapshot reads (window.__linaStream).
 async function stream(page) {
   return page.evaluate(() => window.__linaStream);
@@ -1261,6 +1273,9 @@ const drivers = {
       check(colours.includes("경고=rgb(255, 149, 0)") && colours.includes("꺼짐=rgb(255, 59, 48)"), "state colours " + colours.join(", "));
       const bars = await page.getByRole("list", { name: "기기", exact: true }).locator(".mini-meter .meter").count();
       check(bars === 9, "expected 9 thin bars on the three machines that report, got " + bars);
+      // Each bar has its percent beside it (lina-app#150).
+      const values = await page.getByRole("list", { name: "기기", exact: true }).locator(".mini-meter .mini-value").allInnerTexts();
+      check(values.length === 9 && values.every((value) => /^\d+%$/.test(value.trim())), "the bars read " + JSON.stringify(values));
       const loads = await page.getByRole("list", { name: "기기", exact: true }).locator(".trail").allInnerTexts();
       check(loads.every((text) => /^작업 (\d+|—)\/\d+$/.test(text)), "loads read " + loads.join(", "));
       return names.join(" | ");
@@ -1298,6 +1313,9 @@ const drivers = {
       check(grid.includes("업데이트 필요") && grid.includes("로그인 필요"), "the grid has no update or sign-in cell");
       check(/업데이트 필요\s*1\.2 → 1\.6/.test(grid), "the update cell does not show installed → fleet: " + grid.replace(/\s+/g, " "));
       check(!grid.includes("확인 중"), "a runner reads 확인 중");
+      // A runner reads by the settings screen's name, never by its id (lina-app#150).
+      const runnerNames = await page.getByRole("list", { name: "기기", exact: true }).locator(".runner-name").allInnerTexts();
+      check(runnerNames.length > 0 && runnerNames.every((name) => /^실행기( \d+)?$/.test(name.trim())), "runner names " + JSON.stringify(runnerNames));
       return "update 1.2 → 1.6, sign-in; unreachable node without runners; file node " + files + "; edges " + JSON.stringify(edges);
     });
     // Phone checks run before 로그인 is pressed, and the viewport comes back to the drive width for the proof shot.
@@ -2555,11 +2573,12 @@ const drivers = {
       check(await notReloaded(page), "the page reloaded");
       return "reply drawn " + ((Date.now() - sent) / 1000).toFixed(1) + " s after 보내기 (the agent answers after 5 s)";
     });
-    await step("a drop says 갱신 지연, the reconnect resumes from its cursor and draws what another device did meanwhile, the open row, the selection and the scroll kept", async () => {
+    await step("a drop the reconnect mends within the settle time never says 갱신 지연; the reconnect resumes from its cursor and draws what another device did meanwhile, the open row, the selection and the scroll kept", async () => {
       // Wide: a to-do is selected, its detail open beside the list. Phone: a short window, so the list scrolls.
       const size = page.viewportSize();
       if (!wide) await page.setViewportSize({ width: size.width, height: 480 });
       await openApp(page, wide ? "#/items/T3" : "#/inbox", "&live=drop");
+      await recordFreshness(page);
       await markPage(page);
       // The decision opens in the frame (lina-app#142) and its row is the selected one.
       const row = page.getByRole("link", { name: /배포를 금요일 오후에 할지 결정 필요/ });
@@ -2577,9 +2596,9 @@ const drivers = {
       if (wide) check(before.selected && before.detail, "no selected row with its detail: " + JSON.stringify(before));
       else check(before.scroll > 0, "the list did not scroll");
       check((await page.getByTestId("bell").getAttribute("aria-label")) === "알림 5", "the bell does not read 알림 5 before the drop");
-      await page.getByTestId("freshness-line").filter({ hasText: /^갱신 지연$/ }).waitFor({ timeout: 6_000 });
-      await page.getByTestId("freshness-line").filter({ hasText: /^실시간$/ }).waitFor({ timeout: 6_000 });
-      await page.getByRole("button", { name: "알림 4" }).waitFor({ timeout: 3_000 });
+      await page.getByRole("button", { name: "알림 4" }).waitFor({ timeout: 10_000 });
+      const words = await page.evaluate(() => window.__linaWords);
+      check(words.every((word) => word === "실시간"), "the line left 실시간 during the drop: " + JSON.stringify(words));
       const { connections } = await stream(page);
       check(connections.length === 2, "the stream had " + connections.length + " connections");
       check(connections[1].since !== null && connections[1].first === "missed" && connections[1].missed === 1, "the reconnect was " + JSON.stringify(connections[1]));
@@ -2588,7 +2607,7 @@ const drivers = {
       check(JSON.stringify(after) === JSON.stringify(before), "the screen moved: " + JSON.stringify(before) + " -> " + JSON.stringify(after));
       check(await notReloaded(page), "the page reloaded");
       await page.setViewportSize(size);
-      return "갱신 지연 → 실시간, reconnect " + JSON.stringify(connections[1]) + ", 알림 5 → 알림 4, row open, kept " + JSON.stringify(after);
+      return "실시간 throughout " + JSON.stringify(words) + ", reconnect " + JSON.stringify(connections[1]) + ", 알림 5 → 알림 4, row open, kept " + JSON.stringify(after);
     });
     await step("a resync reads the snapshot once", async () => {
       await openApp(page, "#/inbox", "&live=resync");
@@ -2605,13 +2624,14 @@ const drivers = {
       check(await notReloaded(page), "the page reloaded");
       return (after - before) + " reads (one refresh), still 1 connection";
     });
-    await step("a core restarted with a new session token: the page reads the token once, resumes from its cursor and draws what it missed, without a reload or a stored token", async () => {
+    await step("a core restarted with a new session token: the page reads the token once, resumes from its cursor and draws what it missed, without a reload or a stored token, and the line never leaves 실시간", async () => {
       await openApp(page, "#/inbox", "&live=token");
+      await recordFreshness(page);
       await markPage(page);
       check((await page.getByTestId("bell").getAttribute("aria-label")) === "알림 5", "the bell does not read 알림 5 before the restart");
-      await page.getByTestId("freshness-line").filter({ hasText: /^갱신 지연$/ }).waitFor({ timeout: 6_000 });
-      await page.getByTestId("freshness-line").filter({ hasText: /^실시간$/ }).waitFor({ timeout: 6_000 });
-      await page.getByRole("button", { name: "알림 4" }).waitFor({ timeout: 3_000 });
+      await page.getByRole("button", { name: "알림 4" }).waitFor({ timeout: 10_000 });
+      const words = await page.evaluate(() => window.__linaWords);
+      check(words.every((word) => word === "실시간"), "the line left 실시간 during the restart: " + JSON.stringify(words));
       const { connections, renewals } = await stream(page);
       const last = connections.at(-1);
       check(renewals === 1, "the page renewed its token " + renewals + " times");
@@ -2620,7 +2640,7 @@ const drivers = {
       const stored = await page.evaluate(() => Object.keys(localStorage).length + Object.keys(sessionStorage).length);
       check(stored === 0, "the page keeps " + stored + " keys in web storage");
       check(await notReloaded(page), "the page reloaded");
-      return "갱신 지연 → 실시간, 1 renewal, connections " + connections.map((connection) => connection.first).join(" → ") + ", 알림 5 → 알림 4";
+      return "실시간 throughout, 1 renewal, connections " + connections.map((connection) => connection.first).join(" → ") + ", 알림 5 → 알림 4";
     });
     await step("a stream that cannot open says 갱신 지연 and retries with growing waits; the screens still draw", async () => {
       await openApp(page, "#/inbox", "&live=down", "갱신 지연");
@@ -2853,14 +2873,17 @@ const drivers = {
       check(title === "릴리스 변경 목록 정리", "the run page is named " + title);
       return new URL(page.url()).hash + " " + title;
     });
-    await step("a stopped writer: one 요약 중단됨 line beside the freshness line", async () => {
+    await step("a stopped writer: no 요약 중단됨 beside the freshness line; 상태 · 점검 holds it as one row", async () => {
       await openApp(page, "#/running", "&writer=stopped");
-      const lines = await page.getByTestId("summaries-stopped").allInnerTexts();
-      check(lines.length === 1 && lines[0].trim() === "· 요약 중단됨", "the line reads " + JSON.stringify(lines));
+      const header = (await page.getByTestId("freshness").innerText()).trim();
+      check(!header.includes("요약 중단됨") && (await page.getByTestId("summaries-stopped").count()) === 0, "the header reads " + JSON.stringify(header));
       const row = page.getByTestId("screen-running").locator('li:has(> a[href="#/cards/k-102"])');
       check((await row.locator(".title").innerText()).trim() === "결제 화면 개편", "the card with no checked lines is not named by its goal");
       if (!wide) await phoneRules(page, "summaries stopped @390");
-      return lines[0].trim();
+      await openApp(page, "#/status", "&writer=stopped");
+      const rows = await page.getByRole("list", { name: "점검", exact: true }).getByTestId("summaries-check").allInnerTexts();
+      check(rows.length === 1 && rows[0].trim() === "요약 중단됨", "점검 reads " + JSON.stringify(rows));
+      return "header " + JSON.stringify(header) + ", 점검 " + JSON.stringify(rows);
     });
   },
 

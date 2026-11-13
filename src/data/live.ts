@@ -5,6 +5,11 @@ import type { Store, Want } from "./store";
 /** First retry after a failure, and the longest wait between two tries; each failure doubles the wait. */
 export const BACKOFF_BASE_MS = 1_000;
 export const BACKOFF_MAX_MS = 30_000;
+/**
+ * How long a dropped stream must stay down before the store says `down` (lina-app#150): a drop the reconnect mends
+ * sooner never shows, so the header cannot alternate 실시간 and 갱신 지연 faster than this. A reconnect says `open` at once.
+ */
+export const LIVE_SETTLE_MS = 3_000;
 
 /** The wait before try `attempt` (0 = the first retry): doubling up to the cap, then a random half to all of it. */
 export function backoffMs(attempt: number, random: () => number): number {
@@ -67,12 +72,15 @@ const browserHost = (): LiveHost => ({
  * The app's one change stream, opened through the store's source. The last cursor stays in memory: a reconnect
  * (after sleep, a network change, or the tab shown again) resumes with `since` and gets what it missed. A resync
  * reads every snapshot once. A failed or dropped connection tries again after a doubling, jittered wait; nothing
- * polls. While no connection is open, the store says `down` and the freshness line says the screens may be stale.
+ * polls. Once no connection has been open for LIVE_SETTLE_MS, the store says `down` and the freshness line says the
+ * screens may be stale.
  */
 export class Live {
   cursor: string | null = null;
   private socket: ChangeSocket | null = null;
   private timer: number | null = null;
+  /** Runs out LIVE_SETTLE_MS after the stream dropped, unless a connection opened meanwhile. */
+  private settling: number | null = null;
   private attempt = 0;
   private stopped = false;
 
@@ -111,6 +119,7 @@ export class Live {
   /** A hidden tab closes its socket; showing it again resumes from the cursor. */
   private pause(): void {
     this.clearTimer();
+    this.clearSettling();
     this.socket?.close();
     this.socket = null;
     if (this.store.live === "open") this.store.setLive("down");
@@ -130,6 +139,20 @@ export class Live {
     this.timer = null;
   }
 
+  private clearSettling(): void {
+    if (this.settling !== null) this.host.clearTimeout(this.settling);
+    this.settling = null;
+  }
+
+  /** The stream dropped: `down` only once it has stayed down for the settle time. */
+  private wentDown(): void {
+    if (this.settling !== null || this.store.live === "down") return;
+    this.settling = this.host.setTimeout(() => {
+      this.settling = null;
+      this.store.setLive("down");
+    }, LIVE_SETTLE_MS);
+  }
+
   private connect(): void {
     const since = this.cursor;
     let first = true;
@@ -140,6 +163,7 @@ export class Live {
           first = false;
           this.attempt = 0;
           this.store.credentialTaken();
+          this.clearSettling();
           this.store.setLive("open");
         }
         this.receive(message, since === null && this.cursor === null);
@@ -147,7 +171,7 @@ export class Live {
       closed: (refused) => {
         if (this.socket !== socket) return;
         this.socket = null;
-        this.store.setLive("down");
+        this.wentDown();
         if (!refused) {
           this.retry();
           return;

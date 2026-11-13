@@ -851,7 +851,8 @@ button:disabled {
 
 .mini-meters {
   display: flex;
-  gap: 14px;
+  flex-wrap: wrap;
+  gap: 2px 14px;
   margin-top: 3px;
   font-size: var(--text-small);
   color: var(--label-2);
@@ -871,6 +872,10 @@ button:disabled {
 
 .mini-none {
   color: var(--label-2);
+}
+
+.mini-value {
+  font-variant-numeric: tabular-nums;
 }
 
 /* The restart control sits under the node row, so the load trail stays on the same edge as every other row. */
@@ -2671,6 +2676,11 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 
 .talk-pane > .empty {
   margin: auto;
+}
+
+/* No agent chosen, no card: the middle takes the whole width rather than leave an empty column (lina-app#150). */
+.talk-panes:not(:has(> .card-pane)) {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .card-pane {

@@ -168,9 +168,12 @@ interface Line {
   readonly state: "kept" | "streaming" | "done" | "failed";
 }
 
-/** The core puts "[LINA app]" on the first line of the owner's turns in this window; the owner never typed it. */
+/**
+ * The core puts "[LINA app]" on the first line of the owner's turns in this window, then a blank line
+ * (`[LINA app]\n\n<message>`); the owner typed neither, so neither draws (lina-app#150).
+ */
 export function ownText(content: string): string {
-  return content.replace(/^\[LINA app\][^\n]*\n?/, "");
+  return content.replace(/^\[LINA app\][^\n]*\n*/, "");
 }
 
 function firstLine(text: string): string {

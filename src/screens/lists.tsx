@@ -4,6 +4,7 @@ import type { CardRow, DueRow, GoalRow, InboxRow, Section } from "../model";
 import { agentView, doneFor, localDay } from "../model";
 import type { OpenCheck } from "../model/checks";
 import { stopReason } from "../model/stop-reason";
+import { runnerName } from "../model/settings";
 import type { UsageLine } from "../model/usage";
 import { href, navigate } from "../router";
 import { ago, dayLabel, until } from "../time";
@@ -381,13 +382,17 @@ export function AgentScreen({ id }: { id: string }) {
   );
 }
 
-function Meter({ label, value }: { label: string; value: number }) {
+/** A reading: its bar and its percent beside it, as the old dashboard reads it; a missing one is a dash (lina-app#150). */
+function Meter({ label, value }: { label: string; value: number | null }) {
   return (
     <span class="mini-meter" data-testid="machine-meter">
       <span class="mini-label">{label}</span>
-      <span class="meter" aria-hidden="true">
-        <span class={`meter-fill${value >= 90 ? " is-high" : ""}`} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
-      </span>
+      {value === null ? null : (
+        <span class="meter" aria-hidden="true">
+          <span class={`meter-fill${value >= 90 ? " is-high" : ""}`} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
+        </span>
+      )}
+      <span class="mini-value">{value === null ? W.none : W.percent(value)}</span>
     </span>
   );
 }
@@ -443,12 +448,14 @@ function chooseRestart(step: "worker" | "ocx"): void {
  * (the hub serves magpie and unknown for ready runners); only when ready is null does a known signed-in value decide.
  * The sign-in button shows only for why sign_in, or for a signed-out runner with no why. Any other why shows its reason,
  * and an update its installed and fleet versions; a runner not ready with no reason of its own reads 준비 필요. No cell
- * reads 확인 중 (lina-app#144): a runner with no answer, or the core's unknown, shows its version alone.
+ * reads 확인 중 (lina-app#144): a runner with no answer, or the core's unknown, shows its version alone, and one with no
+ * version either reads 확인 안 됨 (lina-app#150). The runner reads by the settings screen's name, never by its id.
  * 로그인 중 has no button while the post is in flight or the core still reports signingIn. When that turns false,
  * a signed-in runner shows the mark; a sign-in cell shows the reason and the button again.
  */
 function RunnerCellView({ machine, runner }: { machine: Machine; runner: RunnerCell }) {
   const { store } = useApp();
+  const settings = store.get("settings")?.settings;
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const signingIn = posting || runner.signingIn;
@@ -477,7 +484,7 @@ function RunnerCellView({ machine, runner }: { machine: Machine; runner: RunnerC
   };
   return (
     <div class="runner-cell" data-testid="runner-cell">
-      <span class="runner-name">{runner.name}</span>
+      <span class="runner-name">{settings ? runnerName(runner.name, settings) : W.runners}</span>
       {signingIn ? (
         <span class="runner-detail">{W.signingIn}</span>
       ) : fine ? (
@@ -505,7 +512,9 @@ function RunnerCellView({ machine, runner }: { machine: Machine; runner: RunnerC
         <span class="runner-detail">{W.runnerWhy.prepare}</span>
       ) : installed ? (
         <span class="runner-detail">{installed}</span>
-      ) : null}
+      ) : (
+        <span class="runner-detail">{W.runnerUnchecked}</span>
+      )}
       {error ? <ErrorLine line={error} /> : null}
     </div>
   );
@@ -516,7 +525,8 @@ type MachineReadings = Machine & { readonly metricsWhy?: string | null };
 
 /**
  * A node the hub cannot reach reads its name, state and 연결 끊김 and nothing else: no readings, load, runners or restart.
- * A reachable node draws the readings it has as bars and, for the ones it lacks, one reason from `metricsWhy`.
+ * A reachable node draws each reading as a bar with its percent, a dash for one it lacks, and then one reason from
+ * `metricsWhy` (lina-app#150).
  * Restart names what it restarts and is gone while the node is down.
  */
 function MachineRow({ machine }: { machine: MachineReadings }) {
@@ -524,14 +534,12 @@ function MachineRow({ machine }: { machine: MachineReadings }) {
   const word = W.machineState[machine.state] ?? "";
   const offline = machine.reachable === false;
   const why = offline ? W.offline : machineWhy(machine.why);
-  const readings = (
-    [
-      [W.cpu, machine.cpu],
-      [W.memory, machine.memory],
-      [W.disk, machine.disk],
-    ] as const
-  ).filter((reading): reading is readonly [string, number] => reading[1] !== null);
-  const missing = readings.length < 3 ? metricsReason(machine.metricsWhy, machine.reachable) : null;
+  const readings = [
+    [W.cpu, machine.cpu],
+    [W.memory, machine.memory],
+    [W.disk, machine.disk],
+  ] as const;
+  const missing = readings.some(([, value]) => value === null) ? metricsReason(machine.metricsWhy, machine.reachable) : null;
   const load = W.load(machine.running, machine.cap);
   const label = (offline ? [machine.name, word, why] : [machine.name, word, why, ...readings.map(([name, value]) => W.meter(name, value)), missing, load]).filter(Boolean).join(SEP);
   return (
@@ -879,6 +887,22 @@ function QuotaRow({ service }: { service: QuotaService }) {
 }
 
 /**
+ * The writer of the checked lines stopped (lina-app#150): the owner cannot act on it, so it is one row here and never a
+ * word beside the header.
+ */
+function SummariesRow() {
+  return (
+    <li class="row status-check-row is-stale" data-testid="summaries-check">
+      <div class="row-body" aria-label={W.summariesStopped}>
+        <span class="lines">
+          <span class="title one-line">{W.summariesStopped}</span>
+        </span>
+      </div>
+    </li>
+  );
+}
+
+/**
  * A failing, stale or unreadable check: one row, its name and line, then the state word and how long ago.
  * Its own class, not `check-row`: that one indents a to-do row past its check box and lets the text size the row.
  */
@@ -974,7 +998,9 @@ function PlainQuotaRow({ text, testid }: { text: string; testid: string }) {
 }
 
 export function StatusScreen() {
-  const { model } = useApp();
+  const { model, store } = useApp();
+  // The runners read by the settings screen's names, so the settings are read here too.
+  useEffect(() => store.ensure([["settings"]]), [store]);
   // The quota panel is the service rows, then one row for each service OCX holds no account for, then OCX's own row.
   // A failed quota read leaves neither a service nor a missing service, so the panel stays away with OCX's row.
   const hasQuota = model.quota.length + model.quotaMissing.length > 0;
@@ -1029,8 +1055,9 @@ export function StatusScreen() {
         <h2 class="section-head">
           <span>{W.checks}</span>
         </h2>
-        {model.checks.total ? (
+        {model.checks.total || model.summariesStopped ? (
           <ul class="rows" aria-label={W.checks}>
+            {model.summariesStopped ? <SummariesRow /> : null}
             {model.checks.open.map((check) => (
               <CheckRow key={check.key} check={check} />
             ))}

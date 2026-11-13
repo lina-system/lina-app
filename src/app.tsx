@@ -302,11 +302,6 @@ export function Freshness() {
       <span class={line.tone} data-testid="freshness-line">
         {line.text}
       </span>
-      {!store.offline && model.summariesStopped ? (
-        <span class="is-orange" data-testid="summaries-stopped">
-          {`${SEP}${W.summariesStopped}`}
-        </span>
-      ) : null}
       {!store.offline && model.errors.length ? (
         <span class="is-orange" data-testid="read-failed">
           {`${SEP}${W.readFailed(model.errors.join(", "))}`}

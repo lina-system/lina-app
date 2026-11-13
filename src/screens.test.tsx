@@ -6,7 +6,7 @@ import type { RouteName, RunnerCell, WorkCardSummary } from "./api/client";
 import { App } from "./app";
 import { AGENT_REPLY_DELTAS, STREAM_TICK_MS, SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS } from "./data/synthetic-source";
 import type { ReadResult, Source } from "./data/source";
-import { BACKOFF_MAX_MS } from "./data/live";
+import { BACKOFF_MAX_MS, LIVE_SETTLE_MS } from "./data/live";
 import { Store } from "./data/store";
 import { SCENE_COUNTS, SYNTHETIC_OWNER } from "./fixtures/synthetic";
 import { buildModel } from "./model";
@@ -217,8 +217,9 @@ describe("machines, quota and checks", () => {
     machine!.runners = [cell("고침", "update"), cell("마련", "prepare"), cell("단절", "unreachable"), cell("빈칸", null)];
     const view = await open("#/status", { wide: true, source });
     const row = view.container.querySelector(".machine-row.is-ok[data-role=work]") as HTMLElement;
+    // Cells read by display name (lina-app#150), so each is found by its place in the hub's order.
     const find = (name: string) => {
-      const found = [...row.querySelectorAll("[data-testid=runner-cell]")].find((item) => item.querySelector(".runner-name")?.textContent === name) as HTMLElement;
+      const found = [...row.querySelectorAll("[data-testid=runner-cell]")][machine!.runners.findIndex((runner) => runner.name === name)] as HTMLElement;
       expect(found).toBeTruthy();
       return found;
     };
@@ -246,9 +247,11 @@ describe("machines, quota and checks", () => {
     work.runners = [real("omo", "5.1.69", "magpie", true), real("claude", "2.1.4", "magpie", true), real("grok", "1.0.77", "signed_in", true), real("dsh", "0.9.2", "unknown", true)];
     other.runners = [real("omo", "5.1.60", "magpie", false, "update"), real("dsh", "0.9.2", "magpie", false)];
     const view = await open("#/status", { wide: true, source });
+    // Cells read by display name (lina-app#150), so each is found by its place in the hub's order.
     const cellOf = (machine: string, name: string) => {
       const row = view.getByRole("group", { name: `${machine} 실행기` });
-      return [...row.querySelectorAll("[data-testid=runner-cell]")].find((item) => item.querySelector(".runner-name")?.textContent === name) as HTMLElement;
+      const runners = machine === work.name ? work.runners : other.runners;
+      return [...row.querySelectorAll("[data-testid=runner-cell]")][runners.findIndex((runner) => runner.name === name)] as HTMLElement;
     };
     for (const [name, version] of [["omo", "5.1.69"], ["claude", "2.1.4"], ["grok", "1.0.77"], ["dsh", "0.9.2"]]) {
       const cell = cellOf(work.name, name);
@@ -256,9 +259,10 @@ describe("machines, quota and checks", () => {
       expect(within(cell).getByRole("img", { name: "로그인됨" })).toBeTruthy();
       expect(cell.textContent).not.toContain("확인 중");
     }
-    expect(cellOf(other.name, "omo").textContent).toBe("omo업데이트 필요");
+    // The scene's settings list omo, codex and dsh: omo is 실행기 1, dsh 실행기 3.
+    await waitFor(() => expect(cellOf(other.name, "omo").textContent).toBe("실행기 1업데이트 필요"));
     // Not ready with no reason of its own is not ready, never 확인 중.
-    expect(cellOf(other.name, "dsh").textContent).toBe("dsh준비 필요");
+    expect(cellOf(other.name, "dsh").textContent).toBe("실행기 3준비 필요");
   });
 
   test("the sign-in button reads 로그인 중 and then the signed-in mark", async () => {
@@ -583,13 +587,18 @@ describe("freshness", () => {
     await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("연결 끊김"));
   });
 
-  test("with the stream open the line reads 실시간; down, it reads 갱신 지연 until a reconnect", async () => {
+  test("with the stream open the line reads 실시간; down past the settle time, it reads 갱신 지연 until a reconnect", async () => {
     vi.useFakeTimers(TIMERS);
     try {
       const source = new SyntheticSource();
       const view = await open("#/inbox", { wide: true, source });
       source.setStreamDown(true);
       await act(async () => source.dropStreams());
+      // The word holds for the settle time, so a drop mended sooner never shows (lina-app#150).
+      expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LIVE_SETTLE_MS);
+      });
       expect(view.getByTestId("freshness-line").textContent).toBe("갱신 지연");
       await act(async () => {
         await vi.advanceTimersByTimeAsync(BACKOFF_MAX_MS * 2);
@@ -605,12 +614,20 @@ describe("freshness", () => {
     }
   });
 
-  test("a stream that never opens reads 갱신 지연, not 실시간", async () => {
-    setWide(true);
-    window.history.replaceState(null, "", "/app/#/inbox");
-    const view = render(<App store={new Store(new SyntheticSource({ live: "down" }))} />);
-    await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("갱신 지연"));
-    expect(rowsIn(view.getByTestId("screen-inbox"))).toBe(SCENE_COUNTS.inbox);
+  test("a stream that never opens reads 갱신 지연 after the settle time, never 실시간", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      setWide(true);
+      window.history.replaceState(null, "", "/app/#/inbox");
+      const view = render(<App store={new Store(new SyntheticSource({ live: "down" }))} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LIVE_SETTLE_MS);
+      });
+      expect(view.getByTestId("freshness-line").textContent).toBe("갱신 지연");
+      expect(rowsIn(view.getByTestId("screen-inbox"))).toBe(SCENE_COUNTS.inbox);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -1330,6 +1347,23 @@ describe("agent talk", () => {
     }
   });
 
+  test("the owner's message reads from its first line: the core's blank line after [LINA app] draws no empty line (lina-app#150)", async () => {
+    class CoreShaped extends SyntheticSource {
+      override async agentTalkHistory(agent: string) {
+        const result = await super.agentTalkHistory(agent);
+        if (result.kind !== "data") return result;
+        // The core writes the owner's turn as "[LINA app]\n\n<message>" (hermes_cli/lina_talk.py).
+        return { ...result, data: { ...result.data, messages: result.data.messages.map((message) => (message.role === "user" ? { ...message, content: message.content.replace(/^\[LINA app\]\n/, "[LINA app]\n\n") } : message)) } };
+      }
+    }
+    for (const wide of [true, false]) {
+      const view = await open("#/talk/ag-1", { wide, source: new CoreShaped() });
+      await waitFor(() => expect(view.getAllByTestId("talk-mine")).toHaveLength(1));
+      expect(view.getByTestId("talk-mine").textContent).toBe("어디까지 왔어요?");
+      view.unmount();
+    }
+  });
+
   test("on a phone each agent row shows its stopped count with the same red marker as the wide sidebar (lina-app#143)", async () => {
     const wide = await open("#/talk", { wide: true });
     const marker = (root: Element) => [...root.querySelectorAll(".count.is-stopped-count")].map((count) => [count.textContent, count.getAttribute("aria-label")]);
@@ -1774,7 +1808,8 @@ describe("live updates", () => {
         await vi.advanceTimersByTimeAsync(STREAM_TICK_MS);
       });
       await act(async () => core.dropStreams());
-      expect(view.getByTestId("freshness-line").textContent).toBe("갱신 지연");
+      // The reconnect mends the drop within the settle time: the word never leaves 실시간 (lina-app#150).
+      expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
       await otherDevice.write((source) => source.readNotices({ keys: [core.scene.board.notices.find((notice) => !notice.read)?.key ?? ""] }));
       await act(async () => {
         await vi.advanceTimersByTimeAsync(BACKOFF_MAX_MS);
@@ -1799,7 +1834,8 @@ test("a core restarted with a new token: the page reads it once and resumes, wit
       const view = await open("#/inbox", { wide: true, source: core });
       const screen = view.getByTestId("screen-inbox");
       await act(async () => core.restartCore());
-      expect(view.getByTestId("freshness-line").textContent).toBe("갱신 지연");
+      // The renewal and the reconnect land within the settle time: the word never leaves 실시간 (lina-app#150).
+      expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
       await act(async () => {
         await vi.advanceTimersByTimeAsync(BACKOFF_MAX_MS);
       });
@@ -2059,13 +2095,13 @@ describe("work cards", () => {
     expect(waiting.getByTestId("card-done-so-far").textContent).toBe("완료된 것실패 화면 세 곳의 문구와 버튼을 비교함");
   });
 
-  test("a stopped writer: one 요약 중단됨 line, and the missing lines still show nothing", async () => {
-    const view = await open("#/running", { wide: true, source: new SyntheticSource({ writerStopped: true }) });
-    expect(view.getByTestId("summaries-stopped").textContent).toBe(" · 요약 중단됨");
-    expect(view.getAllByTestId("summaries-stopped")).toHaveLength(1);
-    view.unmount();
-    const ok = await open("#/running", { wide: true });
-    expect(ok.queryByTestId("summaries-stopped")).toBeNull();
+  test("a stopped writer: no 요약 중단됨 beside the header word (it is in 상태 · 점검), and the missing lines still show nothing", async () => {
+    for (const wide of [true, false]) {
+      const view = await open("#/running", { wide, source: new SyntheticSource({ writerStopped: true }) });
+      expect(view.queryByTestId("summaries-stopped")).toBeNull();
+      expect(view.getByTestId("freshness").textContent).not.toContain("요약 중단됨");
+      view.unmount();
+    }
   });
 
   test("a card's checked lines land in place from its kanban event: only its summary is read while its detail is not open", async () => {

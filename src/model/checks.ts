@@ -1,5 +1,5 @@
 import type { StatusCheck, StatusChecks } from "../api/client";
-import { CHECK_LINE, CHECK_OUTCOME_LINE, type CheckOutcome, SEP } from "../words";
+import { CHECK_LINE, CHECK_OUTCOME_LINE, type CheckOutcome, SEP, W } from "../words";
 
 /** A check that has something to say: failing, stale or an unreadable file. */
 export type OpenCheckState = Exclude<StatusCheck["state"], "ok">;
@@ -32,11 +32,23 @@ function outcomeOf(check: StatusCheck): CheckOutcome {
   return said === "ok" || said === "hold" || said === "fail" ? said : check.ok ? "ok" : "fail";
 }
 
+const count = (line: string, mark: string) => line.split(mark).length - 1;
+
+/**
+ * The core cuts an engine's error at a fixed length, which can end inside a word (`(the web Mo`, lina-app#150). A line
+ * left with a bracket or a quote open was cut: it keeps its whole words and ends in one ellipsis.
+ */
+function wholeWords(line: string): string {
+  const cut = count(line, "(") > count(line, ")") || count(line, "[") > count(line, "]") || count(line, '"') % 2 === 1;
+  const end = line.trimEnd().lastIndexOf(" ");
+  return cut && end > 0 ? W.cutShort(line.slice(0, end)) : line;
+}
+
 /** A Korean line reads as written. Any other line (an engine's English error) reads one plain Korean line instead. */
 function plainLine(check: StatusCheck): Pick<OpenCheck, "title" | "original"> {
   if (HANGUL.test(check.line)) return { title: [check.name, check.line].filter(Boolean).join(SEP), original: null };
   const outcome = outcomeOf(check);
-  const original = check.line.trim() ? check.line : null;
+  const original = check.line.trim() ? wholeWords(check.line) : null;
   if (Object.hasOwn(CHECK_LINE, check.name)) return { title: CHECK_LINE[check.name][outcome], original };
   const line = CHECK_OUTCOME_LINE[outcome];
   return { title: HANGUL.test(check.name) ? `${check.name}${SEP}${line}` : line, original };

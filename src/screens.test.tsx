@@ -1553,15 +1553,35 @@ describe("agent talk", () => {
   });
 
   test("a refused turn puts the agent row's preview back to what it showed before the send (lina-app#143)", async () => {
-    const view = await open("#/talk/ag-1", { wide: true, source: new SyntheticSource({ talk: "busy" }) });
+    let refuse: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (refuse = resolve));
+    // Once the rows have read their history, no later read answers: only the refusal itself can put the preview back.
+    let reading = true;
+    class Refusing extends SyntheticSource {
+      override async agentTalk(_agent: string, _body: { message: string }, _signal?: AbortSignal) {
+        await gate;
+        return { ok: false as const, status: 503, code: null };
+      }
+      override async agentTalkHistory(agent: string) {
+        return reading ? super.agentTalkHistory(agent) : new Promise<never>(() => undefined);
+      }
+    }
+    const view = await open("#/talk/ag-1", { wide: true, source: new Refusing() });
     const preview = () => view.getByTestId("nav-talk-0").querySelector("[data-testid=talk-preview]")?.textContent;
-    await waitFor(() => expect(preview()).toBe("변경 목록을 모으는 중이에요. 배포 순서는 답을 기다려요."));
+    const before = "변경 목록을 모으는 중이에요. 배포 순서는 답을 기다려요.";
+    await waitFor(() => expect(preview()).toBe(before));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    });
+    reading = false;
     const { field, send } = parts(view);
     field.value = "오늘 어디까지 했어요?";
     fireEvent.input(field);
     fireEvent.click(send);
-    await waitFor(() => expect(within(view.getByTestId("agent-talk")).getByTestId("write-error").textContent).toBe("에이전트가 바쁨"));
-    expect(preview()).toBe("변경 목록을 모으는 중이에요. 배포 순서는 답을 기다려요.");
+    await waitFor(() => expect(preview()).toBe("오늘 어디까지 했어요?"));
+    refuse();
+    await waitFor(() => expect(within(view.getByTestId("agent-talk")).getByTestId("write-error")).toBeTruthy());
+    expect(preview()).toBe(before);
   });
 });
 

@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { AgentTalkHistory, ItemDetail } from "../api/client";
-import type { TalkResult } from "../data/source";
+import type { Source, TalkResult } from "../data/source";
 import { KoreanInput } from "../korean-input";
 import { agentView } from "../model";
 import { href } from "../router";
@@ -173,8 +173,62 @@ export function ownText(content: string): string {
   return content.replace(/^\[LINA app\][^\n]*\n?/, "");
 }
 
-function keptLines(history: AgentTalkHistory): Line[] {
-  return history.messages.map((message, index) => ({ key: `h${index}`, mine: message.role === "user", text: message.role === "user" ? ownText(message.content) : message.content, state: "kept" }));
+/**
+ * The earlier turns. `sent` is what this page sent and shows already: when the core keeps a turn still in flight as
+ * the owner's last message, it is left out here so it shows once.
+ */
+function keptLines(history: AgentTalkHistory, sent: readonly string[] = []): Line[] {
+  const lines: Line[] = history.messages.map((message, index) => ({ key: `h${index}`, mine: message.role === "user", text: message.role === "user" ? ownText(message.content) : message.content, state: "kept" }));
+  const last = lines.at(-1);
+  return last?.mine && sent.includes(last.text) ? lines.slice(0, -1) : lines;
+}
+
+/** One turn sent from an agent's window. It lives outside the window, so leaving the window neither cancels nor drops it (lina-app#127). */
+interface Sent {
+  readonly key: string;
+  readonly message: string;
+  reply: string;
+  state: "streaming" | "done" | "failed";
+}
+
+/** The window open on an agent now: it takes in a settled turn, redraws a streaming one, and shows a reply that broke off. */
+interface TalkWindow {
+  take(turn: Sent): void;
+  redraw(): void;
+  failed(): void;
+}
+
+/**
+ * The turns sent to one agent that no window has taken in yet, and the window open on it. A turn settles into the
+ * open window; with none open, a kept reply is read back from the core and a failed turn waits for the next window.
+ */
+interface Outbox {
+  readonly turns: Sent[];
+  window: TalkWindow | null;
+}
+
+const outboxes = new WeakMap<Source, Map<string, Outbox>>();
+let sentKeys = 0;
+
+function outbox(source: Source, agent: string): Outbox {
+  let agents = outboxes.get(source);
+  if (!agents) outboxes.set(source, (agents = new Map()));
+  let box = agents.get(agent);
+  if (!box) agents.set(agent, (box = { turns: [], window: null }));
+  return box;
+}
+
+function sentLines(turn: Sent): Line[] {
+  return [
+    { key: `${turn.key}-mine`, mine: true, text: turn.message, state: "done" },
+    { key: turn.key, mine: false, text: turn.reply, state: turn.state },
+  ];
+}
+
+function settle(box: Outbox, turn: Sent) {
+  if (!box.window && turn.state === "failed") return;
+  box.turns.splice(box.turns.indexOf(turn), 1);
+  box.window?.take(turn);
 }
 
 /**
@@ -189,65 +243,77 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const nextKey = useRef(1);
-  const running = useRef<AbortController | null>(null);
+  const [drawn, redraw] = useState(0);
   const end = useRef<HTMLLIElement>(null);
   /** Settles once the earlier turns are read (or failed): a turn sent before then would also come back in them. */
   const historyRead = useRef<Promise<void>>(Promise.resolve());
   const name = agentName(model, agent) || agent;
+  const box = outbox(store.source, agent);
+  const sending = busy || box.turns.length > 0;
 
   useEffect(() => {
     let live = true;
+    const box = outbox(store.source, agent);
+    const open: TalkWindow = {
+      take(turn) {
+        setLines((shown) => [...(shown ?? []), ...sentLines(turn)]);
+        if (turn.state === "failed") setError(W.talkFailed);
+      },
+      redraw: () => redraw((count) => count + 1),
+      failed: () => setError(W.talkFailed),
+    };
+    box.window = open;
+    for (const turn of box.turns.filter((each) => each.state === "failed")) settle(box, turn);
     historyRead.current = store.source.agentTalkHistory(agent).then((result) => {
       if (!live) return;
-      if (result.kind === "data") setLines((shown) => [...keptLines(result.data), ...(shown ?? [])]);
+      const sent = box.turns.map((turn) => turn.message);
+      if (result.kind === "data") setLines((shown) => [...keptLines(result.data, [...(shown ?? []).filter((line) => line.mine).map((line) => line.text), ...sent]), ...(shown ?? [])]);
       else {
         setLines((shown) => shown ?? []);
         if (result.kind === "failed") setHistoryError(true);
       }
     });
+    // Leaving the window does not cancel the turn the owner sent; it settles into the next window (lina-app#127).
     return () => {
       live = false;
-      running.current?.abort();
+      if (box.window === open) box.window = null;
     };
   }, [agent, store]);
 
   useLayoutEffect(() => {
     end.current?.scrollIntoView?.({ block: "end" });
-  }, [lines]);
+  }, [lines, drawn]);
 
   const send = async () => {
     const message = text.trim();
-    if (!message || busy) return;
-    const controller = new AbortController();
-    running.current = controller;
+    if (!message || sending) return;
     setBusy(true);
     setError(null);
     // Send only after the earlier turns are in, so the history cannot already hold this turn when it lands.
     await historyRead.current;
-    if (controller.signal.aborted) return;
-    const result = await store.source.agentTalk(agent, { message }, controller.signal);
-    if (controller.signal.aborted) return;
+    const result = await store.source.agentTalk(agent, { message });
+    setBusy(false);
     if (!result.ok) {
-      setBusy(false);
       setError(talkError(result));
       return;
     }
-    const key = `t${nextKey.current++}`;
-    const update = (patch: (line: Line) => Partial<Line>) => setLines((all) => (all ?? []).map((line) => (line.key === key ? { ...line, ...patch(line) } : line)));
+    const box = outbox(store.source, agent);
+    const turn: Sent = { key: `t${++sentKeys}`, message, reply: "", state: "streaming" };
     setText("");
-    setLines((all) => [...(all ?? []), { key: `${key}-mine`, mine: true, text: message, state: "done" }, { key, mine: false, text: "", state: "streaming" }]);
-    let completed = false;
+    box.turns.push(turn);
+    box.window?.redraw();
     let failed = false;
     try {
       for await (const event of result.events) {
         switch (event.event) {
           case "assistant.delta":
-            update((line) => ({ text: line.text + event.data.delta }));
+            turn.reply += event.data.delta;
+            box.window?.redraw();
             break;
           case "assistant.completed":
-            completed = true;
-            update(() => ({ text: event.data.content, state: "done" }));
+            turn.reply = event.data.content;
+            turn.state = "done";
+            settle(box, turn);
             break;
           case "error":
           case "run.failed":
@@ -257,16 +323,16 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
         }
       }
     } catch (reason) {
-      if (controller.signal.aborted) return;
       failed = true;
       console.warn("agent talk stream ended early", reason);
     }
-    if (!completed || failed) {
-      update(() => ({ state: "failed" }));
-      setError(W.talkFailed);
-    }
-    setBusy(false);
+    if (turn.state === "streaming") {
+      turn.state = "failed";
+      settle(box, turn);
+    } else if (failed) box.window?.failed();
   };
+
+  const shown = lines === null ? null : [...lines, ...box.turns.flatMap(sentLines)];
 
   return (
     <section class="agent-talk" aria-label={`${name} ${W.talk}`} data-testid="agent-talk">
@@ -289,9 +355,9 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
       </header>
       {children}
       <div class="agent-talk-turns">
-        {lines === null ? null : lines.length ? (
+        {shown === null ? null : shown.length ? (
           <ol class="talk" aria-label={W.talk}>
-            {lines.map((line) =>
+            {shown.map((line) =>
               line.mine ? (
                 <li key={line.key} class="talk-turn is-mine" data-testid="talk-mine">
                   <p class="talk-bubble">{line.text}</p>
@@ -322,7 +388,7 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
       </div>
       <div class="comment-form talk-form agent-talk-form">
         <KoreanInput label={W.talkField} value={text} onValue={setText} onEnter={() => void send()} inline />
-        <button type="button" class="text-button" disabled={busy || !text.trim()} onClick={() => void send()}>
+        <button type="button" class="text-button" disabled={sending || !text.trim()} onClick={() => void send()}>
           {W.send}
         </button>
       </div>

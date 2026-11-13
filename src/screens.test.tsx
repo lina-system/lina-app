@@ -1151,6 +1151,98 @@ describe("agent talk", () => {
     }
   });
 
+  async function leaveAndReturn(view: ReturnType<typeof render>, message: string) {
+    const { field } = parts(view);
+    const first = view.getByTestId("agent-talk-name").textContent;
+    field.value = message;
+    fireEvent.input(field);
+    fireEvent.keyDown(field, { key: "Enter" });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TALK_FRAME_MS);
+    });
+    fireEvent.click(view.getByTestId("nav-talk-1").querySelector("a") as HTMLElement);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    expect(view.getByTestId("agent-talk-name").textContent).not.toBe(first);
+    fireEvent.click(view.getByTestId("nav-talk-0").querySelector("a") as HTMLElement);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(view.getByTestId("agent-talk-name").textContent).toBe(first);
+    return within(view.getByTestId("agent-talk"));
+  }
+
+  test("a message sent just before choosing another agent stays in its window, and the reply joins it there", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SyntheticSource();
+      const view = await open("#/talk/ag-1", { wide: true, source });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const box = await leaveAndReturn(view, "오늘 어디까지 했어요?");
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "오늘 어디까지 했어요?"]);
+      expect(box.getByTestId("talk-live")).toBeTruthy();
+      expect(parts(view).send.disabled).toBe(true);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 10);
+      });
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "오늘 어디까지 했어요?"]);
+      expect(box.getAllByTestId("talk-reply").at(-1)?.querySelector(".talk-bubble")?.textContent).toBe(AGENT_REPLY_DELTAS.join(""));
+      expect(box.queryByTestId("talk-live")).toBeNull();
+      expect(source.agentTalks.get("ag-1")?.map((message) => message.role)).toEqual(["user", "assistant", "user", "assistant"]);
+      // Once the reply is kept, opening the window again reads it back once.
+      fireEvent.click(view.getByTestId("nav-talk-1").querySelector("a") as HTMLElement);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      fireEvent.click(view.getByTestId("nav-talk-0").querySelector("a") as HTMLElement);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const again = within(view.getByTestId("agent-talk"));
+      expect(again.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "오늘 어디까지 했어요?"]);
+      expect(again.getAllByTestId("talk-reply")).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a reply that breaks off while the owner is in another window shows as not received when they come back", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      class BreaksOff extends SyntheticSource {
+        override async agentTalk(agent: string, body: { message: string }, signal?: AbortSignal) {
+          const result = await super.agentTalk(agent, body, signal);
+          if (!result.ok) return result;
+          const events = result.events;
+          async function* broken() {
+            let count = 0;
+            for await (const event of events) {
+              if (++count > 4) throw new Error("stream cut");
+              yield event;
+            }
+          }
+          return { ok: true as const, events: broken() };
+        }
+      }
+      const view = await open("#/talk/ag-1", { wide: true, source: new BreaksOff() });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const box = await leaveAndReturn(view, "오늘 어디까지 했어요?");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 10);
+      });
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "오늘 어디까지 했어요?"]);
+      expect(box.queryByTestId("talk-live")).toBeNull();
+      expect(box.getByTestId("write-error").textContent).toBe("답을 받지 못함");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("a refused turn shows one line and keeps the message in the field", async () => {
     const view = await open("#/talk/ag-1", { wide: true, source: new SyntheticSource({ talk: "busy" }) });
     const { field, send } = parts(view);

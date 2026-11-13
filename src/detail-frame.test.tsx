@@ -204,6 +204,41 @@ describe("a disabled control says why", () => {
     expect(within(answer).queryByTestId("send-why")).toBeNull();
   });
 
+  test("moving between two decisions the frame has already read does not carry the first draft over", async () => {
+    const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
+    // Two to-dos with a decision to type an answer to (the scene has one).
+    source.scene.itemDetails.T4.decision = { ...source.scene.itemDetails.T12.decision!, text: "입력 칸 순서 확인 필요" };
+    const view = await open("#/items/T4", { wide: true, source });
+    const box = async () => within(within(await frame(view)).getByTestId("decision-answer")).getByRole("textbox") as HTMLInputElement;
+    const title = () => view.container.querySelector("[data-testid=detail-frame] .detail-title")?.textContent ?? "";
+    const go = async (hash: string, word: string) => {
+      await act(async () => {
+        navigate(hash);
+      });
+      await waitFor(() => expect(title()).toContain(word));
+    };
+    // Read both once, so the next move shows the other at once, from what the store holds.
+    await go("#/items/T12", "느린 질의");
+    await go("#/items/T4", "입력 폼");
+    fireEvent.input(await box(), { target: { value: "목요일 오후" } });
+    expect((await box()).value).toBe("목요일 오후");
+    await go("#/items/T12", "느린 질의");
+    expect((await box()).value).toBe("");
+  });
+
+  test("answering a stopped card's last question does not open the fallback answer place while it goes", async () => {
+    const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000), endedRuns: true });
+    source.scene.inbox.questions.push({ ...source.scene.inbox.questions[0], cardId: "k-112", commentId: 9 });
+    const view = await open("#/cards/k-112", { wide: true, source });
+    const area = await frame(view);
+    expect(within(area).queryByTestId("card-answer")).toBeNull();
+    const answer = within(area).getByTestId("decision-answer");
+    fireEvent.input(within(answer).getByRole("textbox"), { target: { value: "목요일 먼저 배포" } });
+    fireEvent.click(within(answer).getByRole("button", { name: "보내기" }));
+    await waitFor(() => expect(within(area).queryByTestId("decision-answer")).toBeNull());
+    expect(within(area).queryByTestId("card-answer")).toBeNull();
+  });
+
   test("a stopped card that waits on someone else has no answer place", async () => {
     const view = await open("#/cards/k-110", { wide: true, source: new SyntheticSource({ now: Math.floor(Date.now() / 1000), endedRuns: true }) });
     expect(within(await frame(view)).queryByTestId("card-answer")).toBeNull();

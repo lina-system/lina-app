@@ -116,7 +116,7 @@ function ItemDecision({ detail }: { detail: ItemDetail }) {
           {W.waitingOn(waiting.join(", "))}
         </p>
       ) : null}
-      <AnswerPlace answerKey={key} target={{ kind: "item", id: detail.id }} label={W.answerField} choices={detail.decision.choices} recommended={detail.decision.recommended} testid="decision-answer" />
+      <AnswerPlace key={key} answerKey={key} target={{ kind: "item", id: detail.id }} label={W.answerField} choices={detail.decision.choices} recommended={detail.decision.recommended} testid="decision-answer" />
     </>
   );
 }
@@ -465,7 +465,9 @@ export function CardScreen({ id }: { id: string }) {
       </article>
     );
   }
-  const questions = (store.get("inbox")?.questions ?? []).filter((question) => question.cardId === id && !answering(`question:${id}:${question.commentId}`));
+  // Every question the card has, answered or not yet: the fallback answer place is for a card with none (lina-app#142).
+  const everyQuestion = (store.get("inbox")?.questions ?? []).filter((question) => question.cardId === id);
+  const questions = everyQuestion.filter((question) => !answering(`question:${id}:${question.commentId}`));
   // A worker run id the hub served may be a word of a command in the card's text (status, wait): not a run, never
   // read or drawn; a run listed twice is one run (lina-app#128).
   const workerRuns = detail.workerRuns.filter((worker, index, all) => isRunId(worker.id) && all.findIndex((other) => other.id === worker.id) === index);
@@ -500,12 +502,12 @@ export function CardScreen({ id }: { id: string }) {
       {questions.map((question) => (
         <Fragment key={question.commentId}>
           <DecisionBox text={question.body} agent={question.agent} ask at={question.askedAt} />
-          <AnswerPlace answerKey={`question:${id}:${question.commentId}`} target={{ kind: "card", id }} label={W.answerField} testid="decision-answer" />
+          <AnswerPlace key={question.commentId} answerKey={`question:${id}:${question.commentId}`} target={{ kind: "card", id }} label={W.answerField} testid="decision-answer" />
         </Fragment>
       ))}
-      {ask && !questions.length && !answering(`answer:${id}`) ? (
+      {ask && !everyQuestion.length && !answering(`answer:${id}`) ? (
         <Box>
-          <AnswerPlace answerKey={`answer:${id}`} target={{ kind: "card", id }} label={ask} testid="card-answer" />
+          <AnswerPlace key={`answer:${id}`} answerKey={`answer:${id}`} target={{ kind: "card", id }} label={ask} testid="card-answer" />
         </Box>
       ) : null}
       {detail.plain.now && detail.state === "in_progress" ? (

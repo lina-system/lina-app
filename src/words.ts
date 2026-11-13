@@ -235,6 +235,8 @@ export const W = {
   untitledCount: (n: number) => `제목 없는 ${n}건`,
   /** A lone stopped run whose only name is an internal one in Latin, never shown (lina-app#134). */
   unnamedRun: "이름 없는 실행",
+  /** A stopped card with no title or goal left once its references go: whose it is (lina-app#148). */
+  stoppedCardOf: (agent: string | null) => (agent ? `${agent}의 중단 카드` : "중단 카드"),
   /** A stopped row's words for who it waits on (lina-app#116). */
   needsCheck: "확인 필요",
   waitReview: "검토 대기",

@@ -23,10 +23,11 @@ import type {
   WorkInbox,
   WorkState,
 } from "../api/client";
-import { CRUMB, KIND_TITLE, SEP, SOURCE_WORD, STATE_WORD, W, reasonWord } from "../words";
+import { BANNED_WORDS, CRUMB, KIND_TITLE, SEP, SOURCE_WORD, STATE_WORD, W, reasonWord } from "../words";
 import { href } from "../router";
+import { clockAt } from "../time";
 import { checksView, type ChecksView } from "./checks";
-import { foldReason } from "./fold";
+import { foldReason, withoutRefs } from "./fold";
 import { cardKind, type CardKind } from "./kind";
 import { ocxView, usageViews, type OcxView, type UsageRangeView } from "./usage";
 
@@ -120,8 +121,18 @@ export interface CardRow {
    * an answer or a review, lina-app#134): only then does the row offer 다시 시도. Null for any other state.
    */
   readonly stop?: { readonly words: string; readonly known: boolean; readonly owner: boolean; readonly retry: boolean } | null;
-  /** A stopped card's ask from the core (lina#690): what it needs, one line under its title; null when the core has none. */
+  /**
+   * A stopped card's ask from the core (lina#690): what it needs, one line under its title; null when the core has none
+   * or it holds text the title rule refuses (plainLine, lina-app#148).
+   */
   readonly ask?: string | null;
+  /** The card's own name with its references cut (ownName), when that may be drawn: what tells rows of one goal apart. */
+  readonly ownName?: string | null;
+  /**
+   * The row's second line in its group (lina-app#148): set only when another row of the group reads the same title and
+   * ask. It is the card's own name; with none, or the same again, when the row last moved.
+   */
+  readonly sub?: string | null;
 }
 
 /** Where an answer to a decision goes: the record's item (comments with answer) or a work card's question. */
@@ -201,8 +212,10 @@ export interface Home {
   /** The inbox's 검토 필요 and 내 할 일, as their own groups on the home. */
   readonly review: Section<InboxRow>;
   readonly mine: Section<InboxRow>;
-  /** The running cards (진행 중); with none, the home draws no such group (lina-app#134). */
+  /** The running cards (진행 중); with none, its head alone says 0 when anything is stopped or planned (lina-app#148). */
   readonly active: Section<CardRow>;
+  /** Cards not started yet (예정), under the running ones, newest first (lina-app#148). */
+  readonly planned: Section<CardRow>;
   /** The stopped cards, their own group under the running one (중단됨), the owner's first: the red number, as the sidebar. */
   readonly stopped: Section<CardRow>;
   /** Waiting cards the 검토 필요 group does not already hold. */
@@ -254,6 +267,8 @@ export interface Model {
   readonly errors: readonly string[];
   readonly counts: Counts;
   readonly today: string;
+  /** The moment the model was built: a row's second line names its day and time from here. */
+  readonly now: number;
 }
 
 function isStopped(row: unknown): boolean {
@@ -284,12 +299,63 @@ function maxOf(values: (number | null | undefined)[]): number | null {
  */
 export function cardTitle(checked: string | null, own: string | null, stopped = false): string | null {
   if (checked !== null) return checked;
-  return own !== null && mayDraw(own, stopped) ? own : null;
+  if (own === null) return null;
+  if (mayDraw(own, stopped)) return own;
+  // A stopped card is always a row (lina-app#148): its references and hashes are cut, not the whole title.
+  return stopped ? cutTitle(own, stopped) : null;
+}
+
+/** A card's own name in any state: its title as cardTitle gives it, else that title with its references cut. */
+export function ownName(checked: string | null, own: string | null, stopped = false): string | null {
+  if (checked !== null) return checked;
+  const name = cardTitle(checked, own, stopped) ?? (own === null ? null : cutTitle(own, stopped));
+  // A name in Latin alone is an internal one (lina-app#134): never a row's second line either.
+  return name && (mayDraw(name, false) || HANGUL.test(name)) ? name : null;
+}
+
+/** The own title with its references cut, when that may be drawn; a name left in Latin alone is internal (lina-app#134). */
+function cutTitle(own: string, stopped: boolean): string | null {
+  const cut = withoutRefs(own);
+  return cut && mayDraw(cut, stopped) && (mayDraw(cut, false) || HANGUL.test(cut)) ? cut : null;
 }
 
 function mayDraw(title: string, stopped: boolean): boolean {
   const reason = foldReason(title);
   return reason === null || (stopped && reason === "latin");
+}
+
+/**
+ * A line from an agent the row draws under its title (a stopped card's ask, a decision's context): the title rule with
+ * no Latin exception, and no word the screens never use (lina-app#148). Null draws no line.
+ */
+export function plainLine(text: string | null | undefined): string | null {
+  return text && mayDraw(text, false) && !BANNED_WORDS.some((word) => text.includes(word)) ? text : null;
+}
+
+/** The time a row last moved: its end, its start or its state's. */
+const movedAt = (row: CardRow) => row.endedAt ?? row.startedAt ?? row.stateAt;
+
+/**
+ * One group's rows, each told apart from the others (lina-app#148): a row whose title and ask another row repeats
+ * takes the card's own name as its second line; rows still alike, or with no own name, add when they last moved (the
+ * kind of work is never a row's words, lina-app#122).
+ */
+export function apart(rows: readonly CardRow[], now: number): CardRow[] {
+  const key = (row: CardRow) => [row.name, row.sub ?? "", row.ask ?? ""].join("\n");
+  const repeated = (list: readonly CardRow[]) => {
+    const seen = new Map<string, number>();
+    for (const row of list) seen.set(key(row), (seen.get(key(row)) ?? 0) + 1);
+    return list.map((row) => (seen.get(key(row)) ?? 0) > 1);
+  };
+  const plain = rows.map((row) => (row.sub ? { ...row, sub: null } : row));
+  const first = repeated(plain);
+  const named = plain.map((row, index) => (first[index] ? { ...row, sub: row.ownName && row.ownName !== row.name ? row.ownName : null } : row));
+  const second = repeated(named);
+  return named.map((row, index) => {
+    if (!first[index] || (row.sub && !second[index])) return row;
+    const at = movedAt(row);
+    return { ...row, sub: [row.sub ?? "", at === null ? "" : clockAt(at, now)].filter(Boolean).join(SEP) || null };
+  });
 }
 
 /** The one naming rule: that title, else the kind of work (코드 작업, 문서 작업, 조사, 기기 작업). */
@@ -315,6 +381,7 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
     href: href({ name: "card", id: card.id }),
     title,
     own: title,
+    ownName: ownName(card.plain.title, card.title, card.state === "stopped"),
     name: cardName(card.plain.title, work, card.title),
     agent: card.agent,
     state: card.state,
@@ -459,7 +526,9 @@ export function buildModel(input: ModelInput, now: number): Model {
       const fallback = todoName(cardRuns.map((run) => run.todo));
       const goal = plainName((card as CardSummary).goalTitle) ?? plainName(cardGoal.get(card.id)?.title);
       const row = contextRow(workCardRow(card, input.cardDetails[card.id], receivedAt, cardRuns), goal, fallback, false, card);
-      return { row: { ...row, ask: card.state === "stopped" ? (card as CardSummary).ask || null : null }, listed: !isEnded(card) };
+      // A stopped card nothing else names still is a row: whose stopped card it is (lina-app#148).
+      const title = row.title ?? (card.state === "stopped" ? W.stoppedCardOf(card.agent ? (names.get(card.agent) ?? null) : null) : null);
+      return { row: { ...row, title, name: title ?? row.name, ask: card.state === "stopped" ? plainLine((card as CardSummary).ask) : null }, listed: !isEnded(card) };
     }),
     ...(board?.cards ?? []).map((run) => ({ row: runListRow(run), listed: false })),
   ];
@@ -469,11 +538,13 @@ export function buildModel(input: ModelInput, now: number): Model {
   const unlisted = new Set(everyCard.filter((each) => !allCards.includes(each.row)).map((each) => each.row.id));
   const cardMap = new Map(everyCard.map((each) => [each.row.id, each.row]));
 
-  const stopped = allCards.filter((card) => card.state === "stopped").sort(stoppedOrder);
-  const running = allCards.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt));
+  // Each group's rows are told apart within it (apart); a part of a group (recent, older) keeps its rows apart too.
+  const stopped = apart(allCards.filter((card) => card.state === "stopped").sort(stoppedOrder), now);
+  const running = apart(allCards.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt)), now);
+  const planned = apart(allCards.filter((card) => card.state === "planned").sort(newestFirst((card) => card.stateAt)), now);
   const runningSections = [section("stopped", "", stopped), section("running", "", running)];
-  const done = allCards.filter((card) => card.state === "done").sort(newestFirst((card) => card.endedAt));
-  const waiting = allCards.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt));
+  const done = apart(allCards.filter((card) => card.state === "done").sort(newestFirst((card) => card.endedAt)), now);
+  const waiting = apart(allCards.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt)), now);
   const recent = done.filter((card) => card.endedAt !== null && now - card.endedAt < RECENT_SECONDS);
 
   // Inbox: decisions (oldest first), finished runs waiting on the owner, then the owner's own to-dos.
@@ -484,12 +555,17 @@ export function buildModel(input: ModelInput, now: number): Model {
     const card = cards?.cards.find((each) => each.id === cardId);
     return (card ? cardTitle(card.plain.title, card.title) : null) ?? cardMap.get(cardId)?.name;
   };
-  const questionContext = (cardId: string) => [goalTitleOfCard(cardId), ownCardName(cardId)].filter((part, index, all) => part && all.indexOf(part) === index).join(CRUMB);
+  const questionContext = (cardId: string) =>
+    [goalTitleOfCard(cardId), ownCardName(cardId)]
+      .map(plainLine)
+      .filter((part, index, all) => part && all.indexOf(part) === index)
+      .join(CRUMB);
+  // A decision's context draws only the parts the title rule lets through (plainLine, lina-app#148); none, no line.
   const contextOf = (target: string) => {
     const item = itemMap.get(target);
     if (!item) return "";
     const parent = item.parent ? itemMap.get(item.parent) : undefined;
-    return parent && parent.kind === "goal" ? `${parent.title}${CRUMB}${item.title}` : item.title;
+    return [parent?.kind === "goal" ? parent.title : null, item.title].map(plainLine).filter(Boolean).join(CRUMB);
   };
   const hidden = input.pending?.hidden ?? new Set<string>();
   const decideRows: InboxRow[] = [
@@ -500,7 +576,7 @@ export function buildModel(input: ModelInput, now: number): Model {
         key: `decide:${row.target}`,
         href: itemMap.get(row.target)?.kind === "goal" ? href({ name: "goal", id: row.target }) : href({ name: "item", id: row.target }),
         agent: row.agent,
-        context: contextOf(row.target) || row.title,
+        context: itemMap.has(row.target) ? contextOf(row.target) : (plainLine(row.title) ?? ""),
         text: row.text,
         ask: row.kind === "ask",
         at: row.at,
@@ -524,9 +600,8 @@ export function buildModel(input: ModelInput, now: number): Model {
     .sort((a, b) => (a.type === "decide" && b.type === "decide" ? a.at - b.at : 0));
   // Finished work waiting for the owner's review: work cards whose run waits for review, whoever owns them and whether
   // or not they have a to-do. A worker run the core lists for review is not a row (lina-app#141): it shows in its to-do.
-  const reviewRows: InboxRow[] = allCards
-    .filter((card) => card.state === "waiting" && card.reason === "review")
-    .sort(newestFirst((card) => card.stateAt))
+  const reviewRows: InboxRow[] = waiting
+    .filter((card) => card.reason === "review")
     .map((card): InboxRow => ({ type: "review", key: `review:${card.id}`, href: card.href, agent: card.agent, card }));
   // An owner to-do that an open decision targets by its id is that decision's: it shows once, as the decision. Only
   // an explicit id link counts, never similar text. The inbox, the sidebar and the bell read this same set.
@@ -628,6 +703,7 @@ export function buildModel(input: ModelInput, now: number): Model {
       review: inboxSections[1],
       mine: inboxSections[2],
       active: section("active", W.agentRunning, running),
+      planned: section("planned", STATE_WORD.planned, planned),
       stopped: section("stopped", STATE_WORD.stopped, stopped),
       waiting: section("waiting", STATE_WORD.waiting, waiting.filter((card) => !reviewRows.some((row) => row.type === "review" && row.card.id === card.id))),
       recent: section("recent", W.doneRecent, recent),
@@ -652,6 +728,7 @@ export function buildModel(input: ModelInput, now: number): Model {
     notices,
     errors,
     today,
+    now,
     counts: {
       inbox: inboxRows.length,
       running: running.length,
@@ -699,9 +776,9 @@ export function agentView(model: Model, agentId: string): AgentView | null {
   return {
     agent,
     latest: latestActivity(mine),
-    running: section("running", W.agentRunning, running),
-    review: section("review", W.agentReview, review),
-    planned: section("planned", STATE_WORD.planned, planned),
+    running: section("running", W.agentRunning, apart(running, model.now)),
+    review: section("review", W.agentReview, apart(review, model.now)),
+    planned: section("planned", STATE_WORD.planned, apart(planned, model.now)),
     goals: section("goals", W.agentGoals, goals),
     doneToday: section("done", W.done, doneToday),
   };
@@ -716,7 +793,20 @@ export function goalCards(model: Model, detail: ItemDetail, goals: GoalList | un
     .flatMap((goal) => goal.evidence)
     .filter((entry) => linked.has(entry.cardId) && entry.summary)
     .map((entry) => ({ key: entry.cardId, text: entry.summary ?? "", at: entry.completedAt }));
-  return { cards: section("cards", W.cards, cards), evidence };
+  return { cards: section("cards", W.cards, apart(cards, model.now)), evidence };
+}
+
+/**
+ * A goal's state as the work tab folds its cards (lina-app#148): a goal with a stopped card listed on the work tab is
+ * 중단됨 since its latest stop, whatever the record says; otherwise the record's own state. Its cards are the ones its
+ * detail links, a linked work goal standing for its cards.
+ */
+export function goalState(model: Model, detail: Pick<ItemDetail, "state" | "reason" | "stateSince" | "workCards">, goals: GoalList | undefined): { state: WorkState; reason: string | null; stateSince: number | null } {
+  const workGoals = new Map((goals?.goals ?? []).map((goal) => [goal.id, goal]));
+  const ids = detail.workCards.flatMap((id) => workGoals.get(id)?.workCards.map((card) => card.id) ?? [id]);
+  const stopped = ids.map((id) => model.cards.get(id)).filter((card): card is CardRow => card !== undefined && card.state === "stopped" && !model.unlisted.has(card.id));
+  if (detail.state === "done" || !stopped.length) return { state: detail.state, reason: detail.reason, stateSince: detail.stateSince };
+  return { state: "stopped", reason: null, stateSince: maxOf(stopped.map((card) => card.stateAt)) };
 }
 
 export function quotaHasData(view: QuotaView | undefined): boolean {

@@ -39,9 +39,10 @@ function useWide(): boolean {
 export function titleOf(route: Route, model: Model, store: Store): string {
   switch (route.name) {
     case "home":
+    case "running":
+      // The work list has one name, the tab's, on every header and back (lina-app#148).
       return W.tabWork;
     case "inbox":
-    case "running":
     case "due":
     case "done":
     case "goals":

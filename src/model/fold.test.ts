@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { foldReason } from "./fold";
+import { foldReason, withoutRefs } from "./fold";
 
 test("a comment shows as it is unless it would show a path, a command, a hash, an issue number, an address or a fragment", () => {
   for (const plain of ["오류 문구 초안을 공유했어요.", "카드 번호는 앞 여섯 자리까지 보여 줄까요?", "1.5배 빨라졌어요."]) expect(foldReason(plain)).toBeNull();
@@ -20,4 +20,11 @@ test("a comment shows as it is unless it would show a path, a command, a hash, a
   expect(foldReason("Running npm test in packages")).toBe("latin");
   expect(foldReason("LINA 코어 정리")).toBeNull();
   expect(foldReason("CI 기다림")).toBeNull();
+});
+
+test("a title loses its issue references and commit hashes, brackets and all, and keeps its words (lina-app#148)", () => {
+  expect(withoutRefs("가상 빌드에 새 판(dev ed0972f8ce) 고정: 기기가 돌아오면 (lina#456·#454 뒷일)")).toBe("가상 빌드에 새 판 고정: 기기가 돌아오면");
+  expect(withoutRefs("가짜 정리 #12 · a1b2c3d")).toBe("가짜 정리");
+  expect(withoutRefs("(lina#9) a1b2c3d4e5")).toBe("");
+  expect(withoutRefs("1.5배 빨라진 정리")).toBe("1.5배 빨라진 정리");
 });

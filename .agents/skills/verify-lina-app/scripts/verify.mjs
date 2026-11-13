@@ -396,7 +396,9 @@ async function rowLines(page) {
       const allowed = (child) => (child.classList.contains("title") ? 2.5 : 1.5);
       const tall = children.filter((child) => child.getBoundingClientRect().height > lineHeight(child) * allowed(child) + 1);
       const asks = children.filter((child) => child.getAttribute("data-testid") === "stop-ask").length;
-      return children.length > 2 + Math.min(asks, 1) || tall.length ? [lines.textContent.trim().slice(0, 40) + " (" + children.length + " lines)"] : [];
+      // A row whose title another row of its group repeats adds the card's own name as one line (lina-app#148).
+      const subs = children.filter((child) => child.getAttribute("data-testid") === "row-sub").length;
+      return children.length > 2 + Math.min(asks, 1) + Math.min(subs, 1) || tall.length ? [lines.textContent.trim().slice(0, 40) + " (" + children.length + " lines)"] : [];
     }),
   );
 }
@@ -740,7 +742,9 @@ const drivers = {
       await list.waitFor({ timeout: 5_000 }).catch(() => check(false, "the screen shows its empty state with a stopped card"));
       const names = await rowNames(list);
       check(names.length === 1 && names[0].endsWith("중단됨 · 응답 없음"), "the list reads " + names.join(" | "));
-      check((await page.getByTestId("section-active").count()) === 0, "a 진행 중 group is drawn with nothing running");
+      // Nothing runs but a card is stopped: the 진행 중 head alone reads 0, with no rows (lina-app#148).
+      const active = (await page.getByTestId("head-active").innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+      check(active === "진행 중 0" && (await page.getByTestId("section-active").locator("[data-testid=row]").count()) === 0, "the 진행 중 head reads " + JSON.stringify(active));
       const head = (await page.getByTestId("head-stopped").innerText()).replace(/\s+/g, " ").trim();
       check(head === "중단됨 1" && (await page.getByTestId("head-stopped").getByTestId("count").count()) === 0, "the group heads " + head);
       const retry = await buttonLook(page, page.getByRole("button", { name: /다시 시도$/ }));
@@ -915,7 +919,7 @@ const drivers = {
       check(target === "#/done?agent=" + id, "the done line opens " + target);
       return target;
     });
-    await step("a card just created (예정) shows on its agent's screen after 검토 필요, with no time, and not on the home", async () => {
+    await step("a card just created (예정) shows on its agent's screen after 검토 필요, with no time, and in the home's 예정 group", async () => {
       await openApp(page, "#/agents/ag-3");
       const heads = await page.locator(".list h2.section-head > span:first-child").allInnerTexts();
       check(heads.includes("예정") && heads.indexOf("예정") === heads.length - 2 && heads.at(-1) === "목표", "sections " + heads.join(", "));
@@ -932,7 +936,7 @@ const drivers = {
       });
       check(Math.abs(lines.latest - lines.counts) <= 1 && lines.latestBottom <= lines.head, "the latest line starts at " + lines.latest + " (counts " + lines.counts + ") and ends at " + lines.latestBottom + " under a head at " + lines.head);
       await openApp(page, "#/running");
-      check((await page.locator('a[href="#/cards/k-106"]').count()) === 0, "the planned card is on the home");
+      check((await page.getByTestId("section-planned").locator('a[href="#/cards/k-106"]').count()) === 1, "the planned card is not in the home's 예정 group");
       return heads.join(" → ") + "; " + header;
     });
   },
@@ -2366,15 +2370,16 @@ const drivers = {
       // The detail is the one frame, a sheet over the list (lina-app#142): the list keeps its title and its back.
       const frame = await page.getByTestId("detail-frame").getAttribute("data-frame");
       check(frame === "sheet", "the card opens in " + frame);
-      check((await title(page)) === "진행 중인 작업", "the list under the sheet reads " + (await title(page)));
+      // The work list has one name, 작업, on its header and on the back that returns to it (lina-app#148).
+      check((await title(page)) === "작업", "the list under the sheet reads " + (await title(page)));
       const back2 = (await page.getByTestId("back").innerText()).trim();
-      check(back2 === "진행 중인 작업", "back over the sheet reads " + back2);
+      check(back2 === "작업", "back over the sheet reads " + back2);
       return "작업 → 진행 중인 작업 → card sheet";
     });
     await step("the browser back button restores the screen and its scroll", async () => {
       await page.goBack();
       await page.waitForFunction(() => location.hash === "#/running");
-      check((await title(page)) === "진행 중인 작업", "back did not restore the list");
+      check((await title(page)) === "작업", "back did not restore the list");
       // A short window, so the home has something to scroll.
       await page.setViewportSize({ width: 390, height: 480 });
       await openApp(page, "#/");
@@ -2640,7 +2645,7 @@ const drivers = {
     await step("the home order: one decisions line, review, stopped then running, the owner's to-dos folded to one line, the last 24 hours", async () => {
       // The waiting card waits on review, so 대기 does not repeat it; r7 and r8 are worker runs, no row (lina-app#141).
       const lists = await home().locator("ul.rows").evaluateAll((all) => all.map((list) => list.getAttribute("aria-label")));
-      check(JSON.stringify(lists) === JSON.stringify(["수신함", "검토 필요", "중단됨", "진행 중인 작업", "내 할 일", "최근 완료"]), "the home lists " + JSON.stringify(lists));
+      check(JSON.stringify(lists) === JSON.stringify(["수신함", "검토 필요", "중단됨", "진행 중인 작업", "예정", "내 할 일", "최근 완료"]), "the home lists " + JSON.stringify(lists));
       const fold = home().getByRole("button", { name: "내 할 일 2" });
       const folded = { expanded: await fold.getAttribute("aria-expanded"), rows: await rowsOf("내 할 일").count() };
       await fold.click();

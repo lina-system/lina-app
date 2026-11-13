@@ -9,7 +9,7 @@ import { href, navigate } from "../router";
 import { ago, dayLabel, until } from "../time";
 import { useEffect, useState } from "preact/hooks";
 import { useActions } from "../ui/actions";
-import { AgentMark, agentName, CardRowView, CountPair, Dial, Disclosure, DoneCheck, Empty, ErrorLine, Link, ListSection, useApp } from "../ui/parts";
+import { AgentMark, agentName, CardRowView, CountPair, Dial, Disclosure, DoneCheck, Empty, ErrorLine, Link, ListSection, SectionHead, useApp } from "../ui/parts";
 import { machineWhy, metricsReason, serviceName, SEP, versionOf, W } from "../words";
 import { writeError } from "./write-error";
 
@@ -29,7 +29,7 @@ function DecisionRow({ row }: { row: DecideRow }) {
       <Link href={row.href} label={[name, row.text, kind].filter(Boolean).join(SEP)} current={selected === row.href}>
         <AgentMark id={row.agent} />
         <span class="lines">
-          <span class="context one-line">{row.context}</span>
+          {row.context ? <span class="context one-line">{row.context}</span> : null}
           <span class="title one-line">{row.text}</span>
         </span>
         <span class="trail">
@@ -159,7 +159,7 @@ function MineFold({ section }: { section: Section<InboxRow> }) {
 export function RunningScreen() {
   const { model } = useApp();
   const { home } = model;
-  if (!home.decisions && !home.review.rows.length && !home.mine.rows.length && !model.running.rows.length && !home.waiting.rows.length && !model.done.length) return <Empty />;
+  if (!home.decisions && !home.review.rows.length && !home.mine.rows.length && !model.running.rows.length && !home.planned.rows.length && !home.waiting.rows.length && !model.done.length) return <Empty />;
   return (
     <div class="list" data-testid="screen-running">
       {home.decisions ? (
@@ -178,6 +178,13 @@ export function RunningScreen() {
       <ListSection section={home.review} render={(row) => <InboxRowView key={row.key} row={row} />} />
       <StoppedSection section={home.stopped} />
       <ListSection section={home.active} label={W.running} render={(card) => <CardRowView key={card.key} card={card} />} />
+      {!home.active.rows.length && (home.stopped.rows.length || home.planned.rows.length) ? (
+        // Nothing runs but work is stopped or planned: 진행 중 0 says the tab is alive (lina-app#148).
+        <section class="list-section" data-testid="section-active">
+          <SectionHead section={home.active} />
+        </section>
+      ) : null}
+      <ListSection section={home.planned} render={(card) => <CardRowView key={card.key} card={card} />} />
       <ListSection section={home.waiting} render={(card) => <CardRowView key={card.key} card={card} />} />
       <MineFold section={home.mine} />
       {[home.recent, home.older].map((section) => (

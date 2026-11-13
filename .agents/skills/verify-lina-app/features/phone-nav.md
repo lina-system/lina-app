@@ -42,7 +42,7 @@ Preconditions:
 - The page is `/app/?source=synthetic`, the synthetic scene; the drive opens it fresh for each width.
 
 - **First screen.** At 390, open `/app/?source=synthetic#/`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive phone-nav`. The large title reads `작업`, the first row of `진행 중인 작업` is visible with no tap, and no menu is drawn.
-- **Push.** Open `메뉴`, choose `진행 중인 작업`: back reads `작업`. Choose the first card: it rises as a sheet (`detail-frame`, `data-frame="sheet"`) over `진행 중인 작업`, whose title stays, and back reads `진행 중인 작업`.
+- **Push.** Open `메뉴`, choose `진행 중인 작업`: the title reads `작업` and back reads `작업`. Choose the first card: it rises as a sheet (`detail-frame`, `data-frame="sheet"`) over the list, whose title `작업` stays, and back reads `작업` (one name for the work list, lina-app#148).
 - **Back and scroll.** Go back in the browser. The list returns. In a 480 px tall window, scroll the home to 120, open `완료` from `메뉴` and go back in the browser as soon as the address changes: the home is at 120 again as soon as the address is back, on every run.
 - **Slide.** In a 480 px tall window, scroll the home to 120, open `완료` from `메뉴`, then press back. The root carries `data-nav="push"`, then `data-nav="pop"`; every animation frame that shows the home after back has its rows and scroll 120.
 - **Reduced motion.** Emulate `prefers-reduced-motion: reduce` and open `목표` from `메뉴`: the root never carries `data-nav`.

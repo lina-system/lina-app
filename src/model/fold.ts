@@ -17,6 +17,19 @@ const RULES: readonly (readonly [FoldReason, RegExp])[] = [
   ["fragment", /(?:…|\.\.\.)\s*$/],
 ];
 
+/**
+ * The text with its issue references and commit hashes cut (lina-app#148): a bracket holding one goes whole, then any
+ * left on their own, and the separators they leave at the ends. Empty when nothing else was there.
+ */
+export function withoutRefs(text: string): string {
+  return text
+    .replace(/\([^()]*(?:#\d+|\b[0-9a-f]{7,40}\b)[^()]*\)/g, " ")
+    .replace(/(?<![0-9A-Za-z])(?:[\w.-]+\/[\w.-]+)?#\d+/g, " ")
+    .replace(/\b[0-9a-f]{7,40}\b/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^[\s·,:;-]+|[\s·,:;-]+$/g, "");
+}
+
 export function foldReason(text: string): FoldReason | null {
   const body = text.trim();
   if (!body) return "fragment";

@@ -620,7 +620,7 @@ describe("phone navigation", () => {
     fireEvent.click(view.getByRole("button", { name: "메뉴" }));
     expect(within(view.getByTestId("sidebar")).getByText("수신함")).toBeTruthy();
     fireEvent.click(view.getByTestId("nav-running").querySelector("a") as HTMLElement);
-    await waitFor(() => expect(view.getByTestId("screen-title").textContent).toBe("진행 중인 작업"));
+    await waitFor(() => expect(view.getByTestId("screen-title").textContent).toBe("작업"));
     expect(window.location.hash).toBe("#/running");
     expect(view.getByTestId("back").textContent).toBe("작업");
     const row = view.getByTestId("screen-running").querySelector("[data-testid=row] a") as HTMLElement;
@@ -628,16 +628,16 @@ describe("phone navigation", () => {
     await waitFor(() => expect(view.container.querySelector("[data-testid=detail-frame] :is([data-testid=screen-card], [data-testid=screen-run])")).not.toBeNull());
     // The list it came from stays under the sheet with its own title and back (lina-app#142).
     expect(view.getByTestId("detail-frame").getAttribute("data-frame")).toBe("sheet");
-    expect(view.getByTestId("screen-title").textContent).toBe("진행 중인 작업");
-    // While the sheet is open, back reads the screen it returns to: the list under it.
-    expect(view.getByTestId("back").textContent).toBe("진행 중인 작업");
+    expect(view.getByTestId("screen-title").textContent).toBe("작업");
+    // While the sheet is open, back reads the screen it returns to: the list under it, by the one name 작업 (lina-app#148).
+    expect(view.getByTestId("back").textContent).toBe("작업");
     expect((window.history.state as { stack: string[] }).stack).toEqual(["#/", "#/running", window.location.hash]);
     await act(async () => {
       window.history.back();
       await new Promise((resolve) => window.addEventListener("popstate", resolve, { once: true }));
     });
     await waitFor(() => expect(view.queryByTestId("detail-frame")).toBeNull());
-    expect(view.getByTestId("screen-title").textContent).toBe("진행 중인 작업");
+    expect(view.getByTestId("screen-title").textContent).toBe("작업");
   });
 });
 
@@ -1147,10 +1147,12 @@ describe("lists while a write is in flight", () => {
     }
   });
 
-  test("with no running card there is no 진행 중 group: the stopped one is under 중단됨 with one number, with 다시 시도", async () => {
+  test("with no running card the 진행 중 group is its head alone, 0: the stopped one is under 중단됨 with one number, with 다시 시도", async () => {
     const view = await open("#/running", { wide: true, source: new SyntheticSource({ noRunning: true }) });
     expect(view.queryByText("없음")).toBeNull();
-    expect(view.queryByTestId("section-active")).toBeNull();
+    // Something is stopped, so 진행 중 0 says the tab is alive (lina-app#148); it has no rows.
+    expect(view.getByTestId("head-active").textContent).toBe("진행 중0");
+    expect(view.getByTestId("section-active").querySelectorAll("[data-testid=row]")).toHaveLength(0);
     expect(view.queryByRole("list", { name: "진행 중인 작업" })).toBeNull();
     const head = view.getByTestId("head-stopped");
     expect(head.querySelector("span")?.textContent).toBe("중단됨");
@@ -1861,8 +1863,9 @@ describe("work cards", () => {
     const view = await open("#/running", { wide: true });
     const screen = view.getByTestId("screen-running");
     const lists = [...screen.querySelectorAll("ul.rows")].map((list) => list.getAttribute("aria-label"));
-    // The waiting card waits on review, so 대기 does not repeat it; r7 and r8 are worker runs, so nothing is older.
-    expect(lists).toEqual(["수신함", "검토 필요", "중단됨", "진행 중인 작업", "내 할 일", "최근 완료"]);
+    // The waiting card waits on review, so 대기 does not repeat it; r7 and r8 are worker runs, so nothing is older. The
+    // planned card is its own 예정 group under 진행 중 (lina-app#148).
+    expect(lists).toEqual(["수신함", "검토 필요", "중단됨", "진행 중인 작업", "예정", "내 할 일", "최근 완료"]);
     expect(view.getByTestId("home-decisions").textContent).toContain(String(SCENE_COUNTS.decisions));
     const names = (label: string) => [...(screen.querySelector(`[aria-label="${label}"]`)?.querySelectorAll(":scope > li > a") ?? [])].map((link) => link.getAttribute("aria-label") ?? "");
     expect(names("진행 중인 작업").every((name) => / · 진행 중( · 할 일 \d+\/\d+)?$/.test(name))).toBe(true);
@@ -2212,7 +2215,7 @@ describe("work cards, round 5", () => {
 describe("work cards, round 6", () => {
   beforeEach(() => setWide(true));
 
-  test("a card just created (예정) shows on its agent's screen after 검토 필요, with no time; never on the home", async () => {
+  test("a card just created (예정) shows on its agent's screen after 검토 필요, with no time, and in the home's 예정 group", async () => {
     const view = await open("#/agents/ag-3", { wide: true });
     const section = view.getByTestId("section-planned");
     expect(view.getByTestId("head-planned").textContent).toBe("예정1");
@@ -2226,7 +2229,8 @@ describe("work cards, round 6", () => {
     expect(order.indexOf("section-planned")).toBeLessThan(order.indexOf("section-goals"));
     view.unmount();
     const home = await open("#/running", { wide: true });
-    expect(home.container.querySelector('a[href="#/cards/k-106"]')).toBeNull();
+    // The home draws it too, under 진행 중 (lina-app#148): a card that turns planned never leaves the tab.
+    expect(home.getByTestId("section-planned").querySelector('a[href="#/cards/k-106"]')).not.toBeNull();
   });
 
   test("an agent's 완료 · 오늘 line opens 완료 filtered to that agent", async () => {
@@ -2538,7 +2542,7 @@ describe("the work tab list (lina-app#141)", () => {
       const screen = home(view);
       const lists = [...screen.querySelectorAll("ul.rows")].map((list) => list.getAttribute("aria-label"));
       // 검토 필요 holds k-104, a card waiting on the owner's review: it reads with the decisions.
-      expect(lists).toEqual(["수신함", "검토 필요", "중단됨", "진행 중인 작업", "내 할 일", "최근 완료"]);
+      expect(lists).toEqual(["수신함", "검토 필요", "중단됨", "진행 중인 작업", "예정", "내 할 일", "최근 완료"]);
       // Folded: one line with the count, no to-do row until it is opened.
       const fold = within(screen).getByRole("button", { name: "내 할 일 2" });
       expect(fold.getAttribute("aria-expanded")).toBe("false");
@@ -2573,7 +2577,9 @@ describe("the work tab list (lina-app#141)", () => {
       expect(ask?.classList.contains("one-line")).toBe(true);
       expect(row("#/cards/k-108").querySelector("a")?.getAttribute("aria-label")).toContain("야간 보고서를 받을 사람 확인 필요");
       expect(list.querySelectorAll("[data-testid=stop-ask]")).toHaveLength(1);
-      expect(row("#/cards/k-107").querySelector(".lines")?.children).toHaveLength(2);
+      // k-107 has no ask; another stopped row shares its goal's title, so its own name is its second line (lina-app#148).
+      expect(row("#/cards/k-107").querySelector("[data-testid=stop-ask]")).toBeNull();
+      expect(row("#/cards/k-107").querySelector("[data-testid=row-sub]")?.textContent).toBe("결제: 영수증 문구 정하기");
     });
 
     test("a row is titled by the core's goalTitle first, and by its own names when goalTitle is null", async () => {

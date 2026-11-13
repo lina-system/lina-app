@@ -708,11 +708,10 @@ button:disabled {
 }
 
 /*
- * A stopped row's title takes a second line before it is cut (lina-app#133): two titles that start alike read apart.
- * So do the home's running rows and the owner's to-dos (lina-app#141).
+ * A work row's title takes a second line before it is cut (lina-app#133, #148): two titles that start alike read
+ * apart, in every group. So do the owner's to-dos (lina-app#141).
  */
-.card-row.is-stopped .lines > .title.one-line,
-[data-testid="section-active"] .card-row .lines > .title.one-line,
+.card-row .lines > .title.one-line,
 [data-testid="home-mine"] .check-row .lines > .title.one-line {
   display: -webkit-box;
   -webkit-box-orient: vertical;

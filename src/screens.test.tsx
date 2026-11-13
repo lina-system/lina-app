@@ -1455,9 +1455,11 @@ describe("work cards", () => {
     const list = within(view.getByTestId("screen-running")).getByRole("list", { name: "진행 중인 작업" });
     const stopped = [...list.querySelectorAll("[data-testid=row].is-stopped")];
     const hrefs = stopped.map((row) => row.querySelector("a")?.getAttribute("href"));
-    // r12 (replaced by r13) and r11 (under the finished goal G4) are gone; nothing else is listed by its kind.
-    expect(new Set(hrefs)).toEqual(new Set(["#/cards/k-103", "#/cards/k-107", "#/runs/r14"]));
-    expect(view.getByTestId("nav-running").querySelector("[data-testid=nav-stopped]")?.textContent).toBe("3");
+    // r12 (replaced by r13) and r11 (under the finished goal G4) are gone, and so is every run that names its card
+    // (lina-app#119); nothing else is listed by its kind. The rows waiting on the owner come first.
+    expect(new Set(hrefs)).toEqual(new Set(["#/cards/k-103", "#/cards/k-107", "#/cards/k-108", "#/cards/k-109", "#/cards/k-110", "#/cards/k-111", "#/runs/r14", "#/runs/r20"]));
+    expect(hrefs.slice(0, 2)).toEqual(["#/cards/k-108", "#/cards/k-107"]);
+    expect(view.getByTestId("nav-running").querySelector("[data-testid=nav-stopped]")?.textContent).toBe("8");
     const row = (href: string) => stopped.find((each) => each.querySelector("a")?.getAttribute("href") === href) as Element;
     const state = (href: string) => row(href).querySelector("[data-testid=state]") as Element;
     expect(state("#/cards/k-107").textContent).toBe(`중단됨 · ${SYNTHETIC_OWNER.name} 확인 필요`);
@@ -1467,6 +1469,13 @@ describe("work cards", () => {
     expect(state("#/runs/r14").classList.contains("is-plain")).toBe(true);
     expect(row("#/runs/r14").querySelector(".title")?.textContent).toBe("제목 없음");
     expect(row("#/runs/r14").querySelector(".title")?.classList.contains("is-kind")).toBe(true);
+    // Who waits, from waitingOn and retry (lina#629), in red; the card whose runs carry its to-do is named by it.
+    expect(row("#/cards/k-108").querySelector(".title")?.textContent).toBe("야간 보고서 정리하기");
+    expect(state("#/cards/k-108").textContent).toBe(`중단됨 · ${SYNTHETIC_OWNER.name} 확인 필요`);
+    expect(state("#/cards/k-109").textContent).toMatch(/^중단됨 · \S+ 검토 대기$/);
+    expect(state("#/cards/k-110").textContent).toBe("중단됨 · 응답 없음 · 다시 시도 안 함");
+    expect(state("#/cards/k-110").classList.contains("is-plain")).toBe(false);
+    expect(stopped.filter((each) => each.querySelector(".title")?.textContent === "제목 없음")).toHaveLength(1);
     expect(screenText(view.container)).not.toMatch(/코드 작업|문서 작업|기기 작업/);
   });
 

@@ -22,7 +22,7 @@ import type {
   WorkInbox,
   WorkState,
 } from "../api/client";
-import { CRUMB, KIND_TITLE, REASON_WORD, SEP, SOURCE_WORD, STATE_WORD, W, reasonWord } from "../words";
+import { CRUMB, KIND_TITLE, SEP, SOURCE_WORD, STATE_WORD, W, reasonWord } from "../words";
 import { href } from "../router";
 import { checksView, type ChecksView } from "./checks";
 import { foldReason } from "./fold";
@@ -101,9 +101,10 @@ export interface CardRow {
   readonly todo: string | null;
   /**
    * A stopped row's few words after 중단됨: why and who it waits on, from what the core serves. `known` is false when
-   * the core does not say who (lina#629): the line is then grey. Null for any other state.
+   * the core does not say who (lina#629): the line is then grey. `owner` is true when the owner has to act: those rows
+   * come first in the stopped group. Null for any other state.
    */
-  readonly stop?: { readonly words: string; readonly known: boolean } | null;
+  readonly stop?: { readonly words: string; readonly known: boolean; readonly owner: boolean } | null;
 }
 
 /** Where an answer to a decision goes: the record's item (comments with answer) or a work card's question. */
@@ -263,7 +264,7 @@ export function cardName(title: string | null, work: CardKind, ownTitle: string 
   return cardTitle(title, ownTitle) ?? KIND_TITLE[work];
 }
 
-function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, receivedAt: number, runCards: ReadonlyMap<string, RunCard>): CardRow {
+function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, receivedAt: number, cardRuns: readonly RunCard[]): CardRow {
   const runs = detail?.runs ?? [];
   // The list row's own times first (lina#577); a core without them leaves them out, and the detail's runs stand in.
   const lastBeat = card.lastHeartbeatAt ?? maxOf(runs.map((run) => run.lastHeartbeatAt));
@@ -272,7 +273,7 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
   // A card with no checked title is named by its own title when that may be drawn; its kind is read from that same
   // text, so a card showing its own title is not guessed as code when it is a documents card.
   const title = cardTitle(card.plain.title, card.title);
-  const work = cardKind(title ?? "", (detail?.workerRuns ?? []).map((worker) => runCards.get(worker.id)).filter((run): run is RunCard => run !== undefined));
+  const work = cardKind(title ?? "", cardRuns);
   return {
     key: `card:${card.id}`,
     kind: "card",
@@ -292,7 +293,7 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
     now: card.plain.now,
     result: card.plain.result,
     progress: card.todoProgress.total > 0 ? { done: card.todoProgress.done, total: card.todoProgress.total } : null,
-    todo: (detail?.workerRuns ?? []).map((worker) => runCards.get(worker.id)?.todo).find((todo): todo is string => Boolean(todo)) ?? null,
+    todo: cardRuns.map((run) => run.todo).find((todo): todo is string => Boolean(todo)) ?? null,
   };
 }
 
@@ -321,6 +322,8 @@ export function runRow(run: RunCard): CardRow {
 }
 
 const newestFirst = (pick: (row: CardRow) => number | null) => (a: CardRow, b: CardRow) => (pick(b) ?? 0) - (pick(a) ?? 0);
+/** The stopped group's order: rows that wait on the owner first, then the newest stop. */
+const stoppedOrder = (a: CardRow, b: CardRow) => Number(Boolean(b.stop?.owner)) - Number(Boolean(a.stop?.owner)) || newestFirst((card) => card.stateAt)(a, b);
 
 export function buildModel(input: ModelInput, now: number): Model {
   const { board, items, cards, inbox: workInbox } = input;
@@ -337,11 +340,19 @@ export function buildModel(input: ModelInput, now: number): Model {
   if (items?.owner) names.set(items.owner.id, items.owner.name);
   const itemMap = new Map<string, ItemSummary>((items?.items ?? []).map((item) => [item.id, item]));
 
+  // A run belongs to the card that started it: the board says so on the run (`card`, the id the cards list serves,
+  // whether or not the list holds that card), and an opened card's detail lists its worker runs.
   const runOwner = new Map<string, string>();
+  for (const run of board?.cards ?? []) if (run.card) runOwner.set(run.id, run.card);
   for (const detail of Object.values(input.cardDetails)) {
     for (const run of detail.workerRuns) runOwner.set(run.id, detail.id);
   }
   const runs = new Map<string, RunCard>((board?.cards ?? []).map((run) => [run.id, run]));
+  // A card's runs: the ones its opened detail lists, then the ones the board says it started.
+  const runsOf = (cardId: string): RunCard[] =>
+    [...new Set([...(input.cardDetails[cardId]?.workerRuns ?? []).map((worker) => worker.id), ...(board?.cards ?? []).filter((run) => runOwner.get(run.id) === cardId).map((run) => run.id)])]
+      .map((id) => runs.get(id))
+      .filter((run): run is RunCard => run !== undefined);
   const receivedAt = input.cardsAt ?? now;
 
   // What a row's work is for: the work goal a card sits in, the record goal a run's to-do sits under (or the to-do is).
@@ -354,52 +365,64 @@ export function buildModel(input: ModelInput, now: number): Model {
     return parent?.kind === "goal" ? parent : undefined;
   };
   const ownerName = items?.owner?.name ?? null;
+  // An unchecked title (a row's own, its to-do's, its goal's) names a row only when it passes the raw-text rule.
+  const plainName = (title: string | null | undefined) => (title && foldReason(title) === null ? title : null);
   // A run that a later run of the same to-do replaced has ended for good: nobody needs to act on it.
   const replaced = (run: RunCard) =>
     run.todo !== null && (board?.cards ?? []).some((other) => other.id !== run.id && other.todo === run.todo && (other.startedAt ?? 0) > (run.startedAt ?? 0));
-  const contextRow = (row: CardRow, parentTitle: string | null, isRun: boolean, waitingOn: string | null): CardRow => {
+  // What the core says about a stop (lina#629); absent and null both mean it does not say.
+  type StopFacts = { readonly waitingOn?: string | null; readonly retry?: string | null };
+  const contextRow = (row: CardRow, fallback: string | null, isRun: boolean, facts: StopFacts): CardRow => {
     // The kind of work is the icon only, never the title: else what the work is for, else one grey 제목 없음.
-    const title = row.title ?? parentTitle;
-    return { ...row, title, name: title ?? W.untitled, stop: row.state === "stopped" ? stopWords(row.reason, isRun, waitingOn) : null };
+    const title = row.title ?? fallback;
+    return { ...row, title, name: title ?? W.untitled, stop: row.state === "stopped" ? stopWords(row.reason, isRun, facts) : null };
   };
-  const stopWords = (reason: string | null, isRun: boolean, waitingOn: string | null): NonNullable<CardRow["stop"]> => {
-    const agent = waitingOn?.startsWith("agent:") ? agents.find((each) => each.id === waitingOn.slice(6) || each.name === waitingOn.slice(6)) : undefined;
-    if (agent) return { words: `${agent.name} ${W.waitReview}`, known: true };
-    if (reason === "decision" || reason === "feedback") return { words: ownerName ? `${ownerName} ${W.needsCheck}` : W.needsCheck, known: true };
-    if (reason === "review") return { words: W.waitReview, known: true };
+  const stopWords = (reason: string | null, isRun: boolean, { waitingOn, retry }: StopFacts): NonNullable<CardRow["stop"]> => {
+    const owner = { words: ownerName ? `${ownerName} ${W.needsCheck}` : W.needsCheck, known: true, owner: true };
+    if (waitingOn === "owner") return owner;
+    if (waitingOn?.startsWith("agent:")) {
+      const agent = agents.find((each) => each.id === waitingOn.slice(6) || each.name === waitingOn.slice(6));
+      return { words: agent ? `${agent.name} ${W.waitReview}` : W.waitReview, known: true, owner: false };
+    }
+    if (reason === "decision" || reason === "feedback") return owner;
+    if (reason === "review") return { words: W.waitReview, known: true, owner: false };
+    const why = reasonWord(reason);
+    if (retry === "scheduled") return { words: [why, W.retryScheduled].filter(Boolean).join(SEP), known: true, owner: false };
     // A failed run still listed has no later run of its to-do: nobody tried it again.
-    if (isRun && (reason === "failed" || reason === "rejected")) return { words: `${REASON_WORD.failed}${SEP}${W.notRetried}`, known: true };
-    return { words: reasonWord(reason) ?? "", known: false };
+    if (retry === "none" || (isRun && (reason === "failed" || reason === "rejected"))) return { words: [why, W.notRetried].filter(Boolean).join(SEP), known: true, owner: false };
+    return { words: why ?? "", known: false, owner: false };
   };
+  // The title of a to-do in the work record (never a goal: a goal names a row last), when it may be drawn.
+  const todoName = (ids: readonly (string | null)[]) =>
+    ids.map((id) => (id ? itemMap.get(id) : undefined)).map((item) => (item && item.kind !== "goal" ? plainName(item.title) : null)).find(Boolean) ?? null;
   const runListRow = (run: RunCard): CardRow => {
     const owner = runOwner.get(run.id);
     const ownerCard = owner ? (cards?.cards ?? []).find((card) => card.id === owner) : undefined;
-    const goalTitle = goalName(runGoal(run)?.title);
     const cardTitleText = ownerCard ? cardTitle(ownerCard.plain.title, ownerCard.title) : null;
-    const ownName = foldReason(run.title) === null ? run.title : null;
-    return contextRow(runRow(run), goalTitle ?? cardTitleText ?? ownName, true, run.waitingOn ?? null);
+    // Its own name, its to-do's title, its card's title, and only then its goal's: a goal can hold unrelated work.
+    return contextRow(runRow(run), plainName(run.title) ?? todoName([run.todo]) ?? cardTitleText ?? plainName(runGoal(run)?.title), true, run);
   };
 
   // Only work with no parent is a row of its own: a worker run of a card or of a goal's to-do shows inside them.
   // A stopped run a later run replaced, and stopped work whose card or goal is done, need nobody and are not listed.
   const goalDone = (goal: { state: WorkState } | undefined) => goal?.state === "done";
-  // A goal's title is an unchecked string: it names a row only when it passes the same raw-text rule as a card's own.
-  const goalName = (title: string | null | undefined) => (title && foldReason(title) === null ? title : null);
   const isEnded = (card: { id: string; state: WorkState }, run: RunCard | null) =>
     run ? runOwner.has(run.id) || runGoal(run) !== undefined || (run.state === "stopped" && replaced(run)) : card.state === "stopped" && goalDone(cardGoal.get(card.id));
   const everyCard: { row: CardRow; listed: boolean }[] = [
-    ...(cards?.cards ?? []).map((card) => ({
-      row: contextRow(workCardRow(card, input.cardDetails[card.id], receivedAt, runs), goalName(cardGoal.get(card.id)?.title), false, null),
-      listed: !isEnded(card, null),
-    })),
-    ...(board?.cards ?? []).filter((run) => !runOwner.has(run.id)).map((run) => ({ row: runListRow(run), listed: !isEnded(run, run) })),
+    ...(cards?.cards ?? []).map((card) => {
+      const cardRuns = runsOf(card.id);
+      // Its own names (workCardRow), the to-do its runs take on, and only then its goal's title.
+      const fallback = todoName(cardRuns.map((run) => run.todo)) ?? plainName(cardGoal.get(card.id)?.title);
+      return { row: contextRow(workCardRow(card, input.cardDetails[card.id], receivedAt, cardRuns), fallback, false, card), listed: !isEnded(card, null) };
+    }),
+    ...(board?.cards ?? []).map((run) => ({ row: runListRow(run), listed: !isEnded(run, run) })),
   ];
   // The lookup keeps every card (a goal's page and a run page link to them); only the lists leave out ended work.
   const allCards: CardRow[] = everyCard.filter((each) => each.listed).map((each) => each.row);
   const unlisted = new Set(everyCard.filter((each) => !each.listed).map((each) => each.row.id));
   const cardMap = new Map(everyCard.map((each) => [each.row.id, each.row]));
 
-  const stopped = allCards.filter((card) => card.state === "stopped").sort(newestFirst((card) => card.stateAt));
+  const stopped = allCards.filter((card) => card.state === "stopped").sort(stoppedOrder);
   const running = allCards.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt));
   const runningSections = [section("stopped", "", stopped), section("running", "", running)];
   const done = allCards.filter((card) => card.state === "done").sort(newestFirst((card) => card.endedAt));
@@ -452,7 +475,7 @@ export function buildModel(input: ModelInput, now: number): Model {
   const reviewRows: InboxRow[] = [
     ...(board?.inbox.review ?? [])
       .map((id) => runs.get(id))
-      .filter((run): run is RunCard => run !== undefined)
+      .filter((run): run is RunCard => run !== undefined && !runOwner.has(run.id))
       .map((run): InboxRow => ({ type: "review", key: `review:${run.id}`, href: href({ name: "run", id: run.id }), agent: run.agent, card: runListRow(run) })),
     ...allCards
       .filter((card) => card.kind === "card" && card.state === "waiting" && card.reason === "review")
@@ -607,7 +630,7 @@ export function agentView(model: Model, agentId: string): AgentView | null {
   const agent = model.agents.find((candidate) => candidate.id === agentId);
   if (!agent) return null;
   const mine = [...model.cards.values()].filter((card) => card.agent === agentId && !model.unlisted.has(card.id));
-  const stoppedCards = mine.filter((card) => card.state === "stopped").sort(newestFirst((card) => card.stateAt));
+  const stoppedCards = mine.filter((card) => card.state === "stopped").sort(stoppedOrder);
   const running = [...stoppedCards, ...mine.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt))];
   const review = mine.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt));
   const planned = mine.filter((card) => card.state === "planned").sort(newestFirst((card) => card.stateAt));

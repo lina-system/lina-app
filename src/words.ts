@@ -198,6 +198,7 @@ export const W = {
   needsCheck: "확인 필요",
   waitReview: "검토 대기",
   notRetried: "다시 시도 안 함",
+  retryScheduled: "다시 시도 예정",
   retryText: "다시 시도해 주세요.",
   requestedTo: (agent: string) => `${agent}에게 요청함`,
   errOpenTodos: "열린 할 일 있음",

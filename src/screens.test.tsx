@@ -1773,6 +1773,12 @@ describe("work cards", () => {
     expect(view.getByTestId("nav-running").querySelector("[data-testid=nav-stopped]")?.textContent).toBe("8");
   });
 
+  test("a stopped card's detail keeps the own title with a Latin word that its list row shows", async () => {
+    const view = await open("#/cards/k-112", { wide: true, source: new SyntheticSource({ endedRuns: true, now: Math.floor(Date.now() / 1000) }) });
+    await waitFor(() => expect(view.getByTestId("screen-card").querySelector(".detail-title")?.textContent).toBe("CLI 배포 순서 정하기"));
+    expect(screenText(view.container)).not.toMatch(/제목 없음|코드 작업|문서 작업|기기 작업/);
+  });
+
   test("a finished task that ran twice is one row, the newest run; three rounds of one card stay one card", async () => {
     const view = await open("#/done", { wide: true });
     const twins = within(view.getByTestId("screen-done")).getAllByRole("link", { name: /가이드 초안 다듬기/ });

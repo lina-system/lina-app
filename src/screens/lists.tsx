@@ -315,15 +315,17 @@ export function GoalLine({ goal, showAgent }: { goal: GoalRow; showAgent: boolea
   // The goal's title and done condition fold as a row's title does (lina-app#156): refs, hashes and ids never show.
   const title = foldTitle(goal.title) ?? W.untitled;
   const condition = foldTitle(goal.doneCondition);
+  // A goal with no to-dos has no progress to show: no 0/0, no empty dial (lina-app#160).
+  const counted = goal.todosTotal > 0;
   return (
     <li class={`row goal-row${closed ? " check-row" : ""}${closed && shown ? " is-checked" : ""}`} data-testid="row">
       {closed ? <DoneCheck id={goal.id} title={goal.title} done={goal.state === "done"} /> : null}
       <Link
         href={goal.href}
-        label={[showAgent ? agentName(model, goal.agent) : "", title, W.progress(goal.todosDone, goal.todosTotal)].filter(Boolean).join(SEP)}
+        label={[showAgent ? agentName(model, goal.agent) : "", title, counted ? W.progress(goal.todosDone, goal.todosTotal) : ""].filter(Boolean).join(SEP)}
         current={selected === goal.href}
       >
-        {closed ? null : <Dial done={goal.todosDone} totalCount={goal.todosTotal} />}
+        {closed ? null : counted ? <Dial done={goal.todosDone} totalCount={goal.todosTotal} /> : <span class="dial-space" aria-hidden="true" />}
         {showAgent ? <AgentMark id={goal.agent} /> : null}
         <span class="lines">
           <span class="title one-line">{title}</span>

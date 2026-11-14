@@ -852,6 +852,13 @@ button:disabled {
   flex: none;
 }
 
+/* A goal with no to-dos draws no dial but keeps its place, so its mark and name line up with the others (lina-app#160). */
+.dial-space {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+
 .dial circle {
   fill: none;
   stroke-width: 2.5;

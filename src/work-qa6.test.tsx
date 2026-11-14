@@ -127,3 +127,18 @@ describe("the goal pane folds like the rows (lina-app#156 item 7)", () => {
     expect(row.textContent).not.toMatch(/#\d+|a1b2c3d/);
   });
 });
+
+describe("a goal with no to-dos shows no progress (lina-app#160 item 6)", () => {
+  test("0/0 is neither said nor drawn as an empty dial; a goal with to-dos keeps both", async () => {
+    const scene = generateScene(SYNTHETIC_SEED, { now: now() });
+    const [empty, counted] = scene.items.items.filter((item) => item.kind === "goal" && item.state !== "done");
+    const items = { ...scene.items, items: scene.items.items.map((item) => (item === empty ? { ...item, todos: { done: 0, total: 0 } } : item === counted ? { ...item, todos: { done: 1, total: 2 } } : item)) };
+    const view = await open("#/goals", new SyntheticSource({ scene: { ...scene, items } }));
+    const row = (id: string) => view.getByTestId("screen-goals").querySelector(`a[href$="/goals/${id}"]`) as HTMLElement;
+    expect(row(empty.id).querySelector(".dial")).toBeNull();
+    expect(row(empty.id).getAttribute("aria-label")).not.toMatch(/\d+\/\d+/);
+    expect(row(empty.id).textContent).not.toContain("0/0");
+    expect(row(counted.id).querySelector(".dial")).not.toBeNull();
+    expect(row(counted.id).getAttribute("aria-label")).toContain("1/2");
+  });
+});

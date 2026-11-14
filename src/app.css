@@ -2883,3 +2883,10 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 .agent-card.is-folded .rows {
   margin: 0;
 }
+
+/* lina-app#153: opening or closing the detail beside the list never moves the list. The list narrows when the pane
+   opens, and rows above the view that wrap differently would make the browser's scroll anchoring move it. */
+.list-pane {
+  overflow-anchor: none;
+}
+

@@ -728,8 +728,9 @@ describe("decisions", () => {
     for (const row of rows) {
       const view = await open(row.href, { wide: true });
       await waitFor(() => expect(view.getByTestId("decision").textContent).toContain(row.text));
-      // A card with no checked title has no title in its head, and its question names only its goal.
-      const title = view.container.querySelector(".detail-title")?.textContent ?? "";
+      // A card with no checked title has no title in its head, and its question names only its goal. A card's head
+      // reads its row's name; its own title, the one the question's line ends with, is the line under it (lina-app#153).
+      const title = view.container.querySelector("[data-testid=card-own-title]")?.textContent ?? view.container.querySelector(".detail-title")?.textContent ?? "";
       expect(title ? row.context === title || row.context.endsWith(` › ${title}`) : !row.context.includes(" › ")).toBe(true);
       if (row.href.startsWith("#/cards/")) expect(view.container.querySelector(".detail .box")?.getAttribute("data-testid")).toBe("decision");
       view.unmount();
@@ -1978,7 +1979,9 @@ describe("work cards", () => {
     const view = await open("#/cards/k-102", { wide: true });
     const detail = view.getByTestId("screen-card");
     const head = detail.querySelector(".detail-title");
-    expect(head?.textContent).toBe("위키: 결제 화면 문서 정리");
+    // The head reads the name its row reads, its goal's; its own title is the line under it (lina-app#153).
+    expect(head?.textContent).toBe("결제 화면 개편");
+    expect(within(detail).getByTestId("card-own-title").textContent).toBe("위키: 결제 화면 문서 정리");
     expect(head?.classList.contains("is-kind")).toBe(false);
     expect(within(detail).getByTestId("kind").textContent).toBe("문서");
     expect(within(detail).queryByTestId("card-now")).toBeNull();
@@ -2020,7 +2023,8 @@ describe("work cards", () => {
     expect(head?.textContent).toBe("결제 화면 개편");
     expect(head?.classList.contains("is-kind")).toBe(false);
     expect(screenText(detail.container)).not.toMatch(/코드 작업|문서 작업|기기 작업/);
-    expect(within(detail.getByTestId("screen-card")).getByTestId("kind").textContent).toBe("코드");
+    // Nothing names its kind: no kind is shown, never 코드 (lina-app#153).
+    expect(within(detail.getByTestId("screen-card")).queryByTestId("kind")).toBeNull();
   });
 
   test("ended runs do not pile up as stopped: the stopped rows say who they wait on, or are one grey line", async () => {
@@ -2547,7 +2551,9 @@ describe("#13 audit, round 7", () => {
 
   test("a card's detail head names the goal it serves beside its state and reason", async () => {
     const view = await open("#/cards/k-103", { wide: true });
-    expect(view.getByTestId("card-goal").textContent).toBe("목표 · 결제 화면 개편");
+    // Its row leads with the goal's title, so the head is that name and no second goal line repeats it (lina-app#153).
+    expect(view.container.querySelector(".detail-head .detail-title")?.textContent).toBe("결제 화면 개편");
+    expect(view.queryByTestId("card-goal")).toBeNull();
     expect(view.container.querySelector(".detail-head [data-testid=state]")?.textContent).toBe("중단됨 · 응답 없음");
   });
 });
@@ -2831,7 +2837,8 @@ describe("a card's detail (lina-app#128)", () => {
     const card = await open("#/cards/k-104", { wide: true });
     const lines = within(card.getByTestId("worker-runs")).getAllByRole("link");
     expect(lines.map((line) => line.getAttribute("aria-label"))).toEqual([expect.stringMatching(new RegExp(`^${TIME} · 완료 기록 없음$`))]);
-    expect(card.getByTestId("screen-card").querySelector(".detail-title")?.textContent).toBe("결제: 실패 화면 검토");
+    expect(card.getByTestId("screen-card").querySelector(".detail-title")?.textContent).toBe("결제 화면 개편");
+    expect(card.getByTestId("card-own-title").textContent).toBe("결제: 실패 화면 검토");
     expect(screenText(card.container)).not.toContain("코드 작업");
   });
 

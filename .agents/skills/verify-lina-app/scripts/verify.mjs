@@ -686,8 +686,10 @@ const drivers = {
         const boxText = await box.innerText();
         check(boxText.includes(row.text), row.href + " shows a different decision: " + boxText);
         check(boxText.includes(row.kind) && /\d+(분|시간|일) 전/.test(boxText), row.href + " decision box lacks kind word or age: " + boxText);
-        // A work card without a checked title draws its own title; the question names the card by that same name.
-        const title = (await page.locator(".detail-title").count()) ? (await page.locator(".detail-title").first().innerText()).trim() : "";
+        // A work card's head reads its row's name; its own title, the name the question gives it, is the line under the
+        // head when it differs (lina-app#153).
+        const own = page.locator("[data-testid=card-own-title]");
+        const title = (await own.count()) ? (await own.first().innerText()).trim() : (await page.locator(".detail-title").count()) ? (await page.locator(".detail-title").first().innerText()).trim() : "";
         if (row.href.startsWith("#/cards/")) {
           seen.card += 1;
           const first = (await page.locator(".detail .box").first().locator(".box-head").innerText()).trim();
@@ -1185,19 +1187,21 @@ const drivers = {
       check(comments.length === 4 && comments.every((line) => /^(어제 )?\d\d:\d\d · \S[^\n]*$/.test(line.trim())), "expected 4 one-line comments, got " + JSON.stringify(comments));
       return state + "; " + heads.join(", ") + "; " + order.join(", ");
     });
-    await step("a work card with no checked title shows its own title and kind in its head", async () => {
+    await step("a work card with no checked title: its head reads its row's name, its own title under it, and its kind", async () => {
       await openApp(page, "#/cards/k-102");
       const detail = page.getByTestId("screen-card");
       await detail.waitFor();
-      // The head reads the row's name (its goal) until the card's detail answers, then its own title.
+      // The head reads the row's name (its goal) and the card's own title is the line under it (lina-app#153).
       await detail.getByTestId("detail-loading").waitFor({ state: "detached", timeout: 10_000 }).catch(() => null);
       const head = (await detail.locator(".detail-title").innerText()).trim();
-      check(head === "위키: 결제 화면 문서 정리", "the card head reads " + head);
+      check(head === "결제 화면 개편", "the card head reads " + head);
+      const own = (await detail.getByTestId("card-own-title").innerText()).trim();
+      check(own === "위키: 결제 화면 문서 정리", "the card's own title line reads " + own);
       check((await detail.locator(".detail-title.is-kind").count()) === 0, "the head shows a kind word instead of the title");
       const kind = (await detail.getByTestId("kind").innerText()).trim();
       check(kind === "문서", "the kind reads " + kind);
       check((await detail.getByTestId("card-now").count()) === 0, "the card shows a now line");
-      return head + "; " + kind + "; no now line";
+      return head + " / " + own + "; " + kind + "; no now line";
     });
     await step("a run outside any card opens on its own, with its timeline", async () => {
       // r6 is no row (lina-app#141): its page opens from its address, as from its notice.
@@ -2734,7 +2738,7 @@ const drivers = {
       check(now === (wide ? 1 : 0), "the now line shows " + now + " times at " + page.viewportSize().width);
       return wide ? "now line from plain.now" : "no now line on a phone";
     });
-    await step("a work card with no checked title: its row is titled by its goal, its detail by its own title, its kind read from that title", async () => {
+    await step("a work card with no checked title: its row and its detail's head are titled by its goal, its own title under the head, its kind read from that title", async () => {
       const row = home().locator('li:has(> a[href="#/cards/k-102"])');
       const title = row.locator(".title");
       check((await title.innerText()).trim() === "결제 화면 개편", "the card's row is named " + (await row.locator(".title").allInnerTexts()).join(""));
@@ -2747,10 +2751,12 @@ const drivers = {
       await settled(page);
       const detail = page.getByTestId("screen-card");
       await detail.waitFor();
-      // The head reads the row's name (its goal) until the card's detail answers, then its own title.
+      // The head reads the name of the row that was tapped; the card's own title is the line under it (lina-app#153).
       await detail.getByTestId("detail-loading").waitFor({ state: "detached", timeout: 10_000 }).catch(() => null);
       const head = (await detail.locator(".detail-title").innerText()).trim();
-      check(head === "위키: 결제 화면 문서 정리", "the detail is named " + head);
+      check(head === "결제 화면 개편", "the detail is named " + head);
+      const own = (await detail.getByTestId("card-own-title").innerText()).trim();
+      check(own === "위키: 결제 화면 문서 정리", "the detail's own title line reads " + own);
       check((await detail.locator(".detail-title.is-kind").count()) === 0, "the detail draws a kind word in place of its title");
       const kind = (await detail.getByTestId("kind").innerText()).trim();
       check(kind === "문서", "the kind reads " + kind);
@@ -2813,7 +2819,7 @@ const drivers = {
       check(weight === "400", "the no-start line has weight " + weight);
       const line = (await page.getByTestId("round").nth(1).getByTestId("round-line").innerText()).trim();
       check(line === "오류 문구 초안을 남김", "the no-start round's line reads " + line);
-      const head = await page.locator(".detail-head .sub").first().evaluate((sub) => ({ state: getComputedStyle(sub.querySelector(".state")).color, time: getComputedStyle(sub.querySelector(".time")).color, grey: getComputedStyle(document.querySelector(".kind-mark")).color }));
+      const head = await page.locator(".detail-head .sub").first().evaluate((sub) => ({ state: getComputedStyle(sub.querySelector(".state")).color, time: getComputedStyle(sub.querySelector(".time")).color, grey: getComputedStyle(document.querySelector(".detail-head [data-testid=card-own-title]")).color }));
       check(head.state === "rgb(255, 59, 48)" && head.time === head.grey, "the stopped head reads state " + head.state + ", time " + head.time);
       return heads.join(" | ") + "; " + line + "; head state red, time grey";
     });

@@ -401,6 +401,14 @@ export const W = {
   rollbackOne: "한 단계 되돌리기",
   rollbackQuestion: "이전 설정으로 되돌립니다. 되돌리기도 기록에 남습니다.",
   rollbackConfirm: "이전 설정으로 되돌리기",
+
+  // lina-app#153: the detail frame, UI QA round 5.
+  /** A card the core only reads (lina#481): it cannot be changed from the app, with no board named. */
+  readOnlyHere: "읽기 전용 · 여기서는 바꿀 수 없음",
+  /** An answered decision's slot: its question and the owner's answer (`질문 · 답`). */
+  answer: "답",
+  /** The history line of an answered decision, by its kind word (질문에 답함). */
+  answeredWhat: (kind: string) => `${kind}에 답함`,
 };
 
 /**

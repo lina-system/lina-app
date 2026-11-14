@@ -91,7 +91,8 @@ const LABEL = /\S+:(?=\s|$)/g;
 /** A field value that held refs or fold markers and nothing else once they are cut: `✅` or `네` never counts. */
 function fieldEmptied(value: string): boolean {
   if (/…|\.\.\./.test(value) && ONLY_FOLD_MARKERS.test(value)) return true;
-  return new RegExp(REF, "u").test(value) && !withoutRefs(value).trim();
+  // What a cut ref leaves of the sentence end (`a1b2c3d.` leaves `.`) is not a value either.
+  return new RegExp(REF, "u").test(value) && !withoutRefs(value).replace(/[\s.,;:·!?。\-]+/g, "");
 }
 
 /**

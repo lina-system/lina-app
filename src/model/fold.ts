@@ -100,18 +100,25 @@ function fieldEmptied(value: string): boolean {
  * nothing. A field with words in it stays, and so does every other field of the sentence. Null when such a label sits
  * inside a phrase rather than starting a field: that sentence is debris whole (lina-app#161).
  */
-function withoutEmptyFields(sentence: string): string | null {
+function withoutEmptyFields(whole: string): string | null {
+  // The sentence end belongs to the sentence, not to its last field: it stays when that field goes.
+  const end = /[.!?。]+\s*$/.exec(whole)?.[0].trim() ?? "";
+  const sentence = end ? whole.slice(0, whole.lastIndexOf(end)) : whole;
   const labels = [...sentence.matchAll(LABEL)];
   let out = sentence;
+  let cut = false;
   for (const [index, label] of [...labels.entries()].reverse()) {
-    const end = labels[index + 1]?.index ?? sentence.length;
-    const value = sentence.slice(label.index + label[0].length, end);
+    const fieldEnd = labels[index + 1]?.index ?? sentence.length;
+    const value = sentence.slice(label.index + label[0].length, fieldEnd);
     if (!value.trim() || !fieldEmptied(value)) continue;
     // A label standing inside a phrase (`되돌릴 커밋: <hash>`) has no field of its own to cut: the sentence goes.
     if (!/(?:^|[,;·.!?。/+-])\s*$/.test(sentence.slice(0, label.index))) return null;
-    out = out.slice(0, label.index) + " " + out.slice(end);
+    out = out.slice(0, label.index) + " " + out.slice(fieldEnd);
+    cut = true;
   }
-  return out;
+  if (!cut) return whole;
+  const kept = out.replace(/[\s·,:;\-\u2013\u2014]+$/, "");
+  return kept && end ? kept + end : kept;
 }
 
 /** A sentence of nothing but the hub's fold markers (`(…)`, `…`, `...`) and the brackets and separators around them. */

@@ -2890,3 +2890,23 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   overflow-anchor: none;
 }
 
+
+/* lina-app#154: the to-do field's count of characters left, and 보내는 중 under a message the core has not answered yet. */
+.quick-add-form > .quick-add-left {
+  flex: none;
+  align-self: center;
+  font-size: var(--text-small);
+  color: var(--label-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.talk-turn.is-mine:has(> .talk-sending) {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.talk-sending {
+  font-size: var(--text-small);
+  color: var(--label-2);
+}

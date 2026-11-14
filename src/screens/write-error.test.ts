@@ -19,6 +19,8 @@ const CORE: readonly (readonly [number, string, string])[] = [
   [400, "text is required", W.errNoText],
   [409, "댓글 글이 비었다", W.errNoText],
   [400, "text must be 1-2000 characters after trimming", W.errTextLength],
+  // A new to-do (POST /api/lina/work/items) takes 1-25 characters: the line reads the core's own number (lina-app#154).
+  [400, "text must be 1-25 characters after trimming", W.errTextMax(25)],
   [429, "too many writes: 30 a minute per client", W.errTooMany],
   [404, "no goal or to-do T99", W.notFound],
 ];
@@ -31,10 +33,12 @@ test("every refusal line is short: at most six words", () => {
   for (const [, , line] of CORE) expect(line.split(/\s+/).length).toBeLessThanOrEqual(6);
 });
 
-test("a 429 reads as too many writes whatever its detail; an unknown 409 reads by its action; anything else keeps the core's line", () => {
+test("a 429 reads as too many writes whatever its detail; an unknown 409 reads by its action; anything else reads one neutral line, never the core's text (lina-app#154)", () => {
   expect(writeError("done", { ok: false, status: 429, detail: null })).toBe(W.errTooMany);
   expect(writeError("undo", { ok: false, status: 409, detail: "something new" })).toBe(W.errUndoExpired);
-  expect(writeError("read", { ok: false, status: 503, detail: "quota: quota source did not answer" })).toBe("quota: quota source did not answer");
+  expect(writeError("read", { ok: false, status: 503, detail: "quota: quota source did not answer" })).toBe("저장하지 못함 · 다시 시도");
+  expect(writeError("comment", { ok: false, status: 400, detail: "due must be YYYY-MM-DD, not 12월 1일" })).toBe("저장하지 못함 · 다시 시도");
+  expect(writeError("comment", { ok: false, status: 409, detail: "기록이 읽기 전용이다" })).toBe("저장하지 못함 · 다시 시도");
   expect(writeError("comment", { ok: false, status: 0, detail: null })).toBe(W.writeFailed);
 });
 

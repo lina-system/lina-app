@@ -294,6 +294,12 @@ export const W = {
   quickAddField: "할 일",
   save: "저장",
   todoAdded: "할 일 추가함",
+  /** lina-app#154: the to-do field's own limit, a refusal that names the core's number, any other refusal, the window's states. */
+  quickAddLeft: (n: number) => `${n}자 남음`,
+  errTextMax: (n: number) => `글은 ${n}자까지`,
+  saveFailed: "저장하지 못함 · 다시 시도",
+  talkSending: "보내는 중",
+  talkMissing: "찾을 수 없는 대화",
   markDone: (title: string) => `${title} 완료로 표시`,
   progress: (done: number, total: number) => `${done}/${total}`,
   runningCount: (n: number) => `진행 중 ${n}`,

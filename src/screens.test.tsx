@@ -786,14 +786,14 @@ describe("comments", () => {
     }
   });
 
-  test("a refused comment comes back into the field with the core's line under it", async () => {
+  test("a refused comment comes back into the field with one line under it, never the core's own words (lina-app#154)", async () => {
     const source = new RefusingSource();
     const view = await open("#/items/T4", { wide: true, source });
     const field = view.getByRole("textbox", { name: "댓글 달기" }) as HTMLInputElement;
     field.value = "다시";
     fireEvent.input(field);
     fireEvent.submit(field.form as HTMLFormElement);
-    await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("no open decision"));
+    await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("저장하지 못함 · 다시 시도"));
     expect(source.sent).toEqual(["T4:다시"]);
     expect(field.value).toBe("다시");
     expect(view.queryByTestId("comment-pending")).toBeNull();
@@ -1720,6 +1720,101 @@ describe("agent talk", () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
     });
     expect(preview()).toBe("오늘 어디까지 했어요?");
+  });
+
+  /** A gateway that does not answer, as the core met it: the history read gives up after 30 s, a send after 60 s (lina-app#154). */
+  class Unreachable extends SyntheticSource {
+    posts = 0;
+    override async agentTalkHistory(agent: string) {
+      await new Promise((resolve) => setTimeout(resolve, 30_000));
+      return agent === "ag-1" ? { kind: "failed" as const, offline: false, at: Date.now() / 1000 } : super.agentTalkHistory(agent);
+    }
+    override async agentTalk(_agent: string, _body: { message: string }, _signal?: AbortSignal) {
+      this.posts += 1;
+      await new Promise((resolve) => setTimeout(resolve, 60_000));
+      return { ok: false as const, status: 503, code: "gateway_unreachable" };
+    }
+  }
+
+  test("a send shows at once as 보내는 중 while the history read waits on the gateway, is not held behind it, and its refusal shows when it comes with the text back in the field (lina-app#154)", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new Unreachable();
+      const view = await open("#/talk/ag-1", { wide: true, source });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const { box, field } = parts(view);
+      expect(box.getByTestId("talk-loading").textContent).toBe("불러오는 중");
+      field.value = "지금 상태 알려 주세요";
+      fireEvent.input(field);
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["지금 상태 알려 주세요보내는 중"]);
+      expect(box.getByTestId("talk-sending").textContent).toBe("보내는 중");
+      expect(field.value).toBe("");
+      expect(source.posts).toBe(1);
+      // The history read gives up first; the turn still shows as going.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+      expect(box.queryByTestId("talk-loading")).toBeNull();
+      expect(box.getByTestId("talk-sending")).toBeTruthy();
+      // The send's answer comes 60 s after it went out; its reason shows within 5 s of it.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000 + 5_000);
+      });
+      expect(box.getByTestId("write-error").textContent).toBe("에이전트 연결 안 됨");
+      expect(box.queryByTestId("talk-sending")).toBeNull();
+      expect(box.queryAllByTestId("talk-mine")).toHaveLength(0);
+      expect(field.value).toBe("지금 상태 알려 주세요");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a turn sent while the history read is out shows once when the read lands holding it (lina-app#154)", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      class SlowHistory extends SyntheticSource {
+        override async agentTalkHistory(agent: string) {
+          await new Promise((resolve) => setTimeout(resolve, 30_000));
+          return super.agentTalkHistory(agent);
+        }
+      }
+      const source = new SlowHistory();
+      const view = await open("#/talk/ag-1", { wide: true, source });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const { box, field } = parts(view);
+      field.value = "오늘 어디까지 했어요?";
+      fireEvent.input(field);
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 10);
+      });
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["오늘 어디까지 했어요?"]);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "오늘 어디까지 했어요?"]);
+      expect(box.getAllByTestId("talk-reply")).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test.each([true, false])("an agent id no agent has reads 찾을 수 없는 대화 with a way back, no field and no raw id (wide %s, lina-app#154)", async (wide) => {
+    const view = await open("#/talk/ag-zz9", { wide });
+    const missing = await waitFor(() => view.getByTestId("talk-missing"));
+    expect(missing.textContent).toContain("찾을 수 없는 대화");
+    expect(within(missing).getByRole("link", { name: "대화" }).getAttribute("href")).toBe("#/talk");
+    expect(view.queryByRole("textbox", { name: "메시지" })).toBeNull();
+    expect(view.queryByRole("button", { name: "보내기" })).toBeNull();
+    expect(screenText(view.container)).not.toContain("ag-zz9");
   });
 });
 
@@ -2662,7 +2757,65 @@ describe("the work tab's first screen (lina-app#124)", () => {
       expect(within(mine).getByRole("textbox", { name: "할 일" })).toBeTruthy();
     });
 
-    test("a refused to-do keeps its text and shows the core's one-line reason (lina-app#95)", async () => {
+    test("the to-do field takes 25 characters and counts what is left; a 26-character refusal reads the core's own number, goes once the text changes, and no later toast carries it (lina-app#154)", async () => {
+      // The core's real answer to a 26-character to-do (POST /api/lina/work/items).
+      class Core extends SyntheticSource {
+        override async addItem(body: { text: string; due: string | null }) {
+          if (body.text.trim().length > 25) return { ok: false as const, status: 400, detail: "text must be 1-25 characters after trimming" };
+          return super.addItem(body);
+        }
+      }
+      const view = await open("#/", { wide, source: new Core({ now: Math.floor(Date.now() / 1000) }) });
+      const mine = view.getByTestId("home-mine");
+      fireEvent.click(within(mine).getByRole("button", { name: "할 일 추가" }));
+      const field = within(mine).getByRole("textbox", { name: "할 일" }) as HTMLInputElement;
+      expect(field.maxLength).toBe(25);
+      expect(within(mine).getByTestId("quick-add-left").textContent).toBe("25자 남음");
+      field.value = "가".repeat(25);
+      fireEvent.input(field);
+      expect(within(mine).getByTestId("quick-add-left").textContent).toBe("0자 남음");
+      // A pasted or composed 26th character can still reach the core, which refuses it.
+      field.value = "가".repeat(26);
+      fireEvent.input(field);
+      fireEvent.click(within(mine).getByRole("button", { name: "저장" }));
+      await waitFor(() => expect(within(mine).getByTestId("write-error").textContent).toBe("글은 25자까지"));
+      expect(field.value).toBe("가".repeat(26));
+      field.value = "가".repeat(25);
+      fireEvent.input(field);
+      expect(within(mine).queryByTestId("write-error")).toBeNull();
+      fireEvent.click(within(mine).getByRole("button", { name: "저장" }));
+      await waitFor(() => expect(view.getByTestId("toast").textContent).toBe("할 일 추가함"));
+      expect(within(mine).queryByRole("textbox", { name: "할 일" })).toBeNull();
+      expect(view.queryByTestId("write-error")).toBeNull();
+    });
+
+    test("a refused to-do's line does not wait on the home for the next visit (lina-app#154)", async () => {
+      class Refusing extends SyntheticSource {
+        override async addItem() {
+          return { ok: false as const, status: 400, detail: "text must be 1-25 characters after trimming" };
+        }
+      }
+      Element.prototype.scrollIntoView = () => {}; // jsdom has none; the field scrolls itself into view on focus
+      const view = await open("#/", { wide, source: new Refusing({ now: Math.floor(Date.now() / 1000) }) });
+      fireEvent.click(within(view.getByTestId("home-mine")).getByRole("button", { name: "할 일 추가" }));
+      const field = within(view.getByTestId("home-mine")).getByRole("textbox", { name: "할 일" }) as HTMLInputElement;
+      field.value = "영수증 정리";
+      fireEvent.input(field);
+      fireEvent.click(within(view.getByTestId("home-mine")).getByRole("button", { name: "저장" }));
+      await waitFor(() => expect(within(view.getByTestId("home-mine")).getByTestId("write-error")).toBeTruthy());
+      // Away to a card's page and back, the way the owner leaves the home and returns to it.
+      fireEvent.click(view.getAllByRole("link").find((link) => /^#\/(cards|runs)\//.test(link.getAttribute("href") ?? "")) as HTMLElement);
+      await waitFor(() => expect(window.location.hash).toMatch(/^#\/(cards|runs)\//));
+      await act(async () => {
+        window.history.back();
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+      await waitFor(() => expect(window.location.hash).toBe("#/"));
+      await waitFor(() => expect(view.getByTestId("home-mine")).toBeTruthy());
+      expect(view.queryByTestId("write-error")).toBeNull();
+    });
+
+    test("a refused to-do keeps its text and shows one neutral line, never the core's own words (lina-app#95, #154)", async () => {
       class Refusing extends SyntheticSource {
         override async addItem() {
           return { ok: false as const, status: 409, detail: "기록이 읽기 전용이다" };
@@ -2675,7 +2828,7 @@ describe("the work tab's first screen (lina-app#124)", () => {
       field.value = "영수증 정리";
       fireEvent.input(field);
       fireEvent.click(within(mine).getByRole("button", { name: "저장" }));
-      await waitFor(() => expect(within(mine).getByTestId("write-error").textContent).toBe("기록이 읽기 전용이다"));
+      await waitFor(() => expect(within(mine).getByTestId("write-error").textContent).toBe("저장하지 못함 · 다시 시도"));
       expect((within(mine).getByRole("textbox", { name: "할 일" }) as HTMLInputElement).value).toBe("영수증 정리");
       expect(view.queryByTestId("toast")).toBeNull();
       expect(count(within(mine).getByTestId("head-mine").querySelector("[data-testid=count]"))).toBe(2);

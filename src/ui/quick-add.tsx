@@ -14,10 +14,14 @@ export function QuickAddButton({ open, onToggle }: { open: boolean; onToggle: ()
   );
 }
 
+/** The core takes a new to-do of 1-25 characters after trimming (`text must be 1-25 characters after trimming`, lina-app#154). */
+export const TODO_MAX = 25;
+
 /**
  * One line and an optional date, opened in place. Saving writes the owner's to-do to the record (lina#693); its row
  * comes with the record's own read after the core takes it, never drawn before. A refusal keeps the text and shows
- * the core's one line. The field takes focus, which scrolls it clear of the phone's keyboard (KoreanInput).
+ * one line read from the core's refusal until the text changes. The field takes focus, which scrolls it clear of the
+ * phone's keyboard (KoreanInput).
  */
 export function QuickAddForm({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
   const { store } = useApp();
@@ -29,7 +33,13 @@ export function QuickAddForm({ onClose, onAdded }: { onClose: () => void; onAdde
   const form = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    form.current?.querySelector<HTMLInputElement>("input[type=text]")?.focus();
+    const field = form.current?.querySelector<HTMLInputElement>("input[type=text]");
+    if (field) field.maxLength = TODO_MAX;
+    field?.focus();
+    // The home stays drawn under a page opened from it: a refusal does not wait there for the owner's return.
+    const leave = () => setError(null);
+    window.addEventListener("hashchange", leave);
+    return () => window.removeEventListener("hashchange", leave);
   }, []);
 
   const save = async (event: Event) => {
@@ -39,7 +49,7 @@ export function QuickAddForm({ onClose, onAdded }: { onClose: () => void; onAdde
     setError(null);
     const result = await store.write((source) => source.addItem({ text: text.trim(), due: due || null }));
     setBusy(false);
-    // The add has no route of its own in writeError; a comment's table reads its refusals (text, length, 429).
+    // The add has no route of its own in writeError; a comment's table reads its refusals (text, length with the core's number, 429).
     if (!result.ok) return setError(writeError("comment", result));
     onAdded();
     actions.note(W.todoAdded);
@@ -47,7 +57,19 @@ export function QuickAddForm({ onClose, onAdded }: { onClose: () => void; onAdde
 
   return (
     <form ref={form} class="comment-form quick-add-form" onSubmit={(event) => void save(event)}>
-      <KoreanInput label={W.quickAddField} value={text} onValue={setText} inline disabled={busy} />
+      <KoreanInput
+        label={W.quickAddField}
+        value={text}
+        onValue={(value) => {
+          setText(value);
+          setError(null);
+        }}
+        inline
+        disabled={busy}
+      />
+      <span class="sub quick-add-left" data-testid="quick-add-left">
+        {W.quickAddLeft(Math.max(0, TODO_MAX - text.length))}
+      </span>
       <label class="note is-inline quick-add-due">
         <span class="visually-hidden">{W.due}</span>
         <input type="date" value={due} disabled={busy} onInput={(event) => setDue(event.currentTarget.value)} />

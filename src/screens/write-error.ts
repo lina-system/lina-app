@@ -14,7 +14,6 @@ export const REFUSALS: readonly (readonly [RegExp, string])[] = [
   [/주인이 정할 것이 없다|has nothing for the owner to decide/, W.errNoDecision],
   [/는 열린 항목이 아니다|is not an open item|는 내린 항목이다|is a dropped item/, W.errClosed],
   [/^text is required$|^댓글 글이 비었다$|^Comment text is empty$/, W.errNoText],
-  [/^text must be 1-\d+ characters after trimming$/, W.errTextLength],
   [/^too many writes/, W.errTooMany],
   [/^no goal or to-do /, W.notFound],
 ];
@@ -46,11 +45,17 @@ function deviceRefusal(status: number): string {
   }
 }
 
+/** A text over the route's limit: a comment takes 2000 characters, a new to-do 25 (lina-app#154). The line names the core's number. */
+const TEXT_LIMIT = /^text must be 1-(\d+) characters after trimming$/;
+
 export function writeError(kind: WriteKind, result: Extract<WriteResult<unknown>, { ok: false }>): string {
   if (kind === "device") return deviceRefusal(result.status);
   if (result.status === 429) return W.errTooMany;
+  const limit = TEXT_LIMIT.exec(result.detail ?? "");
+  if (limit) return W.errTextMax(Number(limit[1]));
   const known = result.detail ? REFUSALS.find(([pattern]) => pattern.test(result.detail ?? "")) : undefined;
   if (known) return known[1];
   if (result.status === 409 && CONFLICT[kind]) return CONFLICT[kind];
-  return result.detail ?? W.writeFailed;
+  // The core's own words are English or internal: a refusal this table does not know reads one neutral line (lina-app#154).
+  return result.detail ? W.saveFailed : W.writeFailed;
 }

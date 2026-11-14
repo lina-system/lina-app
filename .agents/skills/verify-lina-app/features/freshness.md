@@ -10,7 +10,7 @@ The toolbar says how fresh the data is. A failed source shows one orange line wh
 
 ## Intended behavior
 
-- `실시간` while the change stream is open; grey `갱신 지연` once it has been down for the settle time (3 s, `LIVE_SETTLE_MS` in `src/data/live.ts`), a stream that never opens included (live.md), so a drop the reconnect mends sooner never shows and the two words cannot alternate faster than that; a reconnect reads `실시간` at once (lina-app#150); red `연결 끊김` when the core cannot be reached. Only in the moment between the first read and the stream's first answer does the line read `갱신 n초 전`.
+- `실시간` while the change stream is open; grey `갱신 지연` once it has been down for the settle time (3 s, `LIVE_SETTLE_MS` in `src/data/live.ts`), a stream that never opens included (live.md), so a drop the reconnect mends sooner never shows and the two words cannot alternate faster than that; a reconnect reads `실시간` at once (lina-app#150); red `연결 끊김` when the core cannot be reached. Only in the moment between the first read and the stream's first answer, or after a read fails while the stream is open, does the line read `갱신 n초 전`: while the stream is open nothing is read until something changes, so the age counts from the last moment the stream vouched for the screens, not from the last read, and `갱신 지연` follows only 30 s later (lina-app#152).
 - Nothing else stands beside the word: the stopped writer of the checked lines (`요약 중단됨`) is in `상태`'s `점검` panel, not here (lina-app#150).
 - A source listed in the core's `errors[]`, or a route whose read failed, shows `읽기 실패: <source word>` in orange; other screens still draw.
 

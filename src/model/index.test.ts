@@ -278,7 +278,7 @@ test("no row is untitled: work nothing names is not listed, no line counts it, a
 
 // A stopped card waits on someone: an own title whose only raw text is a Latin word (a product's name) is drawn, so
 // the owner sees it. Any other raw text, and every card that is not stopped, stay folded into the grey line.
-test("a stopped card whose own title fails only the Latin-word rule is drawn by it; nothing else changes", () => {
+test("a stopped card has no Latin-word exception: its own title with an English word is not drawn, and it stays a row (lina-app#152)", () => {
   const stopped = { ...summary("k-push", "푸시 키 배포와 HTTPS 주소 열기", null, "stopped"), reason: "decision", waitingOn: "owner" };
   const stoppedPath = summary("k-path", "AAS 회차 점검 notes/aas.md", null, "stopped");
   const done = summary("k-done", "AAS 회차 점검 마무리", null, "done");
@@ -286,7 +286,7 @@ test("a stopped card whose own title fails only the Latin-word rule is drawn by 
   const all = [stopped, stoppedPath, done, running];
   const model = buildModel({ cards: { cards: all }, cardDetails: Object.fromEntries(all.map((card) => [card.id, detail(card)])), failed: [] }, NOW);
 
-  expect(model.cards.get("k-push")).toMatchObject({ title: "푸시 키 배포와 HTTPS 주소 열기", name: "푸시 키 배포와 HTTPS 주소 열기" });
+  expect(model.cards.get("k-push")).toMatchObject({ title: W.stoppedCardOf(null), name: W.stoppedCardOf(null) });
   // A path is still raw text on a stopped card: it is never drawn, but the card stays a row (lina-app#148).
   expect(model.running.sections[0].rows.map((row) => row.id)).toEqual(["k-push", "k-path"]);
   expect(model.counts.stopped).toBe(2);

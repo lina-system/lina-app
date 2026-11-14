@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
-import type { RecordRound } from "../api/client";
+import type { RecordRound, RunRecord } from "../api/client";
 import type { ItemDetail } from "../api/client";
-import { firstSentence, goalHistory, historyLines, isMachineNotice, outcomeOf } from "./timeline";
+import { commentHistory, firstSentence, goalHistory, historyLines, isMachineNotice, outcomeOf, timelineBlocks } from "./timeline";
 
 const round = (fields: Partial<RecordRound>): RecordRound => ({ run: 1, startedAt: 100, endedAt: null, endKnown: false, startUnknown: false, result: null, verdict: null, stopped: false, rows: [], ...fields });
 
@@ -117,4 +117,65 @@ test("the owner's comment that opens with a bracketed word is history, a machine
   expect(isMachineNotice("[받음] 대화에 들어감", "ag-1")).toBe(true);
   expect(isMachineNotice("[중요] 배포 전에 검토해 주세요.", "lina-worker")).toBe(true);
   expect(isMachineNotice("[받음] 대화에 들어감")).toBe(true);
+});
+
+const STATE_ONLY = new Set(["예정", "진행 중", "대기", "중단됨", "완료", "검토 통과", "검토 필요", "완료 기록 없음"]);
+
+/**
+ * Round 5 of the UI QA on the real hub (lina-app#153; roles, times and ids in their shape, none real): comments served
+ * out of time order, with a bracket tag holding a role and a time, a whole sentence in brackets, a worker's 완료 again
+ * and again, and sentences holding another time than their own.
+ */
+const NOISY: readonly (readonly [string, readonly (readonly [number, string])[]])[] = [
+  ["bracket tags with a role and a time", [[200, "[검토자 02:21 결정] 배포는 금요일 오후로 함."], [100, "[작업자 04:40 코드 반영 끝, 시험 통과]"], [150, "[작업자 02:25 결정, 표로 바꿈] 표 머리는 짧게 함."]]],
+  ["the same state word again and again", [[400, "완료"], [400, "완료"], [400, "완료"], [400, "완료"], [300, "진행 중"], [300, "진행 중"]]],
+  ["times out of order", [[119, "첫 화면 문구를 고쳤어요."], [118, "둘째 화면도 맞췄어요."], [120, "마지막으로 다시 확인함."], [60, "처음 받은 의견을 정리함."]]],
+  ["a time inside the sentence", [[1376, "22:45 기준으로 문구를 다시 확인함."], [1300, "어제 21:10에 받은 의견을 정리함."]]],
+  ["dropped comments between kept ones", [[10, "G73 / T264."], [20, "rc=1(없음)"], [30, "문구를 고쳤어요."], [40, "vs 20 14 my in '—' 24"], [50, ".5초 무렵"]]],
+];
+
+test.each(NOISY)("a card's history with %s: no line starts with [, none repeats the previous state word, times only go back", (_case, rows) => {
+  const lines = commentHistory(rows.map(([at, body], index) => ({ id: index, at, author: "worker-a", body })));
+  expect(lines.length).toBeGreaterThan(0);
+  lines.forEach((line, index) => {
+    const text = line.text ?? "";
+    expect(text).not.toMatch(/^\[/);
+    expect(text).not.toMatch(/\d{1,2}:\d{2}/);
+    if (index === 0) return;
+    const previous = lines[index - 1];
+    expect(line.at).toBeLessThanOrEqual(previous.at);
+    if (STATE_ONLY.has(text)) expect(text).not.toBe(previous.text);
+    expect(line.text === null && previous.text === null).toBe(false);
+  });
+});
+
+test("a bracket tag with a role and a time is cut off the sentence; a receipt's one-word tag still makes it a machine notice", () => {
+  expect(firstSentence("[검토자 02:21 결정] 배포는 금요일 오후로 함.")).toBe("배포는 금요일 오후로 함.");
+  expect(firstSentence("[작업자 04:40 코드 반영 끝, 시험 통과]")).toBeNull();
+  expect(firstSentence("22:45 기준으로 문구를 다시 확인함.")).toBe("기준으로 문구를 다시 확인함.");
+  expect(isMachineNotice("[검토자 02:21 결정] 배포는 금요일 오후로 함.", "worker-a")).toBe(false);
+  expect(isMachineNotice("[받음] 대화에 들어감", "worker-a")).toBe(true);
+});
+
+test("a card's record read through several of its worker runs shows each round and comment once, newest first", () => {
+  const record: RunRecord = {
+    at: 1000,
+    cardId: "k-1",
+    id: "w1",
+    errors: [],
+    model: null,
+    settingsRevision: null,
+    comments: [{ at: 500, kind: "comment", text: "표로 보여 주세요.", count: 1 }],
+    rounds: [round({ run: 2, startedAt: 600, endedAt: 700, endKnown: true }), round({ run: 1, startedAt: 100, endedAt: 400, endKnown: true })],
+  } as unknown as RunRecord;
+  const blocks = timelineBlocks(
+    ["w1", "w2", "w3", "w4"].map((id) => ({ id, record: { ...record, id } })),
+    () => false,
+    1000,
+  );
+  expect(blocks.map((block) => [block.type, block.at])).toEqual([
+    ["round", 700],
+    ["comment", 500],
+    ["round", 400],
+  ]);
 });

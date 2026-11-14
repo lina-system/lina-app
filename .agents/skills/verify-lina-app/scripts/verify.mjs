@@ -399,16 +399,18 @@ async function phoneRules(page, where) {
   return where + ": " + audit.tappable + " tappable >= " + HIT + "x" + HIT + ", " + audit.texts + " texts >= " + MIN_TEXT + "px";
 }
 
-// Rows show a title (up to two lines, lina-app#133, #141), on a stopped row the core's one ask line, and one status line.
+// Rows show a title (up to two lines, lina-app#133, #141), the card's own name (up to two lines, lina-app#152), on a
+// stopped row the core's one ask line, and one status line (a stopped row's may wrap once beside its button).
 async function rowLines(page) {
   return page.locator("[data-testid=row]:not(.is-open) .lines").evaluateAll((all) =>
     all.flatMap((lines) => {
       const children = [...lines.children].filter((child) => child.getBoundingClientRect().height > 0);
       const lineHeight = (child) => parseFloat(getComputedStyle(child).lineHeight) || parseFloat(getComputedStyle(child).fontSize) * 1.35;
-      const allowed = (child) => (child.classList.contains("title") ? 2.5 : 1.5);
+      const stoppedState = (child) => child.classList.contains("sub") && !child.matches(".row-sub, .stop-ask") && Boolean(child.closest(".is-stopped"));
+      const allowed = (child) => (child.classList.contains("title") || child.classList.contains("row-sub") || stoppedState(child) ? 2.5 : 1.5);
       const tall = children.filter((child) => child.getBoundingClientRect().height > lineHeight(child) * allowed(child) + 1);
       const asks = children.filter((child) => child.getAttribute("data-testid") === "stop-ask").length;
-      // A row whose title another row of its group repeats adds the card's own name as one line (lina-app#148).
+      // A row whose own card's name differs from its title adds it as its second line (lina-app#148, #152).
       const subs = children.filter((child) => child.getAttribute("data-testid") === "row-sub").length;
       return children.length > 2 + Math.min(asks, 1) + Math.min(subs, 1) || tall.length ? [lines.textContent.trim().slice(0, 40) + " (" + children.length + " lines)"] : [];
     }),
@@ -684,8 +686,10 @@ const drivers = {
         const boxText = await box.innerText();
         check(boxText.includes(row.text), row.href + " shows a different decision: " + boxText);
         check(boxText.includes(row.kind) && /\d+(분|시간|일) 전/.test(boxText), row.href + " decision box lacks kind word or age: " + boxText);
-        // A work card without a checked title draws its own title; the question names the card by that same name.
-        const title = (await page.locator(".detail-title").count()) ? (await page.locator(".detail-title").first().innerText()).trim() : "";
+        // A work card's head reads its row's name; its own title, the name the question gives it, is the line under the
+        // head when it differs (lina-app#153).
+        const own = page.locator("[data-testid=card-own-title]");
+        const title = (await own.count()) ? (await own.first().innerText()).trim() : (await page.locator(".detail-title").count()) ? (await page.locator(".detail-title").first().innerText()).trim() : "";
         if (row.href.startsWith("#/cards/")) {
           seen.card += 1;
           const first = (await page.locator(".detail .box").first().locator(".box-head").innerText()).trim();
@@ -728,9 +732,9 @@ const drivers = {
       check(names.every((name) => / · 진행 중( · 할 일 \d+\/\d+)?$/.test(name)), "a card under 진행 중 is not running: " + names.join(" | "));
       const stopped = await rowNames(page.getByRole("list", { name: "중단됨", exact: true }));
       check(stopped.length === 1 && stopped[0].endsWith("중단됨 · 응답 없음"), "the 중단됨 group reads " + stopped.join(" | "));
-      // The stopped group comes first, so the work that needs a hand is on a phone's first screen (lina-app#141).
-      const order = await page.getByTestId("section-stopped").evaluate((stopped) => Boolean(stopped.compareDocumentPosition(document.querySelector("[data-testid=section-active]")) & Node.DOCUMENT_POSITION_FOLLOWING));
-      check(order, "the 진행 중 group is not under 중단됨");
+      // What runs comes first, then the owner's to-dos, then the stopped group (lina-app#152).
+      const order = await page.getByTestId("section-active").evaluate((active) => Boolean(active.compareDocumentPosition(document.querySelector("[data-testid=section-stopped]")) & Node.DOCUMENT_POSITION_FOLLOWING));
+      check(order, "the 중단됨 group is not under 진행 중");
       check((await page.getByTestId("screen-running").locator('ul[aria-label="진행 중인 작업"], ul[aria-label="중단됨"]').locator('a[href="#/cards/k-104"]').count()) === 0, "a waiting card is in the list");
       names.push(...stopped);
       const grey = await sidebarCount(page, "nav-running");
@@ -741,8 +745,9 @@ const drivers = {
       return names.join(" | ");
     });
     await step("each card has one grey state line with its time", async () => {
-      const lines = await page.getByRole("list", { name: "진행 중인 작업", exact: true }).locator(".sub:not(.now)").allInnerTexts();
-      const stopped = await page.getByRole("list", { name: "중단됨", exact: true }).locator(".sub:not(.now)").allInnerTexts();
+      // Line 2, the card's own name (lina-app#152), is no state line.
+      const lines = await page.getByRole("list", { name: "진행 중인 작업", exact: true }).locator(".sub:not(.now):not(.row-sub)").allInnerTexts();
+      const stopped = await page.getByRole("list", { name: "중단됨", exact: true }).locator(".sub:not(.now):not(.row-sub)").allInnerTexts();
       check(stopped.length === 1 && /^중단됨 · 응답 없음 · \d+분 전$/.test(stopped[0]), "stopped line reads " + stopped.join(", "));
       check(lines.every((line) => /^진행 중 · 시작 \d+(분|시간) 전$/.test(line)), "running lines read " + lines.join(", "));
       return [...stopped, ...lines].join(", ");
@@ -767,6 +772,10 @@ const drivers = {
     // The live shape (lina-app#119): the board lists the runs of cards, each naming its card; none is a row of its own.
     await step("live shape: the stopped group is the stopped cards alone, owner first, each saying who waits", async () => {
       await openApp(page, "#/running", "&runs=ended");
+      // The group shows its first five rows and one fold for the rest (lina-app#152).
+      const visible = await page.getByRole("list", { name: "중단됨", exact: true }).locator("[data-testid=row].is-stopped").count();
+      check(visible === 5, "the stopped group shows " + visible + " rows before its fold, expected 5");
+      await page.getByRole("button", { name: "중단됨 외 2개", exact: true }).click();
       const list = page.getByRole("list", { name: "중단됨", exact: true });
       const rows = await list.locator("[data-testid=row].is-stopped").evaluateAll((items) =>
         items.map((item) => {
@@ -783,8 +792,9 @@ const drivers = {
       check(!hrefs.some((href) => href.startsWith("#/runs/")), "a worker run is a row of its own: " + hrefs.join(" "));
       check(rows.slice(0, 3).every((row) => row.state === "중단됨 · 도윤 확인 필요"), "the rows waiting on the owner are not first: " + rows.map((row) => row.state).join(" | "));
       check(rows.slice(3).every((row) => !row.state.endsWith("도윤 확인 필요")), "an owner row is below another row");
-      // A stopped card's own title with only a product's Latin name in it is drawn (k-112).
-      check(rows.some((row) => row.href === "#/cards/k-112" && row.title === "CLI 배포 순서 정하기"), "k-112 is not drawn by its own title: " + rows.map((row) => row.title).join(" | "));
+      // A stopped card has no Latin-word exception (lina-app#152): k-112, with no goal, says whose stopped card it is.
+      check(rows.some((row) => row.href === "#/cards/k-112" && / 중단 카드$/.test(row.title)), "k-112 is drawn by its own title: " + rows.map((row) => row.title).join(" | "));
+      check(!rows.some((row) => row.title.includes("CLI")), "a stopped row shows an English word: " + rows.map((row) => row.title).join(" | "));
       check(rows.some((row) => / 검토 대기$/.test(row.state)) && rows.some((row) => row.state === "중단됨 · 다시 시도 예정") && rows.some((row) => row.state === "중단됨 · 응답 없음 · 다시 시도 안 함"), "the states read " + rows.map((row) => row.state).join(" | "));
       for (const row of rows) check(row.plain === (row.state === "중단됨 · 응답 없음") && (row.plain || row.colour === "rgb(255, 59, 48)"), row.title + " reads " + row.state + " in " + row.colour);
       check(rows.filter((row) => row.title === "제목 없음").length === 0, "rows titled 제목 없음: " + rows.filter((row) => row.title === "제목 없음").length);
@@ -860,7 +870,7 @@ const drivers = {
     await step("read the finished cards", async () => {
       const list = page.getByRole("list", { name: "완료" });
       const names = await rowNames(list);
-      const lines = await list.locator(".sub").allInnerTexts();
+      const lines = await list.locator(".sub:not(.row-sub)").allInnerTexts();
       // One finished row, k-105: r7 and r8 are worker runs with no card, no row (lina-app#141).
       check(names.length === 1 && names.every((name) => name.endsWith("완료")), "done list " + names.join(" | "));
       check((await list.locator('a[href^="#/runs/"]').count()) === 0, "a worker run is a row in 완료: " + names.join(" | "));
@@ -1177,19 +1187,21 @@ const drivers = {
       check(comments.length === 4 && comments.every((line) => /^(어제 )?\d\d:\d\d · \S[^\n]*$/.test(line.trim())), "expected 4 one-line comments, got " + JSON.stringify(comments));
       return state + "; " + heads.join(", ") + "; " + order.join(", ");
     });
-    await step("a work card with no checked title shows its own title and kind in its head", async () => {
+    await step("a work card with no checked title: its head reads its row's name, its own title under it, and its kind", async () => {
       await openApp(page, "#/cards/k-102");
       const detail = page.getByTestId("screen-card");
       await detail.waitFor();
-      // The head reads the row's name (its goal) until the card's detail answers, then its own title.
+      // The head reads the row's name (its goal) and the card's own title is the line under it (lina-app#153).
       await detail.getByTestId("detail-loading").waitFor({ state: "detached", timeout: 10_000 }).catch(() => null);
       const head = (await detail.locator(".detail-title").innerText()).trim();
-      check(head === "위키: 결제 화면 문서 정리", "the card head reads " + head);
+      check(head === "결제 화면 개편", "the card head reads " + head);
+      const own = (await detail.getByTestId("card-own-title").innerText()).trim();
+      check(own === "위키: 결제 화면 문서 정리", "the card's own title line reads " + own);
       check((await detail.locator(".detail-title.is-kind").count()) === 0, "the head shows a kind word instead of the title");
       const kind = (await detail.getByTestId("kind").innerText()).trim();
       check(kind === "문서", "the kind reads " + kind);
       check((await detail.getByTestId("card-now").count()) === 0, "the card shows a now line");
-      return head + "; " + kind + "; no now line";
+      return head + " / " + own + "; " + kind + "; no now line";
     });
     await step("a run outside any card opens on its own, with its timeline", async () => {
       // r6 is no row (lina-app#141): its page opens from its address, as from its notice.
@@ -1249,7 +1261,15 @@ const drivers = {
       await page.getByTestId("tab-status").click();
       await settled(page);
       // A selected sidebar row draws its text white; read the colours with 설정 selected instead.
-      if (page.viewportSize().width >= 900) await page.getByTestId("nav-settings").getByRole("link").click();
+      if (page.viewportSize().width < 900) {
+        // A phone says how many machines once, in the machines head; no second line above it (lina-app#152).
+        await page.getByTestId("screen-status").waitFor();
+        check((await page.getByTestId("device-line").count()) === 0, "a phone draws the machines line above the machines head");
+        const head = (await page.getByTestId("section-machines").locator(".section-head").innerText()).trim();
+        check(head === "작업 기기 4 · 정상 2 · 경고 1 · 꺼짐 1", "the machines head reads " + head);
+        return head;
+      }
+      await page.getByTestId("nav-settings").getByRole("link").click();
       const line = (await page.getByTestId("device-line").innerText()).trim();
       check(line === "기기 4 · 정상 2 · 경고 1 · 꺼짐 1", "device line reads " + line);
       const colours = await page.getByTestId("device-line").evaluate((element) => [...element.querySelectorAll("span")].map((span) => span.textContent.trim() + "=" + getComputedStyle(span).color));
@@ -1313,9 +1333,9 @@ const drivers = {
       check(grid.includes("업데이트 필요") && grid.includes("로그인 필요"), "the grid has no update or sign-in cell");
       check(/업데이트 필요\s*1\.2 → 1\.6/.test(grid), "the update cell does not show installed → fleet: " + grid.replace(/\s+/g, " "));
       check(!grid.includes("확인 중"), "a runner reads 확인 중");
-      // A runner reads by the settings screen's name, never by its id (lina-app#150).
-      const runnerNames = await page.getByRole("list", { name: "기기", exact: true }).locator(".runner-name").allInnerTexts();
-      check(runnerNames.length > 0 && runnerNames.every((name) => /^실행기( \d+)?$/.test(name.trim())), "runner names " + JSON.stringify(runnerNames));
+      // A runner reads by the tool's name the hub serves for it, never one word for all (lina-app#152).
+      const runnerNames = (await page.getByRole("list", { name: "기기", exact: true }).locator(".runner-name").allInnerTexts()).map((name) => name.trim());
+      check(JSON.stringify(runnerNames) === JSON.stringify(["글결", "탐색", "글결", "탐색", "보관"]), "runner names " + JSON.stringify(runnerNames));
       return "update 1.2 → 1.6, sign-in; unreachable node without runners; file node " + files + "; edges " + JSON.stringify(edges);
     });
     // Phone checks run before 로그인 is pressed, and the viewport comes back to the drive width for the proof shot.
@@ -2663,17 +2683,15 @@ const drivers = {
       await home().waitFor();
       return (await title(page)) + " at " + new URL(page.url()).hash;
     });
-    await step("the home order: one decisions line, review, stopped then running, the owner's to-dos folded to one line, the last 24 hours", async () => {
+    await step("the home order: one decisions line, review, running, the owner's to-dos (their first three), stopped, planned, the last 24 hours", async () => {
       // The waiting card waits on review, so 대기 does not repeat it; r7 and r8 are worker runs, no row (lina-app#141).
       const lists = await home().locator("ul.rows").evaluateAll((all) => all.map((list) => list.getAttribute("aria-label")));
-      check(JSON.stringify(lists) === JSON.stringify(["수신함", "검토 필요", "중단됨", "진행 중인 작업", "예정", "내 할 일", "최근 완료"]), "the home lists " + JSON.stringify(lists));
-      const fold = home().getByRole("button", { name: "내 할 일 2" });
-      const folded = { expanded: await fold.getAttribute("aria-expanded"), rows: await rowsOf("내 할 일").count() };
-      await fold.click();
-      const own = { review: await rowsOf("검토 필요").count(), mine: await rowsOf("내 할 일").count() };
-      await fold.click();
-      check(folded.expanded === "false" && folded.rows === 0, "내 할 일 is not folded to one line: " + JSON.stringify(folded));
-      check(own.review === 1 && own.mine === 2, "the home's own groups hold " + JSON.stringify(own));
+      check(JSON.stringify(lists) === JSON.stringify(["수신함", "검토 필요", "진행 중인 작업", "내 할 일", "중단됨", "예정", "최근 완료"]), "the home lists " + JSON.stringify(lists));
+      // Two to-dos: the head counts both and both rows read without a tap, with no fold (lina-app#152).
+      const head = (await page.getByTestId("head-mine").innerText()).replace(/\s+/g, " ").trim();
+      const own = { review: await rowsOf("검토 필요").count(), mine: await rowsOf("내 할 일").count(), folds: await home().locator(".more-row").count() };
+      check(head === "내 할 일 2", "the 내 할 일 head reads " + head);
+      check(own.review === 1 && own.mine === 2 && own.folds === 0, "the home's own groups hold " + JSON.stringify(own));
       const decisions = (await page.getByTestId("home-decisions").getByRole("link").getAttribute("aria-label")) ?? "";
       check(decisions === "결정 필요 4", "the decisions line reads " + decisions);
       const first = (await rowsOf("중단됨").first().getAttribute("aria-label")) ?? "";
@@ -2720,7 +2738,7 @@ const drivers = {
       check(now === (wide ? 1 : 0), "the now line shows " + now + " times at " + page.viewportSize().width);
       return wide ? "now line from plain.now" : "no now line on a phone";
     });
-    await step("a work card with no checked title: its row is titled by its goal, its detail by its own title, its kind read from that title", async () => {
+    await step("a work card with no checked title: its row and its detail's head are titled by its goal, its own title under the head, its kind read from that title", async () => {
       const row = home().locator('li:has(> a[href="#/cards/k-102"])');
       const title = row.locator(".title");
       check((await title.innerText()).trim() === "결제 화면 개편", "the card's row is named " + (await row.locator(".title").allInnerTexts()).join(""));
@@ -2733,10 +2751,12 @@ const drivers = {
       await settled(page);
       const detail = page.getByTestId("screen-card");
       await detail.waitFor();
-      // The head reads the row's name (its goal) until the card's detail answers, then its own title.
+      // The head reads the name of the row that was tapped; the card's own title is the line under it (lina-app#153).
       await detail.getByTestId("detail-loading").waitFor({ state: "detached", timeout: 10_000 }).catch(() => null);
       const head = (await detail.locator(".detail-title").innerText()).trim();
-      check(head === "위키: 결제 화면 문서 정리", "the detail is named " + head);
+      check(head === "결제 화면 개편", "the detail is named " + head);
+      const own = (await detail.getByTestId("card-own-title").innerText()).trim();
+      check(own === "위키: 결제 화면 문서 정리", "the detail's own title line reads " + own);
       check((await detail.locator(".detail-title.is-kind").count()) === 0, "the detail draws a kind word in place of its title");
       const kind = (await detail.getByTestId("kind").innerText()).trim();
       check(kind === "문서", "the kind reads " + kind);
@@ -2775,8 +2795,8 @@ const drivers = {
       const stoppedHead = page.getByTestId("head-stopped");
       const red = (await stoppedHead.getByTestId("stopped-count").innerText()).trim();
       check((await stoppedHead.locator("span").first().innerText()).trim() === "중단됨" && red === "1" && (await stoppedHead.getByTestId("count").count()) === 0, "the 중단됨 group heads red " + red);
-      const recent = await page.getByTestId("section-recent").locator(".sub").allInnerTexts();
-      const older = await page.getByTestId("section-older").locator(".sub").allInnerTexts();
+      const recent = await page.getByTestId("section-recent").locator(".sub:not(.row-sub)").allInnerTexts();
+      const older = await page.getByTestId("section-older").locator(".sub:not(.row-sub)").allInnerTexts();
       check(recent.every((line) => /^완료 · \d+(분|시간) 전$/.test(line)), "the last 24 hours read " + recent.join(", "));
       check(older.every((line) => /^완료 · \d+일 전$/.test(line)), "older cards read " + older.join(", "));
       return words + " " + grey + " / " + red + "; " + recent.join(", ") + "; " + older.join(", ");
@@ -2799,7 +2819,7 @@ const drivers = {
       check(weight === "400", "the no-start line has weight " + weight);
       const line = (await page.getByTestId("round").nth(1).getByTestId("round-line").innerText()).trim();
       check(line === "오류 문구 초안을 남김", "the no-start round's line reads " + line);
-      const head = await page.locator(".detail-head .sub").first().evaluate((sub) => ({ state: getComputedStyle(sub.querySelector(".state")).color, time: getComputedStyle(sub.querySelector(".time")).color, grey: getComputedStyle(document.querySelector(".kind-mark")).color }));
+      const head = await page.locator(".detail-head .sub").first().evaluate((sub) => ({ state: getComputedStyle(sub.querySelector(".state")).color, time: getComputedStyle(sub.querySelector(".time")).color, grey: getComputedStyle(document.querySelector(".detail-head [data-testid=card-own-title]")).color }));
       check(head.state === "rgb(255, 59, 48)" && head.time === head.grey, "the stopped head reads state " + head.state + ", time " + head.time);
       return heads.join(" | ") + "; " + line + "; head state red, time grey";
     });

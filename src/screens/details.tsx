@@ -6,10 +6,10 @@ import { cardTitle, goalCards, goalState, runRow, type CardRow, type Model } fro
 import { foldReason } from "../model/fold";
 import { holds } from "../model/rounds";
 import { stopReason } from "../model/stop-reason";
-import { firstSentence, goalHistory, historyLines, isMachineNotice, outcomeOf } from "../model/timeline";
+import { answerOf, commentHistory, decisionHistory, goalHistory, historyLines, outcomeOf } from "../model/timeline";
 import type { CardKind } from "../model/kind";
 import { isRunId } from "../data/store";
-import { href } from "../router";
+import { baseOf, href, parse, tabOf } from "../router";
 import { ago, clockAt } from "../time";
 import { useActions } from "../ui/actions";
 import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, stateWords, useApp } from "../ui/parts";
@@ -103,10 +103,25 @@ function useAnswering(): (key: string) => boolean {
   return (key) => actions.pending().hidden.has(key);
 }
 
+/** An answered decision where its box stood (lina-app#153): its question and the owner's answer together. */
+function AnsweredDecision({ detail }: { detail: ItemDetail }) {
+  const { model, now } = useApp();
+  const answer = answerOf(detail);
+  if (!detail.decision) return null;
+  return (
+    <Box title={[detail.decision.kind === "ask" ? W.ask : W.act, W.answer].join(SEP)} testid="decision-answered">
+      <p class="box-text">{detail.decision.text}</p>
+      {answer ? <p class="box-text">{answer.text}</p> : null}
+      <span class="sub">{[agentName(model, detail.agent), W.answered, answer ? ago(now - answer.at) : null].filter(Boolean).join(SEP)}</span>
+    </Box>
+  );
+}
+
 function ItemDecision({ detail }: { detail: ItemDetail }) {
   const answering = useAnswering();
   const key = `decide:${detail.id}`;
-  if (!detail.decision || detail.decision.answered || answering(key)) return null;
+  if (detail.decision?.answered) return <AnsweredDecision detail={detail} />;
+  if (!detail.decision || answering(key)) return null;
   const waiting = detail.children.filter((child) => child.reason === "blocked_by_item").map((child) => child.title);
   return (
     <>
@@ -145,11 +160,23 @@ function DoneHead({ detail }: { detail: ItemDetail }) {
   const showUndo = shown && until !== null && now < until && actions.toast?.owner !== detail.id;
   // An open decision dates the head as its 수신함 row does, from when it was asked (lina-app#149).
   const since = detail.decision && !detail.decision.answered && detail.decision.at ? detail.decision.at : head.stateSince;
+  // An answered decision no longer waits on the owner: the head reads 답함 and when, until the item moves on (lina-app#153).
+  const answered = detail.decision?.answered && detail.state !== "done";
+  const answer = answered ? answerOf(detail) : null;
   return (
     <>
       <div class="head-check">
         <DoneCheck id={detail.id} title={detail.title} done={detail.state === "done"} undoUntil={detail.ownerDone?.undoUntil} withOpen={withIds} openTodos={open.length} onOpenTodos={() => setAsking(true)} />
-        <StateTime state={head.state} reason={head.reason} time={sinceText(head.state, since, now)} />
+        {answered ? (
+          <span class="sub">
+            <span class="state" data-testid="state">
+              {W.answered}
+            </span>
+            {answer ? <span class="time">{`${SEP}${ago(now - answer.at)}`}</span> : null}
+          </span>
+        ) : (
+          <StateTime state={head.state} reason={head.reason} time={sinceText(head.state, since, now)} />
+        )}
         {showUndo ? (
           <button type="button" class="text-button head-undo" disabled={actions.busy(`done:${detail.id}`)} onClick={() => void actions.undoDone(detail.id, withIds)}>
             {W.undo}
@@ -200,7 +227,7 @@ function TodoLine({ todo }: { todo: ItemSummary }) {
 }
 
 function GoalBody({ detail }: { detail: ItemDetail }) {
-  const { model, store } = useApp();
+  const { model, store, wide } = useApp();
   const { cards, evidence } = goalCards(model, detail, {
     goals: detail.workCards.map((id) => store.get("goal", id)).filter((goal) => goal !== undefined),
   });
@@ -256,13 +283,26 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
         </Box>
       ) : null}
       <Comments detail={detail} />
-      <Talk key={detail.id} detail={detail} />
+      {talkWindowOpen(wide) ? null : <Talk key={detail.id} detail={detail} />}
     </article>
   );
 }
 
+/**
+ * Whether the agent's own talk window stands beside the frame: a detail opened in 대화 on a wide window. The detail
+ * then has no talk box of its own, so there is one place to talk to the agent (lina-app#153).
+ */
+function talkWindowOpen(wide: boolean): boolean {
+  if (!wide) return false;
+  const hash = window.location.hash || "#/";
+  const stack = (window.history.state as { stack?: readonly string[] } | null)?.stack ?? [hash];
+  return tabOf(baseOf(parse(hash), stack)) === "talk";
+}
+
 function TodoBody({ detail }: { detail: ItemDetail }) {
-  const { model } = useApp();
+  const { model, wide } = useApp();
+  // An answered decision's question and answer are history (lina-app#153); an open one is its box above.
+  const history = detail.decision?.answered ? historyLines(decisionHistory(detail)) : [];
   return (
     <article class="detail" data-testid="screen-item">
       <Header title={detail.title}>
@@ -299,8 +339,17 @@ function TodoBody({ detail }: { detail: ItemDetail }) {
           </ul>
         </Box>
       ) : null}
+      {history.length ? (
+        <Box title={W.record} testid="item-history">
+          <ul class="history-rows" aria-label={W.record}>
+            {history.map((row, index) => (
+              <HistoryLine key={`${row.at}:${index}`} at={row.at} text={row.text ?? W.foldedRun(row.folded)} kind={row.kind} />
+            ))}
+          </ul>
+        </Box>
+      ) : null}
       <Comments detail={detail} />
-      <Talk key={detail.id} detail={detail} />
+      {talkWindowOpen(wide) ? null : <Talk key={detail.id} detail={detail} />}
     </article>
   );
 }
@@ -316,14 +365,15 @@ export function ItemScreen({ id }: { id: string }) {
 export const GoalScreen = ItemScreen;
 
 /**
- * A work card's head: its kind icon and word, its name (the checked title, or the card's own title until that exists
- * and may be drawn, else the title its row reads, its goal's) and its state line. The kind is never the title
- * (lina-app#149): with no title at all the head reads 제목 없음 in grey.
+ * A work card's head: its kind icon and word, its name (the name its row reads, else the checked title or the card's
+ * own title, lina-app#153) and its state line. The kind is never the title (lina-app#149): with no title at all the
+ * head reads 제목 없음 in grey. The core serves no kind of a card, and `code` is what cardKind reads when nothing
+ * names one: a kind not known shows no kind, never 코드 (lina-app#153).
  */
 function CardHead({ work, title, untitled, children }: { work: CardKind; title: string | null; untitled?: string; children: ComponentChildren }) {
   return (
     <header class="detail-head">
-      <KindMark work={work} word />
+      {work === "code" ? null : <KindMark work={work} word />}
       <h1 class={title ? "detail-title" : "detail-title is-kind"}>{title ?? untitled ?? W.untitled}</h1>
       {children}
     </header>
@@ -387,7 +437,7 @@ export function roundHead(round: Round, now: number): string {
  */
 function CardComments({ comments }: { comments: WorkCardDetail["comments"] }) {
   const { model } = useApp();
-  const lines = historyLines(comments.filter((comment) => !isMachineNotice(comment.body, comment.author)).map((comment) => ({ id: comment.id, at: comment.createdAt, author: comment.author, text: firstSentence(comment.body) })));
+  const lines = commentHistory(comments.map((comment) => ({ id: comment.id, at: comment.createdAt, author: comment.author, body: comment.body })));
   if (!lines.length) return null;
   return (
     <Box title={W.comments} testid="card-comments">
@@ -400,17 +450,33 @@ function CardComments({ comments }: { comments: WorkCardDetail["comments"] }) {
   );
 }
 
-/** The one line a read-only card has where the owner would write (lina-app#149): it is changed on its board. */
+/** The one line a read-only card has where the owner would write (lina-app#149): it cannot be changed here (lina-app#153). */
 function ReadOnlyLine() {
   return (
     <span class="sub" data-testid="read-only">
-      {W.readOnly}
+      {W.readOnlyHere}
     </span>
   );
 }
 
-/** A detail head's state line: a stopped one reads the words and the time its list row reads (stopReason, cardTime). */
-function HeadState({ state, reason, row, time }: { state: WorkState; reason: string | null; row: CardRow | undefined; time: string }) {
+/** The card's own title under its head's state line when the head reads another name, its row's (lina-app#153). */
+function OwnTitleLine({ own, title }: { own: string | null; title: string | null }) {
+  if (!own || own === title) return null;
+  return (
+    <span class="sub one-line" data-testid="card-own-title">
+      {own}
+    </span>
+  );
+}
+
+/**
+ * A detail head's state line: a stopped one reads the words and the time its list row reads (stopReason, cardTime).
+ * A read-only card has no place to answer, so it makes no claim that the owner must act: the state word alone
+ * (lina-app#153).
+ */
+function HeadState({ state, reason, row, time, readOnly = false }: { state: WorkState; reason: string | null; row: CardRow | undefined; time: string; readOnly?: boolean }) {
+  const onOwner = Boolean(row?.stop?.owner) || reason === "decision" || reason === "feedback";
+  if (readOnly && onOwner) return <StateTime state={state} time={time} />;
   const stop = state === "stopped" && row?.stop ? { ...row.stop, words: stopReason(row).word } : undefined;
   return <StateTime state={state} reason={reason} stop={stop} time={time} />;
 }
@@ -479,7 +545,8 @@ export function CardScreen({ id }: { id: string }) {
     return (
       <article class="detail" data-testid="screen-card">
         <CardHead work={row.work} title={row.title}>
-          <HeadState state={row.state} reason={row.reason} row={row} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} />
+          <HeadState state={row.state} reason={row.reason} row={row} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} readOnly={row.readOnly} />
+          <OwnTitleLine own={row.own} title={row.title} />
           {row.readOnly ? <ReadOnlyLine /> : null}
         </CardHead>
         {row.now && row.state === "in_progress" ? (
@@ -517,11 +584,16 @@ export function CardScreen({ id }: { id: string }) {
   const readOnly = Boolean(detail.readOnly || row?.readOnly);
   // An old done card the core keeps no history for (`detail: false`) says so instead of an empty frame.
   const kept = store.get("cards")?.cards.find((card) => card.id === id)?.detail !== false;
+  // The head reads the name of the row that was tapped (its goal's title when the row leads with it); the card's own
+  // title is the line under it when it differs (lina-app#153).
+  const own = cardTitle(detail.plain.title, detail.title, detail.state === "stopped") ?? row?.own ?? null;
+  const title = row?.title ?? own;
   return (
     <article class="detail" data-testid="screen-card">
-      <CardHead work={row?.work ?? "code"} title={cardTitle(detail.plain.title, detail.title, detail.state === "stopped") ?? row?.title ?? null}>
-        <HeadState state={detail.state} reason={detail.reason} row={row} time={row ? [cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP) : ""} />
-        {goalLine ? (
+      <CardHead work={row?.work ?? "code"} title={title}>
+        <HeadState state={detail.state} reason={detail.reason} row={row} time={row ? [cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP) : ""} readOnly={readOnly} />
+        <OwnTitleLine own={own} title={title} />
+        {goalLine && goalLine !== title ? (
           <span class="sub" data-testid="card-goal">
             {[W.goals, goalLine].join(SEP)}
           </span>

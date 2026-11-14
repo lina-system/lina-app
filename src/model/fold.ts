@@ -17,15 +17,23 @@ const RULES: readonly (readonly [FoldReason, RegExp])[] = [
   ["fragment", /(?:…|\.\.\.)\s*$/],
 ];
 
+/** An issue reference: `#123`, `lina#49`, `owner/repo#7`. */
+const ISSUE_REF = String.raw`(?<![0-9A-Za-z])(?:[\w.-]+\/[\w.-]+|[A-Za-z][\w.-]*)?#\d+`;
+/** A card, goal or task id the hub writes into titles (lina-app#152): `t93`, `G106`, `T7`, `OT-12`, `t_586c9120`. */
+const CARD_ID = String.raw`(?<![0-9A-Za-z_])(?:t\d+|[GT]\d+|OT-[A-Z]*\d+|t_[0-9a-f]+)(?![0-9A-Za-z_])`;
+const HASH = String.raw`\b[0-9a-f]{7,40}\b`;
+
 /**
- * The text with its issue references and commit hashes cut (lina-app#148): a bracket holding one goes whole, then any
- * left on their own, and the separators they leave at the ends. Empty when nothing else was there.
+ * The text with its issue references, card and goal ids and commit hashes cut (lina-app#148, #152): a bracket holding
+ * one goes whole, then any left on their own, and the separators they leave at the ends. Empty when nothing else was
+ * there.
  */
 export function withoutRefs(text: string): string {
   return text
-    .replace(/\([^()]*(?:#\d+|\b[0-9a-f]{7,40}\b)[^()]*\)/g, " ")
-    .replace(/(?<![0-9A-Za-z])(?:[\w.-]+\/[\w.-]+)?#\d+/g, " ")
-    .replace(/\b[0-9a-f]{7,40}\b/g, " ")
+    .replace(new RegExp(String.raw`\([^()]*(?:${ISSUE_REF}|${CARD_ID}|${HASH})[^()]*\)`, "g"), " ")
+    .replace(new RegExp(ISSUE_REF, "g"), " ")
+    .replace(new RegExp(CARD_ID, "g"), " ")
+    .replace(new RegExp(HASH, "g"), " ")
     .replace(/\s+/g, " ")
     .replace(/^[\s·,:;-]+|[\s·,:;-]+$/g, "");
 }

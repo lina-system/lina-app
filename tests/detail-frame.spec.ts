@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 const APP = "/app/?source=synthetic";
 const HEIGHT = 280;
 
-// `prepare` readies the list (the home folds the owner's to-dos, lina-app#141); `inside` is a link followed from the
+// `prepare` readies the list (the home shows the owner's first to-dos and folds the rest, lina-app#152); `inside` is a link followed from the
 // first frame (a worker run is no list row, lina-app#141: it opens from its card, in the same frame).
 const KINDS: readonly { kind: string; list: string; row: string; prepare?: (page: Page) => Promise<void>; inside?: string }[] = [
   { kind: "work card", list: "#/running", row: "[data-testid=screen-running] [data-testid=row] > a[href^='#/cards/']" },
@@ -15,7 +15,10 @@ const KINDS: readonly { kind: string; list: string; row: string; prepare?: (page
     kind: "to-do",
     list: "#/",
     row: "[data-testid=screen-running] [data-testid=row] > a[href^='#/items/']",
-    prepare: async (page) => page.getByRole("button", { name: /^내 할 일/ }).click(),
+    prepare: async (page) => {
+      const fold = page.getByRole("button", { name: /^내 할 일/ });
+      if (await fold.count()) await fold.first().click();
+    },
   },
   { kind: "goal", list: "#/goals", row: "[data-testid=screen-goals] [data-testid=row] > a[href^='#/goals/']" },
   // A decision's row opens its record in the frame at once, with the place to answer it.

@@ -1807,6 +1807,42 @@ describe("agent talk", () => {
     }
   });
 
+  test("a message sent before the history lands, equal to the last earlier one, keeps that exchange whether or not the send is refused (lina-app#155)", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      class SlowThenRefused extends SyntheticSource {
+        override async agentTalkHistory(agent: string) {
+          await new Promise((resolve) => setTimeout(resolve, 30_000));
+          return super.agentTalkHistory(agent);
+        }
+        override async agentTalk(_agent: string, _body: { message: string }, _signal?: AbortSignal) {
+          await new Promise((resolve) => setTimeout(resolve, 40_000));
+          return { ok: false as const, status: 503, code: "gateway_unreachable" };
+        }
+      }
+      const view = await open("#/talk/ag-1", { wide: true, source: new SlowThenRefused() });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const { box, field } = parts(view);
+      field.value = "어디까지 왔어요?";
+      fireEvent.input(field);
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+      // The history landed first: the earlier exchange is its own, not this send.
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "어디까지 왔어요?보내는 중"]);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000 + 5_000);
+      });
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?"]);
+      expect(box.getAllByTestId("talk-reply")).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test.each([true, false])("an agent id no agent has reads 찾을 수 없는 대화 with a way back, no field and no raw id (wide %s, lina-app#154)", async (wide) => {
     const view = await open("#/talk/ag-zz9", { wide });
     const missing = await waitFor(() => view.getByTestId("talk-missing"));

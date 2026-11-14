@@ -245,6 +245,8 @@ export function TalkPreview({ agent }: { agent: string }) {
 interface Carried {
   /** Their messages while they go: the core may keep one as the owner's last message, or already hold it whole. */
   readonly going: readonly string[];
+  /** The going ones this read was not already out for: only these can sit in the history as a whole exchange. */
+  readonly whole: readonly string[];
   /** The ones this window took in whole, as (message, reply), oldest first. */
   readonly settled: readonly (readonly [string, string])[];
 }
@@ -253,7 +255,7 @@ interface Carried {
  * The earlier turns. From the tail of the history backwards it leaves out the carried turns this window shows
  * already, so a chat opened while its reply completes shows each exchange once, in either order.
  */
-function keptLines(history: AgentTalkHistory, carried: Carried = { going: [], settled: [] }): Line[] {
+function keptLines(history: AgentTalkHistory, carried: Carried = { going: [], whole: [], settled: [] }): Line[] {
   const lines: Line[] = history.messages.map((message, index) => ({ key: `h${index}`, mine: message.role === "user", text: message.role === "user" ? ownText(message.content) : message.content, state: "kept" }));
   let end = lines.length;
   const pair = (message: (text: string) => boolean, reply: (text: string) => boolean) => {
@@ -262,7 +264,7 @@ function keptLines(history: AgentTalkHistory, carried: Carried = { going: [], se
     return Boolean(own?.mine && answer && !answer.mine && message(own.text) && reply(answer.text));
   };
   if (lines[end - 1]?.mine && carried.going.includes(lines[end - 1].text)) end -= 1;
-  else if (pair((text) => carried.going.includes(text), () => true)) end -= 2;
+  else if (pair((text) => carried.whole.includes(text), () => true)) end -= 2;
   else
     for (let turn = carried.settled.length - 1; turn >= 0; turn -= 1) {
       const [message, reply] = carried.settled[turn];
@@ -285,6 +287,12 @@ interface Sent {
    * went out after its history was read and cannot be in it, however alike an earlier exchange is.
    */
   carried: boolean;
+  /**
+   * True while the turn was sent with this window's history read still out (lina-app#154): the read may hold it as
+   * the owner's last message, but a whole exchange in it is an earlier one, since this turn has no reply yet. A
+   * window opened later reads after the turn went out, so it clears this.
+   */
+  late: boolean;
 }
 
 /** The window open on an agent now: it takes in a settled turn, redraws a streaming one, and shows a reply that broke off. */
@@ -379,7 +387,10 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
       },
     };
     box.window = open;
-    for (const turn of box.turns) turn.carried = true;
+    for (const turn of box.turns) {
+      turn.carried = true;
+      turn.late = false;
+    }
     if (box.refusal) {
       open.refused(box.refusal.line, box.refusal.message);
       box.refusal = null;
@@ -390,8 +401,9 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
       if (!live) return;
       historyPending.current = false;
       const going = box.turns.filter((turn) => turn.carried).map((turn) => turn.message);
+      const whole = box.turns.filter((turn) => turn.carried && !turn.late).map((turn) => turn.message);
       if (result.kind === "data") {
-        setLines((shown) => [...keptLines(result.data, { going, settled }), ...(shown ?? [])]);
+        setLines((shown) => [...keptLines(result.data, { going, whole, settled }), ...(shown ?? [])]);
         if (!box.turns.length) keepLastLine(store.source, agent, lastLineOf(result.data));
       } else {
         setLines((shown) => shown ?? []);
@@ -418,7 +430,7 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
     // offer a second send. It goes out at once, not behind the history read (a gateway that does not answer holds
     // that read for 30 s, lina-app#154); a read still out may then hold it, so it is matched as a carried turn.
     const box = outbox(store.source, agent);
-    const turn: Sent = { key: `t${++sentKeys}`, message, reply: "", state: "sending", carried: historyPending.current };
+    const turn: Sent = { key: `t${++sentKeys}`, message, reply: "", state: "sending", carried: historyPending.current, late: historyPending.current };
     box.turns.push(turn);
     box.window?.redraw();
     const before = lastLinesOf(store.source).get(agent);

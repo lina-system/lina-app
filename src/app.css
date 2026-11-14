@@ -2974,3 +2974,15 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 .stack .phone-main:has(> .agent-talk .agent-talk-form > .write-error) {
   --talk-error-line: 32px;
 }
+
+/* lina-app#162: on a phone the open card's goals scroll in their own region, sized to end above the field bar and the
+   strip with the window's head and the card's toggle in view: the screen's content box (the strip, the safe area and
+   the keyboard already out of it), less the head and toggle above and the field bar's own height below. */
+.stack .phone-main:has(> .agent-talk) {
+  container-type: size;
+}
+
+.stack .agent-card.is-open > .agent-card-body {
+  max-height: max(88px, calc(100cqh - 128px - var(--hit) - 32px - var(--talk-why-line, 0px) - var(--talk-error-line, 0px)));
+  overflow-y: auto;
+}

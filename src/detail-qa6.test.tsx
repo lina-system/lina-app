@@ -50,7 +50,8 @@ test("item 1: a decision row opens a detail whose head is the row's line 1 and w
   const item = await frame(view);
   await waitFor(() => expect(item.querySelector("h1.detail-title")?.textContent).toBe(line1));
   expect(item.querySelector("[data-testid=head-line]")?.textContent).toBe(line2);
-  expect(within(item).getByTestId("decision").textContent).toContain(line2);
+  // The question is said once, on that line: the decision box below holds the place to answer it (lina-app#161).
+  expect(within(item).getByTestId("decision").textContent).not.toContain(line2);
   // The state line is still the head's first grey line (the drivers read it there).
   expect(item.querySelector(".detail-head .sub")?.querySelector("[data-testid=state]")?.textContent).toMatch(/^대기/);
 });
@@ -65,7 +66,7 @@ test("item 2: a card's worker runs and rounds read newest first, and a folded ro
   const box = await waitFor(() => within(card).getByTestId("worker-runs"));
   const order = [...box.querySelectorAll("[data-testid=row] a")].map((link) => /r1[5-7]/.exec(link.getAttribute("href") ?? "")?.[0]).filter(Boolean);
   expect(order).toEqual(["r17", "r16", "r15"]);
-  expect(within(box).getByTestId("round-line").textContent).toBe("이전 기록 1건");
+  expect(within(box).getByTestId("round-fold").querySelector("summary")?.textContent).toBe("이전 기록 1건");
   expect(box.textContent).not.toContain("댓글");
 });
 

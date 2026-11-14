@@ -14,6 +14,15 @@ import { containsText } from "./text-match";
 import { TOAST_MS } from "./ui/actions";
 import { BANNED_WORDS } from "./words";
 
+/**
+ * Where a frame shows its open decision (lina-app#161): the head's second line when it reads the decision row's two lines,
+ * else the decision box. Null while no decision box stands.
+ */
+function decisionShown(root: Element): string | null {
+  const box = root.querySelector("[data-testid=decision]");
+  return box ? `${root.querySelector("[data-testid=head-line]")?.textContent ?? ""} ${box.textContent ?? ""}` : null;
+}
+
 const SCREENS = [
   "#/",
   "#/inbox",
@@ -727,7 +736,7 @@ describe("decisions", () => {
     expect(rows.every((row) => /^#\/(items|goals|cards)\//.test(row.href))).toBe(true);
     for (const row of rows) {
       const view = await open(row.href, { wide: true });
-      await waitFor(() => expect(view.getByTestId("decision").textContent).toContain(row.text));
+      await waitFor(() => expect(decisionShown(view.container)).toContain(row.text));
       // A card with no checked title has no title in its head, and its question names only its goal. A card's head
       // reads its row's name; its own title, the one the question's line ends with, is the line under it (lina-app#153).
       const title = view.container.querySelector("[data-testid=card-own-title]")?.textContent ?? view.container.querySelector(".detail-title")?.textContent ?? "";
@@ -851,7 +860,7 @@ describe("answers", () => {
       const row = decisionButton(view, "배포를 금요일 오후에 할지 결정 필요");
       fireEvent.click(row);
       // The decision opens in the frame at once, with its answers there.
-      await waitFor(() => expect(view.getByTestId("detail-frame").querySelector("[data-testid=decision]")?.textContent).toContain("배포를 금요일 오후에 할지 결정 필요"));
+      await waitFor(() => expect(decisionShown(view.getByTestId("detail-frame"))).toContain("배포를 금요일 오후에 할지 결정 필요"));
       await waitFor(() => expect(view.getByRole("button", { name: "금요일 오후 · 추천" })).toBeTruthy());
       expect(view.getByRole("button", { name: "월요일 오전" })).toBeTruthy();
       fireEvent.click(view.getByRole("button", { name: "금요일 오후 · 추천" }));
@@ -886,7 +895,7 @@ describe("answers", () => {
       expect(view.queryByRole("link", { name: /자주 쓰는 검색어/ })).toBeNull();
       fireEvent.click(view.getByRole("button", { name: "되돌리기" }));
       expect(view.getByRole("link", { name: /자주 쓰는 검색어/ })).toBeTruthy();
-      expect(view.getByTestId("detail-frame").querySelector("[data-testid=decision]")?.textContent).toContain("자주 쓰는 검색어");
+      expect(decisionShown(view.getByTestId("detail-frame"))).toContain("자주 쓰는 검색어");
       await act(async () => {
         vi.advanceTimersByTime(TOAST_MS * 2);
       });
@@ -914,7 +923,7 @@ describe("answers", () => {
 
       source.refuse.add("comment");
       fireEvent.click(decisionButton(view, "복구 연습에 쓸 두 시간"));
-      await waitFor(() => expect(view.getByTestId("detail-frame").querySelector("[data-testid=decision]")?.textContent).toContain("복구 연습에 쓸 두 시간"));
+      await waitFor(() => expect(decisionShown(view.getByTestId("detail-frame"))).toContain("복구 연습에 쓸 두 시간"));
       const act2 = view.getByRole("textbox", { name: "답 달기" }) as HTMLInputElement;
       act2.value = "목요일 오후";
       fireEvent.input(act2);
@@ -1080,7 +1089,7 @@ describe("bell", () => {
     const again = view.getByRole("dialog", { name: "알림" });
     expect(again.querySelectorAll("[data-testid=row]:not(.is-read)")).toHaveLength(4);
     expect(within(again).getByTestId("unread-count").textContent).toBe("안 읽음 4");
-    fireEvent.click(view.getByRole("button", { name: "닫기" }));
+    fireEvent.click(within(again).getByRole("button", { name: "닫기" }));
     expect(reads).toEqual([{ keys: [source.scene.board.notices[0].key] }]);
     fireEvent.click(view.getByTestId("bell"));
     fireEvent.click(view.getByRole("button", { name: "모두 읽음" }));
@@ -1089,7 +1098,7 @@ describe("bell", () => {
     await waitFor(() => expect(source.scene.board.counts.unread).toBe(0));
     expect(reads.at(-1)).toEqual({ all: true });
     expect(view.getByRole("dialog", { name: "알림" }).querySelectorAll("[data-testid=row]:not(.is-read)")).toHaveLength(0);
-    fireEvent.click(view.getByRole("button", { name: "닫기" }));
+    fireEvent.click(within(view.getByRole("dialog", { name: "알림" })).getByRole("button", { name: "닫기" }));
     expect(view.queryByTestId("notices")).toBeNull();
     expect(setItem).not.toHaveBeenCalled();
     setItem.mockRestore();
@@ -2040,7 +2049,7 @@ describe("live updates", () => {
       expect(view.getByTestId("screen-inbox")).toBe(screen);
       expect(decisionButton(view, "배포를 금요일 오후에 할지 결정 필요")).toBe(row);
       expect(row.getAttribute("aria-current")).toBe("page");
-      expect(view.getByTestId("detail-frame").querySelector("[data-testid=decision]")?.textContent).toContain("배포를 금요일 오후에 할지 결정 필요");
+      expect(decisionShown(view.getByTestId("detail-frame"))).toContain("배포를 금요일 오후에 할지 결정 필요");
       expect(core.stream.filter((connection) => connection.open)).toHaveLength(1);
     } finally {
       vi.useRealTimers();

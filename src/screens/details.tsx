@@ -1,5 +1,5 @@
 import { Fragment, type ComponentChildren } from "preact";
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
 import { cardTitle, goalCards, goalState, runRow, type CardRow, type Model } from "../model";
@@ -9,8 +9,8 @@ import { stopReason } from "../model/stop-reason";
 import { answerOf, commentHistory, decisionHistory, goalHistory, historyLines, isMachineNotice, outcomeOf } from "../model/timeline";
 import type { CardKind } from "../model/kind";
 import { isRunId } from "../data/store";
-import { baseOf, href, parse, tabOf } from "../router";
-import { ago, clockAt } from "../time";
+import { back, baseOf, href, isFrame, navigate, parse, tabOf } from "../router";
+import { ago, clockAt, dayLabel } from "../time";
 import { useActions } from "../ui/actions";
 import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, stateWords, useApp } from "../ui/parts";
 import { BANNED_WORDS, DETAIL_WORD, reasonWord, SEP, STATE_WORD, stateLabel, W } from "../words";
@@ -37,6 +37,7 @@ function Loading() {
 function Header({ title, line, children }: { title: string; line?: string | null; children?: ComponentChildren }) {
   return (
     <header class="detail-head">
+      <FrameClose />
       <h1 class="detail-title">{title}</h1>
       {line ? (
         <p class="head-line" data-testid="head-line">
@@ -45,6 +46,51 @@ function Header({ title, line, children }: { title: string; line?: string | null
       ) : null}
       {children}
     </header>
+  );
+}
+
+/**
+ * Closes the detail frame the way the phone sheet's 닫기 does, one step back (or to the screen under it when the frame
+ * was opened directly), then puts focus back on the list row that opened it (lina-app#161).
+ */
+function closeFrame() {
+  const hash = window.location.hash || "#/";
+  const stack = (window.history.state as { stack?: readonly string[] } | null)?.stack ?? [hash];
+  const focusRow = () => {
+    if (isFrame(parse(window.location.hash || "#/"))) return;
+    [...document.querySelectorAll<HTMLAnchorElement>(".list-pane a")].find((link) => link.getAttribute("href") === hash)?.focus();
+  };
+  if (stack.length > 1) {
+    window.addEventListener("popstate", () => setTimeout(focusRow), { once: true });
+    back();
+  } else {
+    navigate(baseOf(parse(hash), stack), { replace: true });
+    setTimeout(focusRow);
+  }
+}
+
+/**
+ * 닫기 in the head of the desktop pane, and Esc, which close it (lina-app#161). The phone sheet has its own 닫기 in its bar,
+ * and a detail opened in 대화 its back control to the agent's card, so neither draws one here. Esc typed while a Korean
+ * syllable is being composed, or while the bell's list is open, is theirs.
+ */
+function FrameClose() {
+  const { wide } = useApp();
+  const shown = wide && isFrame(parse(window.location.hash || "#/")) && !talkWindowOpen(wide);
+  useEffect(() => {
+    if (!shown) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.isComposing || event.defaultPrevented || document.querySelector(".popover")) return;
+      closeFrame();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [shown]);
+  if (!shown) return null;
+  return (
+    <button type="button" class="text-button frame-close" onClick={closeFrame} data-testid="frame-close">
+      {W.close}
+    </button>
   );
 }
 
@@ -104,12 +150,16 @@ function withoutAnswer(detail: ItemDetail): ItemDetail {
   return { ...detail, comments: detail.comments.filter((comment) => !(comment.kind === "answer" && comment.at === answer.at && comment.text === answer.text)) };
 }
 
-/** A pending decision or a card's question, drawn the same way on a goal, a to-do or a work card. */
-function DecisionBox({ text, agent, ask, at }: { text: string; agent: string | null; ask: boolean; at: number | null }) {
+/**
+ * A pending decision or a card's question, drawn the same way on a goal, a to-do or a work card. A goal's or a to-do's
+ * head already says 결정 필요 and when it was asked, and its question when it reads the decision row's two lines: that
+ * box has no head, no age and no sentence the head shows (lina-app#161).
+ */
+function DecisionBox({ text, agent, ask, at, title = W.decide }: { text: string | null; agent: string | null; ask: boolean; at: number | null; title?: string | null }) {
   const { model, now } = useApp();
   return (
-    <Box title={W.decide} testid="decision">
-      <p class="box-text">{text}</p>
+    <Box title={title ?? undefined} testid="decision">
+      {text ? <p class="box-text">{text}</p> : null}
       <span class="sub">{[agentName(model, agent), ask ? W.ask : W.act, at ? ago(now - at) : null].filter(Boolean).join(SEP)}</span>
     </Box>
   );
@@ -182,7 +232,7 @@ function AnsweredDecision({ detail }: { detail: ItemDetail }) {
   );
 }
 
-function ItemDecision({ detail }: { detail: ItemDetail }) {
+function ItemDecision({ detail, headLine }: { detail: ItemDetail; headLine?: string | null }) {
   const answering = useAnswering();
   const key = `decide:${detail.id}`;
   if (detail.decision?.answered) return <AnsweredDecision detail={detail} />;
@@ -190,7 +240,7 @@ function ItemDecision({ detail }: { detail: ItemDetail }) {
   const waiting = detail.children.filter((child) => child.reason === "blocked_by_item").map((child) => child.title);
   return (
     <>
-      <DecisionBox text={detail.decision.text} agent={detail.agent} ask={detail.decision.kind === "ask"} at={detail.decision.at} />
+      <DecisionBox text={headLine ? null : detail.decision.text} agent={detail.agent} ask={detail.decision.kind === "ask"} at={null} title={null} />
       {waiting.length ? (
         <p class="sub waiting-on" data-testid="waiting-on">
           {W.waitingOn(waiting.join(", "))}
@@ -248,6 +298,13 @@ function DoneHead({ detail }: { detail: ItemDetail }) {
           </button>
         ) : null}
       </div>
+      {/* The due date its row shows, in the same colours (lina-app#161). */}
+      {detail.due ? (
+        <span class="sub item-due" data-testid="item-due">
+          {`${W.due}${SEP}`}
+          <span class={`due-date${detail.due < model.today ? " is-overdue" : detail.due === model.today ? " is-today" : ""}`}>{dayLabel(detail.due)}</span>
+        </span>
+      ) : null}
       {asking ? (
         <div class="confirm" role="group" aria-label={W.withOpenQuestion(open.length)} data-testid="with-open">
           <p class="box-text">{W.withOpenQuestion(open.length)}</p>
@@ -297,9 +354,11 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
     goals: detail.workCards.map((id) => store.get("goal", id)).filter((goal) => goal !== undefined),
   });
   const words = [detail.why, ...detail.basis.map((basis) => basis.text)].filter((text, index, all): text is string => Boolean(text) && all.indexOf(text) === index);
-  // Its merges (the finished cards' evidence), question, runs, comments and close, one line each, ids cut.
+  // Its merges (the finished cards' evidence), question, runs, comments and close, one line each, ids cut. An open
+  // question is the box and the head above, so it is no history line until it is answered (lina-app#161).
+  const open = detail.decision && !detail.decision.answered;
   const history = goalHistory(
-    historyItem(detail),
+    open ? { ...historyItem(detail), decision: null } : historyItem(detail),
     evidence.map((entry) => ({ ...entry, text: historyText(entry.text) })),
   );
   const decisionRow = useDecisionRow(detail.id);
@@ -308,7 +367,7 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
       <Header title={decisionRow?.context ?? detail.title} line={decisionRow?.text}>
         <DoneHead detail={detail} />
       </Header>
-      <ItemDecision detail={detail} />
+      <ItemDecision detail={detail} headLine={decisionRow?.text} />
       {detail.doneCondition ? (
         <Box title={W.doneCondition}>
           <p class="box-text">{detail.doneCondition}</p>
@@ -378,7 +437,7 @@ function TodoBody({ detail }: { detail: ItemDetail }) {
       <Header title={decisionRow?.context ?? detail.title} line={decisionRow?.text}>
         <DoneHead detail={detail} />
       </Header>
-      <ItemDecision detail={detail} />
+      <ItemDecision detail={detail} headLine={decisionRow?.text} />
       {detail.doneCondition ? (
         <Box title={W.doneCondition}>
           <p class="box-text">{detail.doneCondition}</p>
@@ -443,6 +502,7 @@ export const GoalScreen = ItemScreen;
 function CardHead({ work, title, untitled, children }: { work: CardKind; title: string | null; untitled?: string; children: ComponentChildren }) {
   return (
     <header class="detail-head">
+      <FrameClose />
       {work === "code" ? null : <KindMark work={work} word />}
       <h1 class={title ? "detail-title" : "detail-title is-kind"}>{title ?? untitled ?? W.untitled}</h1>
       {children}
@@ -500,10 +560,39 @@ export function roundHead(round: Round, now: number): string {
   return [span, state].filter(Boolean).join(SEP);
 }
 
-/** A round's own line as history reads it (historyText), or 이전 기록 1건 when none of it may show (lina-app#157). */
-function roundLine(line: string): string {
+/** A round's own line as history reads it (historyText), or null when none of it may show (lina-app#157). */
+function roundLine(line: string): string | null {
   const text = historyText(line);
-  return text && !foldReason(text) ? text : DETAIL_WORD.earlierRecords(1);
+  return text && !foldReason(text) ? text : null;
+}
+
+/**
+ * The rounds in order, each run of rounds whose own line may not show gathered into one group (lina-app#161): it is one
+ * 이전 기록 N건 row, not one row per round.
+ */
+function roundGroups(rounds: readonly Round[]): (Round | Round[])[] {
+  const groups: (Round | Round[])[] = [];
+  for (const round of rounds) {
+    const last = groups.at(-1);
+    if (round.line === null || roundLine(round.line) !== null) groups.push(round);
+    else if (Array.isArray(last)) last.push(round);
+    else groups.push([round]);
+  }
+  return groups;
+}
+
+/**
+ * Why a stopped card stopped, above its run box (lina-app#161): its rounds may all read 완료 while the card is stopped.
+ * The reason's word (결정 대기, 피드백 대기, else its own word), else the stop words its row reads (stopReason), so it
+ * never says 이유 없음 where the head says why.
+ */
+function RunsStopWhy({ reason, row }: { reason: string | null; row: CardRow | undefined }) {
+  const word = (reason ? (DETAIL_WORD.waitFor[reason] ?? reasonWord(reason)) : null) || (row ? stopReason(row).word : null) || DETAIL_WORD.noReason;
+  return (
+    <p class="sub runs-stop-why" data-testid="runs-stop-why">
+      {[STATE_WORD.stopped, word].join(SEP)}
+    </p>
+  );
 }
 
 /**
@@ -764,6 +853,7 @@ export function CardScreen({ id }: { id: string }) {
           {W.noHistory}
         </p>
       )}
+      {state === "stopped" && workerRuns.length ? <RunsStopWhy reason={reason} row={row} /> : null}
       {/* One round list: the record's blocks (기록), each head the link to its worker run. 실행 stands only while the
           record is not shown, and under its error line when the read failed, so the worker links never disappear. */}
       <Timeline
@@ -774,15 +864,20 @@ export function CardScreen({ id }: { id: string }) {
         fallback={
           workerRuns.length ? (
             <Box title={W.workerRuns} testid="worker-runs">
-              {rounds.map((round) => (
-                <section key={round.n} class={round.startedAt === null ? "round is-no-start" : "round"} data-testid="round">
-                  <h3 class="round-head">{roundHead(round, now)}</h3>
-                  {/* The round's own line is its content, its ids cut; one that would show a path or a command is no
-                      comment: it reads 이전 기록 1건 (lina-app#157). */}
-                  {round.line ? <p class="round-line" data-testid="round-line">{roundLine(round.line)}</p> : null}
-                  {round.workers.length ? <WorkerRows ids={round.workers} model={model} seen={seen} state={workerState} /> : null}
-                </section>
-              ))}
+              {/* A round's own line is its content, its ids cut; rounds whose line would show a path or a command are no
+                  comment: each run of them is one folded 이전 기록 N건 row, their worker runs inside (lina-app#157, #161). */}
+              {roundGroups(rounds).map((group) =>
+                Array.isArray(group) ? (
+                  <details key={`fold:${group[0].n}`} class="round-fold" data-testid="round-fold">
+                    <summary class="round-head">{DETAIL_WORD.earlierRecords(group.length)}</summary>
+                    {group.map((round) => (
+                      <RoundSection key={round.n} round={round} line={null} workers={round.workers.length ? <WorkerRows ids={round.workers} model={model} seen={seen} state={workerState} /> : null} />
+                    ))}
+                  </details>
+                ) : (
+                  <RoundSection key={group.n} round={group} line={group.line} workers={group.workers.length ? <WorkerRows ids={group.workers} model={model} seen={seen} state={workerState} /> : null} />
+                ),
+              )}
               {outside.length ? <WorkerRows ids={outside} model={model} seen={seen} state={workerState} /> : null}
             </Box>
           ) : null
@@ -790,6 +885,22 @@ export function CardScreen({ id }: { id: string }) {
       />
       <CardComments comments={detail.comments} />
     </article>
+  );
+}
+
+/** One round of the 실행 box: its head, its own line when one may show, and its worker runs. */
+function RoundSection({ round, line, workers }: { round: Round; line: string | null; workers: ComponentChildren }) {
+  const { now } = useApp();
+  return (
+    <section class={round.startedAt === null ? "round is-no-start" : "round"} data-testid="round">
+      <h3 class="round-head">{roundHead(round, now)}</h3>
+      {line ? (
+        <p class="round-line" data-testid="round-line">
+          {roundLine(line)}
+        </p>
+      ) : null}
+      {workers}
+    </section>
   );
 }
 

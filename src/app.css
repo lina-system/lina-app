@@ -2986,3 +2986,40 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   max-height: max(88px, calc(100cqh - 128px - var(--hit) - 32px - var(--talk-why-line, 0px) - var(--talk-error-line, 0px)));
   overflow-y: auto;
 }
+
+/* lina-app#161: the detail frame. Nothing in it is cut, at 390 or 1280: a line that would run past the frame wraps at a
+   word instead of ending in an ellipsis, the card's own name and a row's state line too. */
+[data-frame] .one-line,
+[data-frame] .card-row .lines > .sub {
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* 닫기 in the head of the desktop pane, at its top right. */
+.detail-head > .frame-close {
+  justify-self: end;
+  margin: -12px -8px -6px 0;
+}
+
+/* The due date under the state line, red once passed and orange today, as on its row. */
+.detail-head .item-due {
+  color: var(--label-2);
+}
+
+/* Why a stopped card stopped, above its run box. */
+.runs-stop-why {
+  margin: 0 0 8px;
+}
+
+/* A run of rounds with nothing left to read: one row, its rounds inside. */
+.round-fold > summary {
+  cursor: pointer;
+  color: var(--label-2);
+}
+
+.thread > .folded-records {
+  color: var(--label-2);
+}

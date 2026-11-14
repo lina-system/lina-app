@@ -685,11 +685,21 @@ const drivers = {
       const seen = { item: 0, card: 0 };
       for (const row of rows) {
         await openApp(page, row.href);
-        const box = page.locator(".detail .box").filter({ has: page.locator(".box-head", { hasText: /^결정 필요$/ }) }).first();
+        const box = page.getByTestId("decision").first();
         await box.waitFor({ timeout: 5_000 }).catch(() => check(false, row.href + " shows no decision box"));
         const boxText = await box.innerText();
-        check(boxText.includes(row.text), row.href + " shows a different decision: " + boxText);
-        check(boxText.includes(row.kind) && /\d+(분|시간|일) 전/.test(boxText), row.href + " decision box lacks kind word or age: " + boxText);
+        if (row.href.startsWith("#/cards/")) {
+          check(boxText.includes(row.text), row.href + " shows a different decision: " + boxText);
+          check(boxText.includes(row.kind) && /\d+(분|시간|일) 전/.test(boxText), row.href + " decision box lacks kind word or age: " + boxText);
+        } else {
+          // A goal or a to-do says its decision once (lina-app#161): the question is the head's second line, 결정 필요 and
+          // its age the state line; the box names the kind word and holds the place to answer.
+          const article = (await page.locator(".detail").first().innerText()).replace(/\s+/g, " ");
+          check(article.split(row.text).length - 1 === 1, row.href + " says its question " + (article.split(row.text).length - 1) + " times");
+          const state = (await page.locator(".detail-head .sub").first().innerText()).trim();
+          check(/^대기 · .+ · \d+(분|시간|일) 전$/.test(state), row.href + " state line " + state);
+          check(boxText.includes(row.kind) && !(await box.locator(".box-head").count()), row.href + " decision box reads " + boxText);
+        }
         // A work card's head reads its row's name; its own title, the name the question gives it, is the line under the
         // head when it differs (lina-app#153).
         const own = page.locator("[data-testid=card-own-title]");
@@ -1095,8 +1105,11 @@ const drivers = {
       check(title === line1 && line1.endsWith("배포 순서 정하기"), "the to-do opened is " + title + ", the row reads " + line1);
       const second = (await page.getByTestId("head-line").innerText()).trim();
       check(second === line2, "the head's second line is " + second + ", the row's is " + line2);
+      // The question once, on that line (lina-app#161): the box under it names the kind word, with no head and no age.
       const box = (await page.getByTestId("decision").innerText()).replace(/\s+/g, " ");
-      check(box.includes("배포를 금요일 오후에 할지 결정 필요") && box.includes("질문") && /\d+일 전/.test(box), "the decision box reads " + box);
+      check(!box.includes("배포를 금요일 오후에 할지 결정 필요") && box.includes("질문") && !/\d+일 전/.test(box), "the decision box reads " + box);
+      const state = (await page.locator(".detail-head .sub").first().innerText()).trim();
+      check(/^대기 · 결정 필요 · \d+일 전$/.test(state), "the state line reads " + state);
       return "#/items/T2 " + title + ": " + box;
     });
   },

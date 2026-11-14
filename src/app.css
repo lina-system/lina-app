@@ -302,6 +302,22 @@ button:disabled {
   font-size: var(--text-body);
 }
 
+/* 진행 중인 작업's stopped cards in words under its label, never a lone red number by its count (lina-app#156). */
+.nav-stopped-mark {
+  width: max-content;
+  color: var(--red);
+  font-size: var(--text-small);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.split .nav-row.is-current .nav-stopped-mark {
+  color: #ffffff;
+  background: var(--red);
+  border-radius: 8px;
+  padding: 0 5px;
+}
+
 .split .nav-row.is-current a {
   background: var(--accent);
   color: var(--on-accent);
@@ -708,15 +724,15 @@ button:disabled {
 }
 
 /*
- * A work row's title takes a second line before it is cut (lina-app#133, #148): two titles that start alike read
- * apart, in every group. So do the owner's to-dos (lina-app#141).
+ * A work row's title is never cut (lina-app#156): it wraps at a word and the row grows, so two titles that start alike
+ * read apart in every group, at 390 too. So do the owner's to-dos (lina-app#141).
  */
 .card-row .lines > .title.one-line,
 [data-testid="home-mine"] .check-row .lines > .title.one-line {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  display: block;
+  overflow: visible;
   white-space: normal;
+  text-overflow: clip;
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
@@ -729,12 +745,12 @@ button:disabled {
   text-overflow: ellipsis;
 }
 
-/* A row's second line, its own card's name, takes a second line before it is cut (lina-app#152). */
+/* A row's second line, its own card's name, is never cut either (lina-app#156). */
 .card-row .lines > .row-sub.one-line {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  display: block;
+  overflow: visible;
   white-space: normal;
+  text-overflow: clip;
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
@@ -1176,6 +1192,13 @@ button:disabled {
   display: grid;
   gap: 6px;
   margin-bottom: 18px;
+}
+
+/* The pressed row's line 2 under the head's title (lina-app#157): whole, wrapped, never cut. */
+.detail-head .head-line {
+  margin: 0;
+  color: var(--label);
+  overflow-wrap: anywhere;
 }
 
 .detail-title {
@@ -2198,6 +2221,18 @@ html:has(.stack) body {
   animation: sheet-up var(--stack-motion);
 }
 
+/* Nothing of the screen behind shows between the bar and the sheet's grab handle (lina-app#157): the strip there is
+   the sheet's own colour, as the bar's. */
+.detail-sheet::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 12px;
+  background: var(--bg-2);
+}
+
 .detail-sheet-bar {
   position: relative;
   flex: none;
@@ -2909,4 +2944,26 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 .talk-sending {
   font-size: var(--text-small);
   color: var(--label-2);
+}
+
+/* lina-app#158: a refused send is one line inside the agent window's field bar, above the field. On a phone the bar is
+   sticky over the bottom of the screen; a line drawn after it sat under it. */
+.agent-talk-form > .write-error {
+  order: -1;
+  flex-basis: 100%;
+  margin: 0 0 6px;
+}
+
+/* The reason beside an off 보내기 (one small line and the row gap) and a refused send's line (and its margin) make the
+   bar taller; a row brought into view still stops above it (lina-app#143). */
+.stack .phone-main:has(> .agent-talk) {
+  scroll-padding-bottom: calc(var(--hit) + 96px + var(--talk-why-line, 0px) + var(--talk-error-line, 0px) + var(--safe-bottom) + var(--keyboard-inset, 0px));
+}
+
+.stack .phone-main:has(> .agent-talk .agent-talk-form > .send-why) {
+  --talk-why-line: 26px;
+}
+
+.stack .phone-main:has(> .agent-talk .agent-talk-form > .write-error) {
+  --talk-error-line: 32px;
 }

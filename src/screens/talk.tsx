@@ -17,18 +17,22 @@ interface Turn {
   readonly state: "streaming" | "done" | "failed";
 }
 
-/** The one line a refused turn shows; the message stays in the field. */
+/**
+ * The one line a refused turn shows; the message stays in the field. `no_owning_agent` is the core's own and comes
+ * only from a to-do's conversation; any other 409 is the agent gateway's (`admission_conflict` and others) and, like
+ * its 429, means the agent is busy (lina-app#158).
+ */
 export function talkError(result: Extract<TalkResult, { ok: false }>): string {
   if (result.code === "unknown_agent") return W.talkUnknownAgent;
+  if (result.code === "no_owning_agent") return W.talkNoAgent;
   switch (result.status) {
     case 502:
       return W.talkRefusedKey;
     case 429:
+    case 409:
       return W.talkBusy;
     case 503:
       return W.talkDown;
-    case 409:
-      return W.talkNoAgent;
     case 413:
       return W.talkTooLong;
     case 404:
@@ -36,8 +40,19 @@ export function talkError(result: Extract<TalkResult, { ok: false }>): string {
     case 0:
       return W.offline;
     default:
-      return W.writeFailed;
+      return W.saveFailed;
   }
+}
+
+/** Why 보내기 is off, in the words 댓글 and 답 use (lina-app#158): the turn going out, its reply coming in, or an empty field. */
+function SendWhy({ going, replying, empty }: { going: boolean; replying: boolean; empty: boolean }) {
+  const why = going ? W.sendWhyBusy : replying ? W.replying : empty ? W.sendWhyEmpty : null;
+  if (!why) return null;
+  return (
+    <span class="send-why" data-testid="send-why">
+      {why}
+    </span>
+  );
 }
 
 /**
@@ -154,6 +169,7 @@ export function Talk({ detail }: { detail: ItemDetail }) {
         <button type="button" class="text-button" disabled={busy || !text.trim()} onClick={() => void send()}>
           {W.send}
         </button>
+        <SendWhy going={busy && turns.at(-1)?.state !== "streaming"} replying={busy} empty={!text.trim()} />
       </div>
       <ErrorLine line={error ?? undefined} />
     </Box>
@@ -571,8 +587,10 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
         <button type="button" class="text-button" disabled={sending || !text.trim()} onClick={() => void send()}>
           {W.send}
         </button>
+        <SendWhy going={box.turns.some((turn) => turn.state === "sending")} replying={sending} empty={!text.trim()} />
+        {/* Inside the field's bar: on a phone the bar is sticky and would cover a line drawn after it (lina-app#158). */}
+        <ErrorLine line={error ?? undefined} />
       </div>
-      <ErrorLine line={error ?? undefined} />
     </section>
   );
 }

@@ -16,7 +16,8 @@ On a goal or to-do page the owner talks with the agent that owns it. The message
 - After sending: the field empties, the owner's message shows on the right, and the agent's reply streams in on the left under the agent's mark, ending in one quiet live dot while it streams. `보내기` stays disabled until the reply ends. With `prefers-reduced-motion` the dot holds still.
 - When the reply ends the dot goes and one line under it reads `<agent> 대화에 남음`: the core carries the exchange into the agent's next direct-message turn. The line shows under the latest reply only and goes when the next message is sent.
 - In the record nothing changes: a talk is not a comment, and the item's comments stay as they were (`POST /api/lina/work/items/<id>/talk` answers `text/event-stream`).
-- A refused turn shows one red line under the field and the message stays in it: `에이전트가 바쁨` (429), `에이전트 연결 안 됨` (503), `맡은 에이전트 없음` (409). A reply that breaks off reads `답을 받지 못함`.
+- While `보내기` is off one line under the field says why (lina-app#158): `글 입력 대기` (empty field), `보내는 중` (the turn going out), `답하는 중` (its reply coming in).
+- A refused turn shows one red line under the field and the message stays in it. The line reads the body's error code first (lina-app#158): `맡은 에이전트 없음` (409 `no_owning_agent`), `에이전트가 바쁨` (429, and any other 409), `에이전트 연결 안 됨` (503). A reply that breaks off reads `답을 받지 못함`.
 
 ## Sub-features
 

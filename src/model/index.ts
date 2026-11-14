@@ -23,11 +23,11 @@ import type {
   WorkInbox,
   WorkState,
 } from "../api/client";
-import { BANNED_WORDS, CRUMB, KIND_TITLE, SEP, SOURCE_WORD, STATE_WORD, W, reasonWord } from "../words";
+import { BANNED_WORDS, CRUMB, KIND_TITLE, SEP, SOURCE_WORD, STATE_WORD, STOP_WAIT, W, reasonWord } from "../words";
 import { href } from "../router";
 import { clockAt } from "../time";
 import { checksView, type ChecksView } from "./checks";
-import { foldReason, withoutRefs } from "./fold";
+import { foldReason, titleMayDraw, withoutRefs } from "./fold";
 import { cardKind, type CardKind } from "./kind";
 import { ocxView, usageViews, type OcxView, type UsageRangeView } from "./usage";
 
@@ -122,8 +122,8 @@ export interface CardRow {
    */
   readonly stop?: { readonly words: string; readonly known: boolean; readonly owner: boolean; readonly retry: boolean } | null;
   /**
-   * A stopped card's ask from the core (lina#690): what it needs, one line under its title; null when the core has none
-   * or it holds text the title rule refuses (plainLine, lina-app#148).
+   * A stopped card's ask from the core (lina#690) as its own line under the title. Null on every list row since
+   * lina-app#156: the ask is said after the stop's words (`stop.words`), or names the row when nothing else does.
    */
   readonly ask?: string | null;
   /** The card's own name with its references cut (ownName), when that may be drawn: what tells rows of one goal apart. */
@@ -315,12 +315,24 @@ export function ownName(checked: string | null, own: string | null): string | nu
 }
 
 /**
- * A title with its ids, references and hashes cut (withoutRefs), when what is left may be drawn (lina-app#152). Only a
- * worker run's page lets a Latin word alone through (`latin`); no row does.
+ * A title with its ids, references and hashes cut (withoutRefs), when what is left may be drawn (titleMayDraw,
+ * lina-app#156): one with no Hangul or an English sentence is not. A worker run's page also lets a name in Latin alone
+ * through when it holds no raw text (`latin`); no row does.
  */
 function cleanTitle(title: string, latin = false): string | null {
   const cut = withoutRefs(title);
-  return cut && mayDraw(cut, latin) ? cut : null;
+  return cut && (titleMayDraw(cut) || (latin && mayDraw(cut, true))) ? cut : null;
+}
+
+/** A title as a row draws it (cleanTitle), for the panes that draw a title or a line of their own (the goals). */
+export function foldTitle(title: string | null | undefined): string | null {
+  return title ? cleanTitle(title) : null;
+}
+
+/** A stopped card's ask as a row says it: the title rule, and no word the screens never use (lina-app#156). */
+function askLine(text: string | null | undefined): string | null {
+  const cut = foldTitle(text);
+  return cut && !BANNED_WORDS.some((word) => cut.includes(word)) ? cut : null;
 }
 
 function mayDraw(title: string, latin = false): boolean {
@@ -347,7 +359,7 @@ const movedAt = (row: CardRow) => row.endedAt ?? row.startedAt ?? row.stateAt;
  */
 export function apart(rows: readonly CardRow[], now: number): CardRow[] {
   const named = rows.map((row) => ({ ...row, sub: row.ownName && row.ownName !== row.name ? row.ownName : null, when: null }));
-  const key = (row: CardRow) => [row.name, row.sub ?? "", row.ask ?? ""].join("\n");
+  const key = (row: CardRow) => [row.name, row.sub ?? "", row.stop?.words ?? ""].join("\n");
   const seen = new Map<string, number>();
   for (const row of named) seen.set(key(row), (seen.get(key(row)) ?? 0) + 1);
   return named.map((row) => {
@@ -465,7 +477,6 @@ export function buildModel(input: ModelInput, now: number): Model {
     const parent = item?.parent ? itemMap.get(item.parent) : undefined;
     return parent?.kind === "goal" ? parent : undefined;
   };
-  const ownerName = items?.owner?.name ?? null;
   // An unchecked title (a row's own, its to-do's, its goal's) names a row with its ids cut, only when what is left
   // passes the raw-text rule (lina-app#152).
   const plainName = (title: string | null | undefined, latin = false) => (title ? cleanTitle(title, latin) : null);
@@ -481,7 +492,8 @@ export function buildModel(input: ModelInput, now: number): Model {
   };
   const stopWords = (reason: string | null, isRun: boolean, { waitingOn, retry }: StopFacts): NonNullable<CardRow["stop"]> => {
     // A stop that waits on an answer, a review or another to-do does not clear by running again: no 다시 시도.
-    const owner = { words: ownerName ? `${ownerName} ${W.needsCheck}` : W.needsCheck, known: true, owner: true, retry: false };
+    // Why it waits, never on whom: no person's name in the state line (lina-app#156).
+    const owner = { words: (reason && STOP_WAIT[reason]) || W.needsCheck, known: true, owner: true, retry: false };
     if (waitingOn === "owner") return owner;
     // An agent that starts another run by itself is no reviewer: the retry words below say so.
     if (waitingOn?.startsWith("agent:") && retry !== "scheduled") {
@@ -525,9 +537,13 @@ export function buildModel(input: ModelInput, now: number): Model {
       const fallback = todoName(cardRuns.map((run) => run.todo));
       const goal = plainName((card as CardSummary).goalTitle) ?? plainName(cardGoal.get(card.id)?.title);
       const row = contextRow(workCardRow(card, input.cardDetails[card.id], receivedAt, cardRuns), goal, fallback, false, card);
-      // A stopped card nothing else names still is a row: whose stopped card it is (lina-app#148).
-      const title = row.title ?? (card.state === "stopped" ? W.stoppedCardOf(card.agent ? (names.get(card.agent) ?? null) : null) : null);
-      return { row: { ...row, title, name: title ?? row.name, ask: card.state === "stopped" ? plainLine((card as CardSummary).ask) : null }, listed: !isEnded(card) };
+      // A stopped card nothing else names still is a row, named by its ask, else 제목 없음 (lina-app#156). The ask is
+      // said after the stop's words, unless it already names the row.
+      const ask = card.state === "stopped" ? askLine((card as CardSummary).ask) : null;
+      const title = row.title ?? (card.state === "stopped" ? (ask ?? W.untitled) : null);
+      const said = ask !== null && ask !== title ? ask : null;
+      const stop = row.stop && said ? { ...row.stop, words: [row.stop.words, said].filter(Boolean).join(SEP) } : row.stop;
+      return { row: { ...row, title, name: title ?? row.name, stop, ask: null }, listed: !isEnded(card) };
     }),
     ...(board?.cards ?? []).map((run) => ({ row: runListRow(run), listed: false })),
   ];

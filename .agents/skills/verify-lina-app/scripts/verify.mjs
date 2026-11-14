@@ -399,15 +399,19 @@ async function phoneRules(page, where) {
   return where + ": " + audit.tappable + " tappable >= " + HIT + "x" + HIT + ", " + audit.texts + " texts >= " + MIN_TEXT + "px";
 }
 
-// Rows show a title (up to two lines, lina-app#133, #141), the card's own name (up to two lines, lina-app#152), on a
-// stopped row the core's one ask line, and one status line (a stopped row's may wrap once beside its button).
+// Rows show a title and the card's own name, both never cut (they wrap and the row grows, lina-app#156), and one
+// status line (a stopped row's, with its ask, wraps at a word beside its button). A work row's title or second line
+// that is clipped or ends in an ellipsis is reported too.
 async function rowLines(page) {
   return page.locator("[data-testid=row]:not(.is-open) .lines").evaluateAll((all) =>
     all.flatMap((lines) => {
       const children = [...lines.children].filter((child) => child.getBoundingClientRect().height > 0);
       const lineHeight = (child) => parseFloat(getComputedStyle(child).lineHeight) || parseFloat(getComputedStyle(child).fontSize) * 1.35;
       const stoppedState = (child) => child.classList.contains("sub") && !child.matches(".row-sub, .stop-ask") && Boolean(child.closest(".is-stopped"));
-      const allowed = (child) => (child.classList.contains("title") || child.classList.contains("row-sub") || stoppedState(child) ? 2.5 : 1.5);
+      const workLine = (child) => Boolean(child.closest(".card-row")) && (child.classList.contains("title") || child.classList.contains("row-sub"));
+      const allowed = (child) => (workLine(child) || stoppedState(child) ? Infinity : child.classList.contains("title") ? 2.5 : 1.5);
+      const cut = children.filter((child) => workLine(child) && (child.scrollHeight > child.clientHeight + 1 || (getComputedStyle(child).textOverflow === "ellipsis" && child.scrollWidth > child.clientWidth + 1)));
+      if (cut.length) return [lines.textContent.trim().slice(0, 40) + " (cut)"];
       const tall = children.filter((child) => child.getBoundingClientRect().height > lineHeight(child) * allowed(child) + 1);
       const asks = children.filter((child) => child.getAttribute("data-testid") === "stop-ask").length;
       // A row whose own card's name differs from its title adds it as its second line (lina-app#148, #152).
@@ -739,8 +743,9 @@ const drivers = {
       names.push(...stopped);
       const grey = await sidebarCount(page, "nav-running");
       if (grey !== null) {
-        const red = (await page.getByTestId("nav-running").getByTestId("nav-stopped").innerText()).trim();
-        check(grey === "2" && red === "1", "sidebar reads " + grey + " and red " + red + ", expected 2 and red 1");
+        // The stopped cards read as their own words after the running number, never a lone red number (lina-app#156).
+        const mark = (await page.getByTestId("nav-running").getByTestId("nav-stopped-mark").innerText()).trim();
+        check(grey === "2" && mark === "중단됨 1", "sidebar reads " + grey + " and " + mark + ", expected 2 and 중단됨 1");
       }
       return names.join(" | ");
     });
@@ -764,6 +769,12 @@ const drivers = {
       check(active === "진행 중 0" && (await page.getByTestId("section-active").locator("[data-testid=row]").count()) === 0, "the 진행 중 head reads " + JSON.stringify(active));
       const head = (await page.getByTestId("head-stopped").innerText()).replace(/\s+/g, " ").trim();
       check(head === "중단됨 1" && (await page.getByTestId("head-stopped").getByTestId("count").count()) === 0, "the group heads " + head);
+      // Nothing runs: the sidebar item draws no number of its own, only 중단됨 1 (lina-app#156).
+      if ((await page.getByTestId("nav-running").count()) > 0) {
+        const nav = page.getByTestId("nav-running");
+        const mark = (await nav.getByTestId("nav-stopped-mark").innerText()).trim();
+        check((await nav.getByTestId("nav-count").count()) === 0 && mark === "중단됨 1", "the sidebar item reads " + JSON.stringify((await nav.innerText()).replace(/\s+/g, " ").trim()));
+      }
       const retry = await buttonLook(page, page.getByRole("button", { name: /다시 시도$/ }));
       check((await page.getByText("없음", { exact: true }).count()) === 0, "the empty state shows beside the stopped card");
       await openApp(page, "#/running");
@@ -783,18 +794,21 @@ const drivers = {
           const title = item.querySelector(".title");
           const lines = Math.round(title.getBoundingClientRect().height / parseFloat(getComputedStyle(title).lineHeight));
           const ask = item.querySelector("[data-testid=stop-ask]");
-          return { href: item.querySelector("a").getAttribute("href"), title: title.textContent, state: state.textContent, plain: state.classList.contains("is-plain"), colour: getComputedStyle(state).color, retry: Boolean(item.querySelector("[data-testid=retry]")), cut: title.scrollHeight > title.clientHeight + 1, lines, ask: ask ? { text: ask.textContent, after: ask.previousElementSibling === title, oneLine: Math.round(ask.getBoundingClientRect().height / parseFloat(getComputedStyle(ask).lineHeight)) === 1 } : null };
+          return { href: item.querySelector("a").getAttribute("href"), title: title.textContent, state: state.textContent, plain: state.classList.contains("is-plain"), colour: getComputedStyle(state).color, retry: Boolean(item.querySelector("[data-testid=retry]")), cut: title.scrollHeight > title.clientHeight + 1 || (getComputedStyle(title).textOverflow === "ellipsis" && title.scrollWidth > title.clientWidth + 1), lines, ask: ask ? ask.textContent : null };
         }),
       );
       const hrefs = rows.map((row) => row.href);
       // No worker run is a row (lina-app#141): r14 and r20, with no card, neither.
       check(rows.length === 7, "expected 7 stopped rows, got " + rows.length + ": " + hrefs.join(" "));
       check(!hrefs.some((href) => href.startsWith("#/runs/")), "a worker run is a row of its own: " + hrefs.join(" "));
-      check(rows.slice(0, 3).every((row) => row.state === "중단됨 · 도윤 확인 필요"), "the rows waiting on the owner are not first: " + rows.map((row) => row.state).join(" | "));
-      check(rows.slice(3).every((row) => !row.state.endsWith("도윤 확인 필요")), "an owner row is below another row");
-      // A stopped card has no Latin-word exception (lina-app#152): k-112, with no goal, says whose stopped card it is.
-      check(rows.some((row) => row.href === "#/cards/k-112" && / 중단 카드$/.test(row.title)), "k-112 is drawn by its own title: " + rows.map((row) => row.title).join(" | "));
-      check(!rows.some((row) => row.title.includes("CLI")), "a stopped row shows an English word: " + rows.map((row) => row.title).join(" | "));
+      // Why each waits on the owner, never on whom (lina-app#156): the reason in words, then the core's ask.
+      const OWNER = { "#/cards/k-108": "중단됨 · 확인 필요 · 야간 보고서를 받을 사람 확인 필요", "#/cards/k-107": "중단됨 · 피드백 대기", "#/cards/k-112": "중단됨 · 결정 대기" };
+      check(rows.slice(0, 3).every((row) => OWNER[row.href] === row.state), "the rows waiting on the owner are not first, or read otherwise: " + rows.map((row) => row.state).join(" | "));
+      check(rows.slice(3).every((row) => !Object.hasOwn(OWNER, row.href)), "an owner row is below another row");
+      check(!rows.some((row) => /도윤|확인 필요$/.test(row.state.replace(OWNER["#/cards/k-108"], ""))), "a state line names a person: " + rows.map((row) => row.state).join(" | "));
+      // An abbreviation keeps a title (lina-app#156): k-112, with no goal, reads its own title, never whose stopped card it is.
+      check(rows.some((row) => row.href === "#/cards/k-112" && row.title === "CLI 배포 순서 정하기"), "k-112 is not drawn by its own title: " + rows.map((row) => row.title).join(" | "));
+      check(!rows.some((row) => / 중단 카드$/.test(row.title)), "a stopped row says whose stopped card it is: " + rows.map((row) => row.title).join(" | "));
       check(rows.some((row) => / 검토 대기$/.test(row.state)) && rows.some((row) => row.state === "중단됨 · 다시 시도 예정") && rows.some((row) => row.state === "중단됨 · 응답 없음 · 다시 시도 안 함"), "the states read " + rows.map((row) => row.state).join(" | "));
       for (const row of rows) check(row.plain === (row.state === "중단됨 · 응답 없음") && (row.plain || row.colour === "rgb(255, 59, 48)"), row.title + " reads " + row.state + " in " + row.colour);
       check(rows.filter((row) => row.title === "제목 없음").length === 0, "rows titled 제목 없음: " + rows.filter((row) => row.title === "제목 없음").length);
@@ -807,17 +821,28 @@ const drivers = {
       }
       const header = (await page.getByTestId("head-stopped").getByTestId("stopped-count").innerText()).trim();
       check(header === "7", "the group header's red number is " + header);
-      // The core's ask (lina#690) is one line under the title, on k-108 alone (lina-app#141).
-      const asked = rows.filter((row) => row.ask);
-      check(asked.length === 1 && asked[0].href === "#/cards/k-108" && asked[0].ask.text === "야간 보고서를 받을 사람 확인 필요" && asked[0].ask.after && asked[0].ask.oneLine, "the ask lines read " + JSON.stringify(asked.map((row) => [row.href, row.ask])));
+      // The core's ask (lina#690) is said in the state line after the reason, never as a line of its own (lina-app#156).
+      check(rows.every((row) => row.ask === null), "an ask is a line of its own: " + JSON.stringify(rows.filter((row) => row.ask).map((row) => [row.href, row.ask])));
       // 다시 시도 only where running again can clear the stop (lina-app#134): never on a row waiting on an answer or a review.
-      const asks = rows.filter((row) => / 확인 필요$| 검토 대기$/.test(row.state));
+      const asks = rows.filter((row) => Object.hasOwn(OWNER, row.href) || / 검토 대기$/.test(row.state));
       check(asks.length === 4 && asks.every((row) => !row.retry), "a row waiting on an answer or a review offers 다시 시도: " + asks.filter((row) => row.retry).map((row) => row.title).join(" | "));
       check(rows.filter((row) => !asks.includes(row)).every((row) => row.retry), "a row running again can clear has no 다시 시도");
-      // A stopped title takes up to two lines before it is cut (lina-app#133).
-      check(rows.every((row) => !row.cut && row.lines <= 2), "a stopped title is cut: " + rows.filter((row) => row.cut || row.lines > 2).map((row) => row.title).join(" | "));
+      // A stopped title is never cut: it wraps and the row grows (lina-app#156).
+      check(rows.every((row) => !row.cut), "a stopped title is cut: " + rows.filter((row) => row.cut).map((row) => row.title).join(" | "));
       await openApp(page, "#/running");
-      return rows.map((row) => row.title + (row.ask ? " / " + row.ask.text : "") + " — " + row.state + (row.retry ? " [다시 시도]" : "") + (row.lines > 1 ? " (" + row.lines + "줄)" : "")).join(" | ");
+      return rows.map((row) => row.title + " — " + row.state + (row.retry ? " [다시 시도]" : "") + (row.lines > 1 ? " (" + row.lines + "줄)" : "")).join(" | ");
+    });
+    await step("no work row's title or second line is cut, on the home with every fold open (lina-app#156)", async () => {
+      await openApp(page, "#/", "&runs=ended");
+      const more = page.getByRole("button", { name: /외 \d+개$/ });
+      while (await more.count()) await more.first().click();
+      const cut = await page.locator("[data-testid=screen-running] .card-row .lines > .title, [data-testid=screen-running] .card-row .lines > .row-sub").evaluateAll((all) =>
+        all.filter((line) => line.scrollHeight > line.clientHeight + 1 || (getComputedStyle(line).textOverflow === "ellipsis" && line.scrollWidth > line.clientWidth + 1) || getComputedStyle(line).webkitLineClamp !== "none").map((line) => line.textContent),
+      );
+      const measured = await page.locator("[data-testid=screen-running] .card-row .lines > .title").count();
+      check(measured > 0 && cut.length === 0, measured + " titles, cut: " + cut.join(" | "));
+      await openApp(page, "#/running");
+      return measured + " titles and second lines, none cut";
     });
     await step("the now line shows at 1280 only", async () => {
       const wide = page.viewportSize().width >= 900;
@@ -1057,13 +1082,18 @@ const drivers = {
       check(/^\S+ · 방금 · 반영함$/.test(reply), "a reply seconds old reads " + reply + ", expected <author> · 방금 · 반영함");
       return reply;
     });
-    await step("from 수신함, a decision's line opens 배포 순서 정하기 with its decision box", async () => {
+    await step("from 수신함, a decision's line opens 배포 순서 정하기 headed by the row's two lines, with its decision box", async () => {
       await openApp(page, "#/inbox");
       const row = page.getByRole("list", { name: "결정 필요" }).locator(":scope > li").filter({ has: page.getByRole("link", { name: /배포를 금요일 오후에 할지 결정 필요/ }) });
+      const line1 = (await row.locator(".context").innerText()).trim();
+      const line2 = (await row.locator(".title").innerText()).trim();
       await row.locator(":scope > a").click();
       await page.waitForFunction(() => location.hash === "#/items/T2", null, { timeout: 3_000 }).catch(() => check(false, "the decision opened " + page.url()));
+      // The head is the pressed row (lina-app#157): its line 1 (`<goal> › 배포 순서 정하기`) and, under it, its line 2.
       const title = (await page.locator(".detail-title").first().innerText()).trim();
-      check(title === "배포 순서 정하기", "the to-do opened is " + title);
+      check(title === line1 && line1.endsWith("배포 순서 정하기"), "the to-do opened is " + title + ", the row reads " + line1);
+      const second = (await page.getByTestId("head-line").innerText()).trim();
+      check(second === line2, "the head's second line is " + second + ", the row's is " + line2);
       const box = (await page.getByTestId("decision").innerText()).replace(/\s+/g, " ");
       check(box.includes("배포를 금요일 오후에 할지 결정 필요") && box.includes("질문") && /\d+일 전/.test(box), "the decision box reads " + box);
       return "#/items/T2 " + title + ": " + box;
@@ -2134,8 +2164,11 @@ const drivers = {
       // The board does not list a card's own runs (as the core), so the card's to-do is not known: the retry is a
       // comment on the card itself.
       await page.waitForFunction(() => window.__linaScene.cardDetails["k-103"].comments.some((comment) => comment.body === "다시 시도해 주세요."), null, { timeout: 3_000 }).catch(() => check(false, "the retry did not reach the card"));
-      await line.waitFor({ state: "detached", timeout: 15_000 }).catch(() => check(false, "요청함 stayed past the next refresh"));
-      return text + ", then 다시 시도 again after the refresh";
+      // The request stands past the toast while the card has not moved (lina-app#157): time itself is what is checked.
+      await page.waitForTimeout(6_000);
+      check(await line.isVisible(), "요청함 went while the card had not moved");
+      check((await page.getByRole("button", { name: /다시 시도$/ }).count()) === 0, "다시 시도 came back while the request stands");
+      return text + ", still after 6 s with no 다시 시도";
     });
   },
 

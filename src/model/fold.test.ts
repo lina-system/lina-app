@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { foldReason, withoutRefs } from "./fold";
+import { foldReason, titleMayDraw, withoutRefs } from "./fold";
 
 test("a comment shows as it is unless it would show a path, a command, a hash, an issue number, an address or a fragment", () => {
   for (const plain of ["오류 문구 초안을 공유했어요.", "카드 번호는 앞 여섯 자리까지 보여 줄까요?", "1.5배 빨라졌어요."]) expect(foldReason(plain)).toBeNull();
@@ -23,8 +23,35 @@ test("a comment shows as it is unless it would show a path, a command, a hash, a
 });
 
 test("a title loses its issue references and commit hashes, brackets and all, and keeps its words (lina-app#148)", () => {
-  expect(withoutRefs("가상 빌드에 새 판(dev ed0972f8ce) 고정: 기기가 돌아오면 (lina#456·#454 뒷일)")).toBe("가상 빌드에 새 판 고정: 기기가 돌아오면");
+  expect(withoutRefs("가상 빌드에 새 판(dev ed0972f8ce) 고정: 기기가 돌아오면 (lina#456·#454 뒷일)")).toBe("가상 빌드에 새 판 고정: 기기가 돌아오면 (뒷일)");
   expect(withoutRefs("가짜 정리 #12 · a1b2c3d")).toBe("가짜 정리");
   expect(withoutRefs("(lina#9) a1b2c3d4e5")).toBe("");
   expect(withoutRefs("1.5배 빨라진 정리")).toBe("1.5배 빨라진 정리");
+});
+
+// lina-app#156: the shapes the hub's real titles take, with invented words. A ref goes with the particle glued to it
+// and a bracket that only held refs; the rest reads as a sentence.
+test.each([
+  ["가짜 허브 앱 빌드를 a6687ba로 올리기", "가짜 허브 앱 빌드를 올리기"],
+  ["가짜 코어를 dev 0aa65fe53a로 올리기 (lina#575 게이트 반영)", "가짜 코어를 dev 올리기 (게이트 반영)"],
+  ["가짜 정리 (lina#49·#50 뒷일)", "가짜 정리 (뒷일)"],
+  ["t_ab12cd34 가짜 1주 측정", "가짜 1주 측정"],
+  ["[모래 16:52] 가짜 점검 정리", "가짜 점검 정리"],
+  ["#12를 먼저 닫고 가짜 정리", "먼저 닫고 가짜 정리"],
+  ["가짜 작업 (lina-app #131 뒤 정리)", "가짜 작업 (뒤 정리)"],
+  ["G106 가짜 제안 순서 정리", "가짜 제안 순서 정리"],
+  ["가짜 검토 (OT-SIO123, 바로 끝내기)", "가짜 검토 (바로 끝내기)"],
+  ["가짜 묶음 반영 (#631·#663·앱 #120·#130)", "가짜 묶음 반영"],
+  ["lina#434: 가짜 문구 없애기", "가짜 문구 없애기"],
+  ["가짜 판(dev ed0972f8ce) 고정", "가짜 판 고정"],
+  ["T587 가짜  두 칸 () 정리", "가짜 두 칸 정리"],
+  ["가짜 대기 (표지 카드, t_50f7c3ed)", "가짜 대기 (표지 카드)"],
+  ["가짜 PR #8 검사 대기", "가짜 PR 검사 대기"],
+])("withoutRefs(%j) reads %j (lina-app#156)", (title, cut) => {
+  expect(withoutRefs(title)).toBe(cut);
+});
+
+test("a title is hidden only when it has no Hangul or runs three Latin words; names and short abbreviations stay (lina-app#156)", () => {
+  for (const shown of ["가짜 PR 검사 대기", "OCX 가짜 재설치", "gh 가짜 확인", "가짜 omo-task 정리", "가짜 build-amd 모델 길 열기", "Honcho 가짜 정리", "가짜 판 2.97 다시 깔기"]) expect(titleMayDraw(shown), shown).toBe(true);
+  for (const hidden of ["Re-review: fake verdict fixes", "fake-node: gone slots", "가짜 카드에서 fake worker run 받기", "", "   "]) expect(titleMayDraw(hidden), hidden).toBe(false);
 });

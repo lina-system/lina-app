@@ -128,7 +128,7 @@ describe("status tab on the hub's real shapes (lina-app#144)", () => {
     source.scene.devices.person = [mac("먹물", true, "1.0"), mac("벼루", true)];
     const view = await open(source);
     const [first, second] = [...view.getByRole("list", { name: "내 기기" }).querySelectorAll(".person-row")];
-    expect([...first.querySelectorAll(".person-tool")].map((tool) => tool.textContent)).toEqual(["omo 1.0", "codex 1.0", "claude 1.0", "dsh 1.0", "grok 1.0", "cursor-agent 1.0", "agy 1.0"]);
+    expect([...first.querySelectorAll(".person-tool")].map((tool) => tool.textContent)).toEqual(["OMO 1.0", "Codex 1.0", "Claude 1.0", "dsh 1.0", "Grok 1.0", "Cursor 1.0", "Antigravity 1.0"]);
     expect(second.textContent).not.toContain("—");
     expect(view.getByTestId("section-person").querySelector(".section-head")?.textContent).toBe("내 기기 2 · 연결됨 2");
   });
@@ -151,13 +151,13 @@ describe("status tab on the hub's real shapes (lina-app#144)", () => {
     ];
     const view = await open(source);
     expect(view.getByTestId("section-machines").textContent).not.toContain("확인 중");
-    // Each runner reads by the name the hub serves for it, the tool it runs (lina-app#152).
+    // Each runner reads by its tool's display name; the command runner of a tool another runner names says so (lina-app#156).
     const [dsh, dshCommand, cursor, omo] = cellsOf(rowOf(view, "모래톱"));
     expect(dsh.textContent).toBe("dsh0.2.1-rc.5");
-    expect(dshCommand.textContent).toBe("dsh-command확인 안 됨");
-    expect(cursor.textContent).toBe("cursor2026.11.11");
-    expect(omo.textContent).toBe("omo업데이트 필요5.1.60 → 5.1.69");
-    expect(cellsOf(rowOf(view, "물레방아"))[0].textContent).toBe("omo업데이트 필요5.1.51 → 5.1.69");
+    expect(dshCommand.textContent).toBe("dsh 명령확인 안 됨");
+    expect(cursor.textContent).toBe("Cursor2026.11.11");
+    expect(omo.textContent).toBe("OMO업데이트 필요5.1.60 → 5.1.69");
+    expect(cellsOf(rowOf(view, "물레방아"))[0].textContent).toBe("OMO업데이트 필요5.1.51 → 5.1.69");
   });
 
   test("a node without readings says why once, after a dash for each reading it lacks (lina-app#150)", async () => {
@@ -218,7 +218,7 @@ describe("status tab, QA round 4 (lina-app#150)", () => {
     for (const cell of cells.slice(1)) expect(cell.querySelector(".runner-detail")?.textContent).toBe("확인 안 됨");
   });
 
-  test("runners read by their tool's name, whether or not the settings list them; never one name for every runner (lina-app#152)", async () => {
+  test("runners read by their tool's display name, whether or not the settings list them; never one name for every runner (lina-app#152, #156)", async () => {
     const source = fresh();
     const ids = ["omo", "codex-command", "dsh-command", "claude-command", "omo-astra"];
     const settings = source.scene.settings.revisions.at(-1) as Settings;
@@ -226,7 +226,7 @@ describe("status tab, QA round 4 (lina-app#150)", () => {
     source.scene.devices.machines = [node("모래톱", { cpu: 11.8, memory: 34.79, disk: 19.07, metricsWhy: null, runners: [...ids.map((id) => runner(id, { fleet: "1.0", installed: "1.0", ready: true })), runner("aside")] })];
     const view = await open(source);
     const names = cellsOf(rowOf(view, "모래톱")).map((cell) => cell.querySelector(".runner-name")?.textContent);
-    expect(names).toEqual([...ids, "aside"]);
+    expect(names).toEqual(["OMO", "Codex", "dsh", "Claude", "OMO Astra", "aside"]);
     expect(view.getByTestId("section-machines").textContent).not.toContain("실행기");
   });
 
@@ -283,5 +283,44 @@ describe("status tab, QA round 5 (lina-app#152)", () => {
     await waitFor(() => expect(view.getByTestId("section-machines").querySelector(".section-head")?.textContent).toBe("작업 기기 4 · 정상 2 · 경고 1 · 꺼짐 1"));
     const lines = [...view.container.querySelectorAll("*")].filter((element) => element.children.length === 0 || element.matches("[data-testid=device-line]")).map((element) => element.textContent ?? "");
     expect(lines.filter((text) => /^(작업 )?기기 \d+/.test(text))).toEqual(["작업 기기 4 · 정상 2 · 경고 1 · 꺼짐 1"]);
+  });
+});
+
+// lina-app#156: QA round 6 on the hub's /api/lina/devices and /api/lina/status/checks (11-15). Invented device names;
+// the runner keys, their types and the check line's length and cut are the hub's own shapes.
+describe("status tab, QA round 6 (lina-app#156)", () => {
+  test("a runner reads one display name per tool: no -command suffix, an alias by its tool's name, never twice on one device", async () => {
+    const source = fresh();
+    const keys: [string, RunnerCell["type"]][] = [["omo", "omo"], ["grok", "acp"], ["dsh", "acp"], ["claude", "acp"], ["grok-command", "command"], ["dsh-command", "command"], ["claude-command", "command"], ["codex-command", "command"], ["aside", "command"], ["agy", "acp"], ["cursor", "command"], ["omo-astra", "omo"]];
+    source.scene.devices.machines = [node("모래톱", { cpu: 11.8, memory: 34.79, disk: 19.07, metricsWhy: null, runners: keys.map(([name, type]) => runner(name, { type, fleet: "1.0", installed: "1.0", ready: true })) })];
+    const view = await open(source);
+    const names = cellsOf(rowOf(view, "모래톱")).map((cell) => cell.querySelector(".runner-name")?.textContent ?? "");
+    expect(names).toEqual(["OMO", "Grok", "dsh", "Claude", "Grok 명령", "dsh 명령", "Claude 명령", "Codex", "aside", "Antigravity", "Cursor", "OMO Astra"]);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names.join(" ")).not.toMatch(/-command|omo-astra|\bagy\b/);
+  });
+
+  test("an owner's Mac lists each tool once by its display name", async () => {
+    const source = fresh();
+    source.scene.devices.person = [mac("등대", true, "1.0")];
+    const view = await open(source);
+    const tools = [...view.container.querySelectorAll(".person-tool")].map((tool) => tool.textContent);
+    expect(tools).toEqual(["OMO 1.0", "Codex 1.0", "Claude 1.0", "dsh 1.0", "Grok 1.0", "Cursor 1.0", "Antigravity 1.0"]);
+  });
+
+  test("an English check line reads one Korean line with its age, the raw text folded and ending at a whole word", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const line = `hold: tool on node 0.2.2-rc.1 (trial): trial: ACP error: Internal error: turn failed: fake-route: no API key for provider route "fake-official"; store FAKE_API_KEY through the credentials service (the web Mo`;
+    const checks: StatusChecks = { version: 1, at: now, checks: [{ name: "runner-sync", ok: false, line, at: now - 3 * 60 * 60, staleAfter: 172800, stale: false, state: "failing", file: "runner-sync.json" }] };
+    const view = await open(new SyntheticSource({ now, scene: { ...fresh().scene, checks } }));
+    const row = view.getByRole("list", { name: "점검" }).querySelector(".status-check-row") as HTMLElement;
+    const body = row.querySelector(".row-body") as HTMLElement;
+    expect(body.textContent).toMatch(/^실행기 업데이트 보류실패3시간 전$/);
+    expect(body.getAttribute("aria-label")).toBe("실행기 업데이트 보류 · 실패 · 3시간 전");
+    const fold = row.querySelector("details") as HTMLDetailsElement;
+    expect(fold.open).toBe(false);
+    const original = fold.querySelector(".check-original")?.textContent ?? "";
+    expect(original.endsWith("(the web…")).toBe(true);
+    expect(line.startsWith(original.slice(0, -1) + " ")).toBe(true);
   });
 });

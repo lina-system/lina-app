@@ -46,10 +46,13 @@ test("an unreadable check is open and counts against nothing passing", () => {
 test("a line that is not Korean takes a Korean line by id and outcome, and keeps the original", () => {
   const runnerSync = 'hold: dsh on hub 0.2.2-rc.1 (trial): trial: ACP error: Internal error: turn failed: llm-deepseek: no API key for provider route "deepseek-official"';
   const open = (name: string, line: string, state: StatusCheck["state"] = "failing") => checksView(view([{ ...check(name, state), line }])).open[0];
-  expect(open("runner-sync", runnerSync)).toMatchObject({ title: "실행기 업데이트 보류", original: runnerSync });
+  // The tool the line names, by the glossary, and why it failed follow the check's own line (lina-app#160).
+  expect(open("runner-sync", runnerSync)).toMatchObject({ title: "실행기 업데이트 보류 · DeepSeek · API 키 없음", original: runnerSync });
   expect(open("runner-sync", "fail: omo did not install").title).toBe("실행기 업데이트 실패");
   expect(open("night-probe", "hold: waiting for the owner")).toMatchObject({ title: "점검 보류", original: "hold: waiting for the owner" });
-  expect(open("night-probe", "probe timed out")).toMatchObject({ title: "점검 실패", original: "probe timed out" });
-  expect(open("백업 회선", "timeout").title).toBe("백업 회선 · 점검 실패");
+  expect(open("night-probe", "probe timed out")).toMatchObject({ title: "점검 실패 · 시간 초과", original: "probe timed out" });
+  expect(open("백업 회선", "timeout").title).toBe("백업 회선 · 점검 실패 · 시간 초과");
+  // A tool the glossary does not know is not named: the line stays Korean.
+  expect(open("runner-sync", "hold: fakebot on node 1.0: no API key").title).toBe("실행기 업데이트 보류 · API 키 없음");
   expect(open("백업 회선", "응답 없음")).toMatchObject({ title: "백업 회선 · 응답 없음", original: null });
 });

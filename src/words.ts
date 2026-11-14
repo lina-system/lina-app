@@ -571,3 +571,30 @@ export const STOP_WORD = {
   /** A stop the core gives no reason for. */
   none: "이유 없음",
 };
+
+/** lina-app#160: the status tab's words added in UI QA round 7. */
+export const STATUS_WORD = {
+  /** A warning whose value the core did not send. */
+  noValue: "값 없음",
+  /** Tools the glossary (TOOL_NAME) did not name yet: the DeepSeek runner and the Aside app. */
+  toolMore: { dsh: "DeepSeek", aside: "Aside" } as Readonly<Record<string, string>>,
+  /** Why an engine's English check line failed, as a few words after the check's own line; any other line says none. */
+  checkCause: [
+    [/no api key/i, "API 키 없음"],
+    [/timed? ?out/i, "시간 초과"],
+    [/not signed in|sign[- ]?in required|login required|unauthori[sz]ed/i, "로그인 필요"],
+    [/permission denied/i, "권한 없음"],
+  ] as readonly (readonly [RegExp, string])[],
+};
+
+/** A tool's display name (toolName), with the names the glossary lacked (STATUS_WORD.toolMore, lina-app#160). */
+export function glossaryToolName(key: string): string {
+  const bare = key.replace(/-command$/, "");
+  return Object.hasOwn(STATUS_WORD.toolMore, bare) ? STATUS_WORD.toolMore[bare] : toolName(key);
+}
+
+/** Whether the glossary names this tool key, so a line may say its name. */
+export function glossaryKnows(key: string): boolean {
+  const bare = key.replace(/-command$/, "");
+  return Object.hasOwn(TOOL_NAME, bare) || Object.hasOwn(STATUS_WORD.toolMore, bare);
+}

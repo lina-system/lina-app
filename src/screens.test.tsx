@@ -267,7 +267,7 @@ describe("machines, quota and checks", () => {
     // Each runner reads by its tool's display name (lina-app#156).
     expect(cellOf(other.name, "omo").textContent).toBe("OMO업데이트 필요");
     // Not ready with no reason of its own is not ready, never 확인 중.
-    expect(cellOf(other.name, "dsh").textContent).toBe("dsh준비 필요");
+    expect(cellOf(other.name, "dsh").textContent).toBe("DeepSeek준비 필요");
   });
 
   test("the sign-in button reads 로그인 중 and then the signed-in mark", async () => {

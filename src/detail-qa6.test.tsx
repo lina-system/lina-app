@@ -70,11 +70,11 @@ test("item 2: a card's worker runs and rounds read newest first, and a folded ro
 });
 
 /** A stopped card of the scene with the reason and ask the hub serves, the same on its list row and its detail. */
-function stoppedScene(id: string, reason: string | null, ask: string | null, comments: { author: string; body: string; createdAt: number }[] = []) {
+function stoppedScene(id: string, reason: string | null, ask: string | null, comments: { author: string; body: string; createdAt: number }[] = [], readOnly = true) {
   const scene = base(true);
-  const cards = { cards: scene.cards.cards.map((card) => (card.id === id ? { ...card, reason, ask, readOnly: true } : card)) };
+  const cards = { cards: scene.cards.cards.map((card) => (card.id === id ? { ...card, reason, ask, readOnly } : card)) };
   const detail = scene.cardDetails[id];
-  const cardDetails = { ...scene.cardDetails, [id]: { ...detail, reason, readOnly: true, comments: [...detail.comments, ...comments.map((comment, index) => ({ id: 900 + index, ...comment }))] } };
+  const cardDetails = { ...scene.cardDetails, [id]: { ...detail, reason, readOnly, comments: [...detail.comments, ...comments.map((comment, index) => ({ id: 900 + index, ...comment }))] } };
   return new SyntheticSource({ now: scene.now, scene: { ...scene, cards, cardDetails } });
 }
 
@@ -83,8 +83,8 @@ async function stopWhy(id: string, source: SyntheticSource) {
   const card = await frame(view);
   const head = card.querySelector(".detail-head") as HTMLElement;
   const state = head.querySelector(".sub [data-testid=state]")?.textContent;
-  const why = await waitFor(() => within(head).getByTestId("stop-why"));
-  return { view, card, head, state, why: why.textContent };
+  await waitFor(() => within(head).getByTestId("state"));
+  return { view, card, head, state, why: within(head).queryByTestId("stop-why")?.textContent ?? null };
 }
 
 test("item 3: a stopped card waiting on a decision says 결정 대기 and its ask under the head", async () => {
@@ -100,11 +100,17 @@ test("item 3: a stopped card waiting on feedback says 피드백 대기 and its a
   view.unmount();
 });
 
-test("item 3: a stopped card with neither a reason nor an ask says 이유 없음", async () => {
-  const { why, head, view } = await stopWhy("k-109", stoppedScene("k-109", null, null));
-  expect(why).toBe("이유 없음");
-  expect(within(head).queryByTestId("decided-since-stop")).toBeNull();
+test("item 3: a stopped card the state line already explains has no second line saying the same (lina-app#156 + #157)", async () => {
+  // The list row's stop words (결정 대기 and its ask) follow 중단됨 in the state line; the line under it would repeat them.
+  const { head, why, view } = await stopWhy("k-112", stoppedScene("k-112", "decision", "배포 순서를 정해 달라는 요청", [], false));
+  expect(why).toBeNull();
+  expect(head.querySelector(".sub")?.textContent).toContain("중단됨 · 결정 대기 · 배포 순서를 정해 달라는 요청");
   view.unmount();
+  // A card with neither a reason nor an ask reads the state line's own words, once.
+  const none = await stopWhy("k-109", stoppedScene("k-109", null, null, [], false));
+  expect(none.why).toBeNull();
+  expect(within(none.head).queryByTestId("decided-since-stop")).toBeNull();
+  none.view.unmount();
 });
 
 test("item 3: an owner decision newer than the stop is said in one line while the state is still 중단됨", async () => {

@@ -551,6 +551,12 @@ function OwnTitleLine({ own, title }: { own: string | null; title: string | null
  * A read-only card has no place to answer, so it makes no claim that the owner must act: the state word alone
  * (lina-app#153).
  */
+/** Whether the state line already says why a stopped card stopped: its row's stop words follow 중단됨 there (lina-app#156). */
+function stateSaysWhy(state: WorkState, reason: string | null, row: CardRow | undefined, readOnly: boolean): boolean {
+  const onOwner = Boolean(row?.stop?.owner) || reason === "decision" || reason === "feedback";
+  return state === "stopped" && Boolean(row?.stop) && !(readOnly && onOwner);
+}
+
 function HeadState({ state, reason, row, time, readOnly = false }: { state: WorkState; reason: string | null; row: CardRow | undefined; time: string; readOnly?: boolean }) {
   const onOwner = Boolean(row?.stop?.owner) || reason === "decision" || reason === "feedback";
   if (readOnly && onOwner) return <StateTime state={state} time={time} />;
@@ -564,7 +570,7 @@ function HeadState({ state, reason, row, time, readOnly = false }: { state: Work
  * of its comments is the owner's, made after the stop, a second line says the owner decided and the state has not
  * moved yet.
  */
-function StopWhy({ reason, ask, stoppedAt, comments = [] }: { reason: string | null; ask: string | null | undefined; stoppedAt: number | null; comments?: WorkCardDetail["comments"] }) {
+function StopWhy({ reason, words, carried, stoppedAt, comments = [] }: { reason: string | null; words: string | null | undefined; carried: boolean; stoppedAt: number | null; comments?: WorkCardDetail["comments"] }) {
   const { store } = useApp();
   const owner = store.get("items")?.owner?.id ?? "owner";
   const word = reason ? (DETAIL_WORD.waitFor[reason] ?? reasonWord(reason)) : null;
@@ -572,9 +578,11 @@ function StopWhy({ reason, ask, stoppedAt, comments = [] }: { reason: string | n
   const decided = stoppedAt !== null && newest !== undefined && (newest.author === owner || newest.author === "owner") && newest.createdAt > stoppedAt;
   return (
     <>
-      <span class="sub" data-testid="stop-why">
-        {[word, ask].filter(Boolean).join(SEP) || DETAIL_WORD.noReason}
-      </span>
+      {carried ? null : (
+        <span class="sub" data-testid="stop-why">
+          {words || word || DETAIL_WORD.noReason}
+        </span>
+      )}
       {decided ? (
         <span class="sub" data-testid="decided-since-stop">
           {DETAIL_WORD.decidedSinceStop}
@@ -652,7 +660,7 @@ export function CardScreen({ id }: { id: string }) {
       <article class="detail" data-testid="screen-card">
         <CardHead work={row.work} title={row.title}>
           <HeadState state={row.state} reason={row.reason} row={row} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} readOnly={row.readOnly} />
-          {row.state === "stopped" ? <StopWhy reason={row.reason} ask={row.ask} stoppedAt={row.stateAt} /> : null}
+          {row.state === "stopped" ? <StopWhy reason={row.reason} words={row.stop?.words} carried={stateSaysWhy(row.state, row.reason, row, Boolean(row.readOnly))} stoppedAt={row.stateAt} /> : null}
           <OwnTitleLine own={row.own} title={row.title} />
           {row.readOnly ? <ReadOnlyLine /> : null}
         </CardHead>
@@ -703,7 +711,7 @@ export function CardScreen({ id }: { id: string }) {
     <article class="detail" data-testid="screen-card">
       <CardHead work={row?.work ?? "code"} title={title}>
         <HeadState state={state} reason={reason} row={row} time={row ? [cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP) : ""} readOnly={readOnly} />
-        {state === "stopped" ? <StopWhy reason={reason} ask={row?.ask} stoppedAt={row?.stateAt ?? detail.lastHeartbeatAt ?? null} comments={detail.comments} /> : null}
+        {state === "stopped" ? <StopWhy reason={reason} words={row?.stop?.words} carried={stateSaysWhy(state, reason, row, readOnly)} stoppedAt={row?.stateAt ?? detail.lastHeartbeatAt ?? null} comments={detail.comments} /> : null}
         <OwnTitleLine own={own} title={title} />
         {goalLine && goalLine !== title ? (
           <span class="sub" data-testid="card-goal">

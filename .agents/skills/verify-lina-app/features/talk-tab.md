@@ -21,7 +21,9 @@ The first of the three tabs at the top (`대화 · 작업 · 상태`). The owner
 - The agent's card: on a wide window the right column headed `에이전트` (never `카드`; the counts, the agent's goals, `완료 · 오늘 n`); on a phone the same card folded above the conversation as `에이전트 · 목표 n` with each goal's progress, opening to the same rows. The counts read `진행 중 n · 중단됨 n · 검토 필요 n · 목표 n`: every number after its word, `중단됨 n` only when not 0 and the only red part.
 - A goal chosen on the card stays under `대화` (`#/talk/<agent>?goal=<id>`, lina-app#143). On a wide window it opens in the right column beside the window, with back `에이전트` to the card; on a phone it is one screen deeper, with back reading the agent's name. The goal's own links (its to-dos) open under `작업` as before.
 - On a phone, with the card open, a goal row scrolled into view stops above the field and the bottom strip (the screen's scroll padding keeps their height clear).
-- A refused turn shows one red line as soon as the core answers, the message leaves the window and comes back into the field (unless something new was typed meanwhile): `에이전트가 바쁨` (429), `에이전트 연결 안 됨` (503), `없는 에이전트` (404), `에이전트가 연결을 거절함` (502), `글은 4000자까지` (413). A reply that breaks off reads `답을 받지 못함`.
+- While `보내기` is off one line under the field says why, in the words `댓글` and `답` use (lina-app#158): `글 입력 대기` (empty field), `보내는 중` (the turn going out), `답하는 중` (its reply coming in). A to-do's `대화` does the same.
+- A refused turn shows one red line as soon as the core answers, the message leaves the window and comes back into the field (unless something new was typed meanwhile). The line reads the error code in the body before the status (lina-app#158): `에이전트가 바쁨` (429, and 409 without `no_owning_agent`: the agent gateway's `admission_conflict` and others), `맡은 에이전트 없음` (409 `no_owning_agent`, the core's own, only in a to-do's `대화`), `에이전트 연결 안 됨` (503), `없는 에이전트` (404), `에이전트가 연결을 거절함` (502), `글은 4000자까지` (413), any other `저장하지 못함 · 다시 시도`. A reply that breaks off reads `답을 받지 못함`.
+- The line sits inside the field's bar, above the field: on a phone the bar is sticky over the bottom of the screen and nothing covers the line, with or without the keyboard's height (lina-app#158).
 
 ## Sub-features
 
@@ -51,6 +53,7 @@ Preconditions:
 - **Phone.** At 390 the field and `보내기` are at least 44 px tall and back reads `대화`.
 - **Goal, card, tabs (spec).** `npx playwright test tests/talk-tab.spec.ts` (after `npm run build`): the goal route at 1280 light and dark and 390; at 390×420 with the card open the last goal row ends above the field and the strip, brought into view and at the end; in dark the pressed tab has the same background at 1280 and 390, apart from its neighbours.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/talk-tab/talk-tab-1280.{png,aria.yml,json}` and `talk-tab-390.{png,aria.yml,json}`.
+- **Refused send (spec).** `npx playwright test tests/talk-refused.spec.ts` (after `npm run build`): on `&talk=busy` a send reads `에이전트가 바쁨`, the message is back in the field, and `elementFromPoint` at the line's middle and left corners is the line itself (1280 light and dark, 390, and 390 with a 300 px keyboard inset).
 - **Leave mid-reply.** `npx playwright test tests/talk-leave.spec.ts` (after `npm run build`): send to the first agent, open the second before the reply ends (at 390 back to the list and in again), come back: both own messages show with the live dot, then the reply ends in `알려 드릴게요.` (1280 light and dark, 390).
 
 ## Gotchas

@@ -1663,6 +1663,31 @@ describe("agent talk", () => {
     expect(field.value).toBe("오늘 어디까지 했어요?");
   });
 
+  test("보내기 in the agent's window says why while it is off: an empty field, the turn going out, the reply coming in (lina-app#158)", async () => {
+    let answer: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (answer = resolve));
+    class Held extends SyntheticSource {
+      override async agentTalk(agent: string, body: { message: string }, signal?: AbortSignal) {
+        await gate;
+        return super.agentTalk(agent, body, signal);
+      }
+    }
+    const view = await open("#/talk/ag-1", { wide: true, source: new Held() });
+    const { box, field, send } = parts(view);
+    expect(send.disabled).toBe(true);
+    expect(box.getByTestId("send-why").textContent).toBe("글 입력 대기");
+    field.value = "가짜 질문 하나";
+    fireEvent.input(field);
+    await waitFor(() => expect(send.disabled).toBe(false));
+    expect(box.queryByTestId("send-why")).toBeNull();
+    fireEvent.click(send);
+    await waitFor(() => expect(box.getByTestId("send-why").textContent).toBe("보내는 중"));
+    expect(send.disabled).toBe(true);
+    answer();
+    await waitFor(() => expect(box.getByTestId("send-why").textContent).toBe("답하는 중"));
+    expect(send.disabled).toBe(true);
+  });
+
   test("a refused turn puts the agent row's preview back to what it showed before the send (lina-app#143)", async () => {
     let refuse: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => (refuse = resolve));
@@ -1866,6 +1891,28 @@ describe("talk", () => {
     field.value = text;
     fireEvent.input(field);
   }
+
+  test("보내기 under a to-do's 대화 says why while it is off, in the same words as 댓글 (lina-app#158)", async () => {
+    let answer: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (answer = resolve));
+    class Held extends SyntheticSource {
+      override async talk(id: string, body: { message: string }, signal?: AbortSignal) {
+        await gate;
+        return super.talk(id, body, signal);
+      }
+    }
+    const view = await open("#/items/T4", { wide: true, source: new Held() });
+    const { box, field, send } = talkParts(view);
+    expect(send.disabled).toBe(true);
+    expect(box.getByTestId("send-why").textContent).toBe("글 입력 대기");
+    type(field, "가짜 질문 하나");
+    await waitFor(() => expect(send.disabled).toBe(false));
+    expect(box.queryByTestId("send-why")).toBeNull();
+    fireEvent.click(send);
+    await waitFor(() => expect(box.getByTestId("send-why").textContent).toBe("보내는 중"));
+    answer();
+    await waitFor(() => expect(box.getByTestId("send-why").textContent).toBe("답하는 중"));
+  });
 
   test("대화 sits under 댓글; Enter sends, the reply streams with a live mark, then one line says the agent keeps it", async () => {
     vi.useFakeTimers(TIMERS);

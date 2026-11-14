@@ -2945,3 +2945,25 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   font-size: var(--text-small);
   color: var(--label-2);
 }
+
+/* lina-app#158: a refused send is one line inside the agent window's field bar, above the field. On a phone the bar is
+   sticky over the bottom of the screen; a line drawn after it sat under it. */
+.agent-talk-form > .write-error {
+  order: -1;
+  flex-basis: 100%;
+  margin: 0 0 6px;
+}
+
+/* The reason beside an off 보내기 (one small line and the row gap) and a refused send's line (and its margin) make the
+   bar taller; a row brought into view still stops above it (lina-app#143). */
+.stack .phone-main:has(> .agent-talk) {
+  scroll-padding-bottom: calc(var(--hit) + 96px + var(--talk-why-line, 0px) + var(--talk-error-line, 0px) + var(--safe-bottom) + var(--keyboard-inset, 0px));
+}
+
+.stack .phone-main:has(> .agent-talk .agent-talk-form > .send-why) {
+  --talk-why-line: 26px;
+}
+
+.stack .phone-main:has(> .agent-talk .agent-talk-form > .write-error) {
+  --talk-error-line: 32px;
+}

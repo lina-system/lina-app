@@ -557,6 +557,8 @@ export const DETAIL_WORD = {
   decidedSinceStop: "결정 기록 있음 · 상태는 아직 중단됨",
   /** Lines of a history that are not comments and have no sentence a person may read. */
   earlierRecords: (n: number) => `이전 기록 ${n}건`,
+  /** Comments with nothing left once their fold debris is gone: one row with their count (lina-app#161). */
+  foldedRecords: (n: number) => `접힌 기록 ${n}건`,
 };
 
 /**

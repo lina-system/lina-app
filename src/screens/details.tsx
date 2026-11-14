@@ -3,7 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
 import { cardTitle, goalCards, goalState, runRow, type CardRow, type Model } from "../model";
-import { foldReason, withoutRefs } from "../model/fold";
+import { foldedText, foldReason } from "../model/fold";
 import { holds } from "../model/rounds";
 import { stopReason } from "../model/stop-reason";
 import { answerOf, commentHistory, decisionHistory, goalHistory, historyLines, isMachineNotice, outcomeOf } from "../model/timeline";
@@ -110,7 +110,8 @@ const WHO_WHEN = /\([^()]*\d{1,2}:\d[\dx][^()]*\)/g;
 const LEADING_TAGS = /^(?:\s*\[[^\]\n]*\])+\s*/;
 
 /**
- * A history text through the fold titles go through (withoutRefs, lina-app#157): its card, goal and to-do ids,
+ * A history text through the fold comments go through (foldedText: withoutRefs, and a sentence left as debris dropped,
+ * lina-app#157, #161): its card, goal and to-do ids,
  * references and hashes cut, and its leading tags and who-and-when brackets cut; a sentence holding a word the screens
  * never use (BANNED_WORDS) is left out. fold.ts has no export for the brackets or the sentences, so they are cut here.
  * Empty when nothing is left: the line folds.
@@ -119,7 +120,7 @@ export function historyText(text: string): string {
   return text
     .split("\n")
     .map((line) =>
-      withoutRefs(line.replace(LEADING_TAGS, "").replace(WHO_WHEN, " "))
+      foldedText(line.replace(LEADING_TAGS, "").replace(WHO_WHEN, " "))
         .split(/(?<=[.!?。])\s+/)
         .filter((sentence) => !BANNED_WORDS.some((word) => sentence.includes(word)))
         .join(" ")

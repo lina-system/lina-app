@@ -132,6 +132,10 @@ test.each([
   ["…", ""],
   ["결과: 배포 성공, 커밋: a1b2c3d", "결과: 배포 성공"],
   ["커밋: a1b2c3d, 결과: 배포 성공", "결과: 배포 성공"],
+  ["결과: ✅", "결과: ✅"],
+  ["확인: 👍", "확인: 👍"],
+  ["결과: ✅, 커밋: a1b2c3d", "결과: ✅"],
+  ["주소: (…) 결과: 배포 성공", "결과: 배포 성공"],
 ])("foldedText(%j) keeps only what still reads: %j (lina-app#161)", (comment, shown) => {
   expect(foldedText(comment)).toBe(shown);
 });

@@ -88,6 +88,12 @@ const LONE_PARTICLE = String.raw`(?:으로|에서|까지|부터|이라|라고|�
 /** A label: a word ending in `:` before a space or the end (`주소:`, never the `http:` of an address). */
 const LABEL = /\S+:(?=\s|$)/g;
 
+/** A field value that held refs or fold markers and nothing else once they are cut: `✅` or `네` never counts. */
+function fieldEmptied(value: string): boolean {
+  if (/…|\.\.\./.test(value) && ONLY_FOLD_MARKERS.test(value)) return true;
+  return new RegExp(REF, "u").test(value) && !withoutRefs(value).trim();
+}
+
 /**
  * The sentence without its labelled fields whose value was nothing but refs (`커밋: a1b2c3d`): the label alone says
  * nothing. A field with words in it stays, and so does every other field of the sentence. Null when such a label sits
@@ -99,7 +105,7 @@ function withoutEmptyFields(sentence: string): string | null {
   for (const [index, label] of [...labels.entries()].reverse()) {
     const end = labels[index + 1]?.index ?? sentence.length;
     const value = sentence.slice(label.index + label[0].length, end);
-    if (!value.trim() || /[\p{L}\p{N}]/u.test(withoutRefs(value))) continue;
+    if (!value.trim() || !fieldEmptied(value)) continue;
     // A label standing inside a phrase (`되돌릴 커밋: <hash>`) has no field of its own to cut: the sentence goes.
     if (!/(?:^|[,;·.!?。/+-])\s*$/.test(sentence.slice(0, label.index))) return null;
     out = out.slice(0, label.index) + " " + out.slice(end);

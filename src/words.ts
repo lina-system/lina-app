@@ -558,3 +558,43 @@ export const DETAIL_WORD = {
   /** Lines of a history that are not comments and have no sentence a person may read. */
   earlierRecords: (n: number) => `이전 기록 ${n}건`,
 };
+
+/**
+ * lina-app#160: a stopped row's word by the reason the core sends (work_api._block_stop), said first whoever has to act.
+ * `hold` is a time wait only when the core runs it again by itself (`retry: scheduled`).
+ */
+export const STOP_WORD = {
+  why: { blocked_by_item: "다른 일 대기", failed: "실패", rejected: "실패", gate: "관문 대기", budget: "예산 초과" } as Readonly<Record<string, string>>,
+  timeWait: "시각 대기",
+  /** A time wait with the time the core gives for it. */
+  timeWaitUntil: (time: string) => `시각 대기 · ${time}`,
+  /** A stop the core gives no reason for. */
+  none: "이유 없음",
+};
+
+/** lina-app#160: the status tab's words added in UI QA round 7. */
+export const STATUS_WORD = {
+  /** A warning whose value the core did not send. */
+  noValue: "값 없음",
+  /** Tools the glossary (TOOL_NAME) did not name yet: the DeepSeek runner and the Aside app. */
+  toolMore: { dsh: "DeepSeek", aside: "Aside" } as Readonly<Record<string, string>>,
+  /** Why an engine's English check line failed, as a few words after the check's own line; any other line says none. */
+  checkCause: [
+    [/no api key/i, "API 키 없음"],
+    [/timed? ?out/i, "시간 초과"],
+    [/not signed in|sign[- ]?in required|login required|unauthori[sz]ed/i, "로그인 필요"],
+    [/permission denied/i, "권한 없음"],
+  ] as readonly (readonly [RegExp, string])[],
+};
+
+/** A tool's display name (toolName), with the names the glossary lacked (STATUS_WORD.toolMore, lina-app#160). */
+export function glossaryToolName(key: string): string {
+  const bare = key.replace(/-command$/, "");
+  return Object.hasOwn(STATUS_WORD.toolMore, bare) ? STATUS_WORD.toolMore[bare] : toolName(key);
+}
+
+/** Whether the glossary names this tool key, so a line may say its name. */
+export function glossaryKnows(key: string): boolean {
+  const bare = key.replace(/-command$/, "");
+  return Object.hasOwn(TOOL_NAME, bare) || Object.hasOwn(STATUS_WORD.toolMore, bare);
+}

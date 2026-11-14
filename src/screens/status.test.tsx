@@ -70,8 +70,13 @@ const cellsOf = (row: HTMLElement) => [...row.querySelectorAll("[data-testid=run
 const RUNNER_SYNC =
   'hold: dsh on hub 0.2.2-rc.1 (trial): trial: ACP error: Internal error: turn failed: llm-deepseek: no API key for provider route "deepseek-official"; store DEEPSEEK_API_KEY through the credentials service (the web Mo';
 
-/** The hub's line cut at its last whole word: `(the web Mo` loses `Mo` and ends in one ellipsis (lina-app#150). */
-const RUNNER_SYNC_WHOLE = `${RUNNER_SYNC.slice(0, RUNNER_SYNC.lastIndexOf(" "))}…`;
+/**
+ * The hub's line cut at its last whole clause: the bracket its cut left open (`(the web Mo`) goes whole and the line ends
+ * in one ellipsis (lina-app#150, #160).
+ */
+const RUNNER_SYNC_WHOLE = `${RUNNER_SYNC.slice(0, RUNNER_SYNC.lastIndexOf(" ("))}…`;
+/** One Korean line for it: the check, the tool it names and why, all from the glossary (lina-app#160). */
+const RUNNER_SYNC_TITLE = "실행기 업데이트 보류 · DeepSeek · API 키 없음";
 
 describe("status tab on the hub's real shapes (lina-app#144)", () => {
   test("a check whose line is not Korean reads one Korean line, with the original folded behind 자세히", async () => {
@@ -88,7 +93,7 @@ describe("status tab on the hub's real shapes (lina-app#144)", () => {
     const view = await open(new SyntheticSource({ now, scene: { ...fresh().scene, checks } }));
     const rows = [...view.getByRole("list", { name: "점검" }).querySelectorAll(".status-check-row")] as HTMLElement[];
     expect(rows).toHaveLength(2);
-    expect(rows.map((row) => row.querySelector(".title")?.textContent)).toEqual(["실행기 업데이트 보류", "점검 실패"]);
+    expect(rows.map((row) => row.querySelector(".title")?.textContent)).toEqual([RUNNER_SYNC_TITLE, "점검 실패 · 시간 초과"]);
     for (const [row, line] of [
       [rows[0], RUNNER_SYNC_WHOLE],
       [rows[1], "fail: probe timed out"],
@@ -100,7 +105,7 @@ describe("status tab on the hub's real shapes (lina-app#144)", () => {
       expect(original.textContent).toBe(line);
       // Wrapped, never cut by the width.
       expect(original.classList.contains("one-line")).toBe(false);
-      expect(row.querySelector(".title")?.textContent).not.toMatch(/[A-Za-z]/);
+      expect(row.querySelector(".title")?.textContent?.replace("DeepSeek", "").replace("API", "")).not.toMatch(/[A-Za-z]/);
     }
   });
 
@@ -128,7 +133,7 @@ describe("status tab on the hub's real shapes (lina-app#144)", () => {
     source.scene.devices.person = [mac("먹물", true, "1.0"), mac("벼루", true)];
     const view = await open(source);
     const [first, second] = [...view.getByRole("list", { name: "내 기기" }).querySelectorAll(".person-row")];
-    expect([...first.querySelectorAll(".person-tool")].map((tool) => tool.textContent)).toEqual(["OMO 1.0", "Codex 1.0", "Claude 1.0", "dsh 1.0", "Grok 1.0", "Cursor 1.0", "Antigravity 1.0"]);
+    expect([...first.querySelectorAll(".person-tool")].map((tool) => tool.textContent)).toEqual(["OMO 1.0", "Codex 1.0", "Claude 1.0", "DeepSeek 1.0", "Grok 1.0", "Cursor 1.0", "Antigravity 1.0"]);
     expect(second.textContent).not.toContain("—");
     expect(view.getByTestId("section-person").querySelector(".section-head")?.textContent).toBe("내 기기 2 · 연결됨 2");
   });
@@ -153,8 +158,8 @@ describe("status tab on the hub's real shapes (lina-app#144)", () => {
     expect(view.getByTestId("section-machines").textContent).not.toContain("확인 중");
     // Each runner reads by its tool's display name; the command runner of a tool another runner names says so (lina-app#156).
     const [dsh, dshCommand, cursor, omo] = cellsOf(rowOf(view, "모래톱"));
-    expect(dsh.textContent).toBe("dsh0.2.1-rc.5");
-    expect(dshCommand.textContent).toBe("dsh 명령확인 안 됨");
+    expect(dsh.textContent).toBe("DeepSeek0.2.1-rc.5");
+    expect(dshCommand.textContent).toBe("DeepSeek 명령확인 안 됨");
     expect(cursor.textContent).toBe("Cursor2026.11.11");
     expect(omo.textContent).toBe("OMO업데이트 필요5.1.60 → 5.1.69");
     expect(cellsOf(rowOf(view, "물레방아"))[0].textContent).toBe("OMO업데이트 필요5.1.51 → 5.1.69");
@@ -226,7 +231,7 @@ describe("status tab, QA round 4 (lina-app#150)", () => {
     source.scene.devices.machines = [node("모래톱", { cpu: 11.8, memory: 34.79, disk: 19.07, metricsWhy: null, runners: [...ids.map((id) => runner(id, { fleet: "1.0", installed: "1.0", ready: true })), runner("aside")] })];
     const view = await open(source);
     const names = cellsOf(rowOf(view, "모래톱")).map((cell) => cell.querySelector(".runner-name")?.textContent);
-    expect(names).toEqual(["OMO", "Codex", "dsh", "Claude", "OMO Astra", "aside"]);
+    expect(names).toEqual(["OMO", "Codex", "DeepSeek", "Claude", "OMO Astra", "Aside"]);
     expect(view.getByTestId("section-machines").textContent).not.toContain("실행기");
   });
 
@@ -236,11 +241,11 @@ describe("status tab, QA round 4 (lina-app#150)", () => {
     const checks: StatusChecks = { version: 1, at, checks: [{ name: "runner-sync", ok: false, line: RUNNER_SYNC, at, staleAfter: 172800, stale: false, state: "failing", file: "runner-sync.json" }] };
     const view = await open(new SyntheticSource({ now, scene: { ...fresh().scene, checks } }));
     const row = view.getByRole("list", { name: "점검" }).querySelector(".status-check-row") as HTMLElement;
-    expect(row.querySelector(".title")?.textContent).toBe("실행기 업데이트 보류");
+    expect(row.querySelector(".title")?.textContent).toBe(RUNNER_SYNC_TITLE);
     expect(row.querySelector(".check-state")?.textContent).toBe("실패");
     const original = row.querySelector(".check-original")?.textContent ?? "";
     expect(original).toBe(RUNNER_SYNC_WHOLE);
-    expect(original).not.toMatch(/\bMo…?$/);
+    expect(original).not.toMatch(/\bMo…?$|\(the web/);
   });
 
   test("요약 중단됨 stays out of the header and shows in 점검 only", async () => {
@@ -295,7 +300,7 @@ describe("status tab, QA round 6 (lina-app#156)", () => {
     source.scene.devices.machines = [node("모래톱", { cpu: 11.8, memory: 34.79, disk: 19.07, metricsWhy: null, runners: keys.map(([name, type]) => runner(name, { type, fleet: "1.0", installed: "1.0", ready: true })) })];
     const view = await open(source);
     const names = cellsOf(rowOf(view, "모래톱")).map((cell) => cell.querySelector(".runner-name")?.textContent ?? "");
-    expect(names).toEqual(["OMO", "Grok", "dsh", "Claude", "Grok 명령", "dsh 명령", "Claude 명령", "Codex", "aside", "Antigravity", "Cursor", "OMO Astra"]);
+    expect(names).toEqual(["OMO", "Grok", "DeepSeek", "Claude", "Grok 명령", "DeepSeek 명령", "Claude 명령", "Codex", "Aside", "Antigravity", "Cursor", "OMO Astra"]);
     expect(new Set(names).size).toBe(names.length);
     expect(names.join(" ")).not.toMatch(/-command|omo-astra|\bagy\b/);
   });
@@ -305,7 +310,7 @@ describe("status tab, QA round 6 (lina-app#156)", () => {
     source.scene.devices.person = [mac("등대", true, "1.0")];
     const view = await open(source);
     const tools = [...view.container.querySelectorAll(".person-tool")].map((tool) => tool.textContent);
-    expect(tools).toEqual(["OMO 1.0", "Codex 1.0", "Claude 1.0", "dsh 1.0", "Grok 1.0", "Cursor 1.0", "Antigravity 1.0"]);
+    expect(tools).toEqual(["OMO 1.0", "Codex 1.0", "Claude 1.0", "DeepSeek 1.0", "Grok 1.0", "Cursor 1.0", "Antigravity 1.0"]);
   });
 
   test("an English check line reads one Korean line with its age, the raw text folded and ending at a whole word", async () => {
@@ -315,12 +320,75 @@ describe("status tab, QA round 6 (lina-app#156)", () => {
     const view = await open(new SyntheticSource({ now, scene: { ...fresh().scene, checks } }));
     const row = view.getByRole("list", { name: "점검" }).querySelector(".status-check-row") as HTMLElement;
     const body = row.querySelector(".row-body") as HTMLElement;
-    expect(body.textContent).toMatch(/^실행기 업데이트 보류실패3시간 전$/);
-    expect(body.getAttribute("aria-label")).toBe("실행기 업데이트 보류 · 실패 · 3시간 전");
+    // A tool the glossary does not know is not named in the Korean line (lina-app#160).
+    expect(body.textContent).toMatch(/^실행기 업데이트 보류 · API 키 없음실패3시간 전$/);
+    expect(body.getAttribute("aria-label")).toBe("실행기 업데이트 보류 · API 키 없음 · 실패 · 3시간 전");
     const fold = row.querySelector("details") as HTMLDetailsElement;
     expect(fold.open).toBe(false);
     const original = fold.querySelector(".check-original")?.textContent ?? "";
-    expect(original.endsWith("(the web…")).toBe(true);
+    // The bracket the hub's cut left open goes whole: the fold ends at the clause before it (lina-app#160).
+    expect(original.endsWith("through the credentials service…")).toBe(true);
     expect(line.startsWith(original.slice(0, -1) + " ")).toBe(true);
+  });
+});
+
+// lina-app#160: QA round 7 on the hub's /api/lina/devices (11-15). Invented device names; the tool keys, the versions
+// with a build hash, the tools with no version and the warning's reason are the hub's own shapes.
+describe("status tab, QA round 7 (lina-app#160)", () => {
+  test("a tool an owner's Mac read no version for says 확인 안 됨, as the runners do, and a build hash is never shown", async () => {
+    const source = fresh();
+    source.scene.devices.person = [
+      {
+        name: "등대",
+        role: "person",
+        reachable: true,
+        checkedAt: 1794600173.8,
+        tools: [
+          { name: "omo", fleet: "5.1.69", installed: null },
+          { name: "dsh", fleet: "0.2.1-rc.5", installed: "0.2.2-rc.1" },
+          { name: "cursor-agent", fleet: "2026.11.13-eacade1", installed: "2026.11.05-86047df" },
+          { name: "agy", fleet: "1.5.8", installed: null },
+          { name: "omo", fleet: "5.1.69", installed: null },
+        ],
+      } as PersonDevice,
+    ];
+    const view = await open(source);
+    const tools = [...view.container.querySelectorAll(".person-tool")].map((tool) => tool.textContent);
+    expect(tools).toEqual(["OMO 확인 안 됨", "DeepSeek 0.2.2-rc.1", "Cursor 2026.11.05", "Antigravity 확인 안 됨"]);
+    expect(view.getByTestId("section-person").textContent).not.toMatch(/86047df|\bdsh\b|\bagy\b/);
+  });
+
+  test("a fine runner's version shows no build hash, and dsh and aside read by the glossary", async () => {
+    const source = fresh();
+    source.scene.devices.machines = [
+      node("모래톱", {
+        cpu: 11.8,
+        memory: 34.79,
+        disk: 19.07,
+        metricsWhy: null,
+        runners: [runner("cursor", { fleet: "2026.11.13-eacade1", installed: "2026.11.13-eacade1", ready: true }), runner("dsh", { type: "acp", installed: "0.2.1-rc.5", ready: true }), runner("aside")],
+      }),
+    ];
+    const view = await open(source);
+    expect(cellsOf(rowOf(view, "모래톱")).map((cell) => cell.textContent)).toEqual(["Cursor2026.11.13✓", "DeepSeek0.2.1-rc.5✓", "Aside확인 안 됨"]);
+  });
+
+  test("a warning always carries its value or 값 없음", async () => {
+    const source = fresh();
+    source.scene.devices.machines = [
+      node("모래톱", { state: "warn", why: "temp", temp: 85, cpu: 7, memory: 13, disk: 23, metricsWhy: null }),
+      node("솔방울", { state: "warn", why: "temp", temp: null, cpu: 7, memory: 13, disk: 23, metricsWhy: null }),
+      node("물레방아", { state: "warn", why: "disk", disk: null, cpu: 7, memory: 13, metricsWhy: "unknown" }),
+      node("바람개비", { state: "warn", why: "disk", disk: 91, cpu: 7, memory: 13, metricsWhy: null }),
+    ];
+    const view = await open(source);
+    const why = (name: string) => rowOf(view, name).querySelector(".sub")?.textContent;
+    expect(why("모래톱")).toBe("경고 · 온도 85°C");
+    expect(why("솔방울")).toBe("경고 · 온도 값 없음");
+    expect(why("물레방아")).toBe("경고 · 디스크 값 없음");
+    // A reading with a meter shows its value beside its bar already.
+    expect(why("바람개비")).toBe("경고 · 디스크");
+    expect(rowOf(view, "바람개비").querySelector(".mini-meters")?.textContent).toContain("디스크91%");
+    expect(rowOf(view, "모래톱").querySelector(".row-body")?.getAttribute("aria-label")).toContain("경고 · 온도 85°C");
   });
 });

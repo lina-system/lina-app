@@ -1,5 +1,5 @@
 import type { StatusCheck, StatusChecks } from "../api/client";
-import { CHECK_LINE, CHECK_OUTCOME_LINE, type CheckOutcome, SEP, W } from "../words";
+import { CHECK_LINE, CHECK_OUTCOME_LINE, type CheckOutcome, glossaryKnows, glossaryToolName, SEP, STATUS_WORD, W } from "../words";
 
 /** A check that has something to say: failing, stale or an unreadable file. */
 export type OpenCheckState = Exclude<StatusCheck["state"], "ok">;
@@ -8,7 +8,10 @@ export interface OpenCheck {
   readonly key: string;
   readonly name: string;
   readonly line: string;
-  /** What the row reads: `<name> · <line>` when the line is Korean, else one Korean line by id and outcome. */
+  /**
+   * What the row reads: `<name> · <line>` when the line is Korean, else one Korean line by id and outcome, then the tool
+   * the line names and why, when it says them (lina-app#160).
+   */
   readonly title: string;
   /** The core's own line when it is not Korean, folded behind 자세히; null when the title already says it. */
   readonly original: string | null;
@@ -39,13 +42,26 @@ const CUT_AT = 200;
 
 /**
  * The core cuts an engine's error at a fixed length, which can end inside a word (`(the web Mo`, lina-app#150, #152). A
- * line left with a bracket or a quote open, or as long as the cut, was cut: it keeps its whole words and ends in one
- * ellipsis.
+ * line left with a bracket or a quote open, or as long as the cut, was cut: the bracket or quote its cut left open goes
+ * whole, so the line ends at the clause before it (lina-app#160); otherwise it keeps its whole words. Either way it ends
+ * in one ellipsis.
  */
 function wholeWords(line: string): string {
-  const cut = line.length >= CUT_AT || count(line, "(") > count(line, ")") || count(line, "[") > count(line, "]") || count(line, '"') % 2 === 1;
+  const open = [
+    count(line, "(") > count(line, ")") ? line.lastIndexOf("(") : -1,
+    count(line, "[") > count(line, "]") ? line.lastIndexOf("[") : -1,
+    count(line, '"') % 2 === 1 ? line.lastIndexOf('"') : -1,
+  ].filter((at) => at > 0);
+  if (open.length) return W.cutShort(line.slice(0, Math.min(...open)).replace(/[\s;:,]+$/, ""));
   const end = line.trimEnd().lastIndexOf(" ");
-  return cut && end > 0 ? W.cutShort(line.slice(0, end)) : line;
+  return line.length >= CUT_AT && end > 0 ? W.cutShort(line.slice(0, end)) : line;
+}
+
+/** The tool an engine's line names (`hold: <tool> on <node> …`), when the glossary knows it; and why it failed (lina-app#160). */
+function lineDetail(line: string): string[] {
+  const tool = /^\s*(?:ok|hold|fail)\s*:\s*([\w.-]+)\s+on\s/i.exec(line)?.[1];
+  const cause = STATUS_WORD.checkCause.find(([rule]) => rule.test(line))?.[1];
+  return [tool && glossaryKnows(tool) ? glossaryToolName(tool) : null, cause ?? null].filter((part): part is string => Boolean(part));
 }
 
 /** A Korean line reads as written. Any other line (an engine's English error) reads one plain Korean line instead. */
@@ -53,9 +69,10 @@ function plainLine(check: StatusCheck): Pick<OpenCheck, "title" | "original"> {
   if (HANGUL.test(check.line)) return { title: [check.name, check.line].filter(Boolean).join(SEP), original: null };
   const outcome = outcomeOf(check);
   const original = check.line.trim() ? wholeWords(check.line) : null;
-  if (Object.hasOwn(CHECK_LINE, check.name)) return { title: CHECK_LINE[check.name][outcome], original };
+  const detail = lineDetail(check.line);
+  if (Object.hasOwn(CHECK_LINE, check.name)) return { title: [CHECK_LINE[check.name][outcome], ...detail].join(SEP), original };
   const line = CHECK_OUTCOME_LINE[outcome];
-  return { title: HANGUL.test(check.name) ? `${check.name}${SEP}${line}` : line, original };
+  return { title: [...(HANGUL.test(check.name) ? [check.name] : []), line, ...detail].join(SEP), original };
 }
 
 /**

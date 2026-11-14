@@ -161,6 +161,16 @@ test("no two rows of a group read the same: line 1 is the goal's title, line 2 t
   expect(model.home.stopped.rows.filter((each) => each.name === ORDER).map((each) => each.sub ?? null)).toEqual(["가짜 관문: 주문 여러 건 묶기", "가짜 관문: 장 밖 주문 채우기", "가짜 매매 관문(fake-gate·fake-board)을 허브로"]);
 });
 
+test("cards whose titles differ only by a hash fold to one clean line, no debris, and read apart by their times (lina-app#160)", () => {
+  const deploy = (id: string, hashes: string, endedAt: number) => row(id, `가짜 코어를 dev ${hashes}로, 앱 빌드를 올리기 (가짜 반영 · #12 · · FAKE_KEY 확인)`, "done", { endedAt });
+  const model = realModel([deploy("h1", "1a2b3c4d", NOW - 600), deploy("h2", "5e6f7a8b", NOW - 1800), deploy("h3", "9c0d1e2f", NOW - 3600)]);
+  const rows = model.home.recent.rows;
+  expect(rows.map((each) => each.name)).toEqual(Array(3).fill("가짜 코어를, 앱 빌드를 올리기 (가짜 반영 · 확인)"));
+  expect(new Set(rows.map((each) => each.when)).size).toBe(3);
+  expect(rows.every((each) => /^\d\d:\d\d$|^어제 \d\d:\d\d$/.test(each.when ?? ""))).toBe(true);
+  expect(duplicates(rows)).toBe(0);
+});
+
 test("every stopped card is a row: a reference and a hash are cut from its title, and the head counts the rows (lina-app#148)", () => {
   const model = realModel();
   const stoppedCards = cards.filter((each) => each.state === "stopped");

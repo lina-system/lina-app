@@ -11,7 +11,7 @@ import { useEffect, useState } from "preact/hooks";
 import { useActions } from "../ui/actions";
 import { QuickAddButton, QuickAddForm } from "../ui/quick-add";
 import { AgentMark, agentName, CardRowView, CountPair, Dial, Disclosure, DoneCheck, Empty, ErrorLine, Link, ListSection, SectionHead, useApp } from "../ui/parts";
-import { machineWhy, metricsReason, serviceName, SEP, toolCommand, toolName, versionOf, W } from "../words";
+import { glossaryToolName, machineWhy, metricsReason, serviceName, SEP, STATUS_WORD, toolCommand, versionOf, W } from "../words";
 import { writeError } from "./write-error";
 
 type DecideRow = Extract<InboxRow, { type: "decide" }>;
@@ -315,15 +315,17 @@ export function GoalLine({ goal, showAgent }: { goal: GoalRow; showAgent: boolea
   // The goal's title and done condition fold as a row's title does (lina-app#156): refs, hashes and ids never show.
   const title = foldTitle(goal.title) ?? W.untitled;
   const condition = foldTitle(goal.doneCondition);
+  // A goal with no to-dos has no progress to show: no 0/0, no empty dial (lina-app#160).
+  const counted = goal.todosTotal > 0;
   return (
     <li class={`row goal-row${closed ? " check-row" : ""}${closed && shown ? " is-checked" : ""}`} data-testid="row">
       {closed ? <DoneCheck id={goal.id} title={goal.title} done={goal.state === "done"} /> : null}
       <Link
         href={goal.href}
-        label={[showAgent ? agentName(model, goal.agent) : "", title, W.progress(goal.todosDone, goal.todosTotal)].filter(Boolean).join(SEP)}
+        label={[showAgent ? agentName(model, goal.agent) : "", title, counted ? W.progress(goal.todosDone, goal.todosTotal) : ""].filter(Boolean).join(SEP)}
         current={selected === goal.href}
       >
-        {closed ? null : <Dial done={goal.todosDone} totalCount={goal.todosTotal} />}
+        {closed ? null : counted ? <Dial done={goal.todosDone} totalCount={goal.todosTotal} /> : <span class="dial-space" aria-hidden="true" />}
         {showAgent ? <AgentMark id={goal.agent} /> : null}
         <span class="lines">
           <span class="title one-line">{title}</span>
@@ -498,11 +500,16 @@ function chooseRestart(step: "worker" | "ocx"): void {
  * read the same name, the command runner says so (`Grok 명령`), so no name shows twice on one device.
  */
 function deviceToolNames(runners: readonly RunnerCell[]): string[] {
-  const names = runners.map((runner) => toolName(runner.name));
+  const names = runners.map((runner) => glossaryToolName(runner.name));
   return runners.map((runner, index) => {
     const shared = names.filter((name) => name === names[index]).length > 1;
     return shared && (runner.name.endsWith("-command") || runner.type === "command") ? toolCommand(names[index]) : names[index];
   });
+}
+
+/** A version as a person reads it: a build hash after it (`2026.11.05-86047df`) is never shown (lina-app#160). */
+function shownVersion(version: string): string {
+  return version.replace(/[-+][0-9a-f]{7,40}\b/g, "");
 }
 
 function RunnerCellView({ machine, runner, name }: { machine: Machine; runner: RunnerCell; name: string }) {
@@ -540,7 +547,7 @@ function RunnerCellView({ machine, runner, name }: { machine: Machine; runner: R
         <span class="runner-detail">{W.signingIn}</span>
       ) : fine ? (
         <>
-          <span class="runner-detail">{runner.installed ?? W.none}</span>
+          <span class="runner-detail">{runner.installed ? shownVersion(runner.installed) : W.none}</span>
           <span class="signed-mark" role="img" aria-label={W.signedIn}>
             ✓
           </span>
@@ -575,6 +582,16 @@ function RunnerCellView({ machine, runner, name }: { machine: Machine; runner: R
 type MachineReadings = Machine & { readonly metricsWhy?: string | null };
 
 /**
+ * The value a warning's reason carries (lina-app#160): a temperature always, as no bar shows it; a CPU, memory or disk
+ * reading only when it is missing, since its bar shows it otherwise. 값 없음 when the core sent none.
+ */
+function warnValue(machine: MachineReadings): string | null {
+  if (machine.why === "temp") return machine.temp !== null ? W.temperature(machine.temp) : STATUS_WORD.noValue;
+  if (machine.why === "cpu" || machine.why === "memory" || machine.why === "disk") return machine[machine.why] === null ? STATUS_WORD.noValue : null;
+  return null;
+}
+
+/**
  * A node the hub cannot reach reads its name, state and 연결 끊김 and nothing else: no readings, load, runners or restart.
  * A reachable node draws each reading as a bar with its percent, a dash for one it lacks, and then one reason from
  * `metricsWhy` (lina-app#150).
@@ -584,7 +601,8 @@ function MachineRow({ machine }: { machine: MachineReadings }) {
   const { note } = useRestartState();
   const word = W.machineState[machine.state] ?? "";
   const offline = machine.reachable === false;
-  const why = offline ? W.offline : machineWhy(machine.why);
+  const reason = machineWhy(machine.why);
+  const why = offline ? W.offline : reason && [reason, warnValue(machine)].filter(Boolean).join(" ");
   const readings = [
     [W.cpu, machine.cpu],
     [W.memory, machine.memory],
@@ -641,12 +659,12 @@ function personState(device: PersonDevice): string {
 }
 
 /**
- * An owner's Mac: 연결 끊김 alone while unreachable; otherwise each tool once by its display name (toolName, lina-app#156),
- * with its version when the Mac read one.
+ * An owner's Mac: 연결 끊김 alone while unreachable; otherwise each tool once by its display name (glossaryToolName,
+ * lina-app#156, #160), with its version, build hash cut, or 확인 안 됨 when the Mac read none, as the runners say.
  */
 function PersonRow({ device }: { device: PersonDevice }) {
   const state = personState(device);
-  const named = device.tools.map((tool) => ({ ...tool, shown: toolName(tool.name) }));
+  const named = device.tools.map((tool) => ({ ...tool, shown: glossaryToolName(tool.name) }));
   const tools = device.reachable === false ? [] : named.filter((tool, index) => named.findIndex((other) => other.shown === tool.shown) === index);
   return (
     <li class="person-row">
@@ -654,7 +672,7 @@ function PersonRow({ device }: { device: PersonDevice }) {
       <span class={`person-state${device.reachable === false ? " is-off" : ""}`}>{state}</span>
       {tools.map((tool) => (
         <span key={tool.name} class="person-tool">
-          {tool.installed ? `${tool.shown} ${tool.installed}` : tool.shown}
+          {`${tool.shown} ${tool.installed ? shownVersion(tool.installed) : W.runnerUnchecked}`}
         </span>
       ))}
     </li>

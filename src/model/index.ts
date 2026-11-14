@@ -23,7 +23,7 @@ import type {
   WorkInbox,
   WorkState,
 } from "../api/client";
-import { BANNED_WORDS, CRUMB, KIND_TITLE, SEP, SOURCE_WORD, STATE_WORD, STOP_WAIT, W, reasonWord } from "../words";
+import { BANNED_WORDS, CRUMB, KIND_TITLE, SEP, SOURCE_WORD, STATE_WORD, STOP_WAIT, STOP_WORD, W, reasonWord } from "../words";
 import { href } from "../router";
 import { clockAt } from "../time";
 import { checksView, type ChecksView } from "./checks";
@@ -58,7 +58,7 @@ export type MineSource = BoardSnapshot["inbox"]["mine"][number];
  * A cards-list row as the core will serve it: `goalTitle` (lina#666) and a stopped row's short `ask` (lina#690) are
  * optional until every core sends them.
  */
-export type CardSummary = WorkCardSummary & { readonly goalTitle?: string | null; readonly ask?: string | null };
+export type CardSummary = WorkCardSummary & { readonly goalTitle?: string | null; readonly ask?: string | null; readonly waitUntil?: number | null };
 
 export interface Pending {
   /** Inbox rows hidden while their answer waits for its toast. */
@@ -335,6 +335,13 @@ function askLine(text: string | null | undefined): string | null {
   return cut && !BANNED_WORDS.some((word) => cut.includes(word)) ? cut : null;
 }
 
+/** The ask without a trailing repeat of the status word said before it (`확인 필요 · … 확인 필요`); null when nothing is left. */
+function withoutRepeat(ask: string, words: string): string | null {
+  const last = words.split(SEP).at(-1)?.trim();
+  const left = last && ask.replace(/[.。!]+$/, "").endsWith(last) ? ask.replace(/[.。!]+$/, "").slice(0, -last.length).replace(/[\s·,:;-]+$/, "") : ask;
+  return left || null;
+}
+
 function mayDraw(title: string, latin = false): boolean {
   const reason = foldReason(title);
   return reason === null || (latin && reason === "latin");
@@ -482,32 +489,39 @@ export function buildModel(input: ModelInput, now: number): Model {
   const plainName = (title: string | null | undefined, latin = false) => (title ? cleanTitle(title, latin) : null);
   // A name only the Latin-word exception lets a lone stopped run draw, with no Korean in it: an internal name.
   const internal = (title: string | null | undefined) => Boolean(title) && plainName(title) === null && plainName(title, true) !== null && !HANGUL.test(title ?? "");
-  // What the core says about a stop (lina#629); absent and null both mean it does not say.
-  type StopFacts = { readonly waitingOn?: string | null; readonly retry?: string | null };
+  // What the core says about a stop (lina#629); absent and null both mean it does not say. `waitUntil` (epoch seconds)
+  // is when a time wait ends, read only when the core sends it (lina-app#160).
+  type StopFacts = { readonly waitingOn?: string | null; readonly retry?: string | null; readonly waitUntil?: number | null };
   const contextRow = (row: CardRow, goal: string | null, fallback: string | null, isRun: boolean, facts: StopFacts): CardRow => {
     // The goal names the row first (lina-app#122); the kind of work is the icon only, never the title. With no title
     // at all the row is not drawn (lina-app#124); its own page still says 제목 없음.
     const title = goal ?? row.title ?? fallback;
     return { ...row, title, name: title ?? W.untitled, stop: row.state === "stopped" ? stopWords(row.reason, isRun, facts) : null };
   };
-  const stopWords = (reason: string | null, isRun: boolean, { waitingOn, retry }: StopFacts): NonNullable<CardRow["stop"]> => {
-    // A stop that waits on an answer, a review or another to-do does not clear by running again: no 다시 시도.
-    // Why it waits, never on whom: no person's name in the state line (lina-app#156).
-    const owner = { words: (reason && STOP_WAIT[reason]) || W.needsCheck, known: true, owner: true, retry: false };
-    if (waitingOn === "owner") return owner;
+  const stopWords = (reason: string | null, isRun: boolean, { waitingOn, retry, waitUntil }: StopFacts): NonNullable<CardRow["stop"]> => {
+    // Why it waits, never on whom: no person's name in the state line (lina-app#156). The reason decides the word first,
+    // whoever has to act (lina-app#160): a gate, a budget or a run the core gave up on is not a bare 확인 필요.
+    const scheduled = retry === "scheduled";
+    const timed = reason === "hold" && scheduled ? (typeof waitUntil === "number" ? STOP_WORD.timeWaitUntil(clockAt(waitUntil, now)) : STOP_WORD.timeWait) : null;
+    const why = timed ?? (reason && Object.hasOwn(STOP_WORD.why, reason) ? STOP_WORD.why[reason] : null);
+    // A stop that waits on an answer, a review or another to-do does not clear by running again, nor does one the core
+    // already runs again by itself: no 다시 시도.
+    const again = !scheduled && reason !== "blocked_by_item";
+    const answer = { words: (reason && STOP_WAIT[reason]) || W.needsCheck, known: true, owner: true, retry: false };
+    if (waitingOn === "owner") return why ? { words: why, known: true, owner: true, retry: again } : answer;
     // An agent that starts another run by itself is no reviewer: the retry words below say so.
-    if (waitingOn?.startsWith("agent:") && retry !== "scheduled") {
+    if (waitingOn?.startsWith("agent:") && !scheduled) {
       const agent = agents.find((each) => each.id === waitingOn.slice(6) || each.name === waitingOn.slice(6));
       return { words: agent ? `${agent.name} ${W.waitReview}` : W.waitReview, known: true, owner: false, retry: false };
     }
-    if (reason === "decision" || reason === "feedback") return owner;
+    if (reason === "decision" || reason === "feedback") return answer;
     if (reason === "review") return { words: W.waitReview, known: true, owner: false, retry: false };
-    const why = reasonWord(reason);
-    const again = reason !== "blocked_by_item";
-    if (retry === "scheduled") return { words: [why, W.retryScheduled].filter(Boolean).join(SEP), known: true, owner: false, retry: again };
+    const word = why ?? reasonWord(reason);
+    // A wait that wakes by itself (a time, another to-do) already says it goes on; any other says it will be tried again.
+    if (scheduled) return { words: [word, reason === "hold" || reason === "blocked_by_item" ? null : W.retryScheduled].filter(Boolean).join(SEP), known: true, owner: false, retry: false };
     // A failed run still listed has no later run of its to-do: nobody tried it again.
-    if (retry === "none" || (isRun && (reason === "failed" || reason === "rejected"))) return { words: [why, W.notRetried].filter(Boolean).join(SEP), known: true, owner: false, retry: again };
-    return { words: why ?? "", known: false, owner: false, retry: again };
+    if (retry === "none" || (isRun && (reason === "failed" || reason === "rejected"))) return { words: [word, W.notRetried].filter(Boolean).join(SEP), known: true, owner: false, retry: again };
+    return { words: word ?? STOP_WORD.none, known: false, owner: false, retry: again };
   };
   // The title of a to-do in the work record (never a goal: a goal names a row last), when it may be drawn.
   const todoName = (ids: readonly (string | null)[]) => ids.map((id) => (id ? itemMap.get(id) : undefined)).map((item) => (item && item.kind !== "goal" ? plainName(item.title) : null)).find(Boolean) ?? null;
@@ -541,7 +555,8 @@ export function buildModel(input: ModelInput, now: number): Model {
       // said after the stop's words, unless it already names the row.
       const ask = card.state === "stopped" ? askLine((card as CardSummary).ask) : null;
       const title = row.title ?? (card.state === "stopped" ? (ask ?? W.untitled) : null);
-      const said = ask !== null && ask !== title ? ask : null;
+      // An ask that ends in the status word before it says that word once (lina-app#160).
+      const said = ask !== null && ask !== title ? withoutRepeat(ask, row.stop?.words ?? "") : null;
       const stop = row.stop && said ? { ...row.stop, words: [row.stop.words, said].filter(Boolean).join(SEP) } : row.stop;
       return { row: { ...row, title, name: title ?? row.name, stop, ask: null }, listed: !isEnded(card) };
     }),

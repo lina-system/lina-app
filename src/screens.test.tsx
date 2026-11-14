@@ -14,6 +14,15 @@ import { containsText } from "./text-match";
 import { TOAST_MS } from "./ui/actions";
 import { BANNED_WORDS } from "./words";
 
+/**
+ * Where a frame shows its open decision (lina-app#161): the head's second line when it reads the decision row's two lines,
+ * else the decision box. Null while no decision box stands.
+ */
+function decisionShown(root: Element): string | null {
+  const box = root.querySelector("[data-testid=decision]");
+  return box ? `${root.querySelector("[data-testid=head-line]")?.textContent ?? ""} ${box.textContent ?? ""}` : null;
+}
+
 const SCREENS = [
   "#/",
   "#/inbox",
@@ -267,7 +276,7 @@ describe("machines, quota and checks", () => {
     // Each runner reads by its tool's display name (lina-app#156).
     expect(cellOf(other.name, "omo").textContent).toBe("OMO업데이트 필요");
     // Not ready with no reason of its own is not ready, never 확인 중.
-    expect(cellOf(other.name, "dsh").textContent).toBe("dsh준비 필요");
+    expect(cellOf(other.name, "dsh").textContent).toBe("DeepSeek준비 필요");
   });
 
   test("the sign-in button reads 로그인 중 and then the signed-in mark", async () => {
@@ -727,7 +736,7 @@ describe("decisions", () => {
     expect(rows.every((row) => /^#\/(items|goals|cards)\//.test(row.href))).toBe(true);
     for (const row of rows) {
       const view = await open(row.href, { wide: true });
-      await waitFor(() => expect(view.getByTestId("decision").textContent).toContain(row.text));
+      await waitFor(() => expect(decisionShown(view.container)).toContain(row.text));
       // A card with no checked title has no title in its head, and its question names only its goal. A card's head
       // reads its row's name; its own title, the one the question's line ends with, is the line under it (lina-app#153).
       const title = view.container.querySelector("[data-testid=card-own-title]")?.textContent ?? view.container.querySelector(".detail-title")?.textContent ?? "";
@@ -851,7 +860,7 @@ describe("answers", () => {
       const row = decisionButton(view, "배포를 금요일 오후에 할지 결정 필요");
       fireEvent.click(row);
       // The decision opens in the frame at once, with its answers there.
-      await waitFor(() => expect(view.getByTestId("detail-frame").querySelector("[data-testid=decision]")?.textContent).toContain("배포를 금요일 오후에 할지 결정 필요"));
+      await waitFor(() => expect(decisionShown(view.getByTestId("detail-frame"))).toContain("배포를 금요일 오후에 할지 결정 필요"));
       await waitFor(() => expect(view.getByRole("button", { name: "금요일 오후 · 추천" })).toBeTruthy());
       expect(view.getByRole("button", { name: "월요일 오전" })).toBeTruthy();
       fireEvent.click(view.getByRole("button", { name: "금요일 오후 · 추천" }));
@@ -886,7 +895,7 @@ describe("answers", () => {
       expect(view.queryByRole("link", { name: /자주 쓰는 검색어/ })).toBeNull();
       fireEvent.click(view.getByRole("button", { name: "되돌리기" }));
       expect(view.getByRole("link", { name: /자주 쓰는 검색어/ })).toBeTruthy();
-      expect(view.getByTestId("detail-frame").querySelector("[data-testid=decision]")?.textContent).toContain("자주 쓰는 검색어");
+      expect(decisionShown(view.getByTestId("detail-frame"))).toContain("자주 쓰는 검색어");
       await act(async () => {
         vi.advanceTimersByTime(TOAST_MS * 2);
       });
@@ -914,7 +923,7 @@ describe("answers", () => {
 
       source.refuse.add("comment");
       fireEvent.click(decisionButton(view, "복구 연습에 쓸 두 시간"));
-      await waitFor(() => expect(view.getByTestId("detail-frame").querySelector("[data-testid=decision]")?.textContent).toContain("복구 연습에 쓸 두 시간"));
+      await waitFor(() => expect(decisionShown(view.getByTestId("detail-frame"))).toContain("복구 연습에 쓸 두 시간"));
       const act2 = view.getByRole("textbox", { name: "답 달기" }) as HTMLInputElement;
       act2.value = "목요일 오후";
       fireEvent.input(act2);
@@ -1080,7 +1089,7 @@ describe("bell", () => {
     const again = view.getByRole("dialog", { name: "알림" });
     expect(again.querySelectorAll("[data-testid=row]:not(.is-read)")).toHaveLength(4);
     expect(within(again).getByTestId("unread-count").textContent).toBe("안 읽음 4");
-    fireEvent.click(view.getByRole("button", { name: "닫기" }));
+    fireEvent.click(within(again).getByRole("button", { name: "닫기" }));
     expect(reads).toEqual([{ keys: [source.scene.board.notices[0].key] }]);
     fireEvent.click(view.getByTestId("bell"));
     fireEvent.click(view.getByRole("button", { name: "모두 읽음" }));
@@ -1089,7 +1098,7 @@ describe("bell", () => {
     await waitFor(() => expect(source.scene.board.counts.unread).toBe(0));
     expect(reads.at(-1)).toEqual({ all: true });
     expect(view.getByRole("dialog", { name: "알림" }).querySelectorAll("[data-testid=row]:not(.is-read)")).toHaveLength(0);
-    fireEvent.click(view.getByRole("button", { name: "닫기" }));
+    fireEvent.click(within(view.getByRole("dialog", { name: "알림" })).getByRole("button", { name: "닫기" }));
     expect(view.queryByTestId("notices")).toBeNull();
     expect(setItem).not.toHaveBeenCalled();
     setItem.mockRestore();
@@ -2040,7 +2049,7 @@ describe("live updates", () => {
       expect(view.getByTestId("screen-inbox")).toBe(screen);
       expect(decisionButton(view, "배포를 금요일 오후에 할지 결정 필요")).toBe(row);
       expect(row.getAttribute("aria-current")).toBe("page");
-      expect(view.getByTestId("detail-frame").querySelector("[data-testid=decision]")?.textContent).toContain("배포를 금요일 오후에 할지 결정 필요");
+      expect(decisionShown(view.getByTestId("detail-frame"))).toContain("배포를 금요일 오후에 할지 결정 필요");
       expect(core.stream.filter((connection) => connection.open)).toHaveLength(1);
     } finally {
       vi.useRealTimers();
@@ -2230,7 +2239,10 @@ describe("work cards", () => {
     expect(state("#/cards/k-103").classList.contains("is-plain")).toBe(true);
     // Who waits, from waitingOn and retry (lina#629), in red; the card whose runs carry its to-do is named by it.
     expect(row("#/cards/k-108").querySelector(".title")?.textContent).toBe("야간 보고서 정리하기");
-    expect(state("#/cards/k-108").textContent).toBe("중단됨 · 확인 필요 · 야간 보고서를 받을 사람 확인 필요");
+    // The ask's trailing 확인 필요 repeats the status word and goes (lina-app#160).
+    expect(state("#/cards/k-108").textContent).toBe("중단됨 · 확인 필요 · 야간 보고서를 받을 사람");
+    // A budget stop the core runs again by itself says its reason first (lina-app#160).
+    expect(state("#/cards/k-111").textContent).toBe("중단됨 · 예산 초과 · 다시 시도 예정");
     expect(state("#/cards/k-109").textContent).toMatch(/^중단됨 · \S+ 검토 대기$/);
     expect(state("#/cards/k-110").textContent).toBe("중단됨 · 응답 없음 · 다시 시도 안 함");
     expect(state("#/cards/k-110").classList.contains("is-plain")).toBe(false);
@@ -2268,7 +2280,8 @@ describe("work cards", () => {
     unfold(view.container);
     const rows = [...view.getByRole("list", { name: "중단됨" }).querySelectorAll("[data-testid=row]")];
     const withRetry = rows.filter((row) => row.querySelector("[data-testid=retry]")).map((row) => row.querySelector("a")?.getAttribute("href"));
-    expect(new Set(withRetry)).toEqual(new Set(["#/cards/k-103", "#/cards/k-110", "#/cards/k-111"]));
+    // k-111's retry is already scheduled: no button beside it (lina-app#160).
+    expect(new Set(withRetry)).toEqual(new Set(["#/cards/k-103", "#/cards/k-110"]));
     for (const row of rows.filter((each) => /확인 필요|검토 대기/.test(each.querySelector("[data-testid=state]")?.textContent ?? ""))) {
       expect(row.querySelector("[data-testid=retry]")).toBeNull();
       expect(row.classList.contains("has-action")).toBe(false);
@@ -2977,8 +2990,9 @@ describe("the work tab list (lina-app#141)", () => {
       const view = await open("#/", { wide, source: new SyntheticSource({ endedRuns: true }) });
       const list = within(home(view)).getByRole("list", { name: "중단됨" });
       const row = (href: string) => list.querySelector(`li:has(> a[href="${href}"])`) as Element;
-      expect(row("#/cards/k-108").querySelector("[data-testid=state]")?.textContent).toBe("중단됨 · 확인 필요 · 야간 보고서를 받을 사람 확인 필요");
-      expect(row("#/cards/k-108").querySelector("a")?.getAttribute("aria-label")).toContain("야간 보고서를 받을 사람 확인 필요");
+      expect(row("#/cards/k-108").querySelector("[data-testid=state]")?.textContent).toBe("중단됨 · 확인 필요 · 야간 보고서를 받을 사람");
+      expect(row("#/cards/k-108").querySelector("a")?.getAttribute("aria-label")).toContain("야간 보고서를 받을 사람");
+      expect(row("#/cards/k-108").querySelector("a")?.getAttribute("aria-label")).not.toMatch(/확인 필요.*확인 필요/);
       expect(list.querySelectorAll("[data-testid=stop-ask]")).toHaveLength(0);
       // k-107 has no ask; another stopped row shares its goal's title, so its own name is its second line (lina-app#148).
       expect(row("#/cards/k-107").querySelector("[data-testid=state]")?.textContent).toBe("중단됨 · 피드백 대기");

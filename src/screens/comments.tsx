@@ -38,13 +38,37 @@ function CommentBody({ comment, agent, owner }: { comment: ItemComment; agent: s
   );
 }
 
+/** A run of comments whose text is only the hub's fold markers: one row with their count (lina-app#161). */
+const foldedRecords = (count: number) => `접힌 기록 ${count}건`;
+
+/** A comment that holds nothing but fold markers (`(…)`, `…`, `...`) and no reply: no sentence of its own to show. */
+function onlyFoldMarkers(comment: ItemComment): boolean {
+  return !comment.replies.length && /…|\.\.\./.test(comment.text) && /^[\s()[\]….,·:;]*$/.test(comment.text);
+}
+
+/** The comments in order, each run of comments that are only fold markers counted as one entry (lina-app#161). */
+function threadEntries(comments: readonly ItemComment[]): (ItemComment | { readonly folded: number; readonly key: string })[] {
+  const entries: (ItemComment | { folded: number; key: string })[] = [];
+  for (const comment of comments) {
+    const last = entries.at(-1);
+    if (!onlyFoldMarkers(comment)) entries.push(comment);
+    else if (last && "folded" in last) last.folded += 1;
+    else entries.push({ folded: 1, key: `folded:${comment.cid}` });
+  }
+  return entries;
+}
+
 export function Thread({ comments, agent }: { comments: readonly ItemComment[]; agent: string }) {
   const { store } = useApp();
   const owner = store.get("items")?.owner?.id ?? "";
   return (
     <ul class="thread" aria-label={W.comments}>
-      {comments.map((comment) =>
-        comment.status === "resolved" ? (
+      {threadEntries(comments).map((comment) =>
+        "folded" in comment ? (
+          <li key={comment.key} class="comment folded-records sub" data-testid="folded-records">
+            {foldedRecords(comment.folded)}
+          </li>
+        ) : comment.status === "resolved" ? (
           <li key={comment.cid} class="comment" data-testid="comment">
             <details class="fold resolved" data-testid="resolved">
               <summary class="sub">{`${W.resolved}${SEP}${firstWords(comment.text)}`}</summary>

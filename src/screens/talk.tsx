@@ -230,6 +230,38 @@ function lastLineOf(history: AgentTalkHistory): string {
   return last ? firstLine(last.role === "user" ? ownText(last.content) : last.content) : "";
 }
 
+/**
+ * How many agent rows read their history at once (lina-app#162). A browser keeps 6 connections to one host and a
+ * gateway that does not answer holds each read about 30 s: the live hub's 9 rows reading at once left none for the
+ * change stream and the store, so the head read 갱신 지연 until they gave up. The open window's own read does not wait.
+ */
+const PREVIEW_READS = 2;
+
+const previewQueues = new WeakMap<Source, { reading: number; waiting: (() => void)[] }>();
+
+/** Starts a row's read when fewer than PREVIEW_READS are out; the returned function drops it if it has not started. */
+function queuePreviewRead(source: Source, read: () => Promise<unknown>): () => void {
+  let queue = previewQueues.get(source);
+  if (!queue) previewQueues.set(source, (queue = { reading: 0, waiting: [] }));
+  const reads = queue;
+  const run = () => {
+    reads.reading += 1;
+    void read().finally(() => {
+      reads.reading -= 1;
+      reads.waiting.shift()?.();
+    });
+  };
+  if (reads.reading < PREVIEW_READS) {
+    run();
+    return () => undefined;
+  }
+  reads.waiting.push(run);
+  return () => {
+    const at = reads.waiting.indexOf(run);
+    if (at >= 0) reads.waiting.splice(at, 1);
+  };
+}
+
 /** An agent row's second line: the first line of its last message, or `아직 나눈 대화 없음`; nothing until read. */
 export function TalkPreview({ agent }: { agent: string }) {
   const { store } = useApp();
@@ -238,13 +270,16 @@ export function TalkPreview({ agent }: { agent: string }) {
     let live = true;
     const watch = () => redraw((count) => count + 1);
     lastLineWatchers.add(watch);
-    const revision = revisionOf(store.source, agent);
-    void store.source.agentTalkHistory(agent).then((result) => {
-      // A turn sent or a reply taken meanwhile is newer than this snapshot.
-      if (live && result.kind === "data" && revisionOf(store.source, agent) === revision) keepLastLine(store.source, agent, lastLineOf(result.data));
+    const drop = queuePreviewRead(store.source, () => {
+      const revision = revisionOf(store.source, agent);
+      return store.source.agentTalkHistory(agent).then((result) => {
+        // A turn sent or a reply taken meanwhile is newer than this snapshot.
+        if (live && result.kind === "data" && revisionOf(store.source, agent) === revision) keepLastLine(store.source, agent, lastLineOf(result.data));
+      });
     });
     return () => {
       live = false;
+      drop();
       lastLineWatchers.delete(watch);
     };
   }, [agent, store]);

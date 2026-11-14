@@ -21,37 +21,66 @@ const RULES: readonly (readonly [FoldReason, RegExp])[] = [
 const ISSUE_REF = String.raw`(?<![0-9A-Za-z])(?:[\w.-]+\/[\w.-]+|[A-Za-z][\w.-]*|[a-z][\w.-]*\s)?#\d+`;
 /** A card, goal or task id the hub writes into titles (lina-app#152): `t93`, `G106`, `T7`, `OT-12`, `t_586c9120`. */
 const CARD_ID = String.raw`(?<![0-9A-Za-z_])(?:t\d+|[GT]\d+|OT-[A-Z]*\d+|t_[0-9a-f]+)(?![0-9A-Za-z_])`;
-const HASH = String.raw`\b[0-9a-f]{7,40}\b`;
+/** A commit hash, with the branch named before it (`dev <hash>`): a branch left alone reads as a stray word (lina-app#160). */
+const HASH = String.raw`(?:\b(?:dev|main|master)\s+)?\b[0-9a-f]{7,40}\b`;
+/** Mixed-case names the screens keep: a camelCase rule would cut them otherwise. */
+const CAMEL_NAMES = ["macOS", "iPhone", "iPad", "iOS"];
+/**
+ * Code-looking tokens a hub title carries (lina-app#160): dotted paths holding a snake or camel name (`a.b_c`,
+ * `Record.cardId`), snake_case and UPPER_SNAKE names (`board_lines`, `LINA_KEY`), camelCase names (`apiKeyHelper`), and
+ * card numbering (`card 3`, `표지 카드 8`). File names (`notes/a.md`), hyphenated tool names (`omo-task`) and product
+ * names stay.
+ */
+const CODE = String.raw`(?:(?<![0-9A-Za-z_./-])(?:(?=[\w.]*(?:_|[a-z][A-Z]))[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+|_*[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+|(?!(?:${CAMEL_NAMES.join("|")})(?![A-Za-z0-9]))[a-z]+[A-Z][A-Za-z0-9]*)(?![0-9A-Za-z_])|(?:(?:표지\s*)?카드|\b[Cc]ard)\s*\d+(?![\d\p{Script=Hangul}]))`;
 /** The particle glued to a ref (`<hash>로`, `#12를`): it goes with the ref, or the sentence keeps a stray particle. */
 const PARTICLE = String.raw`(?:(?:으로|에서|까지|부터|로|를|을|이|가|은|는|와|과|의|에|도|만)(?![\p{Script=Hangul}]))?`;
-const REF = String.raw`(?:${ISSUE_REF}|${CARD_ID}|${HASH})${PARTICLE}`;
+const REF = String.raw`(?:${ISSUE_REF}|${CARD_ID}|${HASH}|${CODE})${PARTICLE}`;
 /** A bot's stamp in brackets, its name and a clock time (`[이름 16:52]`). */
 const STAMP = /\[[^\]]*\b\d{1,2}:\d{2}\b[^\]]*\]/g;
 const HANGUL = /\p{Script=Hangul}/u;
 const SEPARATORS = /[\s·,:;/+-]+/g;
 
 /**
- * The text with its issue references, card and goal ids, commit hashes and bots' time stamps cut (lina-app#148, #152,
- * #156). Each ref goes with the particle glued to it; a bracket left with nothing readable (no Hangul, or one letter)
- * goes whole, and one left with words keeps them. Double spaces, empty brackets and the separators left at the ends
- * go too. Empty when nothing else was there.
+ * The punctuation a cut leaves behind, collapsed (lina-app#160): empty quotes and brackets (`""`, `()`, `[ · ]`), a run
+ * of separators (`,,`, `· · ·`, `: ,`) down to its first, a separator just inside a bracket, double spaces, a space
+ * before a comma, and any separator or dash left at either end. The one place every fold of a hub sentence tidies.
+ */
+export function tidyFoldedText(text: string): string {
+  let out = text.replace(/(["'\u201c\u2018])\s*(["'\u201d\u2019])/g, " ");
+  for (let before = ""; before !== out; ) {
+    before = out;
+    out = out
+      .replace(/[([]\s*[·,:;]*\s*[)\]]/g, " ")
+      .replace(/([([])\s*[·,:;]+/g, "$1")
+      .replace(/[·,:;]+\s*([)\]])/g, "$1")
+      .replace(/(\s*)([·,:;])(?:\s*[·,:;])+/g, "$1$2");
+  }
+  return out
+    .replace(/([([])\s+/g, "$1")
+    .replace(/\s+([)\]])/g, "$1")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,:;])/g, "$1")
+    .replace(/^[\s·,:;\-\u2013\u2014]+|[\s·,:;\-\u2013\u2014]+$/g, "");
+}
+
+/**
+ * The text with its issue references, card and goal ids, commit hashes, code-looking names and bots' time stamps cut
+ * (lina-app#148, #152, #156, #160). Each ref goes with the particle glued to it; a bracket left with nothing readable
+ * (no Hangul, or one letter) goes whole, and one left with words keeps them. The debris left goes too (tidyFoldedText).
+ * Empty when nothing else was there.
  */
 export function withoutRefs(text: string): string {
   const ref = new RegExp(REF, "gu");
-  return text
-    .replace(STAMP, " ")
-    .replace(/\(([^()]*)\)/g, (whole, inner: string) => {
-      if (!new RegExp(REF, "u").test(inner)) return whole;
-      const left = inner.replace(ref, " ").replace(/\s+/g, " ").replace(/^[\s·,:;-]+|[\s·,:;-]+$/g, "");
-      return HANGUL.test(left) && left.replace(SEPARATORS, "").length > 1 ? ` (${left}) ` : " ";
-    })
-    .replace(ref, " ")
-    .replace(/\(\s*\)/g, " ")
-    .replace(/\(\s+/g, "(")
-    .replace(/\s+\)/g, ")")
-    .replace(/\s+/g, " ")
-    .replace(/\s+([,:;])/g, "$1")
-    .replace(/^[\s·,:;-]+|[\s·,:;-]+$/g, "");
+  return tidyFoldedText(
+    text
+      .replace(STAMP, " ")
+      .replace(/\(([^()]*)\)/g, (whole, inner: string) => {
+        if (!new RegExp(REF, "u").test(inner)) return whole;
+        const left = tidyFoldedText(inner.replace(ref, " "));
+        return HANGUL.test(left) && left.replace(SEPARATORS, "").length > 1 ? ` (${left}) ` : " ";
+      })
+      .replace(ref, " "),
+  );
 }
 
 /**

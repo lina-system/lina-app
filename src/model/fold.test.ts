@@ -124,6 +124,8 @@ test.each([
   ["Codex 리뷰 요청함. 남은 범위 lina#718 라 카드 완료 금지.", "Codex 리뷰 요청함."],
   ["t_e6e0f90a 카드에서 이어서 확인함.", "카드에서 이어서 확인함."],
   ["그 일은 오늘 가 볼 예정.", "그 일은 오늘 가 볼 예정."],
+  ["#196은 이 경로를 건드리지 않는다.", "이 경로를 건드리지 않는다."],
+  ["lina#206 이 카드가 쉬는 동안 합쳐졌다.", "이 카드가 쉬는 동안 합쳐졌다."],
   ["주소: 아직 정하지 않음.", "주소: 아직 정하지 않음."],
 ])("foldedText(%j) keeps only what still reads: %j (lina-app#161)", (comment, shown) => {
   expect(foldedText(comment)).toBe(shown);

@@ -84,7 +84,7 @@ export function withoutRefs(text: string): string {
 }
 
 /** A Korean particle standing as its own word: a ref written apart from its particle (`t_e6e0f90a 가`) leaves it alone. */
-const LONE_PARTICLE = String.raw`(?:으로|에서|까지|부터|이라|라고|가|이|은|는|을|를|라|로|와|과|도|의|만|에)(?=[\s.,!?。]|$)`;
+const LONE_PARTICLE = String.raw`(?:으로|에서|까지|부터|이라|라고|가|은|는|을|를|라|로|와|과|도|의|만|에)(?=[\s.,!?。]|$)`;
 /** A label: a word ending in `:` before a space or the end (`주소:`, never the `http:` of an address). */
 const LABEL = /\S+:(?=\s|$)/g;
 

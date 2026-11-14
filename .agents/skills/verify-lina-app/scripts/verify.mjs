@@ -802,14 +802,14 @@ const drivers = {
       check(rows.length === 7, "expected 7 stopped rows, got " + rows.length + ": " + hrefs.join(" "));
       check(!hrefs.some((href) => href.startsWith("#/runs/")), "a worker run is a row of its own: " + hrefs.join(" "));
       // Why each waits on the owner, never on whom (lina-app#156): the reason in words, then the core's ask.
-      const OWNER = { "#/cards/k-108": "중단됨 · 확인 필요 · 야간 보고서를 받을 사람 확인 필요", "#/cards/k-107": "중단됨 · 피드백 대기", "#/cards/k-112": "중단됨 · 결정 대기" };
+      const OWNER = { "#/cards/k-108": "중단됨 · 확인 필요 · 야간 보고서를 받을 사람", "#/cards/k-107": "중단됨 · 피드백 대기", "#/cards/k-112": "중단됨 · 결정 대기" };
       check(rows.slice(0, 3).every((row) => OWNER[row.href] === row.state), "the rows waiting on the owner are not first, or read otherwise: " + rows.map((row) => row.state).join(" | "));
       check(rows.slice(3).every((row) => !Object.hasOwn(OWNER, row.href)), "an owner row is below another row");
       check(!rows.some((row) => /도윤|확인 필요$/.test(row.state.replace(OWNER["#/cards/k-108"], ""))), "a state line names a person: " + rows.map((row) => row.state).join(" | "));
       // An abbreviation keeps a title (lina-app#156): k-112, with no goal, reads its own title, never whose stopped card it is.
       check(rows.some((row) => row.href === "#/cards/k-112" && row.title === "CLI 배포 순서 정하기"), "k-112 is not drawn by its own title: " + rows.map((row) => row.title).join(" | "));
       check(!rows.some((row) => / 중단 카드$/.test(row.title)), "a stopped row says whose stopped card it is: " + rows.map((row) => row.title).join(" | "));
-      check(rows.some((row) => / 검토 대기$/.test(row.state)) && rows.some((row) => row.state === "중단됨 · 다시 시도 예정") && rows.some((row) => row.state === "중단됨 · 응답 없음 · 다시 시도 안 함"), "the states read " + rows.map((row) => row.state).join(" | "));
+      check(rows.some((row) => / 검토 대기$/.test(row.state)) && rows.some((row) => row.state === "중단됨 · 예산 초과 · 다시 시도 예정") && rows.some((row) => row.state === "중단됨 · 응답 없음 · 다시 시도 안 함"), "the states read " + rows.map((row) => row.state).join(" | "));
       for (const row of rows) check(row.plain === (row.state === "중단됨 · 응답 없음") && (row.plain || row.colour === "rgb(255, 59, 48)"), row.title + " reads " + row.state + " in " + row.colour);
       check(rows.filter((row) => row.title === "제목 없음").length === 0, "rows titled 제목 없음: " + rows.filter((row) => row.title === "제목 없음").length);
       const text = await page.getByTestId("screen-running").innerText();
@@ -823,9 +823,10 @@ const drivers = {
       check(header === "7", "the group header's red number is " + header);
       // The core's ask (lina#690) is said in the state line after the reason, never as a line of its own (lina-app#156).
       check(rows.every((row) => row.ask === null), "an ask is a line of its own: " + JSON.stringify(rows.filter((row) => row.ask).map((row) => [row.href, row.ask])));
-      // 다시 시도 only where running again can clear the stop (lina-app#134): never on a row waiting on an answer or a review.
-      const asks = rows.filter((row) => Object.hasOwn(OWNER, row.href) || / 검토 대기$/.test(row.state));
-      check(asks.length === 4 && asks.every((row) => !row.retry), "a row waiting on an answer or a review offers 다시 시도: " + asks.filter((row) => row.retry).map((row) => row.title).join(" | "));
+      // 다시 시도 only where running again can clear the stop (lina-app#134): never on a row waiting on an answer or a review,
+      // nor on one the core already runs again by itself (lina-app#160).
+      const asks = rows.filter((row) => Object.hasOwn(OWNER, row.href) || / 검토 대기$/.test(row.state) || / 다시 시도 예정$/.test(row.state));
+      check(asks.length === 5 && asks.every((row) => !row.retry), "a row waiting on an answer or a review offers 다시 시도: " + asks.filter((row) => row.retry).map((row) => row.title).join(" | "));
       check(rows.filter((row) => !asks.includes(row)).every((row) => row.retry), "a row running again can clear has no 다시 시도");
       // A stopped title is never cut: it wraps and the row grows (lina-app#156).
       check(rows.every((row) => !row.cut), "a stopped title is cut: " + rows.filter((row) => row.cut).map((row) => row.title).join(" | "));

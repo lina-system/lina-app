@@ -558,3 +558,16 @@ export const DETAIL_WORD = {
   /** Lines of a history that are not comments and have no sentence a person may read. */
   earlierRecords: (n: number) => `이전 기록 ${n}건`,
 };
+
+/**
+ * lina-app#160: a stopped row's word by the reason the core sends (work_api._block_stop), said first whoever has to act.
+ * `hold` is a time wait only when the core runs it again by itself (`retry: scheduled`).
+ */
+export const STOP_WORD = {
+  why: { blocked_by_item: "다른 일 대기", failed: "실패", rejected: "실패", gate: "관문 대기", budget: "예산 초과" } as Readonly<Record<string, string>>,
+  timeWait: "시각 대기",
+  /** A time wait with the time the core gives for it. */
+  timeWaitUntil: (time: string) => `시각 대기 · ${time}`,
+  /** A stop the core gives no reason for. */
+  none: "이유 없음",
+};

@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import type { RunCard, WorkCardDetail, WorkCardList, WorkCardSummary } from "../api/client";
 import { generateScene, SYNTHETIC_SEED, type Scene } from "../fixtures/synthetic";
+import { clockAt } from "../time";
 import { KIND_TITLE, W } from "../words";
 import { agentView, buildModel, type CardSummary } from "./index";
 
@@ -169,7 +170,8 @@ test("a stopped row says why and who it waits on from what the core serves, and 
     ...scene,
     board: { ...scene.board, cards: scene.board.cards.map((run) => (run.id === "r12" ? { ...run, todo: null, reason: "failed", waitingOn: `agent:${agent.id}`, retry: "scheduled" } : run)) },
   });
-  expect(retried.cards.get("r12")?.stop).toEqual({ words: "실패 · 다시 시도 예정", known: true, owner: false, retry: true });
+  // The retry is already scheduled: no 다시 시도 button beside it (lina-app#160).
+  expect(retried.cards.get("r12")?.stop).toEqual({ words: "실패 · 다시 시도 예정", known: true, owner: false, retry: false });
 });
 
 // lina-app#119: the live shape, as the home sees it (no card's detail opened).
@@ -246,10 +248,12 @@ test("a stopped row says who waits from waitingOn and retry, and the rows waitin
   const stop = (id: string) => model.cards.get(id)?.stop;
   const agent = scene.items.agents[0];
   // Why it waits, never on whom (lina-app#156): the core's reason in words, then its ask.
-  expect(stop("k-108")).toEqual({ words: "확인 필요 · 야간 보고서를 받을 사람 확인 필요", known: true, owner: true, retry: false });
+  // The ask's trailing 확인 필요 repeats the status word before it and goes (lina-app#160).
+  expect(stop("k-108")).toEqual({ words: "확인 필요 · 야간 보고서를 받을 사람", known: true, owner: true, retry: false });
   expect(stop("k-109")).toEqual({ words: `${agent.name} 검토 대기`, known: true, owner: false, retry: false });
   expect(stop("k-110")).toEqual({ words: "응답 없음 · 다시 시도 안 함", known: true, owner: false, retry: true });
-  expect(stop("k-111")).toEqual({ words: "다시 시도 예정", known: true, owner: false, retry: true });
+  // A budget stop the core will run again: its reason first, and no 다시 시도 button (lina-app#160).
+  expect(stop("k-111")).toEqual({ words: "예산 초과 · 다시 시도 예정", known: true, owner: false, retry: false });
   expect(stop("r20")).toEqual({ words: "실패 · 다시 시도 안 함", known: true, owner: false, retry: true });
   expect(stop("k-112")).toEqual({ words: "결정 대기", known: true, owner: true, retry: false });
   // Neither waitingOn nor retry: the core does not say, one grey line.
@@ -262,6 +266,66 @@ test("a stopped row says who waits from waitingOn and retry, and the rows waitin
     const first = own.findIndex((row) => !row.stop?.owner);
     expect(own.slice(first < 0 ? own.length : first).some((row) => row.stop?.owner), each.id).toBe(false);
   }
+});
+
+// lina-app#160: the stops the core really sends (work_api._block_stop): the reason decides the word first, whoever has
+// to act; a scheduled row has no 다시 시도; a time wait says its time when the core gives one; no reason reads 이유 없음.
+test("a stop reads its reason first in the core's real shapes, and a scheduled one offers no retry (lina-app#160)", () => {
+  const stopped = (id: string, reason: string | null, waitingOn: string | null, retry: "scheduled" | "none" | null, extra: Partial<CardSummary> & { waitUntil?: number } = {}) => ({
+    ...summary(id, "가짜 배포 문서 정리", null, "stopped"),
+    reason,
+    waitingOn,
+    retry,
+    ...extra,
+  });
+  const all = [
+    stopped("k-time", "hold", null, "scheduled"),
+    stopped("k-time-at", "hold", null, "scheduled", { waitUntil: NOW + 3 * 3600 }),
+    stopped("k-item", "blocked_by_item", null, "scheduled"),
+    stopped("k-gate", "gate", "owner", "none"),
+    stopped("k-budget", "budget", "owner", "none"),
+    stopped("k-gaveup", "failed", "owner", "none"),
+    stopped("k-dependency", "blocked_by_item", "owner", "none"),
+    stopped("k-none", null, null, null),
+    stopped("k-budget-later", "budget", null, "scheduled"),
+    stopped("k-decision", "decision", "owner", "none", { ask: "가짜 보고서 결정 대기" }),
+    stopped("k-check", "review", "owner", "none", { ask: "가짜 받는 사람 확인 필요." }),
+    stopped("k-only", "decision", "owner", "none", { ask: "결정 대기" }),
+  ];
+  const model = buildModel({ cards: { cards: all }, cardDetails: {}, failed: [] }, NOW);
+  const pick = <K extends "words" | "retry" | "owner">(key: K) => Object.fromEntries(all.map((card) => [card.id, model.cards.get(card.id)?.stop?.[key]]));
+  expect(pick("words")).toEqual({
+    "k-time": "시각 대기",
+    "k-time-at": `시각 대기 · ${clockAt(NOW + 3 * 3600, NOW)}`,
+    "k-item": "다른 일 대기",
+    "k-gate": "관문 대기",
+    "k-budget": "예산 초과",
+    "k-gaveup": "실패",
+    "k-dependency": "다른 일 대기",
+    "k-none": "이유 없음",
+    "k-budget-later": "예산 초과 · 다시 시도 예정",
+    "k-decision": "결정 대기 · 가짜 보고서",
+    "k-check": "확인 필요 · 가짜 받는 사람",
+    "k-only": "결정 대기",
+  });
+  expect(pick("retry")).toEqual({
+    "k-time": false,
+    "k-time-at": false,
+    "k-item": false,
+    "k-gate": true,
+    "k-budget": true,
+    "k-gaveup": true,
+    "k-dependency": false,
+    "k-none": true,
+    "k-budget-later": false,
+    "k-decision": false,
+    "k-check": false,
+    "k-only": false,
+  });
+  // The owner's rows still come first in the stopped group: the ones the core says the owner has to act on.
+  expect(Object.entries(pick("owner")).filter(([, owner]) => owner).map(([id]) => id).sort()).toEqual(["k-budget", "k-check", "k-decision", "k-dependency", "k-gate", "k-gaveup", "k-only"]);
+  // Nothing the screens never use, and no word twice on one row.
+  for (const card of all) expect(model.cards.get(card.id)?.stop?.words, card.id).not.toMatch(/보류|진행 대기|(확인 필요).*\1/);
 });
 
 // lina-app#124: the work tab's first screen reads at a glance.
@@ -362,8 +426,9 @@ test("다시 시도 is offered on a stop running again can clear, never on one t
   const retry = (id: string) => model.cards.get(id)?.stop?.retry;
   // Waiting on the owner (k-108, k-107, k-112) or on an agent's review (k-109).
   for (const id of ["k-108", "k-107", "k-112", "k-109"]) expect(retry(id), id).toBe(false);
-  // No response, failed, a budget stop the agent will retry.
-  for (const id of ["k-103", "k-110", "k-111", "r20"]) expect(retry(id), id).toBe(true);
+  // No response, failed; a budget stop the core already retries has none (lina-app#160).
+  for (const id of ["k-103", "k-110", "r20"]) expect(retry(id), id).toBe(true);
+  expect(retry("k-111")).toBe(false);
   const stopped = (id: string, reason: string) => ({ ...summary(id, "배포 문서 정리", null, "stopped"), reason });
   const all = [stopped("k-decision", "decision"), stopped("k-feedback", "feedback"), stopped("k-review", "review"), stopped("k-failed", "failed"), stopped("k-budget", "budget"), stopped("k-gate", "gate"), stopped("k-hold", "hold")];
   const bare = buildModel({ cards: { cards: all }, cardDetails: {}, failed: [] }, NOW);

@@ -2230,7 +2230,10 @@ describe("work cards", () => {
     expect(state("#/cards/k-103").classList.contains("is-plain")).toBe(true);
     // Who waits, from waitingOn and retry (lina#629), in red; the card whose runs carry its to-do is named by it.
     expect(row("#/cards/k-108").querySelector(".title")?.textContent).toBe("야간 보고서 정리하기");
-    expect(state("#/cards/k-108").textContent).toBe("중단됨 · 확인 필요 · 야간 보고서를 받을 사람 확인 필요");
+    // The ask's trailing 확인 필요 repeats the status word and goes (lina-app#160).
+    expect(state("#/cards/k-108").textContent).toBe("중단됨 · 확인 필요 · 야간 보고서를 받을 사람");
+    // A budget stop the core runs again by itself says its reason first (lina-app#160).
+    expect(state("#/cards/k-111").textContent).toBe("중단됨 · 예산 초과 · 다시 시도 예정");
     expect(state("#/cards/k-109").textContent).toMatch(/^중단됨 · \S+ 검토 대기$/);
     expect(state("#/cards/k-110").textContent).toBe("중단됨 · 응답 없음 · 다시 시도 안 함");
     expect(state("#/cards/k-110").classList.contains("is-plain")).toBe(false);
@@ -2268,7 +2271,8 @@ describe("work cards", () => {
     unfold(view.container);
     const rows = [...view.getByRole("list", { name: "중단됨" }).querySelectorAll("[data-testid=row]")];
     const withRetry = rows.filter((row) => row.querySelector("[data-testid=retry]")).map((row) => row.querySelector("a")?.getAttribute("href"));
-    expect(new Set(withRetry)).toEqual(new Set(["#/cards/k-103", "#/cards/k-110", "#/cards/k-111"]));
+    // k-111's retry is already scheduled: no button beside it (lina-app#160).
+    expect(new Set(withRetry)).toEqual(new Set(["#/cards/k-103", "#/cards/k-110"]));
     for (const row of rows.filter((each) => /확인 필요|검토 대기/.test(each.querySelector("[data-testid=state]")?.textContent ?? ""))) {
       expect(row.querySelector("[data-testid=retry]")).toBeNull();
       expect(row.classList.contains("has-action")).toBe(false);
@@ -2977,8 +2981,9 @@ describe("the work tab list (lina-app#141)", () => {
       const view = await open("#/", { wide, source: new SyntheticSource({ endedRuns: true }) });
       const list = within(home(view)).getByRole("list", { name: "중단됨" });
       const row = (href: string) => list.querySelector(`li:has(> a[href="${href}"])`) as Element;
-      expect(row("#/cards/k-108").querySelector("[data-testid=state]")?.textContent).toBe("중단됨 · 확인 필요 · 야간 보고서를 받을 사람 확인 필요");
-      expect(row("#/cards/k-108").querySelector("a")?.getAttribute("aria-label")).toContain("야간 보고서를 받을 사람 확인 필요");
+      expect(row("#/cards/k-108").querySelector("[data-testid=state]")?.textContent).toBe("중단됨 · 확인 필요 · 야간 보고서를 받을 사람");
+      expect(row("#/cards/k-108").querySelector("a")?.getAttribute("aria-label")).toContain("야간 보고서를 받을 사람");
+      expect(row("#/cards/k-108").querySelector("a")?.getAttribute("aria-label")).not.toMatch(/확인 필요.*확인 필요/);
       expect(list.querySelectorAll("[data-testid=stop-ask]")).toHaveLength(0);
       // k-107 has no ask; another stopped row shares its goal's title, so its own name is its second line (lina-app#148).
       expect(row("#/cards/k-107").querySelector("[data-testid=state]")?.textContent).toBe("중단됨 · 피드백 대기");

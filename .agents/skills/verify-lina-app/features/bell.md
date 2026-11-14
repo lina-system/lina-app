@@ -10,7 +10,7 @@ The bell in the toolbar (the navigation bar on a phone) carries the core's unrea
 
 ## Intended behavior
 
-- The badge is the core's `counts.unread`, hidden at 0; the button is named `알림 n` (`알림` at 0).
+- The badge is the core's `counts.unread`, hidden at 0; the button is named `알림 n` (`알림` at 0). On a phone the badge sits off the bell's top right corner, so even a two-digit count covers at most a fifth of the bell (lina-app#152).
 - The dialog `알림` opens with `안 읽음 n`, the same n as the badge, so the badge is told apart from 수신함's count. It lists every notice line; unread ones have a blue dot and the label colour; read ones have no dot and their text is the secondary grey, at full opacity (nothing is faded). `모두 읽음` (disabled when nothing is unread) and `닫기` sit on top as accent text buttons; Escape or a click outside also closes it. On a phone it opens as a bottom sheet over a dimmed screen (see [Phone](./phone.md)).
 - Choosing a notice: on screen its item opens and the badge drops by one at once; in the record that notice is read (`{keys: [key]}`).
 - `모두 읽음`: on screen the badge goes and every line turns grey; in the record every notice is read (`{all: true}`).

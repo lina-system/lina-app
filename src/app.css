@@ -729,6 +729,23 @@ button:disabled {
   text-overflow: ellipsis;
 }
 
+/* A row's second line, its own card's name, takes a second line before it is cut (lina-app#152). */
+.card-row .lines > .row-sub.one-line {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* A stopped row's state line wraps at a word instead of cutting its reason beside 다시 시도 (lina-app#152). */
+.card-row.is-stopped .lines > .sub:not(.row-sub):not(.stop-ask) {
+  white-space: normal;
+  word-break: keep-all;
+  text-overflow: clip;
+}
+
 /* A worker run inside a card: told apart by size and weight, never by fading. */
 .is-dim > a,
 .is-dim > .row-body {
@@ -761,20 +778,24 @@ button:disabled {
   color: var(--label-2);
 }
 
-/* The owner's to-dos folded to one line on the home (lina-app#141): its chevron turns down while the rows are open. */
-.mine-fold.is-open .disclosure {
-  transform: rotate(90deg);
+/* 할 일 추가 beside the 내 할 일 head, and its one-line form under it (lina-app#95, #152). */
+.mine-head {
+  display: flex;
+  align-items: center;
 }
 
-/* 할 일 추가 after the 내 할 일 line, and its one-line form under it (lina-app#95). */
-.row.has-action > .row-button {
+.mine-head > .section-head {
   flex: 1;
-  width: auto;
   min-width: 0;
 }
 
-.row.has-action > .quick-add-open {
-  margin-right: calc(var(--inset) - 8px);
+.mine-head > .quick-add-open {
+  margin: 0 calc(var(--inset) - 8px) 6px 0;
+}
+
+/* The one fold under a capped home group (`외 n개`, lina-app#152). */
+.more-row .sub {
+  color: var(--label-2);
 }
 
 .quick-add-form {
@@ -1944,9 +1965,11 @@ html:has(.stack) body {
   height: var(--hit);
 }
 
+/* The badge sits off the bell's top right corner, so a two-digit count leaves the bell readable (lina-app#152). */
 .stack .badge {
-  top: 6px;
-  right: 3px;
+  top: 2px;
+  left: calc(50% + 5px);
+  right: auto;
   min-width: 18px;
   height: 18px;
   border-radius: 9px;
@@ -2683,11 +2706,6 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 
 .stack .status-more {
   margin-top: 22px;
-}
-
-.stack .status-sum {
-  padding: 0 calc(var(--inset) + 12px) 12px;
-  color: var(--label-2);
 }
 
 /* 대화 on a wide window: the agent's window in the middle and its card on the right, side by side. */

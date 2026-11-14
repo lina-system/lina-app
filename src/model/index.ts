@@ -129,10 +129,15 @@ export interface CardRow {
   /** The card's own name with its references cut (ownName), when that may be drawn: what tells rows of one goal apart. */
   readonly ownName?: string | null;
   /**
-   * The row's second line in its group (lina-app#148): set only when another row of the group reads the same title and
-   * ask. It is the card's own name; with none, or the same again, when the row last moved.
+   * The row's second line in its group (lina-app#148, #152): the card's own name whenever it differs from the row's
+   * title (its goal's); null when it has none that may be drawn. Never a time.
    */
   readonly sub?: string | null;
+  /**
+   * When the row last moved, as a clock time in its time slot instead of how long ago: set only when another row of its
+   * group still reads the same lines (lina-app#152), so the second line is never a bare time.
+   */
+  readonly when?: string | null;
   /** The card lives on a board the core only reads (lina#481): no write control is drawn for it. */
   readonly readOnly?: boolean;
 }
@@ -294,36 +299,33 @@ function maxOf(values: (number | null | undefined)[]): number | null {
 }
 
 /**
- * The title a work card may draw: its checked title, or its own title until the checked one exists, but only while
- * that own title passes the raw-text rule the app already applies to comments (foldReason). Null means nothing may
- * be drawn, so the kind of work stands in. Stopped work waits on someone, so there a Latin word alone (a product's
- * name) does not hide the title; any other raw text still does.
+ * The title a work card may draw: its checked title, or its own title until the checked one exists, with its card and
+ * goal ids, issue references and hashes cut, but only while what is left passes the raw-text rule the app already
+ * applies to comments (foldReason). Null means nothing may be drawn, so the goal's title or the kind of work stands in.
+ * A stopped card has no exception to the rule (lina-app#152); the last argument is kept for the callers that pass it.
  */
-export function cardTitle(checked: string | null, own: string | null, stopped = false): string | null {
+export function cardTitle(checked: string | null, own: string | null, _stopped = false): string | null {
   if (checked !== null) return checked;
-  if (own === null) return null;
-  if (mayDraw(own, stopped)) return own;
-  // A stopped card is always a row (lina-app#148): its references and hashes are cut, not the whole title.
-  return stopped ? cutTitle(own, stopped) : null;
+  return own === null ? null : cleanTitle(own);
 }
 
-/** A card's own name in any state: its title as cardTitle gives it, else that title with its references cut. */
-export function ownName(checked: string | null, own: string | null, stopped = false): string | null {
-  if (checked !== null) return checked;
-  const name = cardTitle(checked, own, stopped) ?? (own === null ? null : cutTitle(own, stopped));
-  // A name in Latin alone is an internal one (lina-app#134): never a row's second line either.
-  return name && (mayDraw(name, false) || HANGUL.test(name)) ? name : null;
+/** A card's own name in any state: its title as cardTitle gives it. */
+export function ownName(checked: string | null, own: string | null): string | null {
+  return cardTitle(checked, own);
 }
 
-/** The own title with its references cut, when that may be drawn; a name left in Latin alone is internal (lina-app#134). */
-function cutTitle(own: string, stopped: boolean): string | null {
-  const cut = withoutRefs(own);
-  return cut && mayDraw(cut, stopped) && (mayDraw(cut, false) || HANGUL.test(cut)) ? cut : null;
+/**
+ * A title with its ids, references and hashes cut (withoutRefs), when what is left may be drawn (lina-app#152). Only a
+ * worker run's page lets a Latin word alone through (`latin`); no row does.
+ */
+function cleanTitle(title: string, latin = false): string | null {
+  const cut = withoutRefs(title);
+  return cut && mayDraw(cut, latin) ? cut : null;
 }
 
-function mayDraw(title: string, stopped: boolean): boolean {
+function mayDraw(title: string, latin = false): boolean {
   const reason = foldReason(title);
-  return reason === null || (stopped && reason === "latin");
+  return reason === null || (latin && reason === "latin");
 }
 
 /**
@@ -331,32 +333,26 @@ function mayDraw(title: string, stopped: boolean): boolean {
  * no Latin exception, and no word the screens never use (lina-app#148). Null draws no line.
  */
 export function plainLine(text: string | null | undefined): string | null {
-  return text && mayDraw(text, false) && !BANNED_WORDS.some((word) => text.includes(word)) ? text : null;
+  return text && mayDraw(text) && !BANNED_WORDS.some((word) => text.includes(word)) ? text : null;
 }
 
 /** The time a row last moved: its end, its start or its state's. */
 const movedAt = (row: CardRow) => row.endedAt ?? row.startedAt ?? row.stateAt;
 
 /**
- * One group's rows, each told apart from the others (lina-app#148): a row whose title and ask another row repeats
- * takes the card's own name as its second line; rows still alike, or with no own name, add when they last moved (the
- * kind of work is never a row's words, lina-app#122).
+ * One group's rows, each told apart from the others (lina-app#148, #152): line 1 is the goal's title (or the card's own
+ * when it has no goal), line 2 the card's own name whenever it differs from line 1. Rows that still read the same say
+ * when they last moved as a clock time in their time slot (`when`); line 2 is never a bare time, and the kind of work
+ * is never a row's words (lina-app#122).
  */
 export function apart(rows: readonly CardRow[], now: number): CardRow[] {
+  const named = rows.map((row) => ({ ...row, sub: row.ownName && row.ownName !== row.name ? row.ownName : null, when: null }));
   const key = (row: CardRow) => [row.name, row.sub ?? "", row.ask ?? ""].join("\n");
-  const repeated = (list: readonly CardRow[]) => {
-    const seen = new Map<string, number>();
-    for (const row of list) seen.set(key(row), (seen.get(key(row)) ?? 0) + 1);
-    return list.map((row) => (seen.get(key(row)) ?? 0) > 1);
-  };
-  const plain = rows.map((row) => (row.sub ? { ...row, sub: null } : row));
-  const first = repeated(plain);
-  const named = plain.map((row, index) => (first[index] ? { ...row, sub: row.ownName && row.ownName !== row.name ? row.ownName : null } : row));
-  const second = repeated(named);
-  return named.map((row, index) => {
-    if (!first[index] || (row.sub && !second[index])) return row;
+  const seen = new Map<string, number>();
+  for (const row of named) seen.set(key(row), (seen.get(key(row)) ?? 0) + 1);
+  return named.map((row) => {
     const at = movedAt(row);
-    return { ...row, sub: [row.sub ?? "", at === null ? "" : clockAt(at, now)].filter(Boolean).join(SEP) || null };
+    return (seen.get(key(row)) ?? 0) > 1 && at !== null ? { ...row, when: clockAt(at, now) } : row;
   });
 }
 
@@ -373,7 +369,7 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
   const base = receivedAt - card.elapsedSeconds;
   // A card with no checked title is named by its own title when that may be drawn; its kind is read from that same
   // text, so a card showing its own title is not guessed as code when it is a documents card.
-  const title = cardTitle(card.plain.title, card.title, card.state === "stopped");
+  const title = cardTitle(card.plain.title, card.title);
   const work = cardKind(title ?? "", cardRuns);
   return {
     key: `card:${card.id}`,
@@ -383,7 +379,7 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
     href: href({ name: "card", id: card.id }),
     title,
     own: title,
-    ownName: ownName(card.plain.title, card.title, card.state === "stopped"),
+    ownName: ownName(card.plain.title, card.title),
     name: cardName(card.plain.title, work, card.title),
     agent: card.agent,
     state: card.state,
@@ -470,9 +466,10 @@ export function buildModel(input: ModelInput, now: number): Model {
     return parent?.kind === "goal" ? parent : undefined;
   };
   const ownerName = items?.owner?.name ?? null;
-  // An unchecked title (a row's own, its to-do's, its goal's) names a row only when it passes the raw-text rule.
-  const plainName = (title: string | null | undefined, stopped = false) => (title && mayDraw(title, stopped) ? title : null);
-  // A name the Latin-word exception alone would let a stopped row draw, with no Korean in it: an internal name.
+  // An unchecked title (a row's own, its to-do's, its goal's) names a row with its ids cut, only when what is left
+  // passes the raw-text rule (lina-app#152).
+  const plainName = (title: string | null | undefined, latin = false) => (title ? cleanTitle(title, latin) : null);
+  // A name only the Latin-word exception lets a lone stopped run draw, with no Korean in it: an internal name.
   const internal = (title: string | null | undefined) => Boolean(title) && plainName(title) === null && plainName(title, true) !== null && !HANGUL.test(title ?? "");
   // What the core says about a stop (lina#629); absent and null both mean it does not say.
   type StopFacts = { readonly waitingOn?: string | null; readonly retry?: string | null };
@@ -501,15 +498,14 @@ export function buildModel(input: ModelInput, now: number): Model {
     return { words: why ?? "", known: false, owner: false, retry: again };
   };
   // The title of a to-do in the work record (never a goal: a goal names a row last), when it may be drawn.
-  const todoName = (ids: readonly (string | null)[], stopped = false) =>
-    ids.map((id) => (id ? itemMap.get(id) : undefined)).map((item) => (item && item.kind !== "goal" ? plainName(item.title, stopped) : null)).find(Boolean) ?? null;
+  const todoName = (ids: readonly (string | null)[]) => ids.map((id) => (id ? itemMap.get(id) : undefined)).map((item) => (item && item.kind !== "goal" ? plainName(item.title) : null)).find(Boolean) ?? null;
   const runListRow = (run: RunCard): CardRow => {
     const owner = runOwner.get(run.id);
     const ownerCard = owner ? (cards?.cards ?? []).find((card) => card.id === owner) : undefined;
     const cardTitleText = ownerCard ? cardTitle(ownerCard.plain.title, ownerCard.title) : null;
     // Its goal's title, then its checked title, its own name, its to-do's title and its card's title. A stopped run with
-    // no card or goal waits on someone: a Latin word alone does not hide its own or its to-do's title, but a name in
-    // Latin alone is an internal one (lina-app#134): it is never drawn, and the row reads 이름 없는 실행.
+    // no card or goal is no row (lina-app#141); on its own page a Latin word alone does not hide its own or its to-do's
+    // title, but a name in Latin alone is an internal one (lina-app#134): it is never drawn, and the page reads 이름 없는 실행.
     const lone = run.state === "stopped" && !owner && runGoal(run) === undefined;
     const todo = run.todo ? itemMap.get(run.todo) : undefined;
     const todoTitle = todo && todo.kind !== "goal" ? todo.title : null;
@@ -538,8 +534,11 @@ export function buildModel(input: ModelInput, now: number): Model {
   // The lookup keeps every card and run (a goal's page and a run page link to them); the lists leave out ended work
   // and work nothing names, and no line counts it (lina-app#141).
   const allCards: CardRow[] = everyCard.filter((each) => each.listed && each.row.title !== null).map((each) => each.row);
-  const unlisted = new Set(everyCard.filter((each) => !allCards.includes(each.row)).map((each) => each.row.id));
-  const cardMap = new Map(everyCard.map((each) => [each.row.id, each.row]));
+  // One state per id (lina-app#152): a worker run the hub serves under its card's own id never stands in for the card,
+  // so the row, its detail head and its goal all read the card's kanban status.
+  const cardMap = new Map<string, CardRow>();
+  for (const { row } of everyCard) if (!cardMap.has(row.id)) cardMap.set(row.id, row);
+  const unlisted = new Set(everyCard.filter((each) => !allCards.includes(each.row) && cardMap.get(each.row.id) === each.row).map((each) => each.row.id));
 
   // Each group's rows are told apart within it (apart); a part of a group (recent, older) keeps its rows apart too.
   const stopped = apart(allCards.filter((card) => card.state === "stopped").sort(stoppedOrder), now);

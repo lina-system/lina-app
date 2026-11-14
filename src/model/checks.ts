@@ -34,12 +34,16 @@ function outcomeOf(check: StatusCheck): CheckOutcome {
 
 const count = (line: string, mark: string) => line.split(mark).length - 1;
 
+/** The length the core cuts an engine's error at (lina_board_devices: `[:200]`). */
+const CUT_AT = 200;
+
 /**
- * The core cuts an engine's error at a fixed length, which can end inside a word (`(the web Mo`, lina-app#150). A line
- * left with a bracket or a quote open was cut: it keeps its whole words and ends in one ellipsis.
+ * The core cuts an engine's error at a fixed length, which can end inside a word (`(the web Mo`, lina-app#150, #152). A
+ * line left with a bracket or a quote open, or as long as the cut, was cut: it keeps its whole words and ends in one
+ * ellipsis.
  */
 function wholeWords(line: string): string {
-  const cut = count(line, "(") > count(line, ")") || count(line, "[") > count(line, "]") || count(line, '"') % 2 === 1;
+  const cut = line.length >= CUT_AT || count(line, "(") > count(line, ")") || count(line, "[") > count(line, "]") || count(line, '"') % 2 === 1;
   const end = line.trimEnd().lastIndexOf(" ");
   return cut && end > 0 ? W.cutShort(line.slice(0, end)) : line;
 }

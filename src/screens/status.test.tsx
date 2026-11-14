@@ -151,13 +151,13 @@ describe("status tab on the hub's real shapes (lina-app#144)", () => {
     ];
     const view = await open(source);
     expect(view.getByTestId("section-machines").textContent).not.toContain("확인 중");
-    // The scene's settings list omo, codex and dsh: dsh is 실행기 3, a runner they do not list is 실행기.
+    // Each runner reads by the name the hub serves for it, the tool it runs (lina-app#152).
     const [dsh, dshCommand, cursor, omo] = cellsOf(rowOf(view, "모래톱"));
-    await waitFor(() => expect(dsh.textContent).toBe("실행기 30.2.1-rc.5"));
-    expect(dshCommand.textContent).toBe("실행기확인 안 됨");
-    expect(cursor.textContent).toBe("실행기2026.11.11");
-    expect(omo.textContent).toBe("실행기 1업데이트 필요5.1.60 → 5.1.69");
-    expect(cellsOf(rowOf(view, "물레방아"))[0].textContent).toBe("실행기 1업데이트 필요5.1.51 → 5.1.69");
+    expect(dsh.textContent).toBe("dsh0.2.1-rc.5");
+    expect(dshCommand.textContent).toBe("dsh-command확인 안 됨");
+    expect(cursor.textContent).toBe("cursor2026.11.11");
+    expect(omo.textContent).toBe("omo업데이트 필요5.1.60 → 5.1.69");
+    expect(cellsOf(rowOf(view, "물레방아"))[0].textContent).toBe("omo업데이트 필요5.1.51 → 5.1.69");
   });
 
   test("a node without readings says why once, after a dash for each reading it lacks (lina-app#150)", async () => {
@@ -218,17 +218,16 @@ describe("status tab, QA round 4 (lina-app#150)", () => {
     for (const cell of cells.slice(1)) expect(cell.querySelector(".runner-detail")?.textContent).toBe("확인 안 됨");
   });
 
-  test("runners read by the settings screen's display name; no runner id is on the screen", async () => {
+  test("runners read by their tool's name, whether or not the settings list them; never one name for every runner (lina-app#152)", async () => {
     const source = fresh();
     const ids = ["omo", "codex-command", "dsh-command", "claude-command", "omo-astra"];
     const settings = source.scene.settings.revisions.at(-1) as Settings;
     settings.worker = { ...settings.worker, runners: Object.fromEntries(ids.slice(1).map((id) => [id, { type: "command" }])) };
     source.scene.devices.machines = [node("모래톱", { cpu: 11.8, memory: 34.79, disk: 19.07, metricsWhy: null, runners: [...ids.map((id) => runner(id, { fleet: "1.0", installed: "1.0", ready: true })), runner("aside")] })];
     const view = await open(source);
-    const names = () => cellsOf(rowOf(view, "모래톱")).map((cell) => cell.querySelector(".runner-name")?.textContent);
-    await waitFor(() => expect(names()).toEqual(["실행기 1", "실행기 2", "실행기 3", "실행기 4", "실행기 5", "실행기"]));
-    const text = view.getByTestId("section-machines").textContent ?? "";
-    for (const id of [...ids, "aside"]) expect(text).not.toContain(id);
+    const names = cellsOf(rowOf(view, "모래톱")).map((cell) => cell.querySelector(".runner-name")?.textContent);
+    expect(names).toEqual([...ids, "aside"]);
+    expect(view.getByTestId("section-machines").textContent).not.toContain("실행기");
   });
 
   test("a check cut by the hub mid-word reads a neutral summary, and its fold holds whole words only", async () => {
@@ -254,5 +253,35 @@ describe("status tab, QA round 4 (lina-app#150)", () => {
     const row = view.getByTestId("summaries-check");
     expect(view.getByRole("list", { name: "점검" }).contains(row)).toBe(true);
     expect(row.textContent).toBe("요약 중단됨");
+  });
+});
+
+// lina-app#152: QA round 5 on the hub's real responses (11-14). Invented names and text; the length and the cut are the hub's.
+describe("status tab, QA round 5 (lina-app#152)", () => {
+  test("an English check line the hub cut at 200 characters mid-word reads one Korean line, its fold holding whole words only", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const full = "fail: night probe could not reach the backup line within the window and gave up after several attempts; ".repeat(4);
+    const line = full.slice(0, 200);
+    // The hub's cut ends inside a word, with no bracket or quote left open.
+    expect(/[A-Za-z]$/.test(line) && /[A-Za-z]/.test(full[200])).toBe(true);
+    const checks: StatusChecks = { version: 1, at: now, checks: [{ name: "night-probe", ok: false, line, at: now - 60, staleAfter: 3600, stale: false, state: "failing", file: "night-probe.json" }] };
+    const view = await open(new SyntheticSource({ now, scene: { ...fresh().scene, checks } }));
+    const row = view.getByRole("list", { name: "점검" }).querySelector(".status-check-row") as HTMLElement;
+    expect(row.querySelector(".title")?.textContent).toBe("점검 실패");
+    const fold = row.querySelector("details") as HTMLDetailsElement;
+    expect(fold.open).toBe(false);
+    const original = fold.querySelector(".check-original")?.textContent ?? "";
+    expect(original).toBe(`${line.slice(0, line.lastIndexOf(" "))}…`);
+    expect(full.startsWith(original.slice(0, -1) + " ")).toBe(true);
+  });
+
+  test("a phone's 상태 says how many machines once: the machines head, no second line above it", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {} }));
+    window.history.replaceState(null, "", "/app/#/status");
+    const view = render(<App store={new Store(fresh())} />);
+    await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("실시간"));
+    await waitFor(() => expect(view.getByTestId("section-machines").querySelector(".section-head")?.textContent).toBe("작업 기기 4 · 정상 2 · 경고 1 · 꺼짐 1"));
+    const lines = [...view.container.querySelectorAll("*")].filter((element) => element.children.length === 0 || element.matches("[data-testid=device-line]")).map((element) => element.textContent ?? "");
+    expect(lines.filter((text) => /^(작업 )?기기 \d+/.test(text))).toEqual(["작업 기기 4 · 정상 2 · 경고 1 · 꺼짐 1"]);
   });
 });

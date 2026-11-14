@@ -85,9 +85,11 @@ export function stateWords(state: WorkState, reason?: string | null, stop?: Card
 
 /**
  * A card's time on a list: a running card counts up (n분째); every other card says how long ago, a finished one how
- * long ago it ended (완료 · 20분 전). How long a finished card took is in its detail (cardTook).
+ * long ago it ended (완료 · 20분 전). How long a finished card took is in its detail (cardTook). A row that reads the same
+ * lines as another of its group says when it moved instead (CardRow.when, lina-app#152).
  */
 export function cardTime(card: CardRow, now: number): string {
+  if (card.when) return card.when;
   // A planned card has not started: no time beside it at all.
   if (card.state === "planned") return "";
   if (card.state === "in_progress" && card.startedAt !== null) return duration(now - card.startedAt);

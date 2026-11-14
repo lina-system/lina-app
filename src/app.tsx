@@ -289,14 +289,24 @@ export function Sidebar({ current, tab = "work" }: { current?: Route; tab?: Tab 
   );
 }
 
+/** How old the screens may be before the line says 갱신 지연. */
+const STALE_AFTER_S = 30;
+
 export function Freshness() {
   const { model, store, now } = useApp();
+  // While the stream is open nothing is read until something changes, so the last read can be minutes old while the
+  // screens are current. The last moment the stream vouched for them is when they were last known current
+  // (lina-app#152): one failed read counts from there, not from the last change.
+  const vouched = useRef<number | null>(null);
+  const current = store.live === "open" && !store.boardFailed && store.lastOk !== null && store.version > 0;
+  if (current) vouched.current = now;
+  const since = Math.max(store.lastOk ?? 0, store.live === "open" ? (vouched.current ?? 0) : 0);
   let line: { text: string; tone: string };
   if (store.offline || store.denied) line = { text: W.offline, tone: "is-red" };
   else if (store.lastOk === null || store.version === 0) line = { text: W.loading, tone: "" };
-  else if (store.live === "open" && !store.boardFailed) line = { text: W.live, tone: "" };
-  else if (store.live === "down" || now - store.lastOk > 30) line = { text: W.stale, tone: "" };
-  else line = { text: W.fresh(Math.max(0, Math.floor(now - store.lastOk))), tone: "" };
+  else if (current) line = { text: W.live, tone: "" };
+  else if (store.live === "down" || now - since > STALE_AFTER_S) line = { text: W.stale, tone: "" };
+  else line = { text: W.fresh(Math.max(0, Math.floor(now - since))), tone: "" };
   return (
     <span class="freshness" data-testid="freshness">
       <span class={line.tone} data-testid="freshness-line">
@@ -692,11 +702,6 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
           </h1>
         ) : null}
         {isRoot ? <Tabs current={tabOf(screen)} /> : null}
-        {screen.name === "status" ? (
-          <p class="status-sum">
-            <DeviceLine class="one-line" />
-          </p>
-        ) : null}
         {/* Under a goal chosen in 대화 stands the card it was chosen on, not the window and its field (lina-app#143). */}
         {sheet?.name === "talk" && screen.name === "talk" ? <AgentCard agent={screen.id} /> : <Screen route={screen} />}
         {screen.name === "status" ? <StatusMore /> : null}

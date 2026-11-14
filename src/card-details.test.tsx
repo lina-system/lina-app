@@ -76,11 +76,11 @@ function homeCards(view: ReturnType<typeof render>): number {
 }
 
 function rowSub(view: ReturnType<typeof render>, id: string): string | null | undefined {
-  return view.container.querySelector(`[data-testid=screen-running] li:has(> a[href="#/cards/${id}"]) .sub`)?.textContent;
+  return view.container.querySelector(`[data-testid=screen-running] li:has(> a[href="#/cards/${id}"]) .sub:not(.row-sub)`)?.textContent;
 }
 
 function sectionTimes(view: ReturnType<typeof render>, id: string): (string | null)[] {
-  return [...view.getByTestId(`section-${id}`).querySelectorAll(".sub")].map((line) => line.textContent);
+  return [...view.getByTestId(`section-${id}`).querySelectorAll(".sub:not(.row-sub)")].map((line) => line.textContent);
 }
 
 afterEach(() => {

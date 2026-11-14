@@ -4,7 +4,6 @@ import type { CardRow, DueRow, GoalRow, InboxRow, Section } from "../model";
 import { agentView, doneFor, localDay } from "../model";
 import type { OpenCheck } from "../model/checks";
 import { stopReason } from "../model/stop-reason";
-import { runnerName } from "../model/settings";
 import type { UsageLine } from "../model/usage";
 import { href, navigate } from "../router";
 import { ago, dayLabel, until } from "../time";
@@ -105,13 +104,34 @@ function RetryControl({ card }: { card: CardRow }) {
   );
 }
 
+/** Rows a home group shows before its fold (lina-app#152): the owner's first to-dos, and the first stopped cards. */
+const MINE_SHOWN = 3;
+const STOPPED_SHOWN = 5;
+
+/** The one fold under a capped group: `외 n개`, the rows it holds; choosing it opens them in place. */
+function MoreRow({ title, hidden, onOpen }: { title: string; hidden: number; onOpen: () => void }) {
+  return (
+    <li class="row more-row">
+      <button type="button" class="row-button" aria-expanded={false} aria-label={`${title} ${W.more(hidden)}`} onClick={onOpen}>
+        <span class="lines">
+          <span class="sub one-line">{W.more(hidden)}</span>
+        </span>
+        <Disclosure />
+      </button>
+    </li>
+  );
+}
+
 /**
- * The stopped cards' own group (lina-app#134): `중단됨` and one red number, its rows. 다시 시도 sits only on a row
- * running again can clear; a row waiting on an answer or a review opens its detail.
+ * The stopped cards' own group (lina-app#134): `중단됨` and one red number, every stopped card; its first five rows,
+ * then one fold for the rest (lina-app#152). 다시 시도 sits only on a row running again can clear; a row waiting on
+ * an answer or a review opens its detail.
  */
 function StoppedSection({ section }: { section: Section<CardRow> }) {
   const actions = useActions();
+  const [open, setOpen] = useState(false);
   if (!section.rows.length) return null;
+  const shown = open ? section.rows : section.rows.slice(0, STOPPED_SHOWN);
   return (
     <section class="list-section" data-testid={`section-${section.id}`}>
       <h2 class="section-head" data-testid={`head-${section.id}`}>
@@ -119,57 +139,50 @@ function StoppedSection({ section }: { section: Section<CardRow> }) {
         <CountPair count={0} stopped={section.stopped} />
       </h2>
       <ul class="rows" aria-label={section.title}>
-        {section.rows.map((card) => (
+        {shown.map((card) => (
           <CardRowView key={card.key} card={card.stop ? { ...card, stop: { ...card.stop, words: stopReason(card).word } } : card} action={card.stop?.retry ? <RetryControl card={card} /> : undefined} error={actions.error(`retry:${card.key}`)?.line} />
         ))}
+        {shown.length < section.rows.length ? <MoreRow title={section.title} hidden={section.rows.length - shown.length} onOpen={() => setOpen(true)} /> : null}
       </ul>
     </section>
   );
 }
 
 /**
- * The owner's to-dos on the home: one line with their count, folded, so the stopped and running work reads first
- * (lina-app#141). Choosing the line opens the rows in place under it. 할 일 추가 after it opens the one-line form
- * (lina-app#95), so the line is drawn with no rows too.
+ * The owner's to-dos on the home (lina-app#152): their head with every to-do counted, the first three rows, then one
+ * fold for the rest. 할 일 추가 beside the head opens the one-line form (lina-app#95), so the head is drawn with no rows
+ * too.
  */
-function MineFold({ section }: { section: Section<InboxRow> }) {
+function MineSection({ section }: { section: Section<InboxRow> }) {
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  const shown = open ? section.rows : section.rows.slice(0, MINE_SHOWN);
   return (
     <section class="list-section" data-testid="home-mine">
+      <div class="mine-head">
+        <SectionHead section={section} />
+        <QuickAddButton open={adding} onToggle={() => setAdding(!adding)} />
+      </div>
       <ul class="rows" aria-label={section.title}>
-        <li class={`row mine-fold has-action${open ? " is-open" : ""}`}>
-          <button type="button" class="row-button" aria-expanded={open} aria-label={`${section.title} ${section.count}`} onClick={() => setOpen(!open)}>
-            <span class="lines">
-              <span class="title one-line">{section.title}</span>
-            </span>
-            <CountPair count={section.count} />
-            <Disclosure />
-          </button>
-          <QuickAddButton open={adding} onToggle={() => setAdding(!adding)} />
-        </li>
         {adding ? (
           <li class="row quick-add-row">
-            <QuickAddForm
-              onClose={() => setAdding(false)}
-              onAdded={() => {
-                setAdding(false);
-                setOpen(true);
-              }}
-            />
+            <QuickAddForm onClose={() => setAdding(false)} onAdded={() => setAdding(false)} />
           </li>
         ) : null}
-        {open ? section.rows.map((row) => <InboxRowView key={row.key} row={row} />) : null}
+        {shown.map((row) => (
+          <InboxRowView key={row.key} row={row} />
+        ))}
+        {shown.length < section.rows.length ? <MoreRow title={section.title} hidden={section.rows.length - shown.length} onOpen={() => setOpen(true)} /> : null}
       </ul>
     </section>
   );
 }
 
 /**
- * The home (lina-app#141): one line for the open decisions (only when there are any) and the review items, the
- * stopped cards in their own group, the running cards (only when there are any), the cards waiting on an answer, the
- * owner's own to-dos folded to one line, then finished cards, the last 24 hours first and older ones after. Every
- * number is its section's own row count, the same model the sidebar and the agent screens read.
+ * The home (lina-app#141, #152): one line for the open decisions (only when there are any) and the review items, the
+ * running cards, the owner's own to-dos (their first three), the stopped cards in their own group (their first five),
+ * the planned and waiting cards, then finished cards, the last 24 hours first and older ones after. Every number is
+ * its section's own row count, folded rows included, the same model the sidebar and the agent screens read.
  */
 export function RunningScreen() {
   const { model, store } = useApp();
@@ -179,7 +192,7 @@ export function RunningScreen() {
     if (store.version === 0) return <Empty />;
     return (
       <div class="list" data-testid="screen-running">
-        <MineFold section={home.mine} />
+        <MineSection section={home.mine} />
         <Empty />
       </div>
     );
@@ -200,7 +213,6 @@ export function RunningScreen() {
         </ul>
       ) : null}
       <ListSection section={home.review} render={(row) => <InboxRowView key={row.key} row={row} />} />
-      <StoppedSection section={home.stopped} />
       <ListSection section={home.active} label={W.running} render={(card) => <CardRowView key={card.key} card={card} />} />
       {!home.active.rows.length && (home.stopped.rows.length || home.planned.rows.length) ? (
         // Nothing runs but work is stopped or planned: 진행 중 0 says the tab is alive (lina-app#148).
@@ -208,9 +220,10 @@ export function RunningScreen() {
           <SectionHead section={home.active} />
         </section>
       ) : null}
+      <MineSection section={home.mine} />
+      <StoppedSection section={home.stopped} />
       <ListSection section={home.planned} render={(card) => <CardRowView key={card.key} card={card} />} />
       <ListSection section={home.waiting} render={(card) => <CardRowView key={card.key} card={card} />} />
-      <MineFold section={home.mine} />
       {[home.recent, home.older].map((section) => (
         <ListSection key={section.id} section={section} render={(card) => <CardRowView key={card.key} card={card} />} />
       ))}
@@ -472,13 +485,13 @@ function chooseRestart(step: "worker" | "ocx"): void {
  * The sign-in button shows only for why sign_in, or for a signed-out runner with no why. Any other why shows its reason,
  * and an update its installed and fleet versions; a runner not ready with no reason of its own reads 준비 필요. No cell
  * reads 확인 중 (lina-app#144): a runner with no answer, or the core's unknown, shows its version alone, and one with no
- * version either reads 확인 안 됨 (lina-app#150). The runner reads by the settings screen's name, never by its id.
+ * version either reads 확인 안 됨 (lina-app#150). The runner reads by the name the hub serves for it, the tool it runs
+ * (lina-app#152), as the owner's own devices list their tools.
  * 로그인 중 has no button while the post is in flight or the core still reports signingIn. When that turns false,
  * a signed-in runner shows the mark; a sign-in cell shows the reason and the button again.
  */
 function RunnerCellView({ machine, runner }: { machine: Machine; runner: RunnerCell }) {
   const { store } = useApp();
-  const settings = store.get("settings")?.settings;
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const signingIn = posting || runner.signingIn;
@@ -507,7 +520,7 @@ function RunnerCellView({ machine, runner }: { machine: Machine; runner: RunnerC
   };
   return (
     <div class="runner-cell" data-testid="runner-cell">
-      <span class="runner-name">{settings ? runnerName(runner.name, settings) : W.runners}</span>
+      <span class="runner-name">{runner.name}</span>
       {signingIn ? (
         <span class="runner-detail">{W.signingIn}</span>
       ) : fine ? (
@@ -1021,9 +1034,7 @@ function PlainQuotaRow({ text, testid }: { text: string; testid: string }) {
 }
 
 export function StatusScreen() {
-  const { model, store } = useApp();
-  // The runners read by the settings screen's names, so the settings are read here too.
-  useEffect(() => store.ensure([["settings"]]), [store]);
+  const { model } = useApp();
   // The quota panel is the service rows, then one row for each service OCX holds no account for, then OCX's own row.
   // A failed quota read leaves neither a service nor a missing service, so the panel stays away with OCX's row.
   const hasQuota = model.quota.length + model.quotaMissing.length > 0;

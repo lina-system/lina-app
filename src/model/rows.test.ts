@@ -1,7 +1,8 @@
 import { expect, test } from "vitest";
-import type { BoardSnapshot, ItemDetail, ItemList, WorkCardList, WorkGoal } from "../api/client";
+import type { BoardSnapshot, ItemDetail, ItemList, RunCard, WorkCardList, WorkGoal } from "../api/client";
+import { generateScene, SYNTHETIC_SEED } from "../fixtures/synthetic";
 import { CRUMB, KIND_TITLE, STATE_WORD, W } from "../words";
-import { agentView, buildModel, goalCards, goalState, type CardRow, type CardSummary, type Section } from "./index";
+import { agentView, buildModel, cardTitle, goalCards, goalState, type CardRow, type CardSummary, type Section } from "./index";
 
 /**
  * A scene in the shape of the hub's real `/work/cards` rows (lina-app#148): every row carries `goalTitle`, `ask`,
@@ -123,21 +124,21 @@ const board = {
   writer: { state: "ok", lastSuccessAt: NOW },
 } as unknown as BoardSnapshot;
 
-function realModel(rows: readonly RealRow[] = cards) {
-  return buildModel({ board, items, cards: { cards: [...rows] } as WorkCardList, cardsAt: NOW, cardDetails: {}, failed: [] }, NOW);
+function realModel(rows: readonly RealRow[] = cards, runs: BoardSnapshot["cards"] = []) {
+  return buildModel({ board: { ...board, cards: runs }, items, cards: { cards: [...rows] } as WorkCardList, cardsAt: NOW, cardDetails: {}, failed: [] }, NOW);
 }
 
-/** Rows of one group a person cannot tell apart: the same title, second line and ask. */
+/** Rows of one group a person cannot tell apart: the same title, second line, ask and time slot. */
 function duplicates(rows: readonly CardRow[]): number {
   const seen = new Map<string, number>();
   for (const card of rows) {
-    const key = [card.name, card.sub ?? "", card.ask ?? ""].join("\n");
+    const key = [card.name, card.sub ?? "", card.ask ?? "", card.when ?? ""].join("\n");
     seen.set(key, (seen.get(key) ?? 0) + 1);
   }
   return [...seen.values()].filter((count) => count > 1).reduce((sum, count) => sum + count, 0);
 }
 
-test("no two rows of a group read the same: a goal title that repeats takes the card's own name as the second line (lina-app#148)", () => {
+test("no two rows of a group read the same: line 1 is the goal's title, line 2 the card's own name, then when it moved (lina-app#148, #152)", () => {
   const model = realModel();
   const groups: Section<CardRow>[] = [model.home.stopped, model.home.active, model.home.planned, model.home.waiting, model.home.recent, model.home.older];
   for (const group of groups) expect(duplicates(group.rows), group.id).toBe(0);
@@ -148,15 +149,15 @@ test("no two rows of a group read the same: a goal title that repeats takes the 
   const card = (id: string) => model.done.find((each) => each.id === id);
   // The goal's title stays the row's title; the card's own name, its reference cut, is the second line.
   expect(card("d2")).toMatchObject({ name: MEMORY, sub: "가짜 이행 2단계: 허브 노드 전환" });
-  // An own name that would show raw text is never drawn, nor the kind word: when it ended tells the row apart.
-  expect(card("d3")?.sub).toMatch(/^\d+월 \d+일 \d{2}:\d{2}$/);
+  // An own name that would show raw text is never drawn, nor the kind word, nor a bare time (lina-app#152).
+  expect(card("d3")?.sub ?? null).toBeNull();
   expect(model.done.some((each) => each.sub?.includes(KIND_TITLE.code))).toBe(false);
-  // A goal title that does not repeat in the group needs no second line.
-  expect(card("d6")?.sub ?? null).toBeNull();
+  // A row whose goal title does not repeat still names its own card under it (lina-app#152).
+  expect(card("d6")).toMatchObject({ name: "가상 혼자인 목표", sub: "가짜 혼자 끝난 정리" });
   // The planned group's two rows of one goal read apart by their own names.
   expect(model.home.planned.rows.find((each) => each.id === "p1")).toMatchObject({ name: PUSH, sub: "가짜 푸시 구독 저장" });
-  // The stopped rows of one goal already read apart by their asks: no second name is added.
-  expect(model.home.stopped.rows.filter((each) => each.name === ORDER).map((each) => each.sub ?? null)).toEqual([null, null, null]);
+  // The stopped rows of one goal name their own cards too, whatever their asks (lina-app#152).
+  expect(model.home.stopped.rows.filter((each) => each.name === ORDER).map((each) => each.sub ?? null)).toEqual(["가짜 관문: 주문 여러 건 묶기", "가짜 관문: 장 밖 주문 채우기", null]);
 });
 
 test("every stopped card is a row: a reference and a hash are cut from its title, and the head counts the rows (lina-app#148)", () => {
@@ -207,4 +208,60 @@ test("a goal with a stopped card reads 중단됨, the same fold the work tab sho
   // The goal's own card list names each card apart too.
   const listed = goalCards(model, { ...detail, workCards: ["d1", "d2", "d3"] } as unknown as ItemDetail, { goals });
   expect(duplicates(listed.cards.rows)).toBe(0);
+});
+
+// lina-app#152: the hub's titles carry card and goal ids (`t93`, `G106`, `t_586c9120`, `OT-12`, `lina#49`), and a card's
+// worker run may carry the card's own id with a state of its own.
+const IDS = "G78 가상 이름표 목표";
+const idCards: RealRow[] = [
+  row("i1", "t93 가짜 목록 정리", "done", { goalTitle: IDS, endedAt: NOW - 2 * DAY }),
+  row("i2", "G106 가짜 화면 고치기", "done", { goalTitle: IDS, endedAt: NOW - 2 * DAY - 60 }),
+  row("i3", "가짜 키 배포 t_586c9120", "stopped", { agent: "ag-b", lastHeartbeatAt: NOW - 50 }),
+  row("i4", "OT-12 가짜 보고서 (lina#49)", "planned"),
+  row("i5", "CLI 배포 순서 정하기", "stopped", { goalTitle: "가상 배포 목표", lastHeartbeatAt: NOW - 60 }),
+  row("i6", "가짜 묶음 lina#49 정리", "done", { endedAt: NOW - 3 * DAY }),
+];
+
+test("no row or detail title shows a card or goal id, and a stopped row has no Latin exception (lina-app#152)", () => {
+  const model = realModel(idCards);
+  const ids = /(?<![0-9A-Za-z])(?:t\d+|[GT]\d+|OT-\d+|t_[0-9a-f]+)(?![0-9A-Za-z])|#\d+/;
+  const latin = /[A-Za-z]{3,}/;
+  const rows = [...model.home.stopped.rows, ...model.home.planned.rows, ...model.done];
+  expect(rows).toHaveLength(idCards.length);
+  for (const each of rows) for (const text of [each.name, each.sub ?? "", each.title ?? "", each.own ?? ""]) expect(text, each.id).not.toMatch(ids);
+  for (const each of rows) expect(each.name + (each.sub ?? ""), each.id).not.toMatch(latin);
+  const card = (id: string) => rows.find((each) => each.id === id);
+  expect(card("i1")).toMatchObject({ name: "가상 이름표 목표", sub: "가짜 목록 정리" });
+  expect(card("i2")).toMatchObject({ name: "가상 이름표 목표", sub: "가짜 화면 고치기" });
+  expect(card("i3")?.name).toBe("가짜 키 배포");
+  expect(card("i4")?.name).toBe("가짜 보고서");
+  // An English word hides a stopped card's own title like any other's: the goal's title is left.
+  expect(card("i5")).toMatchObject({ name: "가상 배포 목표" });
+  expect(card("i5")?.sub ?? null).toBeNull();
+  expect(card("i6")?.name).toBe("가짜 묶음 정리");
+  // The detail head reads the same title rule (cardTitle).
+  expect(cardTitle(null, "t93 가짜 목록 정리")).toBe("가짜 목록 정리");
+  expect(cardTitle(null, "CLI 배포 순서 정하기", true)).toBeNull();
+});
+
+test("a row, its detail head's row and its goal read the card's kanban status, whatever its board runs say (lina-app#152)", () => {
+  const template = generateScene(SYNTHETIC_SEED, { now: NOW }).board.cards[0];
+  const run = (id: string, card: string, state: RunCard["state"]): RunCard => ({ ...template, id, card, state, todo: null });
+  const kanban = [row("k1", "가짜 예정 카드", "planned", { goalTitle: ORDER }), row("k2", "가짜 진행 카드", "in_progress", { goalTitle: ORDER })];
+  // The hub's run of k1 carries k1's own id and already goes; k2's run stopped while its card still runs.
+  const model = realModel(kanban, [run("k1", "k1", "in_progress"), run("r-k2", "k2", "stopped")]);
+  expect(model.home.planned.rows.map((each) => each.id)).toEqual(["k1"]);
+  expect(model.home.active.rows.map((each) => each.id)).toEqual(["k2"]);
+  expect(model.home.stopped.rows).toHaveLength(0);
+  expect(model.cards.get("k1")).toMatchObject({ kind: "card", state: "planned" });
+  expect(model.cards.get("k2")).toMatchObject({ kind: "card", state: "in_progress" });
+  expect(model.unlisted.has("k1")).toBe(false);
+  expect(agentView(model, "ag-a")?.planned.rows.map((each) => each.id)).toEqual(["k1"]);
+  const goals: WorkGoal[] = [{ id: "kg-order", title: ORDER, agent: "ag-a", state: "in_progress", reason: null, elapsedSeconds: 60, evidence: [], workCards: kanban }];
+  const detail = { id: "G9", kind: "goal", state: "in_progress", reason: null, stateSince: NOW - DAY, workCards: ["k1", "k2"] } as unknown as ItemDetail;
+  expect(goalCards(model, detail, { goals }).cards.rows.map((each) => [each.id, each.state])).toEqual([
+    ["k1", "planned"],
+    ["k2", "in_progress"],
+  ]);
+  expect(goalState(model, { ...detail, workCards: ["kg-order"] }, { goals }).state).toBe("in_progress");
 });

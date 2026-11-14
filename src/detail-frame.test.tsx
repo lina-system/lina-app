@@ -51,8 +51,7 @@ describe.each([
   test("a to-do on the home opens in the frame; the tab, the header and the list stay", async () => {
     const view = await open("#/", { wide });
     const title = view.getByTestId("screen-title").textContent;
-    // The owner's to-dos are folded to one line on the home (lina-app#141): the owner opens them first.
-    fireEvent.click(view.getByTestId("home-mine").querySelector(".row-button") as HTMLElement);
+    // The owner's first to-dos read on the home without a tap (lina-app#152).
     await waitFor(() => expect(view.getByTestId("screen-running").querySelector("a[href^='#/items/']")).not.toBeNull());
     const todo = view.getByTestId("screen-running").querySelector("a[href^='#/items/']") as HTMLElement;
     fireEvent.click(todo);
@@ -164,6 +163,8 @@ describe("one stop reason on the row and its detail", () => {
   test("each stopped row on the home reads the same words and time as its detail's head", async () => {
     const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000), endedRuns: true });
     const home = await open("#/running", { wide: true, source });
+    // The stopped group shows its first five rows; its fold holds the rest (lina-app#152).
+    for (const button of [...home.container.querySelectorAll(".more-row button")]) fireEvent.click(button);
     const rows = [...within(home.getByTestId("screen-running")).getByRole("list", { name: "중단됨" }).querySelectorAll(":scope > [data-testid=row]")].map((row) => ({
       href: row.querySelector("a")?.getAttribute("href") ?? "",
       state: row.querySelector("[data-testid=state]")?.textContent ?? "",

@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { USAGE_RANGES, type Machine, type PersonDevice, type PowerStation, type PowerView, type QuotaAccount, type QuotaService, type RunnerCell, type UsageRange } from "../api/client";
 import type { CardRow, DueRow, GoalRow, InboxRow, Section } from "../model";
-import { agentView, doneFor, localDay } from "../model";
+import { agentView, doneFor, foldTitle, localDay } from "../model";
 import type { OpenCheck } from "../model/checks";
 import { stopReason } from "../model/stop-reason";
 import type { UsageLine } from "../model/usage";
@@ -11,7 +11,7 @@ import { useEffect, useState } from "preact/hooks";
 import { useActions } from "../ui/actions";
 import { QuickAddButton, QuickAddForm } from "../ui/quick-add";
 import { AgentMark, agentName, CardRowView, CountPair, Dial, Disclosure, DoneCheck, Empty, ErrorLine, Link, ListSection, SectionHead, useApp } from "../ui/parts";
-import { machineWhy, metricsReason, serviceName, SEP, versionOf, W } from "../words";
+import { machineWhy, metricsReason, serviceName, SEP, toolCommand, toolName, versionOf, W } from "../words";
 import { writeError } from "./write-error";
 
 type DecideRow = Extract<InboxRow, { type: "decide" }>;
@@ -312,19 +312,22 @@ export function GoalLine({ goal, showAgent }: { goal: GoalRow; showAgent: boolea
   const actions = useActions();
   const closed = goal.allDone;
   const shown = actions.isDone(goal.id, goal.state === "done");
+  // The goal's title and done condition fold as a row's title does (lina-app#156): refs, hashes and ids never show.
+  const title = foldTitle(goal.title) ?? W.untitled;
+  const condition = foldTitle(goal.doneCondition);
   return (
     <li class={`row goal-row${closed ? " check-row" : ""}${closed && shown ? " is-checked" : ""}`} data-testid="row">
       {closed ? <DoneCheck id={goal.id} title={goal.title} done={goal.state === "done"} /> : null}
       <Link
         href={goal.href}
-        label={[showAgent ? agentName(model, goal.agent) : "", goal.title, W.progress(goal.todosDone, goal.todosTotal)].filter(Boolean).join(SEP)}
+        label={[showAgent ? agentName(model, goal.agent) : "", title, W.progress(goal.todosDone, goal.todosTotal)].filter(Boolean).join(SEP)}
         current={selected === goal.href}
       >
         {closed ? null : <Dial done={goal.todosDone} totalCount={goal.todosTotal} />}
         {showAgent ? <AgentMark id={goal.agent} /> : null}
         <span class="lines">
-          <span class="title one-line">{goal.title}</span>
-          {goal.doneCondition ? <span class="sub one-line">{goal.doneCondition}</span> : null}
+          <span class="title one-line">{title}</span>
+          {condition ? <span class="sub one-line">{condition}</span> : null}
         </span>
         {goal.runningCount ? <span class="trail">{W.runningCount(goal.runningCount)}</span> : null}
       </Link>
@@ -485,12 +488,24 @@ function chooseRestart(step: "worker" | "ocx"): void {
  * The sign-in button shows only for why sign_in, or for a signed-out runner with no why. Any other why shows its reason,
  * and an update its installed and fleet versions; a runner not ready with no reason of its own reads 준비 필요. No cell
  * reads 확인 중 (lina-app#144): a runner with no answer, or the core's unknown, shows its version alone, and one with no
- * version either reads 확인 안 됨 (lina-app#150). The runner reads by the name the hub serves for it, the tool it runs
- * (lina-app#152), as the owner's own devices list their tools.
+ * version either reads 확인 안 됨 (lina-app#150). The runner reads by its tool's display name (deviceToolNames,
+ * lina-app#156), as the owner's own devices list their tools.
  * 로그인 중 has no button while the post is in flight or the core still reports signingIn. When that turns false,
  * a signed-in runner shows the mark; a sign-in cell shows the reason and the button again.
  */
-function RunnerCellView({ machine, runner }: { machine: Machine; runner: RunnerCell }) {
+/**
+ * Each runner's name on one device (lina-app#156): its tool's display name (toolName). When two runners of the device
+ * read the same name, the command runner says so (`Grok 명령`), so no name shows twice on one device.
+ */
+function deviceToolNames(runners: readonly RunnerCell[]): string[] {
+  const names = runners.map((runner) => toolName(runner.name));
+  return runners.map((runner, index) => {
+    const shared = names.filter((name) => name === names[index]).length > 1;
+    return shared && (runner.name.endsWith("-command") || runner.type === "command") ? toolCommand(names[index]) : names[index];
+  });
+}
+
+function RunnerCellView({ machine, runner, name }: { machine: Machine; runner: RunnerCell; name: string }) {
   const { store } = useApp();
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -520,7 +535,7 @@ function RunnerCellView({ machine, runner }: { machine: Machine; runner: RunnerC
   };
   return (
     <div class="runner-cell" data-testid="runner-cell">
-      <span class="runner-name">{runner.name}</span>
+      <span class="runner-name">{name}</span>
       {signingIn ? (
         <span class="runner-detail">{W.signingIn}</span>
       ) : fine ? (
@@ -577,6 +592,7 @@ function MachineRow({ machine }: { machine: MachineReadings }) {
   ] as const;
   const missing = readings.some(([, value]) => value === null) ? metricsReason(machine.metricsWhy, machine.reachable) : null;
   const load = W.load(machine.running, machine.cap);
+  const runnerNames = deviceToolNames(machine.runners);
   const label = (offline ? [machine.name, word, why] : [machine.name, word, why, ...readings.map(([name, value]) => W.meter(name, value)), missing, load]).filter(Boolean).join(SEP);
   return (
     <li class={`row machine-row is-${machine.state}`} data-testid="row" data-role={machine.role}>
@@ -608,8 +624,8 @@ function MachineRow({ machine }: { machine: MachineReadings }) {
       )}
       {offline ? null : (
         <div class="runner-grid" role="group" aria-label={`${machine.name} ${W.runners}`}>
-          {machine.runners.map((runner) => (
-            <RunnerCellView key={runner.name} machine={machine} runner={runner} />
+          {machine.runners.map((runner, index) => (
+            <RunnerCellView key={runner.name} machine={machine} runner={runner} name={runnerNames[index]} />
           ))}
         </div>
       )}
@@ -624,17 +640,21 @@ function personState(device: PersonDevice): string {
   return W.runnerWhy.unknown;
 }
 
-/** An owner's Mac: 연결 끊김 alone while unreachable; otherwise each tool once, with its version when the Mac read one. */
+/**
+ * An owner's Mac: 연결 끊김 alone while unreachable; otherwise each tool once by its display name (toolName, lina-app#156),
+ * with its version when the Mac read one.
+ */
 function PersonRow({ device }: { device: PersonDevice }) {
   const state = personState(device);
-  const tools = device.reachable === false ? [] : device.tools.filter((tool, index) => device.tools.findIndex((other) => other.name === tool.name) === index);
+  const named = device.tools.map((tool) => ({ ...tool, shown: toolName(tool.name) }));
+  const tools = device.reachable === false ? [] : named.filter((tool, index) => named.findIndex((other) => other.shown === tool.shown) === index);
   return (
     <li class="person-row">
       <span class="person-name">{device.name}</span>
       <span class={`person-state${device.reachable === false ? " is-off" : ""}`}>{state}</span>
       {tools.map((tool) => (
         <span key={tool.name} class="person-tool">
-          {tool.installed ? `${tool.name} ${tool.installed}` : tool.name}
+          {tool.installed ? `${tool.shown} ${tool.installed}` : tool.shown}
         </span>
       ))}
     </li>

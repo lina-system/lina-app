@@ -520,3 +520,29 @@ export const REPLY_RESULT: Readonly<Record<string, string>> = {
 };
 
 export const BANNED_WORDS = ["세션", "일꾼", "회차", "판정", "장부", "준 기다림", "멈춤", "막힘", "끝남", "끝난", "샌 것", "심박", "분째", "시간째", "일째", "작업 마침", "소식이 끊김", "오래됨", "검토 반려", "OCX"];
+
+/** lina-app#156: what a stopped card that waits on the owner waits for, by the core's reason; no person is named. */
+export const STOP_WAIT: Readonly<Record<string, string>> = { decision: "결정 대기", feedback: "피드백 대기" };
+
+/**
+ * lina-app#156: the name a tool reads by on the status tab, by the key the hub serves for a runner or an owner's tool.
+ * An alias reads as the tool it runs; a key the table does not know reads as it is, its `-command` suffix dropped.
+ */
+export const TOOL_NAME: Readonly<Record<string, string>> = {
+  omo: "OMO",
+  "omo-astra": "OMO Astra",
+  claude: "Claude",
+  codex: "Codex",
+  grok: "Grok",
+  cursor: "Cursor",
+  "cursor-agent": "Cursor",
+  agy: "Antigravity",
+};
+
+export function toolName(key: string): string {
+  const bare = key.replace(/-command$/, "");
+  return Object.hasOwn(TOOL_NAME, bare) ? TOOL_NAME[bare] : bare;
+}
+
+/** A command runner whose tool another runner of the same device already names. */
+export const toolCommand = (name: string) => `${name} 명령`;

@@ -85,11 +85,11 @@ test("item 2: a read-only card says it cannot be changed here, in neutral words,
   expect(view.getByTestId("detail-frame").textContent).not.toMatch(/칸반|확인 필요|피드백 대기/);
 });
 
-test("item 2: a writable card waiting on the owner keeps its answer box and its words of who it waits on", async () => {
+test("item 2: a writable card waiting on the owner keeps its answer box and its words of why it waits", async () => {
   const view = await open("#/cards/k-112", scene());
   const card = within(await frame(view));
   expect(card.getByTestId("card-answer")).toBeTruthy();
-  expect(view.getByTestId("detail-frame").querySelector(".detail-head [data-testid=state]")?.textContent).toMatch(/^중단됨 · .*확인 필요$/);
+  expect(view.getByTestId("detail-frame").querySelector(".detail-head [data-testid=state]")?.textContent).toBe("중단됨 · 결정 대기");
 });
 
 /** T2 as the real core serves it after the owner answered: still waiting on a decision, the decision answered, the answer stored as a comment of kind answer. */

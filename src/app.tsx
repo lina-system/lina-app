@@ -19,7 +19,7 @@ import { SettingsCtx, useSettingsEditsFor } from "./ui/settings-edits";
 import { browserPushHost, type OpenRequest, type PushHost } from "./push";
 import { PushCtx, PushRow, usePushFor } from "./ui/push-row";
 import { APP_VERSION } from "./version";
-import { SEP, W } from "./words";
+import { SEP, STATE_WORD, W } from "./words";
 
 export const WIDE_QUERY = "(min-width: 900px)";
 
@@ -145,15 +145,30 @@ function Screen({ route }: { route: Route }) {
   }
 }
 
-function NavRow({ to, icon, label, count, stopped, current, testid, children }: { to: Route; icon?: ComponentChildren; label: string; count?: number; stopped?: number; current: boolean; testid: string; children?: ComponentChildren }) {
+/**
+ * One sidebar row. `stoppedMark` draws the stopped cards as their own words (`중단됨 13`) under the label, and the
+ * number at the right edge counts running work only, so a lone red number never reads as running work (lina-app#156);
+ * without it they are the small red number.
+ */
+function NavRow({ to, icon, label, count, stopped, stoppedMark = false, current, testid, children }: { to: Route; icon?: ComponentChildren; label: string; count?: number; stopped?: number; stoppedMark?: boolean; current: boolean; testid: string; children?: ComponentChildren }) {
   const { wide } = useApp();
   const target = href(to);
   return (
     <li class={`nav-row${current ? " is-current" : ""}`} data-testid={testid}>
       <a href={target} onClick={linkClick} aria-current={current ? "page" : undefined} aria-label={[count ? `${label} ${count}` : label, stopped ? W.stoppedCount(stopped) : ""].filter(Boolean).join(SEP)}>
         {icon ? <span class="nav-icon">{icon}</span> : null}
-        {children ?? <span class="nav-label one-line">{label}</span>}
-        <CountPair count={count ?? 0} stopped={stopped} countId="nav-count" stoppedId="nav-stopped" />
+        {stoppedMark && stopped ? (
+          <span class="lines nav-lines">
+            <span class="nav-label one-line">{label}</span>
+            <span class="nav-stopped-mark" data-testid="nav-stopped-mark">
+              {`${STATE_WORD.stopped} `}
+              <span data-testid="nav-stopped">{stopped}</span>
+            </span>
+          </span>
+        ) : (
+          (children ?? <span class="nav-label one-line">{label}</span>)
+        )}
+        <CountPair count={count ?? 0} stopped={stoppedMark ? 0 : stopped} countId="nav-count" stoppedId="nav-stopped" />
         {wide ? null : <Disclosure />}
       </a>
     </li>
@@ -265,7 +280,7 @@ export function Sidebar({ current, tab = "work" }: { current?: Route; tab?: Tab 
       </ul>
       <ul class="nav-group">
         <NavRow to={{ name: "inbox" }} icon={<InboxIcon />} label={W.inbox} count={model.counts.inbox} current={is("inbox")} testid="nav-inbox" />
-        <NavRow to={{ name: "running" }} icon={<RunningIcon />} label={W.running} count={model.counts.running} stopped={model.counts.stopped} current={is("running")} testid="nav-running" />
+        <NavRow to={{ name: "running" }} icon={<RunningIcon />} label={W.running} count={model.counts.running} stopped={model.counts.stopped} stoppedMark current={is("running")} testid="nav-running" />
         <NavRow to={{ name: "due" }} icon={<CalendarIcon />} label={W.due} count={model.counts.due} current={is("due")} testid="nav-due" />
         <NavRow to={{ name: "done" }} icon={<DoneIcon />} label={W.done} count={model.counts.done} current={is("done")} testid="nav-done" />
       </ul>

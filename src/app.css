@@ -302,6 +302,22 @@ button:disabled {
   font-size: var(--text-body);
 }
 
+/* 진행 중인 작업's stopped cards in words under its label, never a lone red number by its count (lina-app#156). */
+.nav-stopped-mark {
+  width: max-content;
+  color: var(--red);
+  font-size: var(--text-small);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.split .nav-row.is-current .nav-stopped-mark {
+  color: #ffffff;
+  background: var(--red);
+  border-radius: 8px;
+  padding: 0 5px;
+}
+
 .split .nav-row.is-current a {
   background: var(--accent);
   color: var(--on-accent);
@@ -708,15 +724,15 @@ button:disabled {
 }
 
 /*
- * A work row's title takes a second line before it is cut (lina-app#133, #148): two titles that start alike read
- * apart, in every group. So do the owner's to-dos (lina-app#141).
+ * A work row's title is never cut (lina-app#156): it wraps at a word and the row grows, so two titles that start alike
+ * read apart in every group, at 390 too. So do the owner's to-dos (lina-app#141).
  */
 .card-row .lines > .title.one-line,
 [data-testid="home-mine"] .check-row .lines > .title.one-line {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  display: block;
+  overflow: visible;
   white-space: normal;
+  text-overflow: clip;
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
@@ -729,12 +745,12 @@ button:disabled {
   text-overflow: ellipsis;
 }
 
-/* A row's second line, its own card's name, takes a second line before it is cut (lina-app#152). */
+/* A row's second line, its own card's name, is never cut either (lina-app#156). */
 .card-row .lines > .row-sub.one-line {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  display: block;
+  overflow: visible;
   white-space: normal;
+  text-overflow: clip;
   word-break: keep-all;
   overflow-wrap: anywhere;
 }

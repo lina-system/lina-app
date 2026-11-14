@@ -11,9 +11,11 @@ A to-do opens in the one detail frame: its check box, done condition, state and 
 ## Intended behavior
 
 - A to-do opens in the one detail frame (lina-app#142), wherever it is chosen (the home, a goal, 마감일, 수신함): the right-hand pane beside the list at desktop width, a sheet rising from the bottom over the list at phone width, opened where the owner is looking. The tab, the header and the list stay as they were (a to-do chosen on the home never turns the list into 수신함). Back closes the frame; the list is at the scroll it had and the chosen row stays highlighted.
+- A to-do or goal opened from its `결정 필요` row reads that row's two lines (lina-app#157): the head's title is the row's line 1 (`<goal> › <to-do>`) and the line under it the row's line 2 (the decision's sentence), the `결정 필요` box below; opened while no open decision lists it, the head reads its own title.
 - The head shows the round check box (named `<title> 완료로 표시`, `<title> 완료됨` once checked) with `state · time` (while a decision on it is open, the time is when it was asked, the same as its 수신함 row, lina-app#149), and `되돌리기` while the owner's own done mark can be taken back (ten minutes, after the toast). Ticking it is in actions.md. Once its decision is answered (the core's `decision.answered: true`, the answer a comment of kind `answer`), the state line reads `답함 · <time of the answer>`, never `대기 · 결정 필요` (lina-app#153).
 - A pending decision on the to-do (or on a goal, on its goal page) shows on top as a `결정 필요` box: the sentence, then agent, kind word (`질문` or `요청`) and age. Under it is the place to answer it, the same answer as from 수신함: its choice buttons (the recommended one tagged `추천`), or a `답 달기` field and `보내기`. An answered decision keeps its slot as one box headed `질문 · 답` (`요청 · 답`): the question, the owner's answer, then agent, `답함` and age, with no place to answer; `기록` (a to-do's box, drawn only then; a goal's history) has one line `<time> · 질문에 답함` (lina-app#153).
 - `완료 조건`, then `실행` with one line per run (`title · state`), then `댓글`, then `대화` (talk.md). A goal or to-do opened in 대화 on a wide window stands beside the agent's own window and has no `대화` box of its own: one place to talk to the agent (lina-app#153).
+- An answered decision's answer shows once, in `질문 · 답` (lina-app#157): it is not repeated in `댓글`.
 - Each comment shows its sentence, then author and time; replies sit under it with their author, time and result word (`반영함`, `답변 필요`, `반영 안 함`). Never only a count.
 - Times read `방금` under a minute, `n분 전` under an hour, `n시간 전` from 60 minutes and `n일 전` from a day: a reply 55 minutes old reads `<author> · 55분 전`, one 80 minutes old `<author> · 1시간 전`.
 - A resolved thread folds to one line `해결됨 · <first words>`; choosing it opens the thread.
@@ -31,7 +33,7 @@ A to-do opens in the one detail frame: its check box, done condition, state and 
 ## How to get to it (user POV)
 
 - Choose a to-do on a goal page or a 마감일 row.
-- From 수신함: choose a `결정 필요` row aimed at a to-do; the to-do opens at once in the detail frame with its decision box and the place to answer it. In the scene, `배포를 금요일 오후에 할지 결정 필요` opens `배포 순서 정하기` (`#/items/T2`). A decision aimed at a goal opens the goal page with the same box.
+- From 수신함: choose a `결정 필요` row aimed at a to-do; the to-do opens at once in the detail frame with its decision box and the place to answer it. In the scene, `배포를 금요일 오후에 할지 결정 필요` opens `배포 순서 정하기` (`#/items/T2`), headed by its row's two lines (`릴리스 노트 정리 › 배포 순서 정하기`, then that sentence). A decision aimed at a goal opens the goal page with the same box.
 - Address `/app/#/items/<id>`.
 
 ## Driving it with verify.mjs
@@ -46,7 +48,7 @@ Preconditions:
 - **Resolved thread.** One `해결됨 · …` line, closed.
 - **Button.** `보내기` is grey with `글 입력 대기` under it while the field is empty, and accent with no line once it has text; on a phone it is at least 44 px tall.
 - **Comment.** Type `휴대폰 가로 화면도 봐 주세요` into `댓글 달기` and choose `보내기`. At once `<agent>에게 보냄 · 방금` shows and the field is empty; the synthetic record holds the owner's comment. Within 25 s the reply line `<agent> · 방금 · 반영함` shows and the pending line is gone.
-- **Entry through 수신함 (its own path, a fresh load).** On `#/inbox` choose `배포를 금요일 오후에 할지 결정 필요` (its small line `릴리스 노트 정리 › 배포 순서 정하기`). The address is `#/items/T2`, the title `배포 순서 정하기`, and its `결정 필요` box holds that sentence, `질문` and `n일 전`.
+- **Entry through 수신함 (its own path, a fresh load).** On `#/inbox` choose `배포를 금요일 오후에 할지 결정 필요` (its small line `릴리스 노트 정리 › 배포 순서 정하기`). The address is `#/items/T2`, the title the row's small line `릴리스 노트 정리 › 배포 순서 정하기` with the row's sentence under it (lina-app#157), and its `결정 필요` box holds that sentence, `질문` and `n일 전`.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/item-detail/item-detail-1280.{png,aria.yml,json}` and `item-detail-390.{png,aria.yml,json}`.
 
 ## Gotchas

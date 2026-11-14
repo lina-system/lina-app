@@ -546,3 +546,15 @@ export function toolName(key: string): string {
 
 /** A command runner whose tool another runner of the same device already names. */
 export const toolCommand = (name: string) => `${name} 명령`;
+
+/** The detail frame's words added for lina-app#157: why a stopped card stopped, and a folded block of history that is no comment. */
+export const DETAIL_WORD = {
+  /** A stopped card's line under its head, by the reason the core gives (decision, feedback), before its ask. */
+  waitFor: { decision: "결정 대기", feedback: "피드백 대기" } as Readonly<Record<string, string>>,
+  /** That line when the card gives neither a reason nor an ask. */
+  noReason: "이유 없음",
+  /** The owner decided after the card stopped, and the card has not moved since. */
+  decidedSinceStop: "결정 기록 있음 · 상태는 아직 중단됨",
+  /** Lines of a history that are not comments and have no sentence a person may read. */
+  earlierRecords: (n: number) => `이전 기록 ${n}건`,
+};

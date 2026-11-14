@@ -3,17 +3,17 @@ import { useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
 import { cardTitle, goalCards, goalState, runRow, type CardRow, type Model } from "../model";
-import { foldReason } from "../model/fold";
+import { foldReason, withoutRefs } from "../model/fold";
 import { holds } from "../model/rounds";
 import { stopReason } from "../model/stop-reason";
-import { answerOf, commentHistory, decisionHistory, goalHistory, historyLines, outcomeOf } from "../model/timeline";
+import { answerOf, commentHistory, decisionHistory, goalHistory, historyLines, isMachineNotice, outcomeOf } from "../model/timeline";
 import type { CardKind } from "../model/kind";
 import { isRunId } from "../data/store";
 import { baseOf, href, parse, tabOf } from "../router";
 import { ago, clockAt } from "../time";
 import { useActions } from "../ui/actions";
 import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, stateWords, useApp } from "../ui/parts";
-import { SEP, STATE_WORD, stateLabel, W } from "../words";
+import { BANNED_WORDS, DETAIL_WORD, reasonWord, SEP, STATE_WORD, stateLabel, W } from "../words";
 import { PastEvents, RunModelLine, Timeline, type PastEvent } from "./timeline";
 import { Comments, SendButton } from "./comments";
 import { Talk } from "./talk";
@@ -30,13 +30,78 @@ function Loading() {
   );
 }
 
-function Header({ title, children }: { title: string; children?: ComponentChildren }) {
+/**
+ * A detail head. `line` is its second line when the head reads the two lines of the row that was pressed
+ * (lina-app#157); it is no `.sub`, so the state line stays the head's first grey line.
+ */
+function Header({ title, line, children }: { title: string; line?: string | null; children?: ComponentChildren }) {
   return (
     <header class="detail-head">
       <h1 class="detail-title">{title}</h1>
+      {line ? (
+        <p class="head-line" data-testid="head-line">
+          {line}
+        </p>
+      ) : null}
       {children}
     </header>
   );
+}
+
+/**
+ * The 결정 필요 row an item's open decision is listed as in 수신함, when it reads a line 1 of its own: the item's head reads
+ * that row's two lines, so the detail opens with the name of the row that was pressed (lina-app#157).
+ */
+function useDecisionRow(id: string): { context: string; text: string } | null {
+  const { model } = useApp();
+  const row = model.inbox.rows.find((each) => each.type === "decide" && each.target.kind === "item" && each.target.id === id);
+  return row?.type === "decide" && row.context ? row : null;
+}
+
+/** A bracket with a time of day in a sentence (`(에이전트 16:5x)`, who wrote it and when): no part of what a history line reads. */
+const WHO_WHEN = /\([^()]*\d{1,2}:\d[\dx][^()]*\)/g;
+/** The bracketed tags that open a line (`[에이전트 · t 1a2b3c4d]`). */
+const LEADING_TAGS = /^(?:\s*\[[^\]\n]*\])+\s*/;
+
+/**
+ * A history text through the fold titles go through (withoutRefs, lina-app#157): its card, goal and to-do ids,
+ * references and hashes cut, and its leading tags and who-and-when brackets cut; a sentence holding a word the screens
+ * never use (BANNED_WORDS) is left out. fold.ts has no export for the brackets or the sentences, so they are cut here.
+ * Empty when nothing is left: the line folds.
+ */
+export function historyText(text: string): string {
+  return text
+    .split("\n")
+    .map((line) =>
+      withoutRefs(line.replace(LEADING_TAGS, "").replace(WHO_WHEN, " "))
+        .split(/(?<=[.!?。])\s+/)
+        .filter((sentence) => !BANNED_WORDS.some((word) => sentence.includes(word)))
+        .join(" ")
+        .replace(/\s+([.!?,])/g, "$1"),
+    )
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** A comment's text for its history line: a machine notice keeps its own text, so it is still known as one and left out. */
+function historyComment(text: string, author: string | null): string {
+  return isMachineNotice(text, author) ? text : historyText(text);
+}
+
+/** The item with its comments' and its decision's text as history reads them (historyText), for its 기록 lines. */
+function historyItem(detail: ItemDetail): ItemDetail {
+  return {
+    ...detail,
+    comments: detail.comments.map((comment) => ({ ...comment, text: historyComment(comment.text, comment.by), replies: comment.replies.map((reply) => ({ ...reply, text: historyComment(reply.text, reply.by) })) })),
+    decision: detail.decision ? { ...detail.decision, text: historyText(detail.decision.text) } : null,
+  };
+}
+
+/** The item without its decision's answer among its comments: 질문 · 답 shows that answer, once (lina-app#157). */
+function withoutAnswer(detail: ItemDetail): ItemDetail {
+  const answer = answerOf(detail);
+  if (!answer) return detail;
+  return { ...detail, comments: detail.comments.filter((comment) => !(comment.kind === "answer" && comment.at === answer.at && comment.text === answer.text)) };
 }
 
 /** A pending decision or a card's question, drawn the same way on a goal, a to-do or a work card. */
@@ -232,11 +297,15 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
     goals: detail.workCards.map((id) => store.get("goal", id)).filter((goal) => goal !== undefined),
   });
   const words = [detail.why, ...detail.basis.map((basis) => basis.text)].filter((text, index, all): text is string => Boolean(text) && all.indexOf(text) === index);
-  // Its merges (the finished cards' evidence), question, runs, comments and close, one line each.
-  const history = goalHistory(detail, evidence);
+  // Its merges (the finished cards' evidence), question, runs, comments and close, one line each, ids cut.
+  const history = goalHistory(
+    historyItem(detail),
+    evidence.map((entry) => ({ ...entry, text: historyText(entry.text) })),
+  );
+  const decisionRow = useDecisionRow(detail.id);
   return (
     <article class="detail" data-testid="screen-goal">
-      <Header title={detail.title}>
+      <Header title={decisionRow?.context ?? detail.title} line={decisionRow?.text}>
         <DoneHead detail={detail} />
       </Header>
       <ItemDecision detail={detail} />
@@ -282,7 +351,7 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
           </ul>
         </Box>
       ) : null}
-      <Comments detail={detail} />
+      <Comments detail={withoutAnswer(detail)} />
       {talkWindowOpen(wide) ? null : <Talk key={detail.id} detail={detail} />}
     </article>
   );
@@ -302,10 +371,11 @@ function talkWindowOpen(wide: boolean): boolean {
 function TodoBody({ detail }: { detail: ItemDetail }) {
   const { model, wide } = useApp();
   // An answered decision's question and answer are history (lina-app#153); an open one is its box above.
-  const history = detail.decision?.answered ? historyLines(decisionHistory(detail)) : [];
+  const history = detail.decision?.answered ? historyLines(decisionHistory(historyItem(detail))) : [];
+  const decisionRow = useDecisionRow(detail.id);
   return (
     <article class="detail" data-testid="screen-item">
-      <Header title={detail.title}>
+      <Header title={decisionRow?.context ?? detail.title} line={decisionRow?.text}>
         <DoneHead detail={detail} />
       </Header>
       <ItemDecision detail={detail} />
@@ -343,12 +413,12 @@ function TodoBody({ detail }: { detail: ItemDetail }) {
         <Box title={W.record} testid="item-history">
           <ul class="history-rows" aria-label={W.record}>
             {history.map((row, index) => (
-              <HistoryLine key={`${row.at}:${index}`} at={row.at} text={row.text ?? W.foldedRun(row.folded)} kind={row.kind} />
+              <HistoryLine key={`${row.at}:${index}`} at={row.at} text={row.text ?? DETAIL_WORD.earlierRecords(row.folded)} kind={row.kind} />
             ))}
           </ul>
         </Box>
       ) : null}
-      <Comments detail={detail} />
+      <Comments detail={withoutAnswer(detail)} />
       {talkWindowOpen(wide) ? null : <Talk key={detail.id} detail={detail} />}
     </article>
   );
@@ -430,14 +500,21 @@ export function roundHead(round: Round, now: number): string {
   return [span, state].filter(Boolean).join(SEP);
 }
 
+/** A round's own line as history reads it (historyText), or 이전 기록 1건 when none of it may show (lina-app#157). */
+function roundLine(line: string): string {
+  const text = historyText(line);
+  return text && !foldReason(text) ? text : DETAIL_WORD.earlierRecords(1);
+}
+
 /**
  * A work card's comments, one history line each, newest first: its time and its first sentence a person may read,
- * with any id, hash, path or command taken out (lina-app#142); its author is the line's tooltip. A machine notice is
- * no line, and each run of comments with no sentence left is one 접힌 댓글 line with their count (lina-app#149).
+ * with any id, hash, path or command taken out (lina-app#142, historyText #157); its author is the line's tooltip. A
+ * machine notice is no line, and each run of comments with no sentence left is one 접힌 댓글 line with their count
+ * (lina-app#149).
  */
 function CardComments({ comments }: { comments: WorkCardDetail["comments"] }) {
   const { model } = useApp();
-  const lines = commentHistory(comments.map((comment) => ({ id: comment.id, at: comment.createdAt, author: comment.author, body: comment.body })));
+  const lines = commentHistory(comments.map((comment) => ({ id: comment.id, at: comment.createdAt, author: comment.author, body: historyComment(comment.body, comment.author) })));
   if (!lines.length) return null;
   return (
     <Box title={W.comments} testid="card-comments">
@@ -482,6 +559,32 @@ function HeadState({ state, reason, row, time, readOnly = false }: { state: Work
 }
 
 /**
+ * Why a stopped card stopped, one line under its state line (lina-app#157): what it waits for by the core's reason
+ * (결정 대기, 피드백 대기, else the reason's own word) and its ask; 이유 없음 when the card gives neither. When the newest
+ * of its comments is the owner's, made after the stop, a second line says the owner decided and the state has not
+ * moved yet.
+ */
+function StopWhy({ reason, ask, stoppedAt, comments = [] }: { reason: string | null; ask: string | null | undefined; stoppedAt: number | null; comments?: WorkCardDetail["comments"] }) {
+  const { store } = useApp();
+  const owner = store.get("items")?.owner?.id ?? "owner";
+  const word = reason ? (DETAIL_WORD.waitFor[reason] ?? reasonWord(reason)) : null;
+  const newest = comments.filter((comment) => !isMachineNotice(comment.body, comment.author)).sort((a, b) => b.createdAt - a.createdAt)[0];
+  const decided = stoppedAt !== null && newest !== undefined && (newest.author === owner || newest.author === "owner") && newest.createdAt > stoppedAt;
+  return (
+    <>
+      <span class="sub" data-testid="stop-why">
+        {[word, ask].filter(Boolean).join(SEP) || DETAIL_WORD.noReason}
+      </span>
+      {decided ? (
+        <span class="sub" data-testid="decided-since-stop">
+          {DETAIL_WORD.decidedSinceStop}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
+/**
  * A round's worker runs, one line each: when it started and what happened, never the card's title again (the card's
  * head carries it, lina-app#142). The board does not list the worker runs a card started (only runs outside any
  * card), so such a run is still drawn as a link to its own page: no worker row is ever left out because its target
@@ -489,9 +592,12 @@ function HeadState({ state, reason, row, time, readOnly = false }: { state: Work
  */
 function WorkerRows({ ids, model, seen, state }: { ids: readonly string[]; model: Model; seen: (runId: string) => number | null; state: (runId: string) => string }) {
   const { now } = useApp();
+  // Newest first, as every history (lina-app#157).
+  const startOf = (workerId: string) => model.runs.get(workerId)?.startedAt ?? seen(workerId);
+  const ordered = [...ids].sort((a, b) => (startOf(b) ?? 0) - (startOf(a) ?? 0));
   return (
     <ul class="rows" aria-label={W.workerRuns}>
-      {ids.map((workerId) => {
+      {ordered.map((workerId) => {
         const run = model.runs.get(workerId);
         const row = run ? runRow(run) : null;
         const at = run?.startedAt ?? seen(workerId);
@@ -546,6 +652,7 @@ export function CardScreen({ id }: { id: string }) {
       <article class="detail" data-testid="screen-card">
         <CardHead work={row.work} title={row.title}>
           <HeadState state={row.state} reason={row.reason} row={row} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} readOnly={row.readOnly} />
+          {row.state === "stopped" ? <StopWhy reason={row.reason} ask={row.ask} stoppedAt={row.stateAt} /> : null}
           <OwnTitleLine own={row.own} title={row.title} />
           {row.readOnly ? <ReadOnlyLine /> : null}
         </CardHead>
@@ -588,17 +695,22 @@ export function CardScreen({ id }: { id: string }) {
   // title is the line under it when it differs (lina-app#153).
   const own = cardTitle(detail.plain.title, detail.title, detail.state === "stopped") ?? row?.own ?? null;
   const title = row?.title ?? own;
+  // The head reads the state of the row that was pressed, the list's snapshot, until the next refresh moves both; the
+  // detail read later may already say another (lina-app#157). A card with no row reads its detail's.
+  const state = row?.state ?? detail.state;
+  const reason = row ? row.reason : detail.reason;
   return (
     <article class="detail" data-testid="screen-card">
       <CardHead work={row?.work ?? "code"} title={title}>
-        <HeadState state={detail.state} reason={detail.reason} row={row} time={row ? [cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP) : ""} readOnly={readOnly} />
+        <HeadState state={state} reason={reason} row={row} time={row ? [cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP) : ""} readOnly={readOnly} />
+        {state === "stopped" ? <StopWhy reason={reason} ask={row?.ask} stoppedAt={row?.stateAt ?? detail.lastHeartbeatAt ?? null} comments={detail.comments} /> : null}
         <OwnTitleLine own={own} title={title} />
         {goalLine && goalLine !== title ? (
           <span class="sub" data-testid="card-goal">
             {[W.goals, goalLine].join(SEP)}
           </span>
         ) : null}
-        {detail.state === "in_progress" && detail.todoProgress.total > 0 ? <Progress done={detail.todoProgress.done} total={detail.todoProgress.total} word /> : null}
+        {state === "in_progress" && detail.todoProgress.total > 0 ? <Progress done={detail.todoProgress.done} total={detail.todoProgress.total} word /> : null}
         {readOnly ? <ReadOnlyLine /> : null}
       </CardHead>
       {/* Each question with the place to answer it, keyed as its 수신함 row, so answering here hides that row too. */}
@@ -613,7 +725,7 @@ export function CardScreen({ id }: { id: string }) {
           <AnswerPlace key={`answer:${id}`} answerKey={`answer:${id}`} target={{ kind: "card", id }} label={ask} testid="card-answer" />
         </Box>
       ) : null}
-      {detail.plain.now && detail.state === "in_progress" ? (
+      {detail.plain.now && state === "in_progress" ? (
         <Box title={W.now} testid="card-now">
           <p class="box-text">{detail.plain.now}</p>
         </Box>
@@ -657,8 +769,9 @@ export function CardScreen({ id }: { id: string }) {
               {rounds.map((round) => (
                 <section key={round.n} class={round.startedAt === null ? "round is-no-start" : "round"} data-testid="round">
                   <h3 class="round-head">{roundHead(round, now)}</h3>
-                  {/* The round's own line is its content; one that would show a path or a command reads 접힌 댓글. */}
-                  {round.line ? <p class="round-line" data-testid="round-line">{foldReason(round.line) ? W.folded : round.line}</p> : null}
+                  {/* The round's own line is its content, its ids cut; one that would show a path or a command is no
+                      comment: it reads 이전 기록 1건 (lina-app#157). */}
+                  {round.line ? <p class="round-line" data-testid="round-line">{roundLine(round.line)}</p> : null}
                   {round.workers.length ? <WorkerRows ids={round.workers} model={model} seen={seen} state={workerState} /> : null}
                 </section>
               ))}

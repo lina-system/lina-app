@@ -36,7 +36,8 @@ export class Actions {
   private readonly undoUntilById = new Map<string, number>();
   private readonly busyKeys = new Set<string>();
   private readonly errors = new Map<string, WriteError>();
-  private readonly requestedAt = new Map<string, number>();
+  /** A retry asked for, by card key: null while it is on its way, then the card as it was when it was pressed. */
+  private readonly requestedOf = new Map<string, string | null>();
   private readonly inflight = new Map<string, Promise<unknown>>();
   private readonly readKeys = new Set<string>();
   private allRead = false;
@@ -100,10 +101,28 @@ export class Actions {
     return this.errors.get(key);
   }
 
+  /**
+   * Whether a retry on this card is still asked for: from the press until the card's state or its last event moves
+   * (lina-app#157), however long that takes. Meanwhile `<agent>에게 요청함` stands where 다시 시도 was.
+   */
   requested(key: string): boolean {
-    const at = this.requestedAt.get(key);
-    // The stream brings the record's copy back within a second, so the line holds as long as a toast does.
-    return at !== undefined && (at < 0 || Date.now() - at < TOAST_MS);
+    if (!this.requestedOf.has(key)) return false;
+    const was = this.requestedOf.get(key);
+    if (was === null || was === this.cardMark(key)) return true;
+    this.requestedOf.delete(key);
+    return false;
+  }
+
+  /** A card's state, reason and last event as the store holds them: what a retry waits to see move. */
+  private cardMark(key: string): string {
+    const [kind, ...rest] = key.split(":");
+    const id = rest.join(":");
+    if (kind === "run") {
+      const run = this.store.get("board")?.cards.find((each) => each.id === id);
+      return run ? JSON.stringify([run.state, run.reason, run.startedAt, run.endedAt]) : "";
+    }
+    const card = this.store.get("cards")?.cards.find((each) => each.id === id);
+    return card ? JSON.stringify([card.state, card.reason, card.lastHeartbeatAt ?? null, card.endedAt ?? null]) : "";
   }
 
   /** A notice is read when the core says so, or while this device's read mark is on its way. */
@@ -248,15 +267,17 @@ export class Actions {
     this.notify();
   }
 
-  /** Asks the card's owning agent to try again; `<agent>에게 요청함` stays until the next refresh after that. */
+  /** Asks the card's owning agent to try again, once: a press while the last request still stands sends nothing. */
   async retry(card: CardRow): Promise<void> {
-    this.requestedAt.set(card.key, -1);
+    if (this.requested(card.key)) return;
+    const mark = this.cardMark(card.key);
+    this.requestedOf.set(card.key, null);
     this.errors.delete(`retry:${card.key}`);
     this.notify();
     const result = await this.store.write<unknown>((source) => (card.todo ? source.retry(card.todo) : source.answerCard(card.id, { text: W.retryText })), { refresh: false });
-    if (result.ok) this.requestedAt.set(card.key, Date.now());
+    if (result.ok) this.requestedOf.set(card.key, mark);
     else {
-      this.requestedAt.delete(card.key);
+      this.requestedOf.delete(card.key);
       this.errors.set(`retry:${card.key}`, { line: writeError("retry", result) });
     }
     this.notify();

@@ -1014,7 +1014,7 @@ describe("done marks", () => {
 });
 
 describe("retry", () => {
-  test("다시 시도 on a stopped card asks its to-do's agent and says so for as long as a toast", async () => {
+  test("다시 시도 on a stopped card asks its to-do's agent and says so past the toast while the card has not moved (lina-app#157)", async () => {
     vi.useFakeTimers(TIMERS);
     try {
       const source = new SpySource();
@@ -1029,8 +1029,9 @@ describe("retry", () => {
       await act(async () => {
         vi.advanceTimersByTime(10_000);
       });
-      await waitFor(() => expect(view.queryByTestId("retry-requested")).toBeNull());
-      expect(view.getAllByRole("button", { name: /다시 시도$/ })).toHaveLength(1);
+      expect(view.getByTestId("retry-requested").textContent).toMatch(/^\S+에게 요청함$/);
+      expect(view.queryAllByRole("button", { name: /다시 시도$/ })).toHaveLength(0);
+      expect(source.calls).toHaveLength(1);
     } finally {
       vi.useRealTimers();
     }

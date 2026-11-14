@@ -1194,6 +1194,13 @@ button:disabled {
   margin-bottom: 18px;
 }
 
+/* The pressed row's line 2 under the head's title (lina-app#157): whole, wrapped, never cut. */
+.detail-head .head-line {
+  margin: 0;
+  color: var(--label);
+  overflow-wrap: anywhere;
+}
+
 .detail-title {
   font-size: var(--text-title);
   font-weight: 700;
@@ -2212,6 +2219,18 @@ html:has(.stack) body {
   background: var(--bg-2);
   box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.18);
   animation: sheet-up var(--stack-motion);
+}
+
+/* Nothing of the screen behind shows between the bar and the sheet's grab handle (lina-app#157): the strip there is
+   the sheet's own colour, as the bar's. */
+.detail-sheet::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 12px;
+  background: var(--bg-2);
 }
 
 .detail-sheet-bar {

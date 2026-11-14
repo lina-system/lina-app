@@ -1082,13 +1082,18 @@ const drivers = {
       check(/^\S+ · 방금 · 반영함$/.test(reply), "a reply seconds old reads " + reply + ", expected <author> · 방금 · 반영함");
       return reply;
     });
-    await step("from 수신함, a decision's line opens 배포 순서 정하기 with its decision box", async () => {
+    await step("from 수신함, a decision's line opens 배포 순서 정하기 headed by the row's two lines, with its decision box", async () => {
       await openApp(page, "#/inbox");
       const row = page.getByRole("list", { name: "결정 필요" }).locator(":scope > li").filter({ has: page.getByRole("link", { name: /배포를 금요일 오후에 할지 결정 필요/ }) });
+      const line1 = (await row.locator(".context").innerText()).trim();
+      const line2 = (await row.locator(".title").innerText()).trim();
       await row.locator(":scope > a").click();
       await page.waitForFunction(() => location.hash === "#/items/T2", null, { timeout: 3_000 }).catch(() => check(false, "the decision opened " + page.url()));
+      // The head is the pressed row (lina-app#157): its line 1 (`<goal> › 배포 순서 정하기`) and, under it, its line 2.
       const title = (await page.locator(".detail-title").first().innerText()).trim();
-      check(title === "배포 순서 정하기", "the to-do opened is " + title);
+      check(title === line1 && line1.endsWith("배포 순서 정하기"), "the to-do opened is " + title + ", the row reads " + line1);
+      const second = (await page.getByTestId("head-line").innerText()).trim();
+      check(second === line2, "the head's second line is " + second + ", the row's is " + line2);
       const box = (await page.getByTestId("decision").innerText()).replace(/\s+/g, " ");
       check(box.includes("배포를 금요일 오후에 할지 결정 필요") && box.includes("질문") && /\d+일 전/.test(box), "the decision box reads " + box);
       return "#/items/T2 " + title + ": " + box;
@@ -2159,8 +2164,11 @@ const drivers = {
       // The board does not list a card's own runs (as the core), so the card's to-do is not known: the retry is a
       // comment on the card itself.
       await page.waitForFunction(() => window.__linaScene.cardDetails["k-103"].comments.some((comment) => comment.body === "다시 시도해 주세요."), null, { timeout: 3_000 }).catch(() => check(false, "the retry did not reach the card"));
-      await line.waitFor({ state: "detached", timeout: 15_000 }).catch(() => check(false, "요청함 stayed past the next refresh"));
-      return text + ", then 다시 시도 again after the refresh";
+      // The request stands past the toast while the card has not moved (lina-app#157): time itself is what is checked.
+      await page.waitForTimeout(6_000);
+      check(await line.isVisible(), "요청함 went while the card had not moved");
+      check((await page.getByRole("button", { name: /다시 시도$/ }).count()) === 0, "다시 시도 came back while the request stands");
+      return text + ", still after 6 s with no 다시 시도";
     });
   },
 

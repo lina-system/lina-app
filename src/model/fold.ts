@@ -89,26 +89,42 @@ const LONE_PARTICLE = String.raw`(?:으로|에서|까지|부터|이라|라고|�
 const LABEL = /\S+:(?=\s|$)/g;
 
 /**
- * Whether what withoutRefs left of a sentence is debris (lina-app#161): a particle the cut ref stood before, a label
- * whose value was nothing but refs, or one bare word with no sentence end where more words stood. A sentence that lost
- * no ref is never debris.
+ * The sentence without its labelled fields whose value was nothing but refs (`커밋: a1b2c3d`): the label alone says
+ * nothing. A field with words in it stays, and so does every other field of the sentence. Null when such a label sits
+ * inside a phrase rather than starting a field: that sentence is debris whole (lina-app#161).
+ */
+function withoutEmptyFields(sentence: string): string | null {
+  const labels = [...sentence.matchAll(LABEL)];
+  let out = sentence;
+  for (const [index, label] of [...labels.entries()].reverse()) {
+    const end = labels[index + 1]?.index ?? sentence.length;
+    const value = sentence.slice(label.index + label[0].length, end);
+    if (!value.trim() || /[\p{L}\p{N}]/u.test(withoutRefs(value))) continue;
+    // A label standing inside a phrase (`되돌릴 커밋: <hash>`) has no field of its own to cut: the sentence goes.
+    if (!/(?:^|[,;·.!?。/+-])\s*$/.test(sentence.slice(0, label.index))) return null;
+    out = out.slice(0, label.index) + " " + out.slice(end);
+  }
+  return out;
+}
+
+/** A sentence of nothing but the hub's fold markers (`(…)`, `…`, `...`) and the brackets and separators around them. */
+const ONLY_FOLD_MARKERS = /^[\s()[\]….,·:;]*$/;
+
+/**
+ * Whether what withoutRefs left of a sentence is debris (lina-app#161): a particle the cut ref stood before, or one
+ * bare word with no sentence end where more words stood. A sentence that lost no ref is never debris.
  */
 function leftAsDebris(sentence: string, cut: string): boolean {
   if (cut === tidyFoldedText(sentence)) return false;
   if (!cut) return true;
   if (new RegExp(`(?:${REF})\\s+${LONE_PARTICLE}`, "u").test(sentence)) return true;
-  const labels = [...sentence.matchAll(LABEL)];
-  for (const [index, label] of labels.entries()) {
-    const value = sentence.slice(label.index + label[0].length, labels[index + 1]?.index ?? sentence.length);
-    if (value.trim() && !/[\p{L}\p{N}]/u.test(withoutRefs(value))) return true;
-  }
   return !/\s/.test(cut) && !/[.!?。]$/.test(cut) && /\s/.test(sentence.trim());
 }
 
 /**
  * A comment or history text as the screens show it (lina-app#161): each sentence through withoutRefs, and a sentence
- * left as debris (leftAsDebris) dropped whole, so `가 맡는다`, `범위 라 …` or a bare `주소` never shows. Empty when
- * nothing is left. List titles keep withoutRefs alone: a row never loses its whole title.
+ * left as debris (leftAsDebris) dropped whole, an empty labelled field cut alone (withoutEmptyFields), so `가 맡는다`,
+ * `범위 라 …` or a bare `주소` never shows. A sentence of only fold markers goes too. Empty when nothing is left. List titles keep withoutRefs alone: a row never loses its whole title.
  */
 export function foldedText(text: string): string {
   return text
@@ -116,7 +132,10 @@ export function foldedText(text: string): string {
     .map((line) =>
       line
         .split(/(?<=[.!?。])\s+/)
-        .map((sentence) => {
+        .map((whole) => {
+          if (/…|\.\.\./.test(whole) && ONLY_FOLD_MARKERS.test(whole)) return "";
+          const sentence = withoutEmptyFields(whole);
+          if (sentence === null) return "";
           const cut = withoutRefs(sentence);
           return leftAsDebris(sentence, cut) ? "" : cut;
         })

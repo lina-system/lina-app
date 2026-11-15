@@ -466,6 +466,8 @@ function queuePreviewRead(source: Source, read: () => Promise<unknown>): () => v
 export function TalkPreview({ agent }: { agent: string }) {
   const { store } = useApp();
   const [, redraw] = useState(0);
+  // A turn added elsewhere (another device, lina-app#205) is read again when the stream says so.
+  const changes = store.talkChanges(agent);
   useEffect(() => {
     let live = true;
     const watch = () => redraw((count) => count + 1);
@@ -482,7 +484,7 @@ export function TalkPreview({ agent }: { agent: string }) {
       drop();
       lastLineWatchers.delete(watch);
     };
-  }, [agent, store]);
+  }, [agent, store, changes]);
   const line = lastLinesOf(store.source).get(agent);
   const going = outboxes.get(store.source)?.get(agent)?.turns.some((turn) => turn.state === "sending" || turn.state === "streaming");
   if (line === undefined && !going) return null;
@@ -627,6 +629,9 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
   const [, redraw] = useState(0);
   /** The earlier turns are still being read: a turn sent meanwhile may come back in them, so it is matched like a carried one. */
   const historyPending = useRef(true);
+  /** The stream's count of changes to this conversation that the window's turns were last read at (lina-app#205). */
+  const talkChanges = store.talkChanges(agent);
+  const readAt = useRef(talkChanges);
   const name = agentName(model, agent) || agent;
   const box = outbox(store.source, agent);
   const sending = box.turns.length > 0;
@@ -669,6 +674,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
     }
     for (const turn of box.turns.filter((each) => each.state === "failed")) settle(box, turn);
     historyPending.current = true;
+    readAt.current = store.talkChanges(agent);
     void store.source.agentTalkHistory(agent).then((result) => {
       if (!live) return;
       historyPending.current = false;
@@ -688,6 +694,25 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
       if (box.window === open) box.window = null;
     };
   }, [agent, store]);
+
+  // A turn added elsewhere (another device, lina-app#205): the earlier turns are read again and replace what the window
+  // drew from the core, this page's own turns among them. Not while one of this page's turns goes or the first read is
+  // out: its end brings one more event, and the first read holds the change already.
+  useEffect(() => {
+    if (readAt.current === talkChanges) return;
+    readAt.current = talkChanges;
+    const box = outbox(store.source, agent);
+    if (box.turns.length || historyPending.current) return;
+    let live = true;
+    void store.source.agentTalkHistory(agent).then((result) => {
+      if (!live || result.kind !== "data" || box.turns.length) return;
+      setLines((shown) => [...keptLines(result.data), ...(shown ?? []).filter((line) => line.state === "failed")]);
+      keepLastLine(store.source, agent, lastLineOf(result.data));
+    });
+    return () => {
+      live = false;
+    };
+  }, [agent, store, talkChanges]);
 
   const send = async () => {
     const message = text.trim();

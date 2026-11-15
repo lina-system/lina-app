@@ -33,7 +33,9 @@ export const SETTINGS_REVISED: Want = [...SETTINGS_ROUTES, ["settingsModels"]];
 /**
  * The routes one change touches. work: the record's to-dos and goals (board, items, the item); worker: a worker run
  * (board, and the cards that list it); kanban: a work card or goal card (cards, goals, inbox, the card, the goal);
- * settings: a new revision of the work settings (the settings, their history and the model list).
+ * settings: a new revision of the work settings (the settings, their history and the model list); notices: the owner's
+ * read marks (the board, which holds the bell's lines and counts). talk: a turn added to an agent's app conversation
+ * names no snapshot route; the stream tells the store, and the agent's row and open window read it again (talkAgents).
  */
 export function routesFor(events: readonly ChangeEvent[], store: Pick<Store, "cardsWithRun">): Want {
   const routes: (readonly [Parameters<Store["get"]>[0], string?])[] = [];
@@ -52,9 +54,19 @@ export function routesFor(events: readonly ChangeEvent[], store: Pick<Store, "ca
       case "settings":
         routes.push(...SETTINGS_REVISED);
         break;
+      case "notices":
+        routes.push(["board"]);
+        break;
+      case "talk":
+        break;
     }
   }
   return routes;
+}
+
+/** The agents whose app conversation a turn was added to (lina#742): each `talk` event names one. */
+export function talkAgents(events: readonly ChangeEvent[]): string[] {
+  return [...new Set(events.filter((event) => event.source === "talk").map((event) => event.id))];
 }
 
 export interface LiveHost {
@@ -259,9 +271,13 @@ export class Live {
   private receive(message: ChangeMessage, fromTail: boolean, opened: boolean): void {
     this.cursor = message.cursor;
     // The first tail has no events; anything written between the first snapshot and it is read once more.
+    // A resync may have missed talk turns too: every conversation on screen is read again.
+    if ("resync" in message) this.store.talkChanged();
     if ("resync" in message || fromTail) void this.store.refresh();
     else {
       if (message.events.length) void this.store.invalidate(routesFor(message.events, this.store));
+      const agents = talkAgents(message.events);
+      if (agents.length) this.store.talkChanged(agents);
       // A connection that opens says the core answers again: what failed meanwhile is read now (lina-app#199).
       if (opened) this.healNow();
     }

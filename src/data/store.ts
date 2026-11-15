@@ -144,6 +144,13 @@ export class Store {
   private keptAt: { readonly cursor: string; readonly version: number } | null = null;
   /** The core refused the credential since a read last answered: nothing is kept (an open socket may still send). */
   private refused = false;
+  /**
+   * How many times the stream said a turn was added to each agent's app conversation, and how many resyncs said any
+   * may have been (lina-app#205). The conversations are not snapshot routes: the agent's row and open window read them
+   * themselves, again whenever this count moves.
+   */
+  private readonly talks = new Map<string, number>();
+  private talkResyncs = 0;
 
   constructor(
     readonly source: Source,
@@ -268,6 +275,18 @@ export class Store {
   private changed(): void {
     this.version += 1;
     this.shown = this.read();
+    this.notify();
+  }
+
+  /** The count of changes to an agent's app conversation: a screen that shows it reads it again when this moves. */
+  talkChanges(agent: string): number {
+    return (this.talks.get(agent) ?? 0) + this.talkResyncs;
+  }
+
+  /** A turn was added to these agents' app conversations, or with no agents, to any of them (a resync). */
+  talkChanged(agents?: readonly string[]): void {
+    if (!agents) this.talkResyncs += 1;
+    else for (const agent of agents) this.talks.set(agent, (this.talks.get(agent) ?? 0) + 1);
     this.notify();
   }
 

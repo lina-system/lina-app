@@ -1131,6 +1131,11 @@ describe("bell", () => {
       expect(buildModelCount(desktopStore)).toBe(5);
       const phone = await open("#/inbox", { wide: false, source: core });
       expect(phone.getByRole("button", { name: "알림 5" })).toBeTruthy();
+      // The stream's first message (the tail) reads every list once more: let it land, so only the read mark's own
+      // event can bring the new count (lina-app#205).
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(STREAM_TICK_MS);
+      });
       const key = core.scene.board.notices.find((notice) => !notice.read)?.key ?? "";
       expect(await desktopStore.write((source) => source.readNotices({ keys: [key] }))).toMatchObject({ ok: true });
       expect(buildModelCount(desktopStore)).toBe(4);
@@ -1504,6 +1509,44 @@ describe("agent talk", () => {
     return within(view.getByTestId("agent-talk"));
   }
 
+  test("a message another device sends to the agent shows in this window and on its row within 5 s, without a reload (lina-app#205)", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SyntheticSource();
+      const view = await open("#/talk/ag-1", { wide: true, source });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const { box } = parts(view);
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?"]);
+      const otherDevice = new SyntheticSource({ scene: source.scene });
+      const turn = await otherDevice.agentTalk("ag-1", { message: "배포 순서는 정해졌어요?" });
+      if (!turn.ok) throw new Error("the turn was refused");
+      const frames = (async () => {
+        for await (const _ of turn.events);
+      })();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      await frames;
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "배포 순서는 정해졌어요?"]);
+      expect(box.getAllByTestId("talk-reply").at(-1)?.querySelector(".talk-bubble")?.textContent).toBe(AGENT_REPLY_DELTAS.join(""));
+      expect(view.getByTestId("nav-talk-0").querySelector("[data-testid=talk-preview]")?.textContent).toBe(AGENT_REPLY_DELTAS.join(""));
+      // This page's own turn after it is drawn once, its kept copy read back in place.
+      const { field } = parts(view);
+      field.value = "오늘 어디까지 했어요?";
+      fireEvent.input(field);
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "배포 순서는 정해졌어요?", "오늘 어디까지 했어요?"]);
+      expect(box.getAllByTestId("talk-reply")).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("a message sent just before choosing another agent stays in its window, and the reply joins it there", async () => {
     vi.useFakeTimers(TIMERS);
     try {
@@ -1556,6 +1599,8 @@ describe("agent talk", () => {
               await gate;
               return await super.agentTalkHistory(agent);
             }
+            // Once the reply is kept the history holds the turn already: a later read (the stream's talk event) gets it once.
+            if (result.data.messages.some((message) => message.content === "[LINA app]\n오늘 어디까지 했어요?")) return result;
             const messages = [...result.data.messages, { role: "user" as const, content: "[LINA app]\n오늘 어디까지 했어요?", timestamp: null }, { role: "assistant" as const, content: reply, timestamp: null }];
             return { ...result, data: { ...result.data, messages } };
           }

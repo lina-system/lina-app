@@ -1,6 +1,6 @@
 # 알림
 
-The bell in the toolbar (the navigation bar on a phone) carries the core's unread count and opens the notice list. Read marks are kept by the core per owner (`POST /api/lina/notices/read`), never in the browser, so the phone and the desktop show the same number after their next refresh.
+The bell in the toolbar (the navigation bar on a phone) carries the core's unread count and opens the notice list. Read marks are kept by the core per owner (`POST /api/lina/notices/read`), never in the browser, so the phone and the desktop show the same number: a mark made on one reaches the other's bell through the change stream's `notices` event within 2 s, with no reload (lina#742, lina-app#205).
 
 ## Platforms
 
@@ -43,7 +43,7 @@ Preconditions:
 ## Gotchas
 
 - Never press a notice or `모두 읽음` on a live core (README, Never press).
-- That two devices agree is held by a unit test with two stores on one synthetic scene (`src/screens.test.tsx`); a single drive has one device.
+- That two devices agree is held by a unit test with two stores on one synthetic scene (`src/screens.test.tsx`, the stream's first refresh landed before the mark, so only the `notices` event can bring it) and by the live drive's drop and token steps, where another device marks a notice read; on a core, two browser contexts show it: mark read in one, the other's bell follows.
 
 ## Not goals
 

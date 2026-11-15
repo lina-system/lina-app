@@ -2825,6 +2825,28 @@ const drivers = {
       check(await notReloaded(page), "the page reloaded");
       return "no word throughout, 1 renewal, connections " + connections.map((connection) => connection.first).join(" → ") + ", 알림 5 → 알림 4";
     });
+    await step("another device's message to an agent shows in its open window and on its row within 5 s, without a reload", async () => {
+      await openApp(page, "#/talk/ag-1", "&live=talk");
+      await markPage(page);
+      const opened = Date.now();
+      const box = page.getByTestId("agent-talk");
+      const mine = box.getByTestId("talk-mine");
+      check((await mine.count()) === 1, "the window held " + (await mine.count()) + " own messages before the other device wrote");
+      // The other device writes 3 s after the stream opens (STREAM_TALK_AFTER_MS); the window has 5 s from then.
+      await mine.filter({ hasText: "배포 순서는 정해졌어요?" }).waitFor({ timeout: 8_000 }).catch(() => check(false, "the other device's message did not show within 5 s"));
+      const shownMs = Date.now() - opened;
+      const reply = (await box.getByTestId("talk-reply").last().innerText()).trim();
+      check(reply.endsWith("알려 드릴게요."), "the reply reads " + reply);
+      check((await mine.count()) === 2, "the window holds " + (await mine.count()) + " own messages");
+      if (!wide) {
+        await page.getByTestId("back").click();
+        await settled(page);
+      }
+      const preview = (await page.getByTestId((wide ? "nav-talk-" : "talk-agent-") + "0").getByTestId("talk-preview").innerText()).trim();
+      check(preview.endsWith("알려 드릴게요."), "the agent's row reads " + preview);
+      check(await notReloaded(page), "the page reloaded");
+      return "drawn " + (shownMs / 1000).toFixed(1) + " s after the page opened (the other device writes at 3 s); row reads the reply";
+    });
     await step("a stream that cannot open says 연결 중, never 갱신 지연, and retries with growing waits; the screens still draw", async () => {
       await openApp(page, "#/inbox", "&live=down", "연결 중");
       await recordFreshness(page);

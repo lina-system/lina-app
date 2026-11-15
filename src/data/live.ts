@@ -12,6 +12,11 @@ export const BACKOFF_MAX_MS = 30_000;
  * closes its socket without saying `down`; the settle time starts when it is shown again (lina-app#176).
  */
 export const LIVE_SETTLE_MS = 3_000;
+/**
+ * How many times a failed list is read again on the doubling wait before the page leaves it to the stream opening, the
+ * tab shown or the network back (lina-app#199): about two minutes at most, and none on a screen whose reads answered.
+ */
+export const HEAL_TRIES = 8;
 
 /** The wait before try `attempt` (0 = the first retry): doubling up to the cap, then a random half to all of it. */
 export function backoffMs(attempt: number, random: () => number): number {
@@ -86,6 +91,9 @@ export class Live {
   private settling: number | null = null;
   private attempt = 0;
   private stopped = false;
+  /** The next read of the failed routes, and how many have run since a read answered or the page asked at once. */
+  private healing: number | null = null;
+  private healTries = 0;
 
   constructor(
     private readonly store: Store,
@@ -108,6 +116,7 @@ export class Live {
     this.host.document.addEventListener("visibilitychange", onVisibility);
     this.host.addEventListener("online", onResume);
     this.host.addEventListener("pageshow", onResume);
+    const unsubscribe = this.store.subscribe(() => this.healLater());
     if (this.store.restored !== null) {
       // The kept copy is on screen: nothing is read before the stream says what changed since its cursor.
       this.cursor = this.store.restored;
@@ -122,6 +131,7 @@ export class Live {
     return () => {
       this.stopped = true;
       this.pause();
+      unsubscribe();
       this.host.document.removeEventListener("visibilitychange", onVisibility);
       this.host.removeEventListener("online", onResume);
       this.host.removeEventListener("pageshow", onResume);
@@ -135,13 +145,21 @@ export class Live {
   private pause(): void {
     this.clearTimer();
     this.clearSettling();
+    this.clearHealing();
     this.socket?.close();
     this.socket = null;
   }
 
-  /** Now, not after the wait: the tab is back or the network changed. A denied page tries one more renewal. */
+  /**
+   * Now, not after the wait: the tab is back or the network changed. A denied page tries one more renewal. With the
+   * stream still open, the failed routes are read at once instead; a new connection reads them when it opens.
+   */
   private resume(): void {
-    if (this.stopped || this.socket || this.host.document.visibilityState === "hidden") return;
+    if (this.stopped || this.host.document.visibilityState === "hidden") return;
+    if (this.socket) {
+      this.healNow();
+      return;
+    }
     this.store.credentialTaken();
     this.clearTimer();
     this.attempt = 0;
@@ -159,6 +177,38 @@ export class Live {
     this.settling = null;
   }
 
+  private clearHealing(): void {
+    if (this.healing !== null) this.host.clearTimeout(this.healing);
+    this.healing = null;
+  }
+
+  /**
+   * A list's read failed (lina-app#199): read the failed routes again after the doubling wait, at most HEAL_TRIES
+   * times, never while the tab is hidden or the core cannot be reached. Once they answer, nothing is scheduled.
+   */
+  private healLater(): void {
+    if (!this.store.healable()) {
+      this.healTries = 0;
+      this.clearHealing();
+      return;
+    }
+    if (this.stopped || this.healing !== null || this.healTries >= HEAL_TRIES || this.store.offline || this.host.document.visibilityState === "hidden") return;
+    const wait = backoffMs(this.healTries, this.host.random);
+    this.healTries += 1;
+    this.healing = this.host.setTimeout(() => {
+      this.healing = null;
+      void this.store.readFailed();
+    }, wait);
+  }
+
+  /** The stream opened, the tab is back or the network changed: the failed routes are read now, and the waits start over. */
+  private healNow(): void {
+    if (this.stopped || this.host.document.visibilityState === "hidden" || !this.store.healable()) return;
+    this.clearHealing();
+    this.healTries = 0;
+    void this.store.readFailed();
+  }
+
   /** The stream dropped: `down` only once it has stayed down for the settle time, and only if it was ever open. */
   private wentDown(): void {
     if (this.settling !== null || this.store.live !== "open") return;
@@ -174,6 +224,7 @@ export class Live {
     const socket = this.store.source.changes(since, {
       message: (message) => {
         if (this.socket !== socket) return;
+        const opened = first;
         if (first) {
           first = false;
           this.attempt = 0;
@@ -181,7 +232,7 @@ export class Live {
           this.clearSettling();
           this.store.setLive("open");
         }
-        this.receive(message, since === null && this.cursor === null);
+        this.receive(message, since === null && this.cursor === null, opened);
       },
       closed: (refused) => {
         if (this.socket !== socket) return;
@@ -205,11 +256,15 @@ export class Live {
     this.socket = socket;
   }
 
-  private receive(message: ChangeMessage, fromTail: boolean): void {
+  private receive(message: ChangeMessage, fromTail: boolean, opened: boolean): void {
     this.cursor = message.cursor;
     // The first tail has no events; anything written between the first snapshot and it is read once more.
     if ("resync" in message || fromTail) void this.store.refresh();
-    else if (message.events.length) void this.store.invalidate(routesFor(message.events, this.store));
+    else {
+      if (message.events.length) void this.store.invalidate(routesFor(message.events, this.store));
+      // A connection that opens says the core answers again: what failed meanwhile is read now (lina-app#199).
+      if (opened) this.healNow();
+    }
     // After those reads land, the store is current at this cursor.
     void this.store.caughtUp(message.cursor);
   }

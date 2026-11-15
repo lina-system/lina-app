@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import type { RecordRound, RunRecord } from "../api/client";
 import type { ItemDetail } from "../api/client";
 import { foldedText } from "./fold";
+import { plainText } from "./plain";
 import { commentHistory, firstSentence, goalHistory, historyLines, isMachineNotice, outcomeOf, timelineBlocks } from "./timeline";
 
 const round = (fields: Partial<RecordRound>): RecordRound => ({ run: 1, startedAt: 100, endedAt: null, endKnown: false, startUnknown: false, result: null, verdict: null, stopped: false, rows: [], ...fields });
@@ -73,6 +74,19 @@ test.each([
 ])("a history line %j reads %j: a name cut inside it leaves no particle alone (lina-app#207)", (text, shown) => {
   expect(firstSentence(text)).toBe(shown);
   expect(firstSentence(foldedText(text))).toBe(shown);
+});
+
+// lina-app#218: the round 17 shapes, words made up: a lead-in reads with its first item, and a sentence whose cut left a
+// hole (a particle apart, a modifier whose noun was cut) gives way to the next one, else to none.
+test.each([
+  ["확인할 가짜 결과:\n- 가짜 빌드 통과.\n- 가짜 시험 통과.", "확인할 가짜 결과: 가짜 빌드 통과."],
+  ["확인할 가짜 결과:", null],
+  ["가짜 끝 조건은 더 새 a1b2c3d4e5로 충족됨. 가짜 시험을 마친 뒤 닫아도 된다.", "가짜 시험을 마친 뒤 닫아도 된다."],
+  ["가짜 끝 조건은 새 lina#12로 충족됨.", null],
+  ["가짜 끝 조건(가짜 값 a1b2c3d4e5)은 더 새 0aa65fe53a로 충족됨. 가짜 시험을 마침.", "가짜 시험을 마침."],
+])("a history line %j reads %j: no lead-in alone and no cut hole (lina-app#218)", (text, shown) => {
+  expect(firstSentence(text)).toBe(shown);
+  expect(firstSentence(foldedText(plainText(text)))).toBe(shown);
 });
 
 /**

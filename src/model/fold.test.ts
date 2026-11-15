@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { dateClock } from "../time";
-import { foldedText, foldReason, tidyFoldedText, titleMayDraw, withoutRefs } from "./fold";
+import { foldedText, foldReason, tidyFoldedText, titleMayDraw, withoutLatin, withoutRefs } from "./fold";
 
 test("a comment shows as it is unless it would show a path, a command, a hash, an issue number, an address or a fragment", () => {
   for (const plain of ["오류 문구 초안을 공유했어요.", "카드 번호는 앞 여섯 자리까지 보여 줄까요?", "1.5배 빨라졌어요."]) expect(foldReason(plain)).toBeNull();
@@ -160,4 +160,61 @@ test("an ISO time inside a comment reads as a date and a time of day, with no = 
   expect(foldedText("안전망 =2026-11-16T03:30+09:00")).toBe(`안전망 ${dateClock(Date.UTC(2026, 10, 15, 18, 30) / 1000)}`);
   expect(foldedText("백업 =2026-11-16T00:30+09:00")).toBe(`백업 ${dateClock(Date.UTC(2026, 10, 15, 15, 30) / 1000)}`);
   expect(foldedText("안전망 fake_until=2026-11-16T03:30 이후 확인.")).toBe("안전망 11월 16일 03:30 이후 확인.");
+});
+
+// lina-app#218: the shapes the hub's comments and titles took after a cut (round 17), the words made up. A particle glued
+// to a bracket the cut took whole goes back onto the word before it; a colon with only a bracket after it goes.
+test.each([
+  ["가짜 관문(lina#12)을 옮기기", "가짜 관문을 옮기기"],
+  ["가짜 카드(t_ab12cd34)를 열 때 확인", "가짜 카드를 열 때 확인"],
+  ["가짜 워크트리(a1b2c3d4e5)에서 확인", "가짜 워크트리에서 확인"],
+  ["가짜 설정(fake_lines)의 값 정리", "가짜 설정의 값 정리"],
+  ["가짜 묶음 (표지 카드 8)은 닫기", "가짜 묶음은 닫기"],
+  ["가짜 파일에서 fake_owner()를 저장된 값으로 바꾼다", "가짜 파일에서 저장된 값으로 바꾼다"],
+  ["가짜 저장소(가짜 사본 t_ab12cd34 따로)에서 돌린다", "가짜 저장소(가짜 사본 따로)에서 돌린다"],
+  ["가짜 앱 반영: (가짜 17회차 앞)", "가짜 앱 반영 (가짜 17회차 앞)"],
+  ["가짜 앱 반영: (lina#9 가짜 17회차 앞)", "가짜 앱 반영 (가짜 17회차 앞)"],
+  ["가짜 묶음: (가짜 앞) 뒤 정리", "가짜 묶음: (가짜 앞) 뒤 정리"],
+  ["가짜 설정 고침 + t_ab12cd34 목록 정리", "가짜 설정 고침 + 목록 정리"],
+  ["가짜 조건 (가짜 값 = a1b2c3d4e5).", "가짜 조건."],
+])("withoutRefs(%j) leaves no particle apart and no colon before a lone bracket: %j (lina-app#218)", (title, cut) => {
+  expect(withoutRefs(title)).toBe(cut);
+});
+
+test("a finished title's Latin words cut from a bracket leave its particle on the word before it (lina-app#218)", () => {
+  expect(withoutLatin("가짜 관문(fake-gate·fake-board)을 옮기기")).toBe("가짜 관문을 옮기기");
+});
+
+// lina-app#218: a cut that leaves a hole (a modifier whose noun was cut, a range or pair with a cut end) is no sentence:
+// the comment shows its next one, a title nothing.
+test.each([
+  ["새 a1b2c3d4e5로 충족됨."],
+  ["더 새 dev 0aa65fe53a로 충족됨."],
+  ["모든 lina#12를 닫았다."],
+  ["새 t_ab12cd34로 옮겼다."],
+  ["노출된 FAKE_KEY를 지웠다."],
+  ["새 판은 a1b2c3d4e5."],
+  ["대신 lina#12·lina#13과 파일이 겹치면 먼저 둔다."],
+  ["가짜 범위 lina#12~lina#14는 본문에 있다."],
+  ["가짜 짝 lina#12 ↔ t_ab12cd34 정리."],
+  ["가짜 두 묶음+fake_config 정리."],
+])("withoutRefs(%j) is empty: the cut left a hole (lina-app#218)", (text) => {
+  expect(withoutRefs(text)).toBe("");
+  expect(foldedText(`${text} 가짜 시험을 마침.`)).toBe("가짜 시험을 마침.");
+});
+
+test("the round 17 comment shape: the dangling particle and the cut modifier never show, the next sentence does (lina-app#218)", () => {
+  const comment = "이 가짜 카드의 끝 조건(가짜 값 = a1b2c3d4e5f6)은 더 새 dev 0aa65fe53a로 충족됨. 가짜 시험을 마친 뒤 닫아도 된다.";
+  expect(foldedText(comment)).toBe("가짜 시험을 마친 뒤 닫아도 된다.");
+  expect(foldedText("이 가짜 카드의 끝 조건(가짜 값 = a1b2c3d4e5f6)은 더 새 dev 0aa65fe53a로 충족됨.")).toBe("");
+});
+
+// lina-app#218: a line that leads a list in (it ends in `:`) reads with its first item, or not at all when none follows.
+test.each([
+  ["확인할 가짜 결과:", ""],
+  ["가짜 확인을 마침. 확인할 가짜 결과:", "가짜 확인을 마침."],
+  ["확인할 가짜 결과:\n- 가짜 빌드 통과.", "확인할 가짜 결과: 가짜 빌드 통과."],
+  ["확인할 가짜 결과:\n1. 가짜 빌드 통과.\n2. 가짜 시험 통과.\n3. 가짜 화면 확인.", "확인할 가짜 결과: 가짜 빌드 통과.\n2. 가짜 시험 통과.\n3. 가짜 화면 확인."],
+])("foldedText(%j) draws no lead-in alone: %j (lina-app#218)", (comment, shown) => {
+  expect(foldedText(comment)).toBe(shown);
 });

@@ -132,6 +132,50 @@ test("scrolled up to read, a new reply does not pull the owner down: 맨 아래�
   await waitFor(() => expect(box.queryByTestId("talk-jump")).toBeNull());
 });
 
+test("scrolled up while a reply streams, the history read that confirms the owner's message does not pull the window down (lina-app#209)", async () => {
+  let answer: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => (answer = resolve));
+  let reads = 0;
+  class Held extends SyntheticSource {
+    override async agentTalk(agent: string, body: { message: string }, signal?: AbortSignal) {
+      await gate;
+      return super.agentTalk(agent, body, signal);
+    }
+    override async agentTalkHistory(agent: string) {
+      reads += 1;
+      return super.agentTalkHistory(agent);
+    }
+  }
+  const source = new Held({ now: Math.floor(Date.now() / 1000) });
+  const view = await open("#/talk/ag-1", true, source);
+  const talk = view.getByTestId("agent-talk");
+  const box = within(talk);
+  await waitFor(() => expect(box.getAllByTestId("talk-reply")).toHaveLength(1));
+  const scroll = scrollBox(talk.querySelector(".agent-talk-turns") as HTMLElement, 2000, 500);
+
+  const field = box.getByRole("textbox", { name: "메시지" }) as HTMLTextAreaElement;
+  field.value = "하나 더";
+  fireEvent.input(field);
+  fireEvent.keyDown(field, { key: "Enter" });
+  await waitFor(() => expect(box.getAllByTestId("talk-mine")).toHaveLength(2));
+  expect(scroll.top).toBe(1500);
+  scroll.to(200);
+  await waitFor(() => expect(box.getByTestId("talk-jump")).toBeTruthy());
+
+  answer();
+  await waitFor(() => expect(box.getAllByTestId("talk-reply")).toHaveLength(2));
+  // The completion makes the window read the history again: that read holds the turn, so the line's key changes from
+  // the local one to the history's, though nothing new was sent.
+  await waitFor(() => expect(box.getAllByTestId("talk-reply")[1].getAttribute("aria-busy")).toBeNull(), { timeout: 8000 });
+  // Another read begins at the stream's end: it holds the turn.
+  const settled = reads;
+  (source as unknown as { talked: (agent: string) => void }).talked("ag-1");
+  await waitFor(() => expect(reads).toBeGreaterThan(settled), { timeout: 8000 });
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  expect(box.getAllByTestId("talk-mine")).toHaveLength(2);
+  expect(scroll.top).toBe(200);
+});
+
 test("at the bottom, a new reply keeps the window at the bottom", async () => {
   const view = await open("#/talk/ag-1", true);
   const talk = view.getByTestId("agent-talk");

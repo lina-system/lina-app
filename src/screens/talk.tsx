@@ -194,9 +194,11 @@ function Thread({ lines, agent, after }: { lines: readonly ThreadLine[]; agent: 
   }, []);
 
   const last = lines.at(-1);
-  // The owner's newest message wherever it stands: a send adds it together with the agent's empty reply after it.
+  // The owner's newest message sent from this window, wherever it stands: a send adds it together with the agent's empty
+  // reply after it. A history line is not one: when a read confirms the send the line changes key (`t…-mine` to `h…`)
+  // though nothing new was sent, and that must not pull a window read up back down.
   let lastMine: string | null = null;
-  for (const line of lines) if (line.mine) lastMine = line.key;
+  for (const line of lines) if (line.mine && line.state !== "kept") lastMine = line.key;
   useLayoutEffect(() => {
     const before = seen.current;
     seen.current = { count: lines.length, lastMine };

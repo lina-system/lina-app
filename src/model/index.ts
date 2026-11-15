@@ -753,6 +753,11 @@ export function buildModel(input: ModelInput, now: number): Model {
   const listed = new Set((board?.inbox.mine ?? []).map((row) => row.id));
   const mineSource = (board?.inbox.mine ?? []).filter((row) => !decided.has(row.id));
   for (const { row, index } of [...(input.pending?.held ?? [])].sort((a, b) => a.index - b.index)) if (!mineSource.some((each) => each.id === row.id)) mineSource.splice(Math.min(index, mineSource.length), 0, row);
+  // The owner's to-dos by when they are due (lina-app#198): dated ones first, the earliest date first (overdue, then
+  // today, then later), then the undated; of the same date, or both undated, the newest record first. The core lists
+  // its waiting ones last, a to-do due today among them; a row held for its toast keeps its place by the same rule.
+  const createdAt = (id: string) => itemMap.get(id)?.createdAt ?? 0;
+  mineSource.sort((a, b) => (a.due === b.due ? createdAt(b.id) - createdAt(a.id) : a.due === null ? 1 : b.due === null ? -1 : a.due < b.due ? -1 : 1));
   const mineRows: InboxRow[] = mineSource.map((row) => ({
     type: "mine",
     key: `mine:${row.id}`,

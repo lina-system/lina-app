@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import type { BoardSnapshot, ItemDetail, ItemList, RunCard, WorkCardList, WorkGoal } from "../api/client";
 import { generateScene, SYNTHETIC_SEED } from "../fixtures/synthetic";
 import { CRUMB, KIND_TITLE, STATE_WORD, W } from "../words";
-import { agentView, buildModel, cardTitle, doneFor, goalCards, goalState, itemContext, todoState, type CardRow, type CardSummary, type Section } from "./index";
+import { agentView, buildModel, cardTitle, doneFor, goalCards, goalState, itemContext, localDay, todoState, type CardRow, type CardSummary, type Section } from "./index";
 
 /**
  * A scene in the shape of the hub's real `/work/cards` rows (lina-app#148): every row carries `goalTitle`, `ask`,
@@ -424,4 +424,20 @@ test("a row, its detail head's row and its goal read the card's kanban status, w
     ["k2", "in_progress"],
   ]);
   expect(goalState(model, { ...detail, workCards: ["kg-order"] }, { goals }).state).toBe("in_progress");
+});
+
+// lina-app#198: the hub lists the owner's to-dos dated first, then undated, then the waiting ones dated or not, so a
+// to-do due today that waits sat under every undated one.
+test("the owner's to-dos read overdue and today first, then later dates, then undated, ties newest first (lina-app#198)", () => {
+  const mine = (id: string, due: string | null, waiting = false) => ({ id, title: `가상 할 일 ${id}`, waiting, due, agent: "ag-a" });
+  const created = new Map([["T21", 5], ["T22", 1], ["T23", 3], ["T24", 4], ["T25", 2], ["T26", 6]]);
+  const todoItems: ItemList = { ...items, items: [...created].map(([id, daysAgo]) => ({ ...item(id, "todo", `가상 할 일 ${id}`, null), createdAt: NOW - daysAgo * DAY })) };
+  // In the hub's order: dated (later, then today), undated (older first), then the waiting ones (overdue, today).
+  const rows = [mine("T21", localDay(NOW + 3 * DAY)), mine("T22", localDay(NOW)), mine("T23", null), mine("T24", null), mine("T25", localDay(NOW - 2 * DAY), true), mine("T26", localDay(NOW), true)];
+  const mineBoard = { ...board, inbox: { decide: [], mine: rows } } as unknown as BoardSnapshot;
+  const model = buildModel({ board: mineBoard, items: todoItems, cards: { cards: [] }, cardsAt: NOW, cardDetails: {}, failed: [] }, NOW);
+  const order = (rows: readonly { readonly key: string }[]) => rows.map((each) => each.key.replace("mine:", ""));
+  // Overdue, then today's two newest first, then the later date, then the undated newest first.
+  expect(order(model.home.mine.rows)).toEqual(["T25", "T22", "T26", "T21", "T23", "T24"]);
+  expect(order(model.inbox.sections[2].rows)).toEqual(["T25", "T22", "T26", "T21", "T23", "T24"]);
 });

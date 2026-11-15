@@ -1610,6 +1610,54 @@ describe("agent talk", () => {
     }
   });
 
+  test("a message another device sends while this window's own send is out shows once that send is refused (lina-app#209)", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      let refuse: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => (refuse = resolve));
+      class Refusing extends SyntheticSource {
+        override async agentTalk(_agent: string, _body: { message: string }, _signal?: AbortSignal) {
+          await gate;
+          return { ok: false as const, status: 503, code: null };
+        }
+      }
+      const source = new Refusing();
+      const view = await open("#/talk/ag-1", { wide: true, source });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const { field } = parts(view);
+      field.value = "곧 거절될 말";
+      fireEvent.input(field);
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const otherDevice = new SyntheticSource({ scene: source.scene });
+      const turn = await otherDevice.agentTalk("ag-1", { message: "배포 순서는 정해졌어요?" });
+      if (!turn.ok) throw new Error("the turn was refused");
+      const frames = (async () => {
+        for await (const _ of turn.events);
+      })();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      await frames;
+      // The refused turn brings no event of its own: the change that came meanwhile is read when the send ends.
+      refuse();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+      const { box } = parts(view);
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "배포 순서는 정해졌어요?"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("a message sent just before choosing another agent stays in its window, and the reply joins it there", async () => {
     vi.useFakeTimers(TIMERS);
     try {

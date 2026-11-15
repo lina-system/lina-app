@@ -717,9 +717,10 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
   useEffect(() => {
     if (readAt.current === talkChanges) return;
     const box = outbox(store.source, agent);
-    if (historyPending.current) return;
+    // A change that comes while one of this page's turns goes stays unread too: a refused turn brings no event of its
+    // own, so the read waits for the outbox to empty (`sending` is a dependency) instead of being dropped.
+    if (historyPending.current || box.turns.length) return;
     readAt.current = talkChanges;
-    if (box.turns.length) return;
     let live = true;
     void store.source.agentTalkHistory(agent).then((result) => {
       if (!live || result.kind !== "data" || box.turns.length) return;
@@ -729,7 +730,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
     return () => {
       live = false;
     };
-  }, [agent, store, talkChanges, historyRead]);
+  }, [agent, store, talkChanges, historyRead, sending]);
 
   const send = async () => {
     const message = text.trim();

@@ -86,7 +86,8 @@ export function bootstrapOptions(host: Partial<Window> = window): HttpOptions {
 export class HttpSource implements Source {
   private readonly etags = new Map<string, string>();
   private readonly fetchImpl: typeof fetch;
-  private readonly basePath: string;
+  /** The core's base path, without a trailing slash; the kept copy of the store is keyed by it. */
+  readonly basePath: string;
   /** The page's session token; a core that restarted serves a new one, read again by renewCredential. */
   private token: string | null;
   /** No token in the page: the gated mode, where a cookie signs the page in and a 401 means signed out. */

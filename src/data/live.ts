@@ -71,8 +71,9 @@ const browserHost = (): LiveHost => ({
 });
 
 /**
- * The app's one change stream, opened through the store's source. The last cursor stays in memory: a reconnect
- * (after sleep, a network change, or the tab shown again) resumes with `since` and gets what it missed. A resync
+ * The app's one change stream, opened through the store's source. A reconnect (after sleep, a network change, or the
+ * tab shown again) resumes with the last cursor as `since` and gets what it missed. A page opened from the store's
+ * kept copy resumes from the copy's cursor and reads only what the missed events touch (lina-app#194). A resync
  * reads every snapshot once. A failed or dropped connection tries again after a doubling, jittered wait; nothing
  * polls. Once an open stream has had no connection for LIVE_SETTLE_MS, the store says `down` and the freshness line
  * says the screens may be stale; until the first connection opens it says `connecting`.
@@ -91,7 +92,7 @@ export class Live {
     private readonly host: LiveHost = browserHost(),
   ) {}
 
-  /** Reads every snapshot and opens the stream; the returned function closes it for good. */
+  /** Reads every snapshot, or none when the store opened from its kept copy, and opens the stream; the returned function closes it for good. */
   start(): () => void {
     const onVisibility = () => {
       if (this.host.document.visibilityState === "hidden") {
@@ -107,11 +108,17 @@ export class Live {
     this.host.document.addEventListener("visibilitychange", onVisibility);
     this.host.addEventListener("online", onResume);
     this.host.addEventListener("pageshow", onResume);
-    void this.store.refresh();
-    // The stream draws nothing on the first screen: it opens once the first refresh has landed (lina-app#186).
-    void this.store.painted.then(() => {
-      if (!this.stopped && !this.socket && this.timer === null && this.host.document.visibilityState !== "hidden") this.connect();
-    });
+    if (this.store.restored !== null) {
+      // The kept copy is on screen: nothing is read before the stream says what changed since its cursor.
+      this.cursor = this.store.restored;
+      if (this.host.document.visibilityState !== "hidden") this.connect();
+    } else {
+      void this.store.refresh();
+      // The stream draws nothing on the first screen: it opens once the first refresh has landed (lina-app#186).
+      void this.store.painted.then(() => {
+        if (!this.stopped && !this.socket && this.timer === null && this.host.document.visibilityState !== "hidden") this.connect();
+      });
+    }
     return () => {
       this.stopped = true;
       this.pause();
@@ -200,16 +207,11 @@ export class Live {
 
   private receive(message: ChangeMessage, fromTail: boolean): void {
     this.cursor = message.cursor;
-    if ("resync" in message) {
-      void this.store.refresh();
-      return;
-    }
     // The first tail has no events; anything written between the first snapshot and it is read once more.
-    if (fromTail) {
-      void this.store.refresh();
-      return;
-    }
-    if (message.events.length) void this.store.invalidate(routesFor(message.events, this.store));
+    if ("resync" in message || fromTail) void this.store.refresh();
+    else if (message.events.length) void this.store.invalidate(routesFor(message.events, this.store));
+    // After those reads land, the store is current at this cursor.
+    void this.store.caughtUp(message.cursor);
   }
 
   private retry(): void {

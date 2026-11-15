@@ -70,7 +70,7 @@ test("the agent's window: earlier turns under a date, the agent's mark and name 
   const [mine, theirs] = groups;
   expect(mine.querySelector(".mark")).toBeNull();
   expect(theirs.querySelectorAll(".mark")).toHaveLength(1);
-  expect(theirs.querySelector("[data-testid=talk-name]")?.textContent).toBe(box.getByTestId("agent-talk-name").textContent);
+  expect(theirs.querySelector("[data-testid=talk-name]")?.textContent).toBe(view.getByTestId("agent-talk-name").textContent);
   expect([...groups].map((group) => group.querySelectorAll("[data-testid=talk-time]").length)).toEqual([1, 1]);
   expect(theirs.querySelector("[data-testid=talk-time]")?.textContent).toMatch(/^\d\d:\d\d$/);
 });

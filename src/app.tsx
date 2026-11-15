@@ -9,7 +9,7 @@ import { back, baseOf, defaultListFor, href, isFrame, isList, linkClick, navigat
 import { slideMotion } from "./stack-motion";
 import { bindSwipeBack, isStandalone } from "./swipe-back";
 import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RestartSheet, RunningScreen, StatusScreen, TodayScreen } from "./screens/lists";
-import { AgentCard, AgentTalk, TalkAgents, TalkPreview } from "./screens/talk";
+import { AgentCard, AgentTalk, TalkAgents, TalkHead, TalkPreview } from "./screens/talk";
 import { CardScreen, GoalScreen, ItemScreen, RunScreen, workerTitle } from "./screens/details";
 import { RollbackSheet, SettingPage, settingParent, SettingsScreen, settingTitle } from "./screens/settings";
 import { SETTINGS_HISTORY } from "./api/client";
@@ -113,7 +113,7 @@ function Screen({ route }: { route: Route }) {
     case "talk":
       if (route.goal) return <GoalScreen id={route.goal} />;
       return (
-        <AgentTalk key={route.id} agent={route.id} titled>
+        <AgentTalk key={route.id} agent={route.id}>
           <AgentCard agent={route.id} folded />
         </AgentTalk>
       );
@@ -605,9 +605,13 @@ function TalkShell({ route, frame, stack }: { route: Route; frame: Route | null;
       <div class="content">
         <header class="toolbar">
           <div class="toolbar-title">
-            <h1 class="toolbar-name" data-testid="screen-title">
-              {titleOf(windowRoute, model, store)}
-            </h1>
+            {agent ? (
+              <TalkHead agent={agent} />
+            ) : (
+              <h1 class="toolbar-name" data-testid="screen-title">
+                {titleOf(windowRoute, model, store)}
+              </h1>
+            )}
             <Freshness />
           </div>
           <Tabs current="talk" />
@@ -701,6 +705,8 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
   const parent = parentOf(screen, screenStack);
   const isRoot = isTabRoot(screen);
   const large = isRoot || isList(screen);
+  // An agent's 대화 window has a chat app's bar: a back icon, the agent's mark and name, the chip and the bell (lina-app#191).
+  const talkAgent = !sheet && screen.name === "talk" && !screen.goal ? screen.id : null;
   const goBack = () => {
     if (stack.length > 1) back();
     else navigate(sheet ? screen : parent, { replace: true, direction: sheet ? "none" : "pop" });
@@ -719,8 +725,15 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
   }, []);
   return (
     <div class="stack" data-layout="phone">
-      <header class="navbar">
-        {sheet ? (
+      <header class={talkAgent ? "navbar is-talk" : "navbar"}>
+        {talkAgent ? (
+          <>
+            <button type="button" class="back is-icon" onClick={goBack} aria-label={titleOf(parent, model, store)} data-testid="back">
+              <BackIcon />
+            </button>
+            <TalkHead agent={talkAgent} />
+          </>
+        ) : sheet ? (
           // Back closes the sheet: it reads the screen under it, the one it returns to (the agent from a goal in 대화).
           <button type="button" class="back" onClick={goBack} data-testid="back">
             <BackIcon />

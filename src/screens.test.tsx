@@ -1315,7 +1315,7 @@ describe("agent talk", () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(0);
       });
-      expect(box.getByTestId("agent-talk-name").textContent).toBe(source.scene.items.agents[0].name);
+      expect(view.getByTestId("agent-talk-name").textContent).toBe(source.scene.items.agents[0].name);
       expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?"]);
       expect(box.getAllByTestId("talk-reply")).toHaveLength(1);
       const card = view.getByTestId("card-pane");
@@ -1346,8 +1346,8 @@ describe("agent talk", () => {
   test("on a phone the card sits folded above a window with no turns yet, and opens to the goals", async () => {
     const view = await open("#/talk/ag-2", { wide: false });
     await waitFor(() => expect(view.getByTestId("no-turns").textContent).toBe("아직 나눈 대화 없음"));
-    expect(view.getByTestId("back").textContent).toBe("대화");
-    // The phone's window has a screen title like every other screen: the agent's name.
+    expect(view.getByTestId("back").getAttribute("aria-label")).toBe("대화");
+    // The phone's window has a screen title like every other screen: the agent's name, in the bar (lina-app#191).
     expect(view.getAllByTestId("screen-title").map((title) => title.textContent)).toEqual([view.getByTestId("agent-talk-name").textContent]);
     const card = view.getByTestId("agent-card");
     expect(card.querySelector("[data-testid=section-goals]")).toBeNull();

@@ -181,7 +181,7 @@ button:disabled {
   height: 16px;
   padding: 0 4px;
   border-radius: 8px;
-  background: var(--red);
+  background: var(--red-fill);
   color: #ffffff;
   font-size: 11px;
   font-weight: 600;
@@ -335,7 +335,7 @@ button:disabled {
 
 .split .nav-row.is-current .nav-stopped-mark {
   color: #ffffff;
-  background: var(--red);
+  background: var(--red-fill);
   border-radius: 8px;
   padding: 0 5px;
 }
@@ -352,7 +352,7 @@ button:disabled {
 
 .split .nav-row.is-current .talk-stopped {
   color: #ffffff;
-  background: var(--red);
+  background: var(--red-fill);
   border-radius: 8px;
   padding: 0 5px;
 }
@@ -1943,6 +1943,39 @@ button.check:hover:not([aria-disabled="true"]):not(.is-done) {
   padding-right: 8px;
 }
 
+/* Selected, such a row is painted whole, its control inside the selection up to the divider (lina-app#212); the
+   control keeps its place. */
+.row.has-action:has(> a[aria-current="page"]) {
+  background: var(--accent);
+  border-radius: var(--radius);
+  margin: 0 6px;
+}
+
+.row.has-action > a[aria-current="page"] {
+  background: none;
+  margin: 0;
+}
+
+.row.has-action:has(> a[aria-current="page"]) > .retry,
+.row.has-action:has(> a[aria-current="page"]) > .requested {
+  margin-right: calc(var(--inset) - 14px);
+  color: var(--on-accent);
+}
+
+/* The focus ring on a selected row would be the accent on the accent. */
+.row:has(> a[aria-current="page"]) > :focus-visible {
+  outline-color: var(--on-accent);
+}
+
+/* Forced colours drop the fill: the selection is a ring in the system's highlight. */
+@media (forced-colors: active) {
+  .row:not(.has-action) > a[aria-current="page"]:not(:focus-visible),
+  .row.has-action:has(> a[aria-current="page"]) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
+
 .head-undo {
   margin-left: auto;
 }
@@ -2372,7 +2405,7 @@ html:has(.stack) body {
 
 .split .nav-row.is-current .count-pair .count.is-stopped-count {
   color: #ffffff;
-  background: var(--red);
+  background: var(--red-fill);
   border-radius: 8px;
   padding: 0 5px;
 }
@@ -2929,7 +2962,7 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--red);
+  background: var(--red-fill);
   color: #ffffff;
   font-weight: 700;
   line-height: 1;

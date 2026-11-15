@@ -13,6 +13,9 @@
   --accent: #007aff;
   --on-accent: #ffffff;
   --red: #ff3b30;
+  /* Red behind white words (the bell's count, the stopped pills): the state red's hue, dark enough for 4.5:1, the
+     same in dark (lina-app#213; src/design/contrast.test.ts). */
+  --red-fill: #e0201b;
   --orange: #ff9500;
   /* The top tabs: the track the other tabs show and the selected one, the same at every width (lina-app#143). */
   --tab-track: rgba(120, 120, 128, 0.12);

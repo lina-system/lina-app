@@ -208,6 +208,44 @@ test("the 완료 head counts the same cards on the first page and once every fin
   expect(opened.home.finished.rows.at(-1)).toMatchObject({ id: "u1", name: W.untitled, repeat: 3 });
 });
 
+// lina-app#214: the hub's finished cards in no goal whose own titles the row rule refuses only for their English words
+// or references. Each reads by the Hangul words left; one with fewer than four Hangul letters left stays 제목 없음.
+test("a finished card the title rule refuses for its Latin words or refs reads by its Hangul words; with too few left it is 제목 없음 (lina-app#214)", () => {
+  const named = "가짜 회차 점검 정리";
+  const finished = [
+    row("f1", "가짜 회차 점검 fake worker run 정리", "done", { endedAt: NOW - 600 }),
+    row("f2", "가짜 회차 점검 (fake runner label) 정리", "done", { endedAt: NOW - 1200 }),
+    row("f7", "가짜 회차 점검·fake-gate run label check 정리", "done", { endedAt: NOW - 1500 }),
+    row("f8", "fake gate run → 가짜 회차 점검 정리", "done", { endedAt: NOW - 1700 }),
+    row("f3", "lina#12 fake gate pass check를 다시 돌리기", "done", { endedAt: NOW - 1800 }),
+    row("f4", "fake board gate check 손봄", "done", { endedAt: NOW - 2 * DAY }),
+    row("f5", "fake cleanup pass", "done", { endedAt: NOW - 2 * DAY - 600 }),
+    row("f6", "t93 #4 a1b2c3d4e5", "done", { endedAt: NOW - 2 * DAY - 1200 }),
+  ];
+  // The same title in every other state keeps the raw-text rule (lina-app#156).
+  const others = [row("s1", "가짜 회차 점검 fake worker run 정리", "stopped", { lastHeartbeatAt: NOW - 100 }), row("a1", "가짜 회차 점검 fake worker run 정리", "in_progress"), row("p1", "가짜 회차 점검 fake worker run 정리", "planned")];
+  const model = realModel([...finished, ...others]);
+
+  expect(model.cards.get("f1")).toMatchObject({ title: named, name: named });
+  // A bracket left empty, a separator or an arrow left at the cut and a particle glued to a cut word go with it.
+  for (const id of ["f2", "f7", "f8"]) expect(model.cards.get(id)?.name, id).toBe(named);
+  expect(model.cards.get("f3")?.name).toBe("다시 돌리기");
+  for (const id of ["f4", "f5", "f6"]) expect(model.cards.get(id)?.name, id).toBe(W.untitled);
+  // Named cards group with the equal-named ones; the 제목 없음 line holds only the cards nothing names.
+  expect(doneFor(model).map((each) => [each.id, each.name, each.repeat ?? 1])).toEqual([
+    ["f1", named, 4],
+    ["f3", "다시 돌리기", 1],
+    ["f4", W.untitled, 3],
+  ]);
+  expect(model.home.finished.count).toBe(8);
+  expect(model.counts.done).toBe(model.home.finished.rows.reduce((sum, line) => sum + (line.repeat ?? 1), 0));
+
+  expect(model.home.stopped.rows.find((each) => each.id === "s1")?.name).toBe(W.untitled);
+  expect(model.cards.get("a1")?.title).toBeNull();
+  expect(model.cards.get("p1")?.title).toBeNull();
+  expect([...model.home.active.rows, ...model.home.planned.rows].map((each) => each.id)).toEqual([]);
+});
+
 test("running, stopped and planned cards never collapse, whatever their titles (lina-app#168)", () => {
   const same = (id: string, state: CardSummary["state"]) => row(id, "가짜 같은 제목 dev 1a2b3c4d로 올리기", state, { lastHeartbeatAt: NOW - 100 });
   const model = realModel([same("a1", "in_progress"), same("a2", "in_progress"), same("b1", "stopped"), same("b2", "stopped"), same("c1", "planned"), same("c2", "planned")]);

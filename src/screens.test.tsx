@@ -7,7 +7,7 @@ import { App } from "./app";
 import { AGENT_REPLY_DELTAS, STREAM_TICK_MS, SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS } from "./data/synthetic-source";
 import type { ReadResult, Source } from "./data/source";
 import { BACKOFF_MAX_MS, LIVE_SETTLE_MS } from "./data/live";
-import { Store } from "./data/store";
+import { FINISHED_SHOWN, Store } from "./data/store";
 import { SCENE_COUNTS, SYNTHETIC_OWNER } from "./fixtures/synthetic";
 import { buildModel } from "./model";
 import { containsText } from "./text-match";
@@ -2125,26 +2125,25 @@ class WritingSource extends SyntheticSource {
 describe("work cards", () => {
   beforeEach(() => setWide(true));
 
-  test("the home reads: decisions in one line, review, running, the owner's to-dos, stopped, planned, the last 24 hours, then older (lina-app#152)", async () => {
+  test("the home reads: decisions in one line, review, running, the owner's to-dos, stopped, planned, then the finished cards (lina-app#152, #186)", async () => {
     const view = await open("#/running", { wide: true });
     const screen = view.getByTestId("screen-running");
     const lists = [...screen.querySelectorAll("ul.rows")].map((list) => list.getAttribute("aria-label"));
-    // The waiting card waits on review, so 대기 does not repeat it; r7 and r8 are worker runs, so nothing is older. The
-    // planned card is its own 예정 group under 진행 중 (lina-app#148).
-    expect(lists).toEqual(["수신함", "검토 필요", "진행 중인 작업", "내 할 일", "중단됨", "예정", "최근 완료"]);
+    // The waiting card waits on review, so 대기 does not repeat it; r7 and r8 are worker runs, so no row. The planned
+    // card is its own 예정 group under 진행 중 (lina-app#148).
+    expect(lists).toEqual(["수신함", "검토 필요", "진행 중인 작업", "내 할 일", "중단됨", "예정", "완료"]);
     expect(view.getByTestId("home-decisions").textContent).toContain(String(SCENE_COUNTS.decisions));
     const names = (label: string) => [...(screen.querySelector(`[aria-label="${label}"]`)?.querySelectorAll(":scope > li > a") ?? [])].map((link) => link.getAttribute("aria-label") ?? "");
     expect(names("진행 중인 작업").every((name) => / · 진행 중( · 할 일 \d+\/\d+)?$/.test(name))).toBe(true);
     expect(names("중단됨")).toHaveLength(1);
     expect(names("중단됨")[0]).toMatch(/중단됨 · 응답 없음$/);
     // k-105 is never opened here: its list row's own end (lina#577) places it.
-    expect(names("최근 완료")).toHaveLength(1);
-    expect(names("완료")).toHaveLength(0);
-    for (const id of ["review", "recent"]) {
+    expect(names("완료")).toHaveLength(1);
+    for (const id of ["review", "finished"]) {
       const section = view.getByTestId(`section-${id}`);
       expect(rowsIn(section)).toBe(count(section.querySelector("[data-testid=count]")));
     }
-    expect(names("최근 완료").length + names("완료").length).toBe(count(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")));
+    expect(names("완료").length).toBe(count(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")));
   });
 
   test("a work card with no checked title is named by its own title on its detail, and by its goal on the home and its agent", async () => {
@@ -2368,7 +2367,7 @@ describe("work cards", () => {
       expect(row()?.querySelector(".title")?.textContent).toBe("결제 화면 개편");
       expect(row()).toBe(before);
       const routes = new Set(read.mock.calls.map(([name, id]) => (id ? `${name}:${id}` : name)));
-      expect(routes.has("cards")).toBe(true);
+      expect(routes.has(`cards:${FINISHED_SHOWN}`)).toBe(true);
       expect([...routes].filter((route) => route.startsWith("card:"))).toEqual([]);
       expect(routes.has("board") || routes.has("items")).toBe(false);
     } finally {
@@ -2481,9 +2480,8 @@ describe("work cards, round 5", () => {
     const view = await open("#/running", { wide: true });
     const times = (id: string) => [...view.getByTestId(`section-${id}`).querySelectorAll(".sub:not(.row-sub)")].map((line) => line.textContent);
     // k-105's detail is not read on the home; its list row's own end (lina#577) says when it ended.
-    expect(times("recent")).toEqual(["완료 · 2시간 전"]);
     // r7 and r8 are worker runs with no card: no row (lina-app#141).
-    expect(view.queryByTestId("section-older")).toBeNull();
+    expect(times("finished")).toEqual(["완료 · 2시간 전"]);
     view.unmount();
     const agent = await open("#/done?agent=ag-3", { wide: true });
     expect([...agent.getByTestId("screen-done").querySelectorAll(".sub:not(.row-sub)")].map((line) => line.textContent)).toEqual(["완료 · 2시간 전"]);
@@ -2792,14 +2790,14 @@ describe("the work tab's first screen (lina-app#124)", () => {
       }
     });
 
-    test("every group header's number is the rows under it, the finished groups included, and the runs r7 and r8 are no row", async () => {
+    test("every group header's number is the rows under it, the finished group included, and the runs r7 and r8 are no row", async () => {
       for (const source of [new SyntheticSource(), new SyntheticSource({ endedRuns: true })]) {
         const view = await open("#/", { wide, source });
         // A head counts the rows behind its fold too (lina-app#152).
         unfold(view.container);
         const sections = view.getByTestId("screen-running").querySelectorAll("[data-testid^=section-]");
         const ids = [...sections].map((section) => section.getAttribute("data-testid"));
-        expect(ids).toEqual(expect.arrayContaining(["section-active", "section-recent"]));
+        expect(ids).toEqual(expect.arrayContaining(["section-active", "section-finished"]));
         for (const section of sections) {
           expect(rowsIn(section) - stoppedRows(section), section.getAttribute("data-testid") ?? "").toBe(count(section.querySelector("[data-testid=count]")));
           expect(stoppedRows(section)).toBe(count(section.querySelector("[data-testid=stopped-count]")));
@@ -2962,12 +2960,12 @@ describe("the work tab list (lina-app#141)", () => {
     ["1280", true],
     ["390", false],
   ])("at %s", (_width, wide) => {
-    test("the groups read decisions, running, the owner's to-dos (their first three), stopped, planned, then the recently done (lina-app#152)", async () => {
+    test("the groups read decisions, running, the owner's to-dos (their first three), stopped, planned, then the finished cards (lina-app#152, #186)", async () => {
       const view = await open("#/", { wide });
       const screen = home(view);
       const lists = [...screen.querySelectorAll("ul.rows")].map((list) => list.getAttribute("aria-label"));
       // 검토 필요 holds k-104, a card waiting on the owner's review: it reads with the decisions.
-      expect(lists).toEqual(["수신함", "검토 필요", "진행 중인 작업", "내 할 일", "중단됨", "예정", "최근 완료"]);
+      expect(lists).toEqual(["수신함", "검토 필요", "진행 중인 작업", "내 할 일", "중단됨", "예정", "완료"]);
       // The head and its first three rows read without a tap; two to-dos need no fold.
       expect(count(within(screen).getByTestId("head-mine").querySelector("[data-testid=count]"))).toBe(2);
       expect(within(screen).getByTestId("home-mine").querySelectorAll(".check-row")).toHaveLength(2);

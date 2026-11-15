@@ -109,7 +109,12 @@ export type Routes = {
   checks: Json<BoardPaths["/status/checks"]["get"]>;
   goals: Json<WorkPaths["/work/goals"]["get"]>;
   goal: Json<WorkPaths["/work/goals/{id}"]["get"]>;
-  cards: Json<WorkPaths["/work/cards"]["get"]>;
+  /**
+   * Every unfinished card and the newest finished ones asked for, the route's id being `finished_limit` (lina#729), with
+   * `finishedTotal` counting every finished card. Without an id, or from a core that predates the limit, every card and
+   * no total; the contract copy has no limit yet, so the total is here.
+   */
+  cards: Json<WorkPaths["/work/cards"]["get"]> & { readonly finishedTotal?: number };
   card: Json<WorkPaths["/work/cards/{id}"]["get"]>;
   inbox: Json<WorkPaths["/work/inbox"]["get"]>;
   record: Json<BoardPaths["/work/runs/{id}/record"]["get"]>;
@@ -212,7 +217,7 @@ export function routePath(name: RouteName, id?: string): string {
     case "goal":
       return `${WORK_BASE}/work/goals/${enc}`;
     case "cards":
-      return `${WORK_BASE}/work/cards`;
+      return id === undefined ? `${WORK_BASE}/work/cards` : `${WORK_BASE}/work/cards?finished_limit=${enc}`;
     case "card":
       return `${WORK_BASE}/work/cards/${enc}`;
     case "inbox":

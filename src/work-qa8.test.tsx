@@ -1,4 +1,4 @@
-import { render, waitFor, within } from "@testing-library/preact";
+import { fireEvent, render, waitFor, within } from "@testing-library/preact";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { ItemDetail, WorkCardSummary } from "./api/client";
 import { App } from "./app";
@@ -56,17 +56,22 @@ function round8Scene() {
 }
 
 describe("finished lines collapse (lina-app#168 item 1)", () => {
-  test("five cards that differ only by a hash are one 완료 line ×5 opening the newest; the head and the sidebar count lines", async () => {
+  test("five cards that differ only by a hash are one 완료 line ×5 opening the newest; the head and the sidebar count the cards behind the lines", async () => {
     const view = await open("#/running", new SyntheticSource({ scene: round8Scene() }));
-    const older = view.getByTestId("section-older");
-    const rows = within(older).getAllByTestId("row").filter((row) => row.textContent?.includes(DEPLOY));
+    const finished = view.getByTestId("section-finished");
+    // The page reads the newest finished cards first (lina-app#186); the fold reads the oldest deploy too.
+    fireEvent.click(within(finished).getByRole("button", { name: `${W.done} ${W.more(1)}` }));
+    await waitFor(() => expect(finished.querySelector(".more-row")).toBeNull());
+    const rows = within(finished).getAllByTestId("row").filter((row) => row.textContent?.includes(DEPLOY));
     expect(rows).toHaveLength(1);
     expect(rows[0].querySelector(".title")?.textContent).toBe(`${DEPLOY} ${W.repeated(5)}`);
     expect(rows[0].querySelector("a")?.getAttribute("href")).toMatch(/\/cards\/k-deploy-1$/);
-    expect(Number(older.querySelector("[data-testid=count]")?.textContent)).toBe(within(older).getAllByTestId("row").length);
-    // The sidebar's 완료 is the lines the work tab lists (lina-app#179), never the cards behind them.
-    const lines = ["section-recent", "section-older"].map((id) => view.queryByTestId(id)?.querySelectorAll("[data-testid=row]").length ?? 0).reduce((a, b) => a + b, 0);
-    expect(Number(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")?.textContent)).toBe(lines);
+    // The head and the sidebar's 완료 count the cards behind the lines (lina-app#186): a ×5 line stands for five.
+    const cards = within(finished)
+      .getAllByTestId("row")
+      .reduce((sum, row) => sum + Number(/×(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1), 0);
+    expect(Number(finished.querySelector("[data-testid=count]")?.textContent)).toBe(cards);
+    expect(Number(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")?.textContent)).toBe(cards);
   });
 });
 

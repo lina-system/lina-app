@@ -15,7 +15,7 @@ const POWER_VARIANTS: readonly string[] = ["stopped", "none"] satisfies PowerVar
  * scene (tests, captures, verify.mjs); `&error=quota|checks` adds the failed-source variant for quota or the hub's checks,
  * `&running=none` one with no running card, `&writer=stopped` one whose writer of checked lines stopped, `&runs=ended`
  * one with ended runs and a card waiting on the owner (lina-app#116), `&todos=many` one where the owner holds 50 more
- * to-dos (lina-app#141),
+ * to-dos (lina-app#141), `&finished=many` one with 40 more finished cards (lina-app#186),
  * `&talk=busy|down|none` one whose talk turns are refused (429, 503, 409), `&live=down|drop|resync|token` a change stream
  * that refuses every connection, drops once while another device writes, sends one resync, or restarts the core with a
  * new session token, `&push=off` a core without push, `&settings=readonly|empty|stale|race|ocx-down` work settings this
@@ -40,6 +40,7 @@ export function chooseSource(location: Pick<Location, "search"> = window.locatio
       manyTodos: params.get("todos") === "many",
       hubRound9: params.get("hub") === "round9",
       hubRound11: params.get("hub") === "round11",
+      manyFinished: params.get("finished") === "many",
       talk: talk && TALK_REFUSALS.includes(talk) ? (talk as TalkRefusal) : null,
       live: live && STREAM_SCRIPTS.includes(live) ? (live as StreamScript) : "ok",
       pushOff: params.get("push") === "off",

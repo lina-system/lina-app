@@ -314,8 +314,6 @@ export const W = {
   progress: (done: number, total: number) => `${done}/${total}`,
   runningCount: (n: number) => `진행 중 ${n}`,
 
-  doneRecent: "최근 완료",
-  doneOlder: "완료",
   doneSoFar: "완료된 것",
   round: (n: number) => `라운드 ${n}`,
   summariesStopped: "요약 중단됨",

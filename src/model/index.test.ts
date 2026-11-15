@@ -186,8 +186,7 @@ test("a run with a card is never a row of its own, whether or not the cards list
   const shown = [
     ...model.running.rows,
     ...model.home.waiting.rows,
-    ...model.home.recent.rows,
-    ...model.home.older.rows,
+    ...model.home.finished.rows,
     ...model.done,
     ...model.inbox.rows.flatMap((row) => (row.type === "review" ? [row.card] : [])),
     ...model.agents.flatMap((agent) => Object.values(agentView(model, agent.id) ?? {}).flatMap((section) => (section && typeof section === "object" && "rows" in section ? (section.rows as { id: string }[]) : []))),
@@ -332,7 +331,7 @@ test("a stop reads its reason first in the core's real shapes, and a scheduled o
 
 test("no row is untitled: work nothing names is not listed, no line counts it, and it stays in the lookup", () => {
   const model = homeModel();
-  const rows = [...model.running.rows, ...model.home.waiting.rows, ...model.home.recent.rows, ...model.home.older.rows, ...model.done, ...model.home.review.rows.flatMap((row) => (row.type === "review" ? [row.card] : []))];
+  const rows = [...model.running.rows, ...model.home.waiting.rows, ...model.home.finished.rows, ...model.done, ...model.home.review.rows.flatMap((row) => (row.type === "review" ? [row.card] : []))];
   expect(rows.filter((row) => row.title === null).map((row) => row.id)).toEqual([]);
   // r14 has no goal, to-do, card or checked title, and its own title is a file name.
   expect(model.cards.get("r14")?.name).toBe("제목 없음");
@@ -383,7 +382,7 @@ test("a finished worker run is no row in the finished groups; both runs of a tas
   const model = homeModel(generateScene(SYNTHETIC_SEED, { now: NOW }));
   expect(model.done.every((row) => row.kind === "card")).toBe(true);
   for (const id of ["r7", "r8"]) expect(model.cards.has(id) && model.unlisted.has(id), id).toBe(true);
-  expect(model.counts.done).toBe(model.home.recent.rows.length + model.home.older.rows.length);
+  expect(model.counts.done).toBe(model.home.finished.rows.reduce((sum, line) => sum + (line.repeat ?? 1), 0));
 });
 
 test("a row is titled by its goal first; with no goal by its card's title (lina-app#122)", () => {

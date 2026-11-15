@@ -108,7 +108,10 @@ export class Live {
     this.host.addEventListener("online", onResume);
     this.host.addEventListener("pageshow", onResume);
     void this.store.refresh();
-    if (this.host.document.visibilityState !== "hidden") this.connect();
+    // The stream draws nothing on the first screen: it opens once the first refresh has landed (lina-app#186).
+    void this.store.painted.then(() => {
+      if (!this.stopped && !this.socket && this.timer === null && this.host.document.visibilityState !== "hidden") this.connect();
+    });
     return () => {
       this.stopped = true;
       this.pause();

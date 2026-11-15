@@ -660,9 +660,9 @@ export function AgentCard({ agent, folded = false }: { agent: string; folded?: b
       <ListSection section={view.goals} render={(goal) => <GoalLine key={goal.id} goal={{ ...goal, href: href({ name: "talk", id: agent, goal: goal.id }) }} showAgent={false} count />} />
       <ul class="rows" aria-label={W.done}>
         <li class="row" data-testid="card-done-today">
-          <Link href={href({ name: "done", agent })} label={W.doneToday(view.doneToday.count)}>
+          <Link href={href({ name: "done", agent })} label={view.doneToday ? W.doneToday(view.doneToday.count) : W.loading}>
             <span class="lines">
-              <span class="title">{W.doneToday(view.doneToday.count)}</span>
+              <span class="title">{view.doneToday ? W.doneToday(view.doneToday.count) : W.loading}</span>
             </span>
             <Disclosure />
           </Link>

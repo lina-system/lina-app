@@ -3,7 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { routePath, USAGE_RANGES, type RouteName } from "./api/client";
 import { App } from "./app";
 import { HttpSource } from "./data/http-source";
-import { Store } from "./data/store";
+import { FINISHED_SHOWN, Store } from "./data/store";
 import { SyntheticSource } from "./data/synthetic-source";
 
 /** As many work cards as the hub listed when the first screen took a minute (lina-app#100). */
@@ -37,14 +37,18 @@ function editedCards(edit: <C extends Times & { id: string }>(card: C) => C): Sy
 /** Routes the fake core serves, by their path on the core. */
 const SERVED: readonly (readonly [RouteName, string?])[] = [["board"], ["items"], ["goals"], ["cards"], ["inbox"], ["devices"], ["quota"], ...USAGE_RANGES.map((range) => ["usage", range] as const), ["modelsState"], ["checks"], ["settingsModels"]];
 
-/** A core on fetch: the scene's answers by path, every request kept, a card's detail answered `delayMs` late. */
+/**
+ * A core on fetch: the scene's answers by path, every request kept, a card's detail answered `delayMs` late. The cards
+ * list takes `finished_limit` (lina#729).
+ */
 function fakeCore(scene: SyntheticSource, delayMs = 0) {
   const requests: string[] = [];
   const byPath = new Map(SERVED.map(([name, id]) => [routePath(name, id), [name, id] as const]));
   const fetchImpl = (async (input: string) => {
     requests.push(input);
     const card = CARD_DETAIL.exec(input);
-    const route = card ? (["card", decodeURIComponent(card[1])] as const) : (byPath.get(input) ?? (input.includes("/record") ? (["record", decodeURIComponent(input.split("/").at(-2) ?? "")] as const) : undefined));
+    const limit = new URL(input, "http://core").searchParams.get("finished_limit");
+    const route = limit !== null ? (["cards", limit] as const) : card ? (["card", decodeURIComponent(card[1])] as const) : (byPath.get(input) ?? (input.includes("/record") ? (["record", decodeURIComponent(input.split("/").at(-2) ?? "")] as const) : undefined));
     if (!route) return new Response("{}", { status: 404 });
     if (card && delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
     const result = await scene.read(route[0], route[1]);
@@ -93,8 +97,9 @@ test(`the first load of ${CARDS} work cards reads the lists once and no card's d
   const core = fakeCore(manyCards());
   const { store, view } = mount("#/running", core);
   await waitFor(() => expect(store.refreshes).toBeGreaterThan(0));
-  await waitFor(() => expect(homeCards(view)).toBeGreaterThan(CARDS - 10));
-  expect(core.requests.filter((url) => url.endsWith("/api/plugins/kanban/work/cards"))).toHaveLength(1);
+  // The unfinished cards and the newest finished ones (lina-app#186), from one read of the list.
+  await waitFor(() => expect(view.getByTestId("section-finished").querySelectorAll("[data-testid=row]")).toHaveLength(FINISHED_SHOWN));
+  expect(core.requests.filter((url) => url.includes("/api/plugins/kanban/work/cards"))).toEqual([`/api/plugins/kanban/work/cards?finished_limit=${FINISHED_SHOWN}`]);
   expect(core.details()).toEqual([]);
 
   window.location.hash = "#/cards/k-1100";
@@ -110,8 +115,7 @@ test("unopened cards take their times from the list row: a finished card's end, 
   await waitFor(() => expect(rowSub(view, "k-105")).toBeTruthy());
   expect.soft(rowSub(view, "k-105")).toBe("완료 · 2시간 전");
   // r7 and r8 are worker runs with no card: no row (lina-app#141).
-  expect.soft(sectionTimes(view, "recent")).toEqual(["완료 · 2시간 전"]);
-  expect.soft(view.queryByTestId("section-older")).toBeNull();
+  expect.soft(sectionTimes(view, "finished")).toEqual(["완료 · 2시간 전"]);
   expect.soft(rowSub(view, "k-103")).toBe("중단됨 · 응답 없음 · 20분 전");
   expect(core.details()).toEqual([]);
 });
@@ -128,8 +132,7 @@ test("a core whose rows carry neither time: an unopened finished card has no tim
   const { store, view } = mount("#/running", core);
   await waitFor(() => expect(store.refreshes).toBeGreaterThan(0));
   await waitFor(() => expect(rowSub(view, "k-105")).toBe("완료"));
-  expect(view.queryByTestId("section-recent")).toBeNull();
-  expect(sectionTimes(view, "older")).toEqual(["완료"]);
+  expect(sectionTimes(view, "finished")).toEqual(["완료"]);
   expect(rowSub(view, "k-103")).toBe("중단됨 · 응답 없음 · 52분 전");
   expect(core.details()).toEqual([]);
 });
@@ -244,6 +247,10 @@ test("the lists draw while a card's detail takes 30 seconds; the open card shows
   const waitingLines = () => [...view.container.querySelectorAll("p.empty")].map((line) => line.textContent);
   expect(waitingLines().length).toBeGreaterThan(0);
   expect(waitingLines().every((line) => line === "불러오는 중")).toBe(true);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1_000);
+  });
+  // A finished card the first page of the list does not hold: the rest of the finished cards are read (lina-app#186).
   await act(async () => {
     await vi.advanceTimersByTimeAsync(1_000);
   });

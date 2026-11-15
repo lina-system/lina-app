@@ -38,6 +38,8 @@ export interface ModelInput {
   readonly cards?: WorkCardList;
   /** When the cards list was received; `elapsedSeconds` counts from here. */
   readonly cardsAt?: number;
+  /** Every finished card the core holds and whether `cards` holds them all (lina-app#186); absent: it holds them all. */
+  readonly finished?: { readonly total: number; readonly all: boolean };
   readonly inbox?: WorkInbox;
   readonly devices?: DevicesView;
   readonly quota?: QuotaView;
@@ -212,7 +214,8 @@ export interface AgentView {
   /** Cards just created and not started (예정), newest first; only here, never on the home. */
   readonly planned: Section<CardRow>;
   readonly goals: Section<GoalRow>;
-  readonly doneToday: Section<CardRow>;
+  /** Null while the page holds only the newest finished cards (lina-app#186): no count from a list not read. */
+  readonly doneToday: Section<CardRow> | null;
 }
 
 export interface Counts {
@@ -244,9 +247,11 @@ export interface Home {
   readonly stopped: Section<CardRow>;
   /** Waiting cards the 검토 필요 group does not already hold. */
   readonly waiting: Section<CardRow>;
-  /** Finished in the last 24 hours, newest first. */
-  readonly recent: Section<CardRow>;
-  readonly older: Section<CardRow>;
+  /**
+   * 완료 (lina-app#186): the finished lines the page read, the last 24 hours first, each part newest first. Its count is
+   * every finished card the core holds, a `×n` line standing for n of them, the number the sidebar shows.
+   */
+  readonly finished: Section<CardRow>;
 }
 
 const HANGUL = /\p{Script=Hangul}/u;
@@ -262,6 +267,8 @@ export interface Model {
   readonly running: { readonly sections: readonly Section<CardRow>[]; readonly rows: readonly CardRow[] };
   readonly due: { readonly sections: readonly Section<DueRow>[]; readonly rows: readonly DueRow[] };
   readonly done: readonly CardRow[];
+  /** Finished cards the core holds that the page has not read (the fold's 외 n개), and whether it read them all. */
+  readonly finished: { readonly more: number; readonly all: boolean };
   readonly home: Home;
   /** The writer of the checked lines stopped: the screens say the summaries stopped. */
   readonly summariesStopped: boolean;
@@ -454,12 +461,12 @@ function collapsed(rows: readonly CardRow[]): CardRow[] {
 }
 
 /**
- * Finished cards as the lines they are listed in (lina-app#168, #179): the last 24 hours first, then the older ones, each
- * part collapsed. The work tab's two groups, the 완료 screen and the sidebar's 완료 read these same lines.
+ * Finished cards as the lines they are listed in (lina-app#168, #179, #186): the last 24 hours first, then the older
+ * ones, collapsed as one list, so a line never shows twice. The work tab's 완료 group and the 완료 screen list these.
  */
-function doneLines(done: readonly CardRow[], now: number): { recent: CardRow[]; older: CardRow[] } {
+function doneLines(done: readonly CardRow[], now: number): CardRow[] {
   const recent = done.filter((card) => card.endedAt !== null && now - card.endedAt < RECENT_SECONDS);
-  return { recent: collapsed(recent), older: collapsed(done.filter((card) => !recent.includes(card))) };
+  return collapsed([...recent, ...done.filter((card) => !recent.includes(card))]);
 }
 
 /** The one naming rule: that title, else the kind of work (코드 작업, 문서 작업, 조사, 기기 작업). */
@@ -678,6 +685,9 @@ export function buildModel(input: ModelInput, now: number): Model {
   const done = apart(allCards.filter((card) => card.state === "done").sort(newestFirst((card) => card.endedAt)), now);
   const waiting = apart(allCards.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt)), now);
   const finished = doneLines(done, now);
+  // The core counts every finished card (lina#729); the ones it sent that no list shows are not counted here either.
+  const finishedSent = (cards?.cards ?? []).filter((card) => card.state === "done").length;
+  const finishedTotal = input.finished ? input.finished.total - (finishedSent - done.length) : done.length;
 
   // Inbox: decisions (oldest first), finished runs waiting on the owner, then the owner's own to-dos.
   const goalTitleOfCard = (cardId: string) => input.goals?.goals.find((goal) => goal.workCards.some((card) => card.id === cardId))?.title;
@@ -832,6 +842,7 @@ export function buildModel(input: ModelInput, now: number): Model {
     running: { sections: runningSections, rows: runningRows },
     due: { sections: dueSections, rows: dueRows },
     done,
+    finished: { more: finishedTotal - done.length, all: input.finished?.all ?? true },
     home: {
       decisions: inboxSections[0].count,
       review: inboxSections[1],
@@ -840,8 +851,7 @@ export function buildModel(input: ModelInput, now: number): Model {
       planned: section("planned", STATE_WORD.planned, planned),
       stopped: section("stopped", STATE_WORD.stopped, stopped),
       waiting: section("waiting", STATE_WORD.waiting, waiting.filter((card) => !reviewRows.some((row) => row.type === "review" && row.card.id === card.id))),
-      recent: section("recent", W.doneRecent, finished.recent),
-      older: section("older", W.doneOlder, finished.older),
+      finished: { ...section("finished", W.done, finished), count: finishedTotal },
     },
     summariesStopped: board?.writer.state === "stopped",
     goals,
@@ -868,7 +878,7 @@ export function buildModel(input: ModelInput, now: number): Model {
       running: running.length,
       stopped: stopped.length,
       due: dueRows.length,
-      done: finished.recent.length + finished.older.length,
+      done: finishedTotal,
       goals: goals.length,
       notices: notices.length,
       unread: (board?.counts.unread ?? allNotices.filter((notice) => !notice.read).length) - hiddenUnread,
@@ -894,8 +904,7 @@ export function latestActivity(cards: Iterable<CardRow>): number | null {
 
 /** 완료, for every agent or for one: its lines (doneLines); the filter's counts and the list are this one list. */
 export function doneFor(model: Model, agentId?: string): readonly CardRow[] {
-  const { recent, older } = doneLines(agentId ? model.done.filter((card) => card.agent === agentId) : model.done, model.now);
-  return [...recent, ...older];
+  return doneLines(agentId ? model.done.filter((card) => card.agent === agentId) : model.done, model.now);
 }
 
 /** A goal's or to-do's state line (lina-app#179): its fold, or while a decision on it is open, that wait since it was asked. */
@@ -947,7 +956,7 @@ export function agentView(model: Model, agentId: string): AgentView | null {
     })
     .filter(({ goal, holds }) => goal.agent === agentId || holds)
     .map(({ row }) => row);
-  const doneToday = model.done.filter((card) => card.agent === agentId && card.endedAt !== null && localDay(card.endedAt) === model.today);
+  const doneToday = model.finished.all ? model.done.filter((card) => card.agent === agentId && card.endedAt !== null && localDay(card.endedAt) === model.today) : null;
   return {
     agent,
     latest: latestActivity(mine),
@@ -955,7 +964,7 @@ export function agentView(model: Model, agentId: string): AgentView | null {
     review: section("review", W.agentReview, apart(review, model.now)),
     planned: section("planned", STATE_WORD.planned, apart(planned, model.now)),
     goals: section("goals", W.agentGoals, goals),
-    doneToday: section("done", W.done, doneToday),
+    doneToday: doneToday && section("done", W.done, doneToday),
   };
 }
 

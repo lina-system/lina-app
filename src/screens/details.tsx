@@ -913,7 +913,7 @@ export function CardScreen({ id }: { id: string }) {
     .filter((row, index, all) => row.kind === "comment" && !held.has(plainText(row.text ?? "").trim()) && all.findIndex((other) => other.at === row.at && other.text === row.text) === index);
   const commentLines = cardCommentLines(detail.comments, recorded);
   const recordFailed = workerRuns.some((worker) => store.status("record", worker.id) === "failed");
-  const fold = [...model.home.recent.rows, ...model.home.older.rows].find((line) => line.fold?.some((card) => card.id === id))?.fold;
+  const fold = model.home.finished.rows.find((line) => line.fold?.some((card) => card.id === id))?.fold;
   const askHere = Boolean(ask && !readOnly && !everyQuestion.length && !answering(`answer:${id}`));
   const nowLine = detail.plain.now && state === "in_progress" ? detail.plain.now : null;
   // A card with nothing of its own yet (a planned one: no to-do, run, line or comment) says so in one line under its head,

@@ -5,6 +5,12 @@ import { currentSettings, historyView, invalidDetail, modelsView, revisionOf, se
 import { base64UrlBytes, type PushManagerLike, type PushSubscriptionLike } from "../push";
 import { nowSeconds, type AgentTalkResult, type ChangeHandlers, type ChangeSocket, type ReadResult, type Renewal, type Source, type TalkResult, type WriteResult } from "./source";
 
+/** The cards as the core pages them (lina#729): every unfinished card, the newest `limit` finished ones, and their total. */
+function finishedPage(list: Scene["cards"], limit: number): Routes["cards"] {
+  const finished = list.cards.filter((card) => card.state === "done").sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0));
+  return { ...list, cards: [...list.cards.filter((card) => card.state !== "done"), ...finished.slice(0, limit)], finishedTotal: finished.length };
+}
+
 function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
   switch (name) {
     case "board":
@@ -28,7 +34,7 @@ function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
     case "goal":
       return scene.goals.goals.find((goal) => goal.id === id);
     case "cards":
-      return scene.cards;
+      return id === undefined ? scene.cards : finishedPage(scene.cards, Number(id));
     case "card":
       return id ? scene.cardDetails[id] : undefined;
     case "inbox":
@@ -345,7 +351,7 @@ export class SyntheticSource implements Source {
   private readonly signing = new Set<string>();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null } = {}) {
     this.staleNext = options.settings === "stale";
     this.raceNext = options.settings === "race";
     this.talkRefusal = options.talk ?? null;
@@ -365,6 +371,7 @@ export class SyntheticSource implements Source {
         manyTodos: options.manyTodos,
         hubRound9: options.hubRound9,
         hubRound11: options.hubRound11,
+        manyFinished: options.manyFinished,
         settings: options.settings === "stale" || options.settings === "race" ? null : options.settings,
         power: options.power,
       });

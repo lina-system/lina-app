@@ -6,12 +6,15 @@ import { W } from "../words";
 
 export const PushCtx = createContext<Push | null>(null);
 
-/** One Push per page: it reads the core's key once and resends a held subscription, without asking for anything. */
-export function usePushFor(source: Source, host: PushHost, open: (request: OpenRequest) => void): Push {
+/**
+ * One Push per page: it reads the core's key once and resends a held subscription, without asking for anything. The key
+ * is read once `ready` resolves, after the open screen's first lists are on screen (lina-app#186).
+ */
+export function usePushFor(source: Source, host: PushHost, ready: Promise<void>, open: (request: OpenRequest) => void): Push {
   const [, setTick] = useState(0);
   const push = useMemo(() => new Push(source, host, () => setTick((value) => value + 1)), [source, host]);
   useEffect(() => {
-    void push.start();
+    void ready.then(() => push.start());
   }, [push]);
   useEffect(() => host.onOpen(open), [host]);
   return push;

@@ -110,13 +110,17 @@ function RetryControl({ card }: { card: CardRow }) {
 const MINE_SHOWN = 3;
 const STOPPED_SHOWN = 5;
 
-/** The one fold under a capped group: `외 n개`, the rows it holds; choosing it opens them in place. */
-function MoreRow({ title, hidden, onOpen }: { title: string; hidden: number; onOpen: () => void }) {
+/**
+ * The one fold under a capped group: `외 n개`, the rows it holds; choosing it opens them in place. While they are read
+ * (`loading`), the same line says 불러오는 중, so nothing above it moves.
+ */
+function MoreRow({ title, hidden, onOpen, loading = false }: { title: string; hidden: number; onOpen: () => void; loading?: boolean }) {
+  const line = loading ? W.loading : W.more(hidden);
   return (
-    <li class="row more-row">
-      <button type="button" class="row-button" aria-expanded={false} aria-label={`${title} ${W.more(hidden)}`} onClick={onOpen}>
+    <li class="row more-row" aria-busy={loading ? "true" : undefined}>
+      <button type="button" class="row-button" aria-expanded={false} aria-label={`${title} ${line}`} disabled={loading} onClick={onOpen}>
         <span class="lines">
-          <span class="sub one-line">{W.more(hidden)}</span>
+          <span class="sub one-line">{line}</span>
         </span>
         <Disclosure />
       </button>
@@ -199,7 +203,7 @@ function MineSection({ section }: { section: Section<InboxRow> }) {
 export function RunningScreen() {
   const { model, store } = useApp();
   const { home } = model;
-  if (!home.decisions && !home.review.rows.length && !home.mine.rows.length && !model.running.rows.length && !home.planned.rows.length && !home.waiting.rows.length && !model.done.length) {
+  if (!home.decisions && !home.review.rows.length && !home.mine.rows.length && !model.running.rows.length && !home.planned.rows.length && !home.waiting.rows.length && !model.counts.done) {
     // Nothing yet, but the owner can still write the first to-do (lina-app#95); while loading, only the loading line.
     if (store.version === 0) return <Empty />;
     return (
@@ -236,12 +240,34 @@ export function RunningScreen() {
       <StoppedSection section={home.stopped} />
       <ListSection section={home.planned} render={(card) => <CardRowView key={card.key} card={card} />} />
       <ListSection section={home.waiting} render={(card) => <CardRowView key={card.key} card={card} />} />
-      {[home.recent, home.older].map((section) => (
-        // A line standing for cards whose lines read the same says how many (lina-app#168).
-        <ListSection key={section.id} section={section} render={(card) => <CardRowView key={card.key} card={repeatedLine(card)} />} />
-      ))}
+      <FinishedSection section={home.finished} />
     </div>
   );
+}
+
+/**
+ * 완료 on the work tab (lina-app#186): its head counts every finished card, a line standing for cards whose lines read the
+ * same saying how many (lina-app#168). The page reads the newest few; one fold `외 n개` under them reads the rest.
+ */
+function FinishedSection({ section }: { section: Section<CardRow> }) {
+  const { model, store } = useApp();
+  if (!section.count) return null;
+  return (
+    <section class="list-section" data-testid={`section-${section.id}`}>
+      <SectionHead section={section} />
+      <ul class="rows" aria-label={section.title}>
+        {section.rows.map((card) => (
+          <CardRowView key={card.key} card={repeatedLine(card)} />
+        ))}
+        {model.finished.more > 0 ? <MoreRow title={section.title} hidden={model.finished.more} loading={store.finished().loading} onOpen={() => void store.showFinished()} /> : null}
+      </ul>
+    </section>
+  );
+}
+
+/** The cards finished lines stand for: one each, n for a `×n` line. */
+function lineCards(lines: readonly CardRow[]): number {
+  return lines.reduce((sum, line) => sum + (line.repeat ?? 1), 0);
 }
 
 function DueRowView({ row }: { row: DueRow }) {
@@ -290,11 +316,13 @@ function repeatedLine(card: CardRow): CardRow {
 
 /**
  * 완료, for every agent or one. The filter is the address (`#/done?agent=<id>`), so it survives a reload and every
- * live update; each choice's count is the length of the list it shows: the lines the work tab lists (lina-app#179).
+ * live update; each choice's count is the cards of the lines it shows, the lines the work tab lists (lina-app#179). It
+ * counts nothing until the page holds every finished card (lina-app#186).
  */
 export function DoneScreen({ agent }: { agent?: string }) {
   const { model } = useApp();
   if (!model.counts.done) return <Empty />;
+  if (!model.finished.all) return <p class="empty">{W.loading}</p>;
   const shown = doneFor(model, agent);
   const choose = (id?: string) => navigate(id ? { name: "done", agent: id } : { name: "done" }, { replace: true, direction: "none" });
   const choices = [{ id: undefined as string | undefined, name: W.allAgents }, ...model.agents.map((each) => ({ id: each.id as string | undefined, name: each.name }))];
@@ -302,7 +330,7 @@ export function DoneScreen({ agent }: { agent?: string }) {
     <div class="list" data-testid="screen-done">
       <div class="filter" role="group" aria-label={W.agents} data-testid="done-filter">
         {choices.map((choice) => {
-          const count = doneFor(model, choice.id).length;
+          const count = lineCards(doneFor(model, choice.id));
           return (
             <button key={choice.id ?? "all"} type="button" class="choice" aria-pressed={choice.id === agent} aria-label={`${choice.name} ${count}`} onClick={() => choose(choice.id)}>
               {choice.name}
@@ -375,12 +403,13 @@ export function TodayScreen() {
   const { model } = useApp();
   const decide = model.inbox.rows.filter((row) => row.type === "decide").length;
   const dueToday = model.due.sections.find((section) => section.id === "today")?.rows.length ?? 0;
-  const doneToday = model.done.filter((card) => card.endedAt !== null && localDay(card.endedAt) === model.today).length;
+  // Counted only from every finished card (lina-app#186); until the page holds them, the line says it is reading.
+  const doneToday = model.finished.all ? model.done.filter((card) => card.endedAt !== null && localDay(card.endedAt) === model.today).length : null;
   const rows: { id: string; to: string; text: string; stopped?: number }[] = [
     { id: "decide", to: href({ name: "inbox" }), text: W.todayDecide(decide) },
     { id: "running", to: href({ name: "running" }), text: W.todayRunning(model.counts.running), stopped: model.counts.stopped },
     { id: "due", to: href({ name: "due" }), text: W.todayDue(dueToday) },
-    { id: "done", to: href({ name: "done" }), text: W.todayDone(doneToday) },
+    { id: "done", to: href({ name: "done" }), text: doneToday === null ? W.loading : W.todayDone(doneToday) },
   ];
   return (
     <div class="list" data-testid="screen-today">
@@ -440,9 +469,9 @@ export function AgentScreen({ id }: { id: string }) {
       <ListSection section={view.goals} render={(goal) => <GoalLine key={goal.id} goal={goal} showAgent={false} />} />
       <ul class="rows" aria-label={W.done}>
         <li class="row" data-testid="done-today">
-          <Link href={href({ name: "done", agent: id })} label={W.doneToday(view.doneToday.count)}>
+          <Link href={href({ name: "done", agent: id })} label={view.doneToday ? W.doneToday(view.doneToday.count) : W.loading}>
             <span class="lines">
-              <span class="title">{W.doneToday(view.doneToday.count)}</span>
+              <span class="title">{view.doneToday ? W.doneToday(view.doneToday.count) : W.loading}</span>
             </span>
             <Disclosure />
           </Link>

@@ -140,7 +140,7 @@ function duplicates(rows: readonly CardRow[]): number {
 
 test("no two rows of a group read the same: line 1 is the goal's title, line 2 the card's own name, then when it moved (lina-app#148, #152)", () => {
   const model = realModel();
-  const groups: Section<CardRow>[] = [model.home.stopped, model.home.active, model.home.planned, model.home.waiting, model.home.recent, model.home.older];
+  const groups: Section<CardRow>[] = [model.home.stopped, model.home.active, model.home.planned, model.home.waiting, model.home.finished];
   for (const group of groups) expect(duplicates(group.rows), group.id).toBe(0);
   expect(duplicates(model.done)).toBe(0);
   const agent = agentView(model, "ag-a");
@@ -165,26 +165,22 @@ test("no two rows of a group read the same: line 1 is the goal's title, line 2 t
 const deploy = (id: string, hash: string, endedAt: number) => row(id, `가짜 코어를 dev ${hash}로, 앱 빌드를 올리기 (가짜 반영 · #12 · · FAKE_KEY 확인)`, "done", { endedAt });
 const DEPLOY = "가짜 코어를, 앱 빌드를 올리기 (가짜 반영 · 확인)";
 
-test("finished cards whose visible lines are equal collapse to one line with their count and the newest time; the head counts lines (lina-app#168)", () => {
+test("finished cards whose visible lines are equal collapse to one line with their count and the newest time; the head counts the cards (lina-app#168, #186)", () => {
   const older = ["1a2b3c4d", "5e6f7a8b", "9c0d1e2f", "3a4b5c6d", "7e8f9a0b"].map((hash, index) => deploy(`h${index + 1}`, hash, NOW - 2 * DAY - index * 600));
   const recent = [deploy("r1", "aa11bb22", NOW - 1800), deploy("r2", "cc33dd44", NOW - 600), row("r3", "가짜 다른 정리", "done", { endedAt: NOW - 900 })];
   const model = realModel([...older, ...recent]);
-  // 완료: five cards, one line ×5, named as each of them reads, opening the newest.
-  expect(model.home.older.rows).toHaveLength(1);
-  expect(model.home.older.rows[0]).toMatchObject({ id: "h1", name: DEPLOY, repeat: 5, endedAt: NOW - 2 * DAY, when: null });
-  expect(model.home.older.count).toBe(1);
-  // 최근 완료: its own lines, the repeated two as one line with the newer end.
-  expect(model.home.recent.rows.map((each) => [each.id, each.repeat ?? 1])).toEqual([
-    ["r2", 2],
+  // 완료: the seven deploys, recent and older, are one line ×7 named as each of them reads, opening the newest.
+  expect(model.home.finished.rows.map((each) => [each.id, each.repeat ?? 1])).toEqual([
+    ["r2", 7],
     ["r3", 1],
   ]);
-  expect(model.home.recent.count).toBe(2);
-  // The sidebar's 완료 and the 완료 screen count and list these same lines (lina-app#179); the cards stay behind them.
-  expect(model.counts.done).toBe(3);
+  expect(model.home.finished.rows[0]).toMatchObject({ name: DEPLOY, endedAt: NOW - 600, when: null });
+  // The head, the sidebar's 완료 and the 완료 screen count the cards behind these same lines (lina-app#179, #186).
+  expect(model.home.finished.count).toBe(8);
+  expect(model.counts.done).toBe(8);
   expect(doneFor(model).map((each) => [each.id, each.repeat ?? 1])).toEqual([
-    ["r2", 2],
+    ["r2", 7],
     ["r3", 1],
-    ["h1", 5],
   ]);
   expect(model.done).toHaveLength(8);
 });

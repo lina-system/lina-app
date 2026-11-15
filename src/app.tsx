@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/ho
 import type { AppLabel } from "./data/http-source";
 import { startLive } from "./data/live";
 import { nowSeconds } from "./data/source";
-import { useClock, useStore, type Store, type Want } from "./data/store";
+import { SLOW_ROUTES, useClock, useStore, type Store, type Want } from "./data/store";
 import { buildModel, runRow, type Model } from "./model";
 import { back, baseOf, defaultListFor, href, isFrame, isList, linkClick, navigate, onSaveScroll, onStackMotion, parse, tabOf, tabRoot, TABS, useNav, type Route, type Tab } from "./router";
 import { slideMotion } from "./stack-motion";
@@ -92,6 +92,9 @@ function wantsFor(route: Route, store: Store): Want {
       const cardId = store.get("record", route.id)?.cardId;
       return cardId ? [["record", route.id], ["card", cardId]] : [["record", route.id]];
     }
+    case "status":
+      // Its machines, quota, usage, OCX's state and checks are drawn on its first screen, so they come with the lists.
+      return SLOW_ROUTES.filter(([name]) => name !== "settingsModels");
     case "settings":
     case "setting": {
       const want: Want = [["settings"], ["settingsModels"], ["settingsHistory", SETTINGS_HISTORY.recent]];
@@ -99,6 +102,30 @@ function wantsFor(route: Route, store: Store): Want {
     }
     default:
       return [];
+  }
+}
+
+/**
+ * Screens that list or count every finished card (완료, 오늘, an agent and its 대화 card, a goal's or to-do's cards, a
+ * finished card's fold) read them all; the work tab reads the newest few (lina-app#186). A card the list does not hold may
+ * be a finished one not read yet.
+ */
+function readsEveryFinished(route: Route, store: Store): boolean {
+  switch (route.name) {
+    case "done":
+    case "today":
+    case "agent":
+    case "talk":
+    case "goal":
+    case "item":
+      return true;
+    case "card": {
+      if (store.status("cards") === "pending") return false;
+      const card = store.get("cards")?.cards.find((each) => each.id === route.id);
+      return card === undefined || card.state === "done";
+    }
+    default:
+      return false;
   }
 }
 
@@ -785,7 +812,7 @@ export function App({ store, pushHost, label = null }: { store: Store; pushHost?
   const model = useMemo(() => buildModel({ ...store.input(), pending: actions.pending() }, now), [version, minute, actions.version]);
   const latest = useRef(model);
   latest.current = model;
-  const push = usePushFor(store.source, host, (request) => {
+  const push = usePushFor(store.source, host, store.painted, (request) => {
     navigate(pushHref(latest.current, request));
     // A reply's tag is the key the core read-marks, which closes that notification on every device. Opening a
     // decision, a stopped card or a question sends nothing: those close when the owner answers or retries.
@@ -803,8 +830,12 @@ export function App({ store, pushHost, label = null }: { store: Store; pushHost?
     if (tag.startsWith("reply:")) void actions.readNotices([tag]);
   }, [actions]);
 
-  useEffect(() => startLive(store), [store]);
-  useEffect(() => store.want(wantsFor(nav.route, store)), [nav.hash, version]);
+  // Before the first paint, not after it (lina-app#186): the reads leave while the browser draws the empty screen.
+  useLayoutEffect(() => startLive(store), [store]);
+  useLayoutEffect(() => {
+    store.want(wantsFor(nav.route, store));
+    if (readsEveryFinished(nav.route, store)) void store.showFinished();
+  }, [nav.hash, version]);
   useEffect(() => {
     if (nav.route.name !== "settings" && nav.route.name !== "setting") settingsEdits.editRules(false);
   }, [nav.route.name]);

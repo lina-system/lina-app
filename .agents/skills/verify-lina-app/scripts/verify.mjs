@@ -3358,7 +3358,8 @@ const drivers = {
       await field.press("Enter");
       await box().getByTestId("talk-live").waitFor({ timeout: 5_000 });
       await box().getByTestId("talk-reply").last().filter({ hasText: "알려 드릴게요." }).waitFor({ timeout: 10_000 });
-      check((await box().getByTestId("talk-live").count()) === 0, "the live dot stayed");
+      // The last piece of the reply draws before the turn ends: the dots go with its end, so wait for that, bounded.
+      await box().getByTestId("talk-live").waitFor({ state: "detached", timeout: 3_000 }).catch(() => check(false, "the live dot stayed"));
       check((await field.inputValue()) === "", "the field kept " + (await field.inputValue()));
       return "reply: " + (await box().getByTestId("talk-reply").last().locator(".talk-bubble").innerText());
     });
@@ -3397,6 +3398,8 @@ const drivers = {
       check(eight.height < (three / 3) * 6.5 && eight.scroll > eight.client, "8 lines: " + JSON.stringify(eight));
       await field.press("Enter");
       await box().getByTestId("talk-reply").nth(2).filter({ hasText: "알려 드릴게요." }).waitFor({ timeout: 10_000 });
+      // The turn ends after its last piece draws; the next step's send is refused until it does.
+      await box().getByTestId("talk-live").waitFor({ state: "detached", timeout: 3_000 }).catch(() => check(false, "the live dot stayed after the reply"));
       const after = (await field.boundingBox()).height;
       check(Math.abs(after - one) < 2, "the empty field is " + after + " px, not " + one);
       return Math.round(one) + " -> " + Math.round(three) + " -> " + Math.round(eight.height) + " px; sent, back to " + Math.round(after);

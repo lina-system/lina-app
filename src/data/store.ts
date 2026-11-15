@@ -334,9 +334,13 @@ export class Store {
    * cards read already out or landed is followed by one without a limit; before the first, the first asks for them all.
    */
   showFinished(): Promise<void> {
-    if (this.finishedAll) return this.finishing ?? Promise.resolve();
+    if (this.finishing) return this.finishing;
+    const entry = this.entries.get("cards");
+    // Asked for already: nothing to read while a read is out, before the first read, or once the page holds them all. A
+    // read that failed leaves the page with the few it had, so the next ask reads again.
+    if (this.finishedAll && (this.cardsReading > 0 || !entry || (entry.status === "ok" && this.finished().all))) return Promise.resolve();
     this.finishedAll = true;
-    if (!this.entries.has("cards") && !this.cardsReading) return Promise.resolve();
+    if (!entry && !this.cardsReading) return Promise.resolve();
     this.finishing = this.invalidate([["cards"]]).finally(() => {
       this.finishing = null;
       this.notify();

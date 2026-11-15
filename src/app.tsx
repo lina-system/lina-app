@@ -124,6 +124,12 @@ function readsEveryFinished(route: Route, store: Store): boolean {
       const card = store.get("cards")?.cards.find((each) => each.id === route.id);
       return card === undefined || card.state === "done";
     }
+    case "run": {
+      // A run's page names its card and links to it: an older finished card the page does not hold is read first.
+      const cardId = store.get("record", route.id)?.cardId;
+      if (cardId === undefined || store.status("cards") === "pending") return false;
+      return !store.get("cards")?.cards.some((each) => each.id === cardId);
+    }
     default:
       return false;
   }

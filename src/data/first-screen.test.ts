@@ -91,3 +91,25 @@ test("a core that does not know finished_limit sends every card: the total is th
   expect(urls).toContain(`/api/plugins/kanban/work/cards?finished_limit=${FINISHED_SHOWN}`);
   expect(store.finished()).toEqual({ total: 12, loaded: 12, all: true, loading: false });
 });
+
+test("a failed read of the rest of the finished cards is read again by the next ask, and a page that holds them all asks no more", async () => {
+  const source = new SyntheticSource({ now: NOW, manyFinished: true });
+  const names = asked(source);
+  const read = source.read.bind(source);
+  let refuse = true;
+  source.read = ((name, id) => (name === "cards" && id === undefined && refuse ? Promise.resolve({ kind: "failed", offline: false, at: NOW }) : read(name, id))) as Source["read"];
+  const store = new Store(source, { afterPaint: async () => {} });
+  await store.refresh();
+  const total = MANY_FINISHED + 1;
+
+  await store.showFinished();
+  expect(store.finished()).toEqual({ total, loaded: FINISHED_SHOWN, all: false, loading: false });
+
+  refuse = false;
+  await store.showFinished();
+  expect(store.finished()).toEqual({ total, loaded: total, all: true, loading: false });
+
+  const reads = names.filter((name) => name.startsWith("cards")).length;
+  await store.showFinished();
+  expect(names.filter((name) => name.startsWith("cards"))).toHaveLength(reads);
+});

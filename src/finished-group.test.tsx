@@ -1,7 +1,7 @@
 import { fireEvent, render, waitFor, within } from "@testing-library/preact";
 import { afterEach, expect, test, vi } from "vitest";
 import { App } from "./app";
-import { Store } from "./data/store";
+import { FINISHED_SHOWN, Store } from "./data/store";
 import { SyntheticSource } from "./data/synthetic-source";
 import { W } from "./words";
 
@@ -87,4 +87,19 @@ test("완료 opened first reads every finished card in its first read, and its �
   expect(cards[0]).toBeUndefined();
   const all = view.getByRole("button", { name: new RegExp(`^${W.allAgents} \\d+$`) });
   expect(Number(all.querySelector(".count")?.textContent)).toBe(sidebarDone(view));
+});
+
+test("a worker run opened on its own, whose card is an older finished one, reads that card: its title and the link to it", async () => {
+  const source = new SyntheticSource({ now: now(), manyFinished: true });
+  const finished = source.scene.cards.cards.filter((card) => card.state === "done").sort((a, b) => (a.endedAt ?? 0) - (b.endedAt ?? 0));
+  const old = finished[0];
+  // Past the few finished cards the work tab reads first.
+  expect(finished.slice(-FINISHED_SHOWN).map((card) => card.id)).not.toContain(old.id);
+  Object.assign(source.scene.cardDetails, { [old.id]: { ...source.scene.cardDetails["k-105"], id: old.id, workerRuns: [], runs: [] } });
+  Object.assign(source.scene.records, { r99: { ...source.scene.records.r1, id: "r99", cardId: old.id } });
+  const view = await open("#/runs/r99", source);
+  const run = await waitFor(() => view.getByTestId("screen-run"));
+  await waitFor(() => expect(run.querySelector(`a[href="#/cards/${old.id}"]`)).not.toBeNull());
+  expect(view.container.textContent).not.toContain(W.untitled);
+  expect(run.textContent).toContain(old.plain.title);
 });

@@ -173,11 +173,17 @@ export const STREAM_RESYNC_AFTER_MS = 2_000;
 /** `&live=token`: the core restarts with a new session token this long after the first connection opens. */
 export const STREAM_RESTART_AFTER_MS = 3_000;
 
+/** `&live=talk`: another device sends the first agent a message this long after the first connection opens. */
+export const STREAM_TALK_AFTER_MS = 3_000;
+
+/** The message another device sends on `&live=talk`. */
+export const OTHER_DEVICE_MESSAGE = "배포 순서는 정해졌어요?";
+
 /**
- * How the synthetic stream behaves (`&live=`): as the core, refusing every connection, dropping once, one resync, or
- * a core restart that hands out a new session token while another device writes.
+ * How the synthetic stream behaves (`&live=`): as the core, refusing every connection, dropping once, one resync,
+ * a core restart that hands out a new session token while another device writes, or another device's talk turn.
  */
-export type StreamScript = "ok" | "down" | "drop" | "resync" | "token";
+export type StreamScript = "ok" | "down" | "drop" | "resync" | "token" | "talk";
 
 /** Each scene's change log, shared by every source on it like the core's stores: `total` events so far. */
 interface ChangeLog {
@@ -208,6 +214,9 @@ function positionOf(log: ChangeLog, cursor: string): number | null {
   const at = Number(match[2]);
   return at > log.total || at < log.total - log.events.length ? null : at;
 }
+
+/** Each agent's app conversation, as its gateway keeps it: one per scene, so every device on it reads the same. */
+const agentTalksOf = new WeakMap<Scene, Map<string, AgentTalkHistory["messages"]>>();
 
 function eventsAfter(log: ChangeLog, at: number): ChangeEvent[] {
   return log.events.slice(log.events.length - (log.total - at));
@@ -317,7 +326,11 @@ export class SyntheticSource implements Source {
   private readonly marks = new Map<string, DoneMark | null>();
   private readonly talkRefusal: TalkRefusal | null;
   /** The owner's window on each agent, as its gateway keeps it: the first agent has two earlier turns, the rest none. */
-  readonly agentTalks = new Map<string, AgentTalkHistory["messages"]>();
+  get agentTalks(): Map<string, AgentTalkHistory["messages"]> {
+    let talks = agentTalksOf.get(this.scene);
+    if (!talks) agentTalksOf.set(this.scene, (talks = new Map()));
+    return talks;
+  }
   private readonly connections = new Set<Connection>();
   private readonly script: StreamScript;
   /** `&error=checks`: the hub's checks route does not answer, while every other route still does. */
@@ -506,10 +519,12 @@ export class SyntheticSource implements Source {
   async readNotices(body: NoticesReadRequest): Promise<WriteResult<NoticesReadResult>> {
     const keys = "keys" in body ? body.keys : null;
     if (keys && !keys.length) return fail(400, "keys is a non-empty list of notice keys");
-    for (const notice of this.scene.board.notices) if (!keys || keys.includes(notice.key)) notice.read = true;
+    const marked = this.scene.board.notices.filter((notice) => !notice.read && (!keys || keys.includes(notice.key)));
+    for (const notice of marked) notice.read = true;
     const unread = this.scene.board.notices.filter((notice) => !notice.read).length;
     this.scene.board.counts.unread = unread;
-    this.changed(work("notices_read", keys?.join(",") ?? "all"));
+    // As the core (lina#742): one `notices` event naming the owner, only when the marks changed.
+    if (marked.length) this.changed({ source: "notices", kind: "read", id: SYNTHETIC_OWNER.id });
     return { ok: true, data: { ok: true, unread } };
   }
 
@@ -528,10 +543,15 @@ export class SyntheticSource implements Source {
     const agent = detail.agent ?? (detail.parent ? this.scene.itemDetails[detail.parent]?.agent : null);
     if (!agent) return { ok: false, status: 409, code: "no_owning_agent" };
     const frames = syntheticTalkFrames(detail, agent, message, nowSeconds());
+    const over = () => this.talked(agent);
     async function* events(): AsyncGenerator<TalkEvent> {
-      for (const frame of frames) {
-        await wait(TALK_FRAME_MS, signal);
-        yield frame;
+      try {
+        for (const frame of frames) {
+          await wait(TALK_FRAME_MS, signal);
+          yield frame;
+        }
+      } finally {
+        over();
       }
     }
     return { ok: true, events: events() };
@@ -547,14 +567,36 @@ export class SyntheticSource implements Source {
     const at = nowSeconds();
     const frames = syntheticAgentTalkFrames(agent, message, at);
     const kept = this.agentHistory(agent);
+    const over = () => this.talked(agent);
     async function* events(): AsyncGenerator<AgentTalkEvent> {
-      for (const frame of frames) {
-        await wait(TALK_FRAME_MS, signal);
-        if (frame.event === "assistant.completed") kept.push({ role: "user", content: `${APP_FIRST_LINE}\n${message}`, timestamp: at }, { role: "assistant", content: frame.data.content, timestamp: nowSeconds() });
-        yield frame;
+      try {
+        for (const frame of frames) {
+          await wait(TALK_FRAME_MS, signal);
+          if (frame.event === "assistant.completed") kept.push({ role: "user", content: `${APP_FIRST_LINE}\n${message}`, timestamp: at }, { role: "assistant", content: frame.data.content, timestamp: nowSeconds() });
+          yield frame;
+        }
+      } finally {
+        over();
       }
     }
     return { ok: true, events: events() };
+  }
+
+  /**
+   * A talk turn's stream is over, as the core's `_relay` ends it (lina#742): one `talk` event naming the agent, which
+   * reads it back from the agent's conversation. The scene does not change, so no snapshot route answers anew.
+   */
+  private talked(agent: string): void {
+    this.logged({ source: "talk", kind: "message", id: agent });
+  }
+
+  /** `&live=talk`: another device sends the first agent a message, and its reply is kept by the time the event goes out. */
+  private anotherDeviceTalks(): void {
+    const agent = this.scene.items.agents[0]?.id;
+    if (!agent) return;
+    const at = nowSeconds();
+    this.agentHistory(agent).push({ role: "user", content: `${APP_FIRST_LINE}\n${OTHER_DEVICE_MESSAGE}`, timestamp: at }, { role: "assistant", content: AGENT_REPLY_DELTAS.join(""), timestamp: at });
+    this.talked(agent);
   }
 
   async agentTalkHistory(agent: string): Promise<ReadResult<AgentTalkHistory>> {
@@ -623,6 +665,7 @@ export class SyntheticSource implements Source {
       if (opening && this.script === "drop") setTimeout(() => this.dropWhileAnotherDeviceWrites(), STREAM_DROP_AFTER_MS);
       if (opening && this.script === "resync") setTimeout(() => this.resyncStreams(), STREAM_RESYNC_AFTER_MS);
       if (opening && this.script === "token") setTimeout(() => this.restartCore(), STREAM_RESTART_AFTER_MS);
+      if (opening && this.script === "talk") setTimeout(() => this.anotherDeviceTalks(), STREAM_TALK_AFTER_MS);
     });
     return { close: () => this.end(connection, false) };
   }
@@ -918,6 +961,11 @@ export class SyntheticSource implements Source {
    */
   protected changed(...events: Omit<ChangeEvent, "at">[]): void {
     versions.set(this.scene, (versions.get(this.scene) ?? 0) + 1);
+    this.logged(...events);
+  }
+
+  /** The change goes into the scene's log for every stream on it; the routes keep answering unchanged. */
+  private logged(...events: Omit<ChangeEvent, "at">[]): void {
     const log = logOf(this.scene);
     const at = Math.floor(nowSeconds());
     log.events.push(...events.map((event) => ({ ...event, at })));

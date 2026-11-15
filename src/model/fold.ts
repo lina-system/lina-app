@@ -1,3 +1,6 @@
+import { timesInText } from "../time";
+import { ROUND15_WORD } from "../words";
+
 /**
  * Whether a comment's sentence can show as it is. A comment that would show a path, a command, a hash, an issue
  * number, an address or a cut-off fragment shows as one folded entry instead (the dashboard's rule for comment
@@ -46,7 +49,7 @@ const SEPARATORS = /[\s·,:;/+-]+/g;
  * before a comma, and any separator or dash left at either end. The one place every fold of a hub sentence tidies.
  */
 export function tidyFoldedText(text: string): string {
-  let out = text.replace(/(["'\u201c\u2018])\s*(["'\u201d\u2019])/g, " ");
+  let out = text.replace(/(["'`\u201c\u2018])\s*(["'`\u201d\u2019])/g, " ");
   for (let before = ""; before !== out; ) {
     before = out;
     out = out
@@ -85,6 +88,64 @@ export function withoutRefs(text: string): string {
 
 /** A Korean particle standing as its own word: a ref written apart from its particle (`t_e6e0f90a 가`) leaves it alone. */
 const LONE_PARTICLE = String.raw`(?:으로|에서|까지|부터|이라|라고|가|은|는|을|를|라|로|와|과|도|의|만|에)(?=[\s.,!?。]|$)`;
+/** A particle's two forms, after a noun with a final consonant and after one without (을/를, 이/가, 은/는, 과/와, 이라/라). */
+const PARTICLE_FORMS: readonly (readonly [string, string])[] = [
+  ["을", "를"],
+  ["이", "가"],
+  ["은", "는"],
+  ["과", "와"],
+  ["으로", "로"],
+  ["이라고", "라고"],
+  ["이라", "라"],
+];
+
+/** The particle in the form the noun before it takes: `항목으로`, `파일로` (ㄹ takes 로), `폴더를`. */
+export function withParticle(noun: string, particle: string): string {
+  const code = noun.charCodeAt(noun.length - 1) - 0xac00;
+  const coda = code >= 0 && code < 11172 ? code % 28 : 0;
+  const pair = PARTICLE_FORMS.find((forms) => forms.includes(particle));
+  if (!pair) return noun + particle;
+  const consonant = pair[0] === "으로" ? coda !== 0 && coda !== 8 : coda !== 0;
+  return noun + (consonant ? pair[0] : pair[1]);
+}
+
+/** The ids a ref is made of, each alone: an issue, a card, goal or to-do id, a hash, a code-looking name. */
+const REF_NAME = String.raw`(?:${ISSUE_REF}|${CARD_ID}|${HASH}|${CODE})`;
+
+/**
+ * What kind of thing a name a person does not read names (ROUND15_WORD.nameKind), said where it stood (lina-app#207); null
+ * for a time of day, which has no noun to stand in.
+ */
+export function nameKind(name: string): string | null {
+  const kind = ROUND15_WORD.nameKind;
+  const core = name.replace(/^[`'"\u201c\u2018]+|[`'"\u201d\u2019]+$/g, "");
+  const whole = (pattern: string) => new RegExp(`^(?:${pattern})$`, "u").test(core);
+  if (/^\d{1,2}:\d{2}/.test(core)) return null;
+  if (whole(ISSUE_REF)) return kind.issue;
+  if (/^G\d+$/.test(core)) return kind.goal;
+  if (/^T\d+$/.test(core)) return kind.todo;
+  if (whole(CARD_ID) || /^(?:(?:표지\s*)?카드|[Cc]ard)\s*\d+$/u.test(core)) return kind.card;
+  if (whole(HASH)) return kind.commit;
+  if (core.includes("=")) return kind.value;
+  const reason = foldReason(core);
+  if (reason === "address") return kind.address;
+  if (reason === "path" || core.endsWith("/")) return /\.[A-Za-z][A-Za-z0-9]{0,4}$/.test(core) ? kind.file : kind.folder;
+  return kind.item;
+}
+
+/**
+ * A ref inside a sentence with its particle written apart (`152번 a_b 로`), as the kind of thing it names with that
+ * particle (`152번 항목으로`, lina-app#207): the sentence keeps its meaning and no particle stands alone. A ref that opens
+ * the sentence has no words of its own around it: withoutRefs and leftAsDebris take that sentence whole.
+ */
+function withKinds(sentence: string): string {
+  const named = new RegExp(String.raw`(?<=\S\s+)([\u0060'"]?)(${REF_NAME})\1\s+(${LONE_PARTICLE})`, "gu");
+  return sentence.replace(named, (whole: string, _quote: string, name: string, particle: string) => {
+    const noun = nameKind(name);
+    return noun ? withParticle(noun, particle) : whole;
+  });
+}
+
 /** A label: a word ending in `:` before a space or the end (`주소:`, never the `http:` of an address). */
 const LABEL = /\S+:(?=\s|$)/g;
 
@@ -171,10 +232,12 @@ export function foldedText(text: string): string {
         .split(/(?<=[.!?。])\s+/)
         .map((whole) => {
           if (/…|\.\.\./.test(whole) && ONLY_FOLD_MARKERS.test(whole)) return "";
-          const sentence = withoutEmptyFields(whole);
-          if (sentence === null) return "";
-          const cut = withoutRefs(sentence);
-          return leftAsDebris(sentence, cut) ? "" : cut;
+          const fields = withoutEmptyFields(whole);
+          if (fields === null) return "";
+          const sentence = withKinds(fields);
+          // Its ISO times read as every time on the screens once the refs go, so a cut key leaves no `=` (lina-app#207).
+          const cut = timesInText(withoutRefs(sentence));
+          return leftAsDebris(timesInText(sentence), cut) ? "" : cut;
         })
         .filter(Boolean)
         .join(" "),

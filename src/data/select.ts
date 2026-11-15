@@ -6,7 +6,7 @@ import type { PowerVariant } from "../fixtures/synthetic";
 import { SyntheticSource, type SettingsScript, type StreamScript, type TalkRefusal } from "./synthetic-source";
 
 const TALK_REFUSALS: readonly string[] = ["busy", "down", "none"] satisfies TalkRefusal[];
-const STREAM_SCRIPTS: readonly string[] = ["down", "drop", "resync", "token"] satisfies StreamScript[];
+const STREAM_SCRIPTS: readonly string[] = ["down", "drop", "resync", "token", "talk"] satisfies StreamScript[];
 const SETTINGS_SCRIPTS: readonly string[] = ["readonly", "empty", "stale", "race", "ocx-down", "many-warnings"] satisfies SettingsScript[];
 const POWER_VARIANTS: readonly string[] = ["stopped", "none"] satisfies PowerVariant[];
 
@@ -16,9 +16,9 @@ const POWER_VARIANTS: readonly string[] = ["stopped", "none"] satisfies PowerVar
  * `&running=none` one with no running card, `&writer=stopped` one whose writer of checked lines stopped, `&runs=ended`
  * one with ended runs and a card waiting on the owner (lina-app#116), `&todos=many` one where the owner holds 50 more
  * to-dos (lina-app#141), `&finished=many` one with 40 more finished cards (lina-app#186),
- * `&talk=busy|down|none` one whose talk turns are refused (429, 503, 409), `&live=down|drop|resync|token` a change stream
- * that refuses every connection, drops once while another device writes, sends one resync, or restarts the core with a
- * new session token, `&push=off` a core without push, `&settings=readonly|empty|stale|race|ocx-down` work settings this
+ * `&talk=busy|down|none` one whose talk turns are refused (429, 503, 409), `&live=down|drop|resync|token|talk` a change
+ * stream that refuses every connection, drops once while another device writes, sends one resync, restarts the core with
+ * a new session token, or carries another device's message to the first agent, `&push=off` a core without push, `&settings=readonly|empty|stale|race|ocx-down` work settings this
  * device only reads, that were never written, that another device writes just before this page's first write (412) or
  * just after it lands (the changes queued behind it are dropped), whose models OCX did not answer for (the last
  * good list, with an error), or that leave four models warned about.

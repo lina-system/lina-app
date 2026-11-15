@@ -1,7 +1,8 @@
 # Copied unchanged from lina-system/lina docs/api/board-client.yaml at dev commit 602f689aaf51e2cb21dd08104f25034eb275a07c,
 # plus the optional RunCard fields card and board (lina#630) and retry, with waitingOn on a stopped run (lina#629)
 # (lina-app#119), and DevicesView's optional power section with PowerView, PowerStation and PowerHub, copied unchanged
-# from dev commit b79aecac5c375e7b3bb23665a3a03bcb6a40efe1 (lina#483, lina-app#82).
+# from dev commit b79aecac5c375e7b3bb23665a3a03bcb6a40efe1 (lina#483, lina-app#82), and ChangeEvent with the talk and
+# notices sources, copied unchanged from dev commit 9ea15a0e1b61e11cb3706d4b71868d99ee4f0f67 (lina#742, lina-app#205).
 # Board endpoints the app reads beyond docs/api/work-client.yaml (lina#112): the owner's to-dos, decisions and due
 # groups from the work record, `lina worker` runs that are not kanban work cards, devices, quota and the inbox
 # notices; each agent's goals and to-dos (lina#166); one worker run's record, round by round (lina#201); the owner's
@@ -1847,16 +1848,21 @@ components:
       properties:
         source:
           type: string
-          enum: [work, worker, kanban, settings]
+          enum: [work, worker, kanban, settings, talk, notices]
           description: >
             work = the work record's event table; worker = a `lina worker` run state change (hub receipts);
-            kanban = a kanban task event; settings = a work settings revision (`docs/api/settings-client.yaml`).
+            kanban = a kanban task event; settings = a work settings revision (`docs/api/settings-client.yaml`);
+            talk = a turn added to an agent's app conversation, readable from GET /api/lina/agents/{agent}/talk
+            (lina#742); notices = the owner's notice read marks changed (refetch the bell). Device status, quota and
+            usage have no source: read them when a screen opens.
         kind:
           type: string
-          description: The store's own event kind (work event kind, worker receipt kind, kanban task event kind).
+          description: >
+            The store's own event kind (work event kind, worker receipt kind, kanban task event kind); `message`
+            for talk, `read` for notices.
         id:
           type: string
-          description: The item, run or card the event is about.
+          description: The item, run or card the event is about; the agent for talk, the owner for notices.
         at:
           type: integer
           nullable: true

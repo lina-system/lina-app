@@ -2,9 +2,9 @@ import { act, fireEvent, render, waitFor, within } from "@testing-library/preact
 import { render as renderPreact } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import type { RouteName, RunnerCell, WorkCardSummary } from "./api/client";
+import type { AgentTalkEvent, RouteName, RunnerCell, WorkCardSummary } from "./api/client";
 import { App } from "./app";
-import { AGENT_REPLY_DELTAS, STREAM_TICK_MS, SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS } from "./data/synthetic-source";
+import { AGENT_REPLY_DELTAS, APP_FIRST_LINE, STREAM_TICK_MS, SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS } from "./data/synthetic-source";
 import type { ReadResult, Source } from "./data/source";
 import { BACKOFF_MAX_MS, LIVE_SETTLE_MS } from "./data/live";
 import { FINISHED_SHOWN, Store } from "./data/store";
@@ -12,6 +12,7 @@ import { SCENE_COUNTS, SYNTHETIC_OWNER } from "./fixtures/synthetic";
 import { buildModel } from "./model";
 import { containsText } from "./text-match";
 import { TOAST_MS } from "./ui/actions";
+import { APP_VERSION } from "./version";
 import { BANNED_WORDS } from "./words";
 
 /**
@@ -1048,9 +1049,13 @@ describe("retry", () => {
       const view = await open("#/running", { wide: true, source });
       const buttons = view.getAllByRole("button", { name: /다시 시도$/ });
       expect(buttons).toHaveLength(1);
+      // 다시 시도 waits for the card's comments, which say whether a request already stands (lina-app#208).
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+      expect((buttons[0] as HTMLButtonElement).disabled).toBe(false);
       fireEvent.click(buttons[0]);
-      // The board does not list the worker runs a card started (as the core), so the card's to-do is not known and
-      // 다시 시도 asks the card itself.
+      // A work card takes the request on the card, even once its read detail names its runs' to-do.
       await waitFor(() => expect(source.calls).toEqual(['answerCard ["k-103",{"text":"다시 시도해 주세요."}]']));
       await waitFor(() => expect(view.getByTestId("retry-requested").textContent).toMatch(/^\S+에게 요청함$/));
       await act(async () => {
@@ -1131,6 +1136,11 @@ describe("bell", () => {
       expect(buildModelCount(desktopStore)).toBe(5);
       const phone = await open("#/inbox", { wide: false, source: core });
       expect(phone.getByRole("button", { name: "알림 5" })).toBeTruthy();
+      // The stream's first message (the tail) reads every list once more: let it land, so only the read mark's own
+      // event can bring the new count (lina-app#205).
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(STREAM_TICK_MS);
+      });
       const key = core.scene.board.notices.find((notice) => !notice.read)?.key ?? "";
       expect(await desktopStore.write((source) => source.readNotices({ keys: [key] }))).toMatchObject({ ok: true });
       expect(buildModelCount(desktopStore)).toBe(4);
@@ -1432,14 +1442,30 @@ describe("agent talk", () => {
     }
   });
 
-  test("on a phone each agent row shows its stopped count with the same red marker as the wide sidebar (lina-app#143)", async () => {
+  test("each agent row says its stopped count in words, the same on a phone as in the wide sidebar, and its name says what is seen (lina-app#143, #207)", async () => {
+    // A lone red number beside `아직 나눈 대화 없음` read as unread messages (lina-app#207): the row writes `중단됨 n`.
+    const marker = (root: Element) => [...root.querySelectorAll("[data-testid=talk-stopped]")].map((mark) => mark.textContent);
+    const named = (root: Element) => {
+      expect(root.querySelectorAll(".count.is-stopped-count")).toHaveLength(0);
+      for (const mark of marker(root)) expect(root.querySelector("a")?.getAttribute("aria-label")).toContain(mark);
+    };
     const wide = await open("#/talk", { wide: true });
-    const marker = (root: Element) => [...root.querySelectorAll(".count.is-stopped-count")].map((count) => [count.textContent, count.getAttribute("aria-label")]);
     const sidebar = [0, 1, 2].map((index) => marker(wide.getByTestId(`nav-talk-${index}`)));
-    expect(sidebar.flat()).toContainEqual(["1", "중단됨 1"]);
+    expect(sidebar.flat()).toContain("중단됨 1");
+    for (const index of [0, 1, 2]) named(wide.getByTestId(`nav-talk-${index}`));
     wide.unmount();
     const phone = await open("#/talk", { wide: false });
     expect([0, 1, 2].map((index) => marker(phone.getByTestId(`talk-agent-${index}`)))).toEqual(sidebar);
+    for (const index of [0, 1, 2]) named(phone.getByTestId(`talk-agent-${index}`));
+  });
+
+  test("no sidebar shows the build string, under any tab (lina-app#207)", async () => {
+    for (const hash of ["#/inbox", "#/talk", "#/status"]) {
+      const view = await open(hash, { wide: true });
+      expect(view.getByTestId("sidebar").textContent).not.toContain(APP_VERSION);
+      expect(view.container.textContent).not.toContain(APP_VERSION);
+      view.unmount();
+    }
   });
 
   test("every number on the agent's card has its word, and red marks only 중단됨 (lina-app#143)", async () => {
@@ -1504,6 +1530,300 @@ describe("agent talk", () => {
     return within(view.getByTestId("agent-talk"));
   }
 
+  test("a message another device sends to the agent shows in this window and on its row within 5 s, without a reload (lina-app#205)", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SyntheticSource();
+      const view = await open("#/talk/ag-1", { wide: true, source });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const { box } = parts(view);
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?"]);
+      const otherDevice = new SyntheticSource({ scene: source.scene });
+      const turn = await otherDevice.agentTalk("ag-1", { message: "배포 순서는 정해졌어요?" });
+      if (!turn.ok) throw new Error("the turn was refused");
+      const frames = (async () => {
+        for await (const _ of turn.events);
+      })();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      await frames;
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "배포 순서는 정해졌어요?"]);
+      expect(box.getAllByTestId("talk-reply").at(-1)?.querySelector(".talk-bubble")?.textContent).toBe(AGENT_REPLY_DELTAS.join(""));
+      expect(view.getByTestId("nav-talk-0").querySelector("[data-testid=talk-preview]")?.textContent).toBe(AGENT_REPLY_DELTAS.join(""));
+      // This page's own turn after it is drawn once, its kept copy read back in place.
+      const { field } = parts(view);
+      field.value = "오늘 어디까지 했어요?";
+      fireEvent.input(field);
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "배포 순서는 정해졌어요?", "오늘 어디까지 했어요?"]);
+      expect(box.getAllByTestId("talk-reply")).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a message another device sends while the first history read is out shows once that read has landed (lina-app#209)", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SyntheticSource();
+      const real = source.agentTalkHistory.bind(source);
+      const releases: (() => void)[] = [];
+      let held = true;
+      // The first read takes its snapshot now and answers late: what another device adds meanwhile is not in it.
+      source.agentTalkHistory = async (agent) => {
+        const snapshot = await real(agent);
+        if (held) await new Promise<void>((resolve) => releases.push(resolve));
+        return snapshot;
+      };
+      const view = await open("#/talk/ag-1", { wide: true, source });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const otherDevice = new SyntheticSource({ scene: source.scene });
+      const turn = await otherDevice.agentTalk("ag-1", { message: "배포 순서는 정해졌어요?" });
+      if (!turn.ok) throw new Error("the turn was refused");
+      const frames = (async () => {
+        for await (const _ of turn.events);
+      })();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      await frames;
+      held = false;
+      await act(async () => {
+        for (const release of releases) release();
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+      const { box } = parts(view);
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "배포 순서는 정해졌어요?"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a message another device sends while this window's own send is out shows once that send is refused (lina-app#209)", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      let refuse: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => (refuse = resolve));
+      class Refusing extends SyntheticSource {
+        override async agentTalk(_agent: string, _body: { message: string }, _signal?: AbortSignal) {
+          await gate;
+          return { ok: false as const, status: 503, code: null };
+        }
+      }
+      const source = new Refusing();
+      const view = await open("#/talk/ag-1", { wide: true, source });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const { field } = parts(view);
+      field.value = "곧 거절될 말";
+      fireEvent.input(field);
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const otherDevice = new SyntheticSource({ scene: source.scene });
+      const turn = await otherDevice.agentTalk("ag-1", { message: "배포 순서는 정해졌어요?" });
+      if (!turn.ok) throw new Error("the turn was refused");
+      const frames = (async () => {
+        for await (const _ of turn.events);
+      })();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      await frames;
+      // The refused turn brings no event of its own: the change that came meanwhile is read when the send ends.
+      refuse();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+      const { box } = parts(view);
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "배포 순서는 정해졌어요?"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a read another device's message started is not lost when this window sends meanwhile and that send is refused (lina-app#209)", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      let refuse: () => void = () => undefined;
+      const refusal = new Promise<void>((resolve) => (refuse = resolve));
+      let land: () => void = () => undefined;
+      const landing = new Promise<void>((resolve) => (land = resolve));
+      let held = false;
+      class Slow extends SyntheticSource {
+        override async agentTalk(_agent: string, _body: { message: string }, _signal?: AbortSignal) {
+          await refusal;
+          return { ok: false as const, status: 503, code: null };
+        }
+        override async agentTalkHistory(agent: string) {
+          if (held) await landing;
+          return super.agentTalkHistory(agent);
+        }
+      }
+      const source = new Slow();
+      const view = await open("#/talk/ag-1", { wide: true, source });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      held = true;
+      const otherDevice = new SyntheticSource({ scene: source.scene });
+      const turn = await otherDevice.agentTalk("ag-1", { message: "배포 순서는 정해졌어요?" });
+      if (!turn.ok) throw new Error("the turn was refused");
+      const frames = (async () => {
+        for await (const _ of turn.events);
+      })();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      await frames;
+      // The read the change started is out; this window sends before it lands.
+      const { field } = parts(view);
+      field.value = "곧 거절될 말";
+      fireEvent.input(field);
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      land();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+      refuse();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+      const { box } = parts(view);
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "배포 순서는 정해졌어요?"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a turn this window sent and finished while a change read was out is kept when that older read lands (lina-app#209)", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      let land: () => void = () => undefined;
+      const landing = new Promise<void>((resolve) => (land = resolve));
+      let held = false;
+      let landed = false;
+      class Slow extends SyntheticSource {
+        override async agentTalkHistory(agent: string) {
+          // The snapshot is taken now; it reaches the window later.
+          const snapshot = await super.agentTalkHistory(agent);
+          if (held) await landing;
+          // Reads that begin after the older one has landed never answer: only the older snapshot is looked at.
+          else if (landed) await new Promise<never>(() => undefined);
+          return snapshot;
+        }
+      }
+      const source = new Slow();
+      const view = await open("#/talk/ag-1", { wide: true, source });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      held = true;
+      const otherDevice = new SyntheticSource({ scene: source.scene });
+      const turn = await otherDevice.agentTalk("ag-1", { message: "배포 순서는 정해졌어요?" });
+      if (!turn.ok) throw new Error("the turn was refused");
+      const frames = (async () => {
+        for await (const _ of turn.events);
+      })();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      await frames;
+      // The read the change started is out; this window sends and the reply completes before it lands.
+      // The completion event of this window's own turn never reaches it (the change socket is down), so no newer read starts.
+      (source as unknown as { talked: () => void }).talked = () => undefined;
+      const { field } = parts(view);
+      field.value = "끝까지 가는 말";
+      fireEvent.input(field);
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      held = false;
+      landed = true;
+      land();
+      // Looked at the moment the older read has landed, before any later read can bring the turn back.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const { box } = parts(view);
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toContain("끝까지 가는 말");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a turn whose reply broke off before the core kept it stays whole, message and reply, when another device's turn makes the window read again (lina-app#209)", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      class Breaks extends SyntheticSource {
+        // The reply starts, then the stream is cut: the core keeps nothing of this turn.
+        override async agentTalk(_agent: string, _body: { message: string }, _signal?: AbortSignal) {
+          async function* events(): AsyncGenerator<AgentTalkEvent> {
+            yield { event: "assistant.delta", data: { delta: "반쯤 쓴 답" } } as AgentTalkEvent;
+            throw new Error("stream cut");
+          }
+          return { ok: true as const, events: events() };
+        }
+      }
+      const source = new Breaks();
+      const view = await open("#/talk/ag-1", { wide: true, source });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const { field } = parts(view);
+      field.value = "끊길 말";
+      fireEvent.input(field);
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 10);
+      });
+      const bubbles = () => parts(view).box.getAllByTestId("talk-reply").map((line) => line.querySelector(".talk-bubble")?.textContent);
+      expect(parts(view).box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "끊길 말"]);
+      expect(bubbles().at(-1)).toBe("반쯤 쓴 답");
+      // Another device adds a turn; the window reads the history again, which holds none of the cut turn.
+      const otherDevice = new SyntheticSource({ scene: source.scene });
+      const turn = await otherDevice.agentTalk("ag-1", { message: "다른 기기에서 보낸 말" });
+      if (!turn.ok) throw new Error("the turn was refused");
+      const frames = (async () => {
+        for await (const _ of turn.events);
+      })();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      await frames;
+      const { box } = parts(view);
+      const mine = box.getAllByTestId("talk-mine").map((line) => line.textContent);
+      expect(mine).toContain("다른 기기에서 보낸 말");
+      expect(mine.filter((line) => line === "끊길 말")).toHaveLength(1);
+      expect(bubbles()).toContain("반쯤 쓴 답");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("a message sent just before choosing another agent stays in its window, and the reply joins it there", async () => {
     vi.useFakeTimers(TIMERS);
     try {
@@ -1548,14 +1868,21 @@ describe("agent talk", () => {
         let release: () => void = () => undefined;
         const gate = new Promise<void>((resolve) => (release = resolve));
         class Overlap extends SyntheticSource {
-          reads = 0;
+          sent = false;
+          override async agentTalk(...args: Parameters<SyntheticSource["agentTalk"]>) {
+            if (args[0] === "ag-1") this.sent = true;
+            return await super.agentTalk(...args);
+          }
           override async agentTalkHistory(agent: string) {
             const result = await super.agentTalkHistory(agent);
-            if (agent !== "ag-1" || ++this.reads < 2 || result.kind !== "data") return result;
+            // A read that began before the turn went out cannot hold it: only the reads after are held back or hold it.
+            if (agent !== "ag-1" || !this.sent || result.kind !== "data") return result;
             if (order === "history after the completion") {
               await gate;
               return await super.agentTalkHistory(agent);
             }
+            // Once the reply is kept the history holds the turn already: a later read (the stream's talk event) gets it once.
+            if (result.data.messages.some((message) => message.content === "[LINA app]\n오늘 어디까지 했어요?")) return result;
             const messages = [...result.data.messages, { role: "user" as const, content: "[LINA app]\n오늘 어디까지 했어요?", timestamp: null }, { role: "assistant" as const, content: reply, timestamp: null }];
             return { ...result, data: { ...result.data, messages } };
           }
@@ -1909,6 +2236,56 @@ describe("agent talk", () => {
       });
       expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?"]);
       expect(box.getAllByTestId("talk-reply")).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a message equal to a recent earlier one, sent before the first history lands, is not taken for it, whatever its time says (lina-app#209)", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      class SnapshotThenSlow extends SyntheticSource {
+        private took: string | null = null;
+        constructor() {
+          super();
+          // No `talk` event after the turn: only the reads decide what the window holds.
+          (this as unknown as { talked: () => void }).talked = () => undefined;
+        }
+        // The core keeps the owner's message when it takes the turn, and answers from the moment the read began; the
+        // gateway holds the answer back (lina-app#154). The earlier exchange is a minute old, within any clock skew of the send.
+        override async agentTalk(agent: string, body: { message: string }, signal?: AbortSignal) {
+          const result = await super.agentTalk(agent, body, signal);
+          if (result.ok) this.took = body.message;
+          return result;
+        }
+        override async agentTalkHistory(agent: string) {
+          const result = await super.agentTalkHistory(agent);
+          if (result.kind === "data") {
+            const now = Date.now() / 1000;
+            result.data.messages.forEach((message, index) => (message.timestamp = now - 60 + index));
+            if (this.took) result.data.messages.push({ role: "user", content: `${APP_FIRST_LINE}\n${this.took}`, timestamp: now });
+          }
+          await new Promise((resolve) => setTimeout(resolve, 30_000));
+          return result;
+        }
+      }
+      const view = await open("#/talk/ag-1", { wide: true, source: new SnapshotThenSlow() });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const { box, field } = parts(view);
+      field.value = "어디까지 왔어요?";
+      fireEvent.input(field);
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 20);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      // The earlier exchange and this one, each with its reply: the history that began before the send held only the earlier.
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "어디까지 왔어요?"]);
+      expect(box.getAllByTestId("talk-reply")).toHaveLength(2);
     } finally {
       vi.useRealTimers();
     }

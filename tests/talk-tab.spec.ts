@@ -35,11 +35,13 @@ test("on a wide window each agent row keeps its counts inside the sidebar under 
   const row = page.getByTestId("nav-talk-1");
   await expect(row.getByTestId("talk-preview")).toHaveText("아직 나눈 대화 없음");
   const sidebar = (await page.locator(".sidebar").boundingBox())!;
-  for (const count of await row.locator(".count-pair .count").all()) {
+  for (const count of await row.locator(".count-pair .count, .talk-stopped").all()) {
     const box = (await count.boundingBox())!;
     expect(box.x + box.width).toBeLessThanOrEqual(sidebar.x + sidebar.width);
   }
-  await expect(row.locator(".count-pair .count")).toHaveText(["1", "1"]);
+  // The stopped work reads in words, not as a second number (lina-app#207).
+  await expect(row.locator(".count-pair .count")).toHaveText(["1"]);
+  await expect(row.getByTestId("talk-stopped")).toHaveText("중단됨 1");
 });
 
 test("on a wide window with no agent chosen, the middle takes the whole width: no empty right column (lina-app#150)", async ({ page }, info) => {

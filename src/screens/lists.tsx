@@ -88,19 +88,25 @@ export function InboxScreen() {
   );
 }
 
-/** A stopped card asks its agent to try again: retry on its to-do, or a comment on a card with none. */
+/**
+ * A stopped card asks its agent to try again: a run on its to-do, a work card with a comment on the card. A work card's
+ * comments say whether a request already stands (lina-app#208), so its row reads them, and 다시 시도 waits for them.
+ */
 function RetryControl({ card }: { card: CardRow }) {
-  const { model } = useApp();
+  const { model, store } = useApp();
   const actions = useActions();
+  useEffect(() => {
+    if (card.kind === "card") store.ensure([["card", card.id]]);
+  }, [card.kind, card.id]);
   if (card.kind === "run" && !card.todo) return null;
-  if (actions.requested(card.key))
+  if (card.asked || actions.requested(card.key))
     return (
       <span class="trail requested" data-testid="retry-requested">
         {W.requestedTo(agentName(model, card.agent))}
       </span>
     );
   return (
-    <button type="button" class="text-button retry" aria-label={[card.name, W.retry].join(SEP)} onClick={() => void actions.retry(card)} data-testid="retry">
+    <button type="button" class="text-button retry" aria-label={[card.name, W.retry].join(SEP)} disabled={card.asked === null} onClick={() => void actions.retry(card)} data-testid="retry">
       {W.retry}
     </button>
   );
@@ -1061,14 +1067,21 @@ function CheckRow({ check }: { check: OpenCheck }) {
   );
 }
 
-/** One line of the usage panel: a model or a machine, its estimated cost and its tokens. */
+/**
+ * One line of the usage panel: a model or a machine, its estimated cost and its tokens. A long name wraps and the
+ * figures, written as the totals line writes them, move whole to the next line; no figure is cut (lina-app#206).
+ */
 function UsageRowView({ line }: { line: UsageLine }) {
   const text = W.usageLine(line.name, W.cost(line.cost), W.tokens(line.tokens));
   return (
     <li class="row usage-row" data-testid="row">
       <div class="row-body" aria-label={text}>
         <span class="lines">
-          <span class="title one-line">{text}</span>
+          <span class="title wrap-line">
+            {line.name}
+            {SEP}
+            <span class="usage-figures">{W.usageTotal(W.cost(line.cost), W.tokens(line.tokens))}</span>
+          </span>
         </span>
       </div>
     </li>

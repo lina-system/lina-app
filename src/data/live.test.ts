@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { eventsUrl, HttpSource } from "./http-source";
 import { BACKOFF_MAX_MS, backoffMs, Live, LIVE_SETTLE_MS, routesFor, type LiveHost } from "./live";
 import { Store } from "./store";
-import { STREAM_TICK_MS, SyntheticSource } from "./synthetic-source";
+import { AGENT_REPLY_DELTAS, STREAM_TICK_MS, SyntheticSource, TALK_FRAME_MS } from "./synthetic-source";
 
 /** A tab whose visibility, `online` and `pageshow` the test sets; timers are vitest's fake ones. */
 function tab(random = () => 0) {
@@ -100,6 +100,60 @@ describe("the change stream", () => {
     await settle();
     expect(store.get("item", "T4")?.comments.at(-1)?.text).toBe("폭도 봐 주세요");
     expect(live.cursor).not.toBe(kept);
+    stop();
+  });
+
+  test("a read mark from another device re-reads the bell's notices and counts, and nothing else", async () => {
+    const source = new SyntheticSource();
+    const store = new Store(source);
+    const stop = new Live(store, tab().host).start();
+    await settle();
+    const otherDevice = new SyntheticSource({ scene: source.scene });
+    const key = source.scene.board.notices.find((notice) => !notice.read)?.key ?? "";
+    const unread = store.get("board")?.counts.unread ?? 0;
+    const invalidate = vi.spyOn(store, "invalidate");
+    await otherDevice.readNotices({ keys: [key] });
+    await step(STREAM_TICK_MS);
+    expect(invalidate).toHaveBeenCalledWith([["board"]]);
+    expect(store.get("board")?.counts.unread).toBe(unread - 1);
+    expect(store.get("board")?.notices.find((notice) => notice.key === key)?.read).toBe(true);
+    stop();
+  });
+
+  test("a turn added to an agent's conversation elsewhere re-reads that agent's conversation only", async () => {
+    const source = new SyntheticSource();
+    const store = new Store(source);
+    const stop = new Live(store, tab().host).start();
+    await settle();
+    const [first, second] = source.scene.items.agents.map((agent) => agent.id);
+    const before = { first: store.talkChanges(first), second: store.talkChanges(second), reads: source.reads };
+    const otherDevice = new SyntheticSource({ scene: source.scene });
+    const turn = await otherDevice.agentTalk(first, { message: "배포 순서는 정해졌어요?" });
+    if (!turn.ok) throw new Error("the turn was refused");
+    const frames = (async () => {
+      for await (const _ of turn.events);
+    })();
+    await step(TALK_FRAME_MS * (AGENT_REPLY_DELTAS.length + 6));
+    await frames;
+    await step(STREAM_TICK_MS);
+    expect(store.talkChanges(first)).toBe(before.first + 1);
+    expect(store.talkChanges(second)).toBe(before.second);
+    // A talk turn changes no list: no snapshot route is read for it.
+    expect(source.reads).toBe(before.reads);
+    const history = await source.agentTalkHistory(first);
+    expect(history.kind === "data" && history.data.messages.at(-2)?.content).toBe("[LINA app]\n배포 순서는 정해졌어요?");
+    stop();
+  });
+
+  test("the first tail makes the open conversation read its history again, and leaves the rows' last lines alone (lina-app#209)", async () => {
+    const source = new SyntheticSource();
+    const store = new Store(source);
+    const [first] = source.scene.items.agents.map((agent) => agent.id);
+    const before = { window: store.talkWindowChanges(first), rows: store.talkChanges(first) };
+    const stop = new Live(store, tab().host).start();
+    await settle();
+    expect(store.talkWindowChanges(first)).toBe(before.window + 1);
+    expect(store.talkChanges(first)).toBe(before.rows);
     stop();
   });
 
@@ -230,6 +284,12 @@ describe("what a change touches", () => {
   test("a settings event reads the settings, the history lists a screen read and the model list", () => {
     const store = { cardsWithRun: () => [] };
     expect(routesFor([{ source: "settings", kind: "revised", id: "r4", at: 1 }], store)).toEqual([["settings"], ["settingsHistory", "5"], ["settingsHistory", "500"], ["settingsModels"]]);
+  });
+
+  test("a notices event reads the board, which holds the bell's lines and counts; a talk event names no snapshot route", () => {
+    const store = { cardsWithRun: () => [] };
+    expect(routesFor([{ source: "notices", kind: "read", id: "owner", at: 1 }], store)).toEqual([["board"]]);
+    expect(routesFor([{ source: "talk", kind: "message", id: "alpha", at: 1 }], store)).toEqual([]);
   });
 });
 

@@ -9,7 +9,7 @@ import { back, baseOf, defaultListFor, href, isFrame, isList, linkClick, navigat
 import { slideMotion } from "./stack-motion";
 import { bindSwipeBack, isStandalone } from "./swipe-back";
 import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RestartSheet, RunningScreen, StatusScreen, TodayScreen } from "./screens/lists";
-import { AgentCard, AgentTalk, TalkAgents, TalkHead, TalkPreview } from "./screens/talk";
+import { AgentCard, AgentTalk, TalkAgents, TalkHead, TalkPreview, TalkStopped } from "./screens/talk";
 import { CardScreen, GoalScreen, ItemScreen, RunScreen, workerTitle } from "./screens/details";
 import { RollbackSheet, SettingPage, settingParent, SettingsScreen, settingTitle } from "./screens/settings";
 import { SETTINGS_HISTORY } from "./api/client";
@@ -147,7 +147,10 @@ function Screen({ route }: { route: Route }) {
       if (route.goal) return <GoalScreen id={route.goal} />;
       return (
         <AgentTalk key={route.id} agent={route.id}>
-          <AgentCard agent={route.id} folded />
+          {/* Pinned under the bar while the conversation scrolls, so the strip is never out of reach (lina-app#206). */}
+          <div class="talk-strip">
+            <AgentCard agent={route.id} folded />
+          </div>
         </AgentTalk>
       );
     case "inbox":
@@ -182,9 +185,10 @@ function Screen({ route }: { route: Route }) {
 /**
  * One sidebar row. `stoppedMark` draws the stopped cards as their own words (`중단됨 13`) under the label, and the
  * number at the right edge counts running work only, so a lone red number never reads as running work (lina-app#156);
- * without it they are the small red number.
+ * `stoppedWords` writes them as the same words after that number, keeping the row's own lines (an agent's in 대화,
+ * TalkStopped, lina-app#207); without either they are the small red number.
  */
-function NavRow({ to, icon, label, count, stopped, stoppedMark = false, current, testid, children }: { to: Route; icon?: ComponentChildren; label: string; count?: number; stopped?: number; stoppedMark?: boolean; current: boolean; testid: string; children?: ComponentChildren }) {
+function NavRow({ to, icon, label, count, stopped, stoppedMark = false, stoppedWords = false, current, testid, children }: { to: Route; icon?: ComponentChildren; label: string; count?: number; stopped?: number; stoppedMark?: boolean; stoppedWords?: boolean; current: boolean; testid: string; children?: ComponentChildren }) {
   const { wide } = useApp();
   const target = href(to);
   return (
@@ -202,7 +206,8 @@ function NavRow({ to, icon, label, count, stopped, stoppedMark = false, current,
         ) : (
           (children ?? <span class="nav-label one-line">{label}</span>)
         )}
-        <CountPair count={count ?? 0} stopped={stoppedMark ? 0 : stopped} countId="nav-count" stoppedId="nav-stopped" />
+        <CountPair count={count ?? 0} stopped={stoppedMark || stoppedWords ? 0 : stopped} countId="nav-count" stoppedId="nav-stopped" />
+        {stoppedWords ? <TalkStopped stopped={stopped ?? 0} /> : null}
         {wide ? null : <Disclosure />}
       </a>
     </li>
@@ -240,7 +245,7 @@ function DeviceLine({ class: className }: { class: string }) {
   );
 }
 
-/** The sidebar of 상태: the machines line and 설정. */
+/** The sidebar of 상태: the machines line and 설정. The pressed tab is the screen's one name, so no head repeats it (lina-app#206). */
 function StatusRows({ current }: { current?: Route }) {
   const { model } = useApp();
   const is = (name: string) => Boolean(current && current.name === name);
@@ -248,15 +253,12 @@ function StatusRows({ current }: { current?: Route }) {
   const devices = W.deviceLine(all, ok, warn, down);
   const deviceParts = [devices.all, devices.ok, warn ? devices.warn : "", down ? devices.down : ""].filter(Boolean);
   return (
-    <>
-      <h2 class="nav-head">{W.status}</h2>
-      <ul class="nav-group" aria-label={W.status}>
-        <NavRow to={{ name: "status" }} icon={<DeviceIcon />} label={deviceParts.join(SEP)} current={is("status")} testid="nav-status">
-          <DeviceLine class="nav-label one-line" />
-        </NavRow>
-        <NavRow to={{ name: "settings" }} icon={<GearIcon />} label={W.settings} current={is("settings") || is("setting")} testid="nav-settings" />
-      </ul>
-    </>
+    <ul class="nav-group" aria-label={W.status}>
+      <NavRow to={{ name: "status" }} icon={<DeviceIcon />} label={deviceParts.join(SEP)} current={is("status")} testid="nav-status">
+        <DeviceLine class="nav-label one-line" />
+      </NavRow>
+      <NavRow to={{ name: "settings" }} icon={<GearIcon />} label={W.settings} current={is("settings") || is("setting")} testid="nav-settings" />
+    </ul>
   );
 }
 
@@ -275,11 +277,11 @@ function StatusMore() {
 function TalkRows({ current }: { current?: Route }) {
   const { model } = useApp();
   return (
-    <nav class="sidebar-list" aria-label={W.sidebar} data-testid="sidebar">
+    <nav class="sidebar-list" aria-label={W.sidebar} data-testid="sidebar" data-version={APP_VERSION}>
       <h2 class="nav-head">{W.agents}</h2>
       <ul class="nav-group" aria-label={W.agents}>
         {model.agents.map((agent) => (
-          <NavRow key={agent.id} to={{ name: "talk", id: agent.id }} icon={<AgentMark id={agent.id} />} label={agent.name} count={model.counts.agents[agent.id]?.running} stopped={model.counts.agents[agent.id]?.stopped} current={Boolean(current && current.name === "talk" && current.id === agent.id)} testid={`nav-talk-${agent.index}`}>
+          <NavRow key={agent.id} to={{ name: "talk", id: agent.id }} icon={<AgentMark id={agent.id} />} label={agent.name} count={model.counts.agents[agent.id]?.running} stopped={model.counts.agents[agent.id]?.stopped} stoppedWords current={Boolean(current && current.name === "talk" && current.id === agent.id)} testid={`nav-talk-${agent.index}`}>
             <span class="lines nav-lines">
               <span class="nav-label one-line">{agent.name}</span>
               <TalkPreview agent={agent.id} />
@@ -287,9 +289,6 @@ function TalkRows({ current }: { current?: Route }) {
           </NavRow>
         ))}
       </ul>
-      <p class="version" data-testid="version">
-        {APP_VERSION}
-      </p>
     </nav>
   );
 }
@@ -300,15 +299,12 @@ export function Sidebar({ current, tab = "work", settings = false }: { current?:
   if (tab === "talk") return <TalkRows current={current} />;
   if (tab === "status")
     return (
-      <nav class="sidebar-list" aria-label={W.sidebar} data-testid="sidebar">
+      <nav class="sidebar-list" aria-label={W.sidebar} data-testid="sidebar" data-version={APP_VERSION}>
         <StatusRows current={current} />
-        <p class="version" data-testid="version">
-          {APP_VERSION}
-        </p>
       </nav>
     );
   return (
-    <nav class="sidebar-list" aria-label={W.sidebar} data-testid="sidebar">
+    <nav class="sidebar-list" aria-label={W.sidebar} data-testid="sidebar" data-version={APP_VERSION}>
       <ul class="nav-group">
         <NavRow to={{ name: "today" }} icon={<CalendarIcon />} label={W.today} current={is("today")} testid="nav-today" />
       </ul>
@@ -336,9 +332,6 @@ export function Sidebar({ current, tab = "work", settings = false }: { current?:
           <NavRow to={{ name: "settings" }} icon={<GearIcon />} label={W.settings} current={is("settings")} testid="nav-settings" />
         </ul>
       ) : null}
-      <p class="version" data-testid="version">
-        {APP_VERSION}
-      </p>
     </nav>
   );
 }
@@ -378,7 +371,7 @@ export function Freshness() {
   else line = { text: W.fresh(Math.max(0, Math.floor(now - since))), tone: "" };
   const failed = !store.offline && model.errors.length > 0;
   // With 다시 시도 the sources' words alone give way at a narrow width; the button is never cut off (lina-app#199).
-  const again = failed && unread;
+  const again = failed && (unread || store.ensuredFailed());
   // Nothing to say: the phone's strip that holds this line draws nothing and takes no height (lina-app#187).
   return (
     <span class="freshness" data-testid="freshness" data-quiet={line.text || failed ? undefined : ""} style={again ? { display: "flex", alignItems: "baseline", justifyContent: wide ? "flex-start" : "center", minWidth: 0 } : undefined}>

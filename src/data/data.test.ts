@@ -547,3 +547,43 @@ test("a read that lands after another read of the same route keeps the data the 
   expect(store.status("settingsModels")).toBe("ok");
   expect(store.get("settingsModels")?.models).toHaveLength(3);
 });
+
+test("a route read once with ensure is read again with the lists, so a resync leaves it current (lina-app#209)", async () => {
+  const source = new SyntheticSource();
+  const store = new Store(source);
+  await store.refresh();
+  store.ensure([["item", "T4"]]);
+  await vi.waitFor(() => expect(store.get("item", "T4")).toBeTruthy());
+  const before = store.get("item", "T4")?.comments.length ?? 0;
+  const otherDevice = new SyntheticSource({ scene: source.scene });
+  await otherDevice.comment("T4", { text: "다른 기기에서 쓴 댓글" });
+  expect(store.get("item", "T4")?.comments.length).toBe(before);
+  await store.refresh();
+  expect(store.get("item", "T4")?.comments.length).toBe(before + 1);
+});
+
+test("a route read once with ensure whose read failed is healable and is read again (lina-app#209)", async () => {
+  const inner = new SyntheticSource();
+  let failing = true;
+  const source = new Proxy(inner, {
+    get(target, key, receiver) {
+      if (key !== "read") return Reflect.get(target, key, receiver);
+      return (name: Parameters<SyntheticSource["read"]>[0], id?: string) => {
+        if (failing && name === "item" && id === "T4") return Promise.resolve({ kind: "failed", offline: false } as Awaited<ReturnType<SyntheticSource["read"]>>);
+        return target.read(name, id);
+      };
+    },
+  });
+  const store = new Store(source);
+  await store.refresh();
+  expect(store.healable()).toBe(false);
+  store.ensure([["item", "T4"]]);
+  await vi.waitFor(() => expect(store.status("item", "T4")).toBe("failed"));
+  expect(store.ensuredFailed()).toBe(true);
+  expect(store.healable()).toBe(true);
+  failing = false;
+  await store.readFailed();
+  expect(store.status("item", "T4")).toBe("ok");
+  expect(store.ensuredFailed()).toBe(false);
+  expect(store.healable()).toBe(false);
+});

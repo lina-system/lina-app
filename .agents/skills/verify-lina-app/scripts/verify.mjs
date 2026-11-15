@@ -174,7 +174,8 @@ async function checkInstance(state) {
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
     await page.goto(state.url + APP_PATH + "#/inbox");
-    const version = (await page.getByTestId("version").textContent({ timeout: 10_000 }))?.trim();
+    // The build string is no screen text (lina-app#207): the sidebar carries it as data-version.
+    const version = await page.getByTestId("sidebar").first().getAttribute("data-version", { timeout: 10_000 });
     if (version !== packageVersion()) problems.push(`page shows version ${version}, package.json has ${packageVersion()}`);
     const count = async (id) => (await page.getByTestId(id).getByTestId("nav-count").textContent())?.trim();
     const counts = {
@@ -443,6 +444,44 @@ export async function rowLines(page) {
       return children.length > 2 + Math.min(asks, 1) + Math.min(subs, 1) || tall.length ? [lines.textContent.trim().slice(0, 40) + " (" + children.length + " lines)"] : [];
     }),
   );
+}
+
+// The core's client API answering with the synthetic scene and the first agent's long conversation (tests/long-talk.ts),
+// for a page that loads /app/ without ?source=synthetic. The routes are read in Node through Vite, from the same modules
+// the specs import, so the drive and tests/layout-qa15.spec.ts serve one shape (lina-app#206).
+async function serveLongTalk(page) {
+  const { createServer } = await import("vite");
+  const server = await createServer({ root: repo, configFile: false, logLevel: "error", appType: "custom", server: { middlewareMode: true, hmr: false, ws: false }, optimizeDeps: { noDiscovery: true } });
+  const bodies = new Map();
+  let talk;
+  let api;
+  try {
+    api = await server.ssrLoadModule("/src/api/client.ts");
+    const { SyntheticSource } = await server.ssrLoadModule("/src/data/synthetic-source.ts");
+    const { longTalk, LONG_TALK_TURNS } = await server.ssrLoadModule("/tests/long-talk.ts");
+    const source = new SyntheticSource();
+    for (const name of ["board", "items", "goals", "cards", "inbox", "devices", "quota", "modelsState", "checks", "settingsModels"]) {
+      const result = await source.read(name);
+      if (result.kind === "data") bodies.set(api.routePath(name), result.data);
+    }
+    for (const range of api.USAGE_RANGES) {
+      const result = await source.read("usage", range);
+      if (result.kind === "data") bodies.set(api.routePath("usage", range), result.data);
+    }
+    talk = { history: longTalk("ag-1", Math.floor(Date.now() / 1000)), turns: LONG_TALK_TURNS };
+  } finally {
+    await server.close();
+  }
+  await page.route("**/api/**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/auth/ws-ticket") return route.fulfill({ json: { ticket: "one-use" } });
+    if (url.pathname === api.agentTalkPath("ag-1")) return route.fulfill({ json: talk.history });
+    if (url.pathname.startsWith("/api/lina/agents/") && url.pathname.endsWith("/talk")) return route.fulfill({ json: { agent: "", session_id: null, messages: [] } });
+    const body = bodies.get(url.pathname + url.search) ?? bodies.get(url.pathname);
+    return body === undefined ? route.fulfill({ status: 404, json: { detail: "not found" } }) : route.fulfill({ json: body });
+  });
+  await page.routeWebSocket((url) => url.pathname === api.EVENTS_PATH, (socket) => socket.send(JSON.stringify({ cursor: "c1", events: [] })));
+  return talk.turns;
 }
 
 // A context like the drive's, with touch, to send the touches a finger would.
@@ -2825,6 +2864,28 @@ const drivers = {
       check(await notReloaded(page), "the page reloaded");
       return "no word throughout, 1 renewal, connections " + connections.map((connection) => connection.first).join(" → ") + ", 알림 5 → 알림 4";
     });
+    await step("another device's message to an agent shows in its open window and on its row within 5 s, without a reload", async () => {
+      await openApp(page, "#/talk/ag-1", "&live=talk");
+      await markPage(page);
+      const opened = Date.now();
+      const box = page.getByTestId("agent-talk");
+      const mine = box.getByTestId("talk-mine");
+      check((await mine.count()) === 1, "the window held " + (await mine.count()) + " own messages before the other device wrote");
+      // The other device writes 3 s after the stream opens (STREAM_TALK_AFTER_MS); the window has 5 s from then.
+      await mine.filter({ hasText: "배포 순서는 정해졌어요?" }).waitFor({ timeout: 8_000 }).catch(() => check(false, "the other device's message did not show within 5 s"));
+      const shownMs = Date.now() - opened;
+      const reply = (await box.getByTestId("talk-reply").last().innerText()).trim();
+      check(reply.endsWith("알려 드릴게요."), "the reply reads " + reply);
+      check((await mine.count()) === 2, "the window holds " + (await mine.count()) + " own messages");
+      if (!wide) {
+        await page.getByTestId("back").click();
+        await settled(page);
+      }
+      const preview = (await page.getByTestId((wide ? "nav-talk-" : "talk-agent-") + "0").getByTestId("talk-preview").innerText()).trim();
+      check(preview.endsWith("알려 드릴게요."), "the agent's row reads " + preview);
+      check(await notReloaded(page), "the page reloaded");
+      return "drawn " + (shownMs / 1000).toFixed(1) + " s after the page opened (the other device writes at 3 s); row reads the reply";
+    });
     await step("a stream that cannot open says 연결 중, never 갱신 지연, and retries with growing waits; the screens still draw", async () => {
       await openApp(page, "#/inbox", "&live=down", "연결 중");
       await recordFreshness(page);
@@ -3338,7 +3399,22 @@ const drivers = {
       await row(1).waitFor({ timeout: 5_000 });
       const previews = [await text(row(0)), await text(row(1))];
       check(previews[0] === "변경 목록을 모으는 중이에요. 배포 순서는 답을 기다려요." && previews[1] === "아직 나눈 대화 없음", "the rows read " + JSON.stringify(previews));
-      return agents + " agents; " + previews.join(" / ");
+      // A row's stopped work reads in words, never a lone red number by its last message, and its name says the same (lina-app#207).
+      const rows = page.locator(wide ? "[data-testid^=nav-talk-]" : "[data-testid^=talk-agent-]");
+      const marks = [];
+      for (let index = 0; index < agents; index += 1) {
+        const one = rows.nth(index);
+        check((await one.locator(".count.is-stopped-count").count()) === 0, "row " + index + " shows a bare red number");
+        for (const mark of await one.getByTestId("talk-stopped").allInnerTexts()) {
+          const name = await one.locator("a").getAttribute("aria-label");
+          check(/^중단됨 \d+$/.test(mark.trim()) && name.includes(mark.trim()), "row " + index + " reads " + mark + " named " + name);
+          marks.push(mark.trim());
+        }
+      }
+      check(marks.length > 0, "no row reads its stopped work");
+      // The sidebar carries no build string (lina-app#207).
+      if (wide) check(!(await page.getByTestId("sidebar").innerText()).includes(packageVersion()), "the sidebar shows the build string");
+      return agents + " agents; " + previews.join(" / ") + "; " + marks.join(", ");
     });
     await step("choose the first agent: its earlier turns, its mark and name once in the bar, no help line, its card holds its goals", async () => {
       await page.locator(wide ? "[data-testid=nav-talk-0] a" : "[data-testid=talk-agent-0] a").click();
@@ -3461,6 +3537,50 @@ const drivers = {
         const after = await title.boundingBox();
         check(before && after && Math.round(before.y) === Math.round(after.y) && (await title.isVisible()), "the head moved with the window: " + JSON.stringify([before, after]));
         return heights.join(", ") + " px; head at y " + Math.round(after.y);
+      });
+      await step("phone: a conversation three screens long keeps 에이전트 · 목표 n pinned under the bar, at the end, the middle, the top and one scroll up", async () => {
+        // Its own context with the service worker blocked: the app's worker passes reads past page.route.
+        const context = await touchContext(page, { serviceWorkers: "block" });
+        try {
+          const own = await context.newPage();
+          const turns = await serveLongTalk(own);
+          await own.goto("/app/#/talk/ag-1");
+          await own.getByTestId("talk-reply").nth(turns - 1).waitFor({ timeout: 10_000 });
+          const main = own.locator(".phone-main");
+          const size = await main.evaluate((element) => ({ scroll: element.scrollHeight, client: element.clientHeight }));
+          check(size.scroll >= 3 * size.client, "the conversation is " + size.scroll + " px in a " + size.client + " px window, under three screens");
+          const strip = () =>
+            own.evaluate(() => {
+              const bar = document.querySelector(".navbar").getBoundingClientRect();
+              const toggle = document.querySelector("[data-testid=agent-card] .agent-card-toggle");
+              const box = toggle.getBoundingClientRect();
+              const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+              return { gap: Math.round(document.querySelector("[data-testid=agent-card]").getBoundingClientRect().top - bar.bottom), onTop: Boolean(hit && toggle.contains(hit)) };
+            });
+          const seen = {};
+          await own.waitForFunction(() => {
+            const element = document.querySelector(".phone-main");
+            return element.scrollHeight - element.scrollTop - element.clientHeight < 2;
+          });
+          seen.end = await strip();
+          for (const [name, share] of [
+            ["middle", 0.5],
+            ["top", 0],
+          ]) {
+            await main.evaluate((element, at) => element.scrollTo(0, (element.scrollHeight - element.clientHeight) * at), share);
+            seen[name] = await strip();
+          }
+          await main.evaluate((element) => element.scrollTo(0, element.scrollHeight));
+          const bottom = await main.evaluate((element) => element.scrollTop);
+          await own.mouse.move(195, 500);
+          await own.mouse.wheel(0, -200);
+          await own.waitForFunction((from) => document.querySelector(".phone-main").scrollTop < from - 100, bottom);
+          seen.up = await strip();
+          for (const [name, look] of Object.entries(seen)) check(look.onTop && look.gap >= 8 && look.gap <= 12, "at the " + name + " the strip reads " + JSON.stringify(look));
+          return turns + " replies, " + size.scroll + "/" + size.client + " px; " + Object.entries(seen).map(([name, look]) => name + " " + look.gap + " px under the bar").join(", ");
+        } finally {
+          await context.close();
+        }
       });
     }
     await step("pictures: an agent with avatar: true draws its picture in the bar; a picture that fails leaves the letter circle at the same size", async () => {

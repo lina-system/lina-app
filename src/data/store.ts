@@ -114,6 +114,8 @@ export class Store {
   private readonly entries = new Map<string, Entry>();
   private readonly listeners = new Set<() => void>();
   private wanted: Want = [];
+  /** Routes a screen read once with ensure (a stopped card comments): read again with every read of the lists, so a resync leaves them current. */
+  private ensured: Want = [];
   private slowReadAt: number | null = null;
   private shown: ModelInput;
   /** A screen lists or counts every finished card: the cards are read without a limit from then on. */
@@ -144,6 +146,14 @@ export class Store {
   private keptAt: { readonly cursor: string; readonly version: number } | null = null;
   /** The core refused the credential since a read last answered: nothing is kept (an open socket may still send). */
   private refused = false;
+  /**
+   * How many times the stream said a turn was added to each agent's app conversation, and how many resyncs said any
+   * may have been (lina-app#205). The conversations are not snapshot routes: the agent's row and open window read them
+   * themselves, again whenever this count moves.
+   */
+  private readonly talks = new Map<string, number>();
+  private talkResyncs = 0;
+  private talkTails = 0;
 
   constructor(
     readonly source: Source,
@@ -167,8 +177,9 @@ export class Store {
   }
 
   /**
-   * Writes the kept copy at the stream's cursor: the lists, the slow routes and the open screen's routes as last read,
-   * the finished cards cut to the first page. Not while the credential is refused, and not again for the same state.
+   * Writes the kept copy at the stream's cursor: the lists, the slow routes, the open screen's routes and the read
+   * details of stopped cards (their comments hold a standing 다시 시도, lina-app#208) as last read, the finished cards
+   * cut to the first page. Not while the credential is refused, and not again for the same state.
    */
   private keep(): void {
     if (!this.stored || this.refused || this.denied || this.cursor === null) return;
@@ -180,7 +191,8 @@ export class Store {
     // it would not read that list until some event named it. Without every list there is no copy.
     for (const list of LIST_ROUTES) if (this.entries.get(list)?.data === undefined) return;
     const routes: Record<string, StoredRoute> = {};
-    for (const [name, id] of [...LIST_ROUTES.map((list) => [list] as const), ...SLOW_ROUTES, ...this.wanted]) {
+    const stopped = (this.get("cards")?.cards ?? []).filter((card) => card.state === "stopped").map((card) => ["card", card.id] as const);
+    for (const [name, id] of [...LIST_ROUTES.map((list) => [list] as const), ...SLOW_ROUTES, ...this.wanted, ...stopped]) {
       // The settings' writes need the ETag of the read that is on screen, which a kept copy does not hold.
       if (name === "settings" || name === "settingsHistory") continue;
       const key = this.key(name, id);
@@ -268,6 +280,32 @@ export class Store {
   private changed(): void {
     this.version += 1;
     this.shown = this.read();
+    this.notify();
+  }
+
+  /** The count of changes to an agent's app conversation: a screen that shows it reads it again when this moves. */
+  talkChanges(agent: string): number {
+    return (this.talks.get(agent) ?? 0) + this.talkResyncs;
+  }
+
+  /**
+   * What the open conversation reads its history again at: the changes above, and the first tail. The rows' last lines
+   * leave the tail out: reading all of them again would double the first screen's history reads (lina-app#162).
+   */
+  talkWindowChanges(agent: string): number {
+    return this.talkChanges(agent) + this.talkTails;
+  }
+
+  /** The first tail came: a turn another device finished after a history was read is in no event, so a window reads again (lina-app#209). */
+  talkTailed(): void {
+    this.talkTails += 1;
+    this.notify();
+  }
+
+  /** A turn was added to these agents' app conversations, or with no agents, to any of them (a resync). */
+  talkChanged(agents?: readonly string[]): void {
+    if (!agents) this.talkResyncs += 1;
+    else for (const agent of agents) this.talks.set(agent, (this.talks.get(agent) ?? 0) + 1);
     this.notify();
   }
 
@@ -390,7 +428,12 @@ export class Store {
    */
   healable(): boolean {
     if (this.refused || this.denied) return false;
-    return LIST_ROUTES.some((name) => this.entries.get(name)?.status === "failed");
+    return LIST_ROUTES.some((name) => this.entries.get(name)?.status === "failed") || this.ensuredFailed();
+  }
+
+  /** A route read once with ensure (a stopped card's comments) whose last read failed: nothing else reads it again (lina-app#209). */
+  ensuredFailed(): boolean {
+    return this.ensured.some(([name, id]) => this.entries.get(this.key(name, id))?.status === "failed");
   }
 
   /**
@@ -470,7 +513,7 @@ export class Store {
     this.firstPaint();
     // A slow route the screen draws was read in the first wave when it was due; it keeps its once-a-minute pace.
     const slowRoute = ([name, id]: Want[number]) => SLOW_ROUTES.some(([slowName, slowId]) => slowName === name && slowId === id);
-    const reread = this.wanted.filter((route) => !reading(route) && !slowRoute(route));
+    const reread = distinct([...this.wanted, ...this.ensured]).filter((route) => !reading(route) && !slowRoute(route));
     const secondWave = await Promise.all([...later, ...reread].map(([name, id]) => this.load(name, id)));
     this.refreshes += 1;
     if (secondWave.some(Boolean)) this.changed();
@@ -520,13 +563,20 @@ export class Store {
     return this.finishing;
   }
 
-  /** Reads routes not read yet without changing what the open screen wants (an expanded row's record). */
+  /**
+   * Reads routes not read yet without changing what the open screen wants (a stopped card's comments, lina-app#208).
+   * Read after the last cursor whose reads landed, so the kept copy written then stays at least as new as its cursor.
+   */
   ensure(routes: Want): void {
+    // Kept for every later read of the lists, so a resync after a missed event reads them again (lina-app#209).
+    this.ensured = distinct([...this.ensured, ...routes]);
     const missing = distinct(routes).filter(([name, id]) => !this.entries.has(this.key(name, id)));
     if (!missing.length) return;
     for (const [name, id] of missing) this.entries.set(this.key(name, id), { status: "pending" });
     void Promise.all(missing.map(([name, id]) => this.load(name, id))).then((changes) => {
-      if (changes.some(Boolean)) this.changed();
+      if (!changes.some(Boolean)) return;
+      this.changed();
+      this.keep();
     });
   }
 

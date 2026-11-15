@@ -194,9 +194,11 @@ function Thread({ lines, agent, after }: { lines: readonly ThreadLine[]; agent: 
   }, []);
 
   const last = lines.at(-1);
-  // The owner's newest message wherever it stands: a send adds it together with the agent's empty reply after it.
+  // The owner's newest message sent from this window, wherever it stands: a send adds it together with the agent's empty
+  // reply after it. A history line is not one: when a read confirms the send the line changes key (`t…-mine` to `h…`)
+  // though nothing new was sent, and that must not pull a window read up back down.
   let lastMine: string | null = null;
-  for (const line of lines) if (line.mine) lastMine = line.key;
+  for (const line of lines) if (line.mine && line.state !== "kept") lastMine = line.key;
   useLayoutEffect(() => {
     const before = seen.current;
     seen.current = { count: lines.length, lastMine };
@@ -460,12 +462,26 @@ function queuePreviewRead(source: Source, read: () => Promise<unknown>): () => v
 }
 
 /**
+ * An agent row's stopped work in words at its right edge (`중단됨 6`), as its name reads it: beside `아직 나눈 대화 없음` a
+ * lone red number read as unread messages (lina-app#207). Nothing when none stopped.
+ */
+export function TalkStopped({ stopped }: { stopped: number }) {
+  return stopped ? (
+    <span class="talk-stopped" data-testid="talk-stopped">
+      {W.stoppedCount(stopped)}
+    </span>
+  ) : null;
+}
+
+/**
  * An agent row's second line: the first line of its last message, or `아직 나눈 대화 없음`; nothing until read. While a turn
  * goes it reads `답하는 중` (lina-app#190): neither the owner's own message nor what the core holds mid-turn.
  */
 export function TalkPreview({ agent }: { agent: string }) {
   const { store } = useApp();
   const [, redraw] = useState(0);
+  // A turn added elsewhere (another device, lina-app#205) is read again when the stream says so.
+  const changes = store.talkChanges(agent);
   useEffect(() => {
     let live = true;
     const watch = () => redraw((count) => count + 1);
@@ -482,7 +498,7 @@ export function TalkPreview({ agent }: { agent: string }) {
       drop();
       lastLineWatchers.delete(watch);
     };
-  }, [agent, store]);
+  }, [agent, store, changes]);
   const line = lastLinesOf(store.source).get(agent);
   const going = outboxes.get(store.source)?.get(agent)?.turns.some((turn) => turn.state === "sending" || turn.state === "streaming");
   if (line === undefined && !going) return null;
@@ -493,79 +509,60 @@ export function TalkPreview({ agent }: { agent: string }) {
   );
 }
 
-/** The turns a window carried over (see `Sent.carried`) that its history read may hold. */
-interface Carried {
-  /** Their messages while they go: the core may keep one as the owner's last message, or already hold it whole. */
-  readonly going: readonly string[];
-  /** The going ones this read was not already out for: only these can sit in the history as a whole exchange. */
-  readonly whole: readonly string[];
-  /** The ones this window took in whole, as (message, reply), oldest first. */
-  readonly settled: readonly (readonly [string, string])[];
-}
-
-/**
- * The earlier turns. From the tail of the history backwards it leaves out the carried turns this window shows
- * already, so a chat opened while its reply completes shows each exchange once, in either order.
- */
-function keptLines(history: AgentTalkHistory, carried: Carried = { going: [], whole: [], settled: [] }): ThreadLine[] {
-  const lines: ThreadLine[] = history.messages.map((message, index) => ({ key: `h${index}`, mine: message.role === "user", text: message.role === "user" ? ownText(message.content) : message.content, at: message.timestamp, state: "kept" }));
-  let end = lines.length;
-  const pair = (message: (text: string) => boolean, reply: (text: string) => boolean) => {
-    const own = lines[end - 2];
-    const answer = lines[end - 1];
-    return Boolean(own?.mine && answer && !answer.mine && message(own.text) && reply(answer.text));
-  };
-  if (lines[end - 1]?.mine && carried.going.includes(lines[end - 1].text)) end -= 1;
-  else if (pair((text) => carried.whole.includes(text), () => true)) end -= 2;
-  else
-    for (let turn = carried.settled.length - 1; turn >= 0; turn -= 1) {
-      const [message, reply] = carried.settled[turn];
-      if (!pair((text) => text === message, (text) => text === reply)) break;
-      end -= 2;
-    }
-  return lines.slice(0, end);
+/** The earlier turns the core's history holds, as lines. */
+function keptLines(history: AgentTalkHistory): ThreadLine[] {
+  return history.messages.map((message, index) => ({ key: `h${index}`, mine: message.role === "user", text: message.role === "user" ? ownText(message.content) : message.content, at: message.timestamp, state: "kept" }));
 }
 
 /** One turn sent from an agent's window. It lives outside the window, so leaving the window neither cancels nor drops it (lina-app#127). */
-interface Sent {
+export interface Sent {
   readonly key: string;
   readonly message: string;
   reply: string;
   /** `sending` until the core answers the send (lina-app#154): the message shows at once, the reply after. */
   state: "sending" | "streaming" | "done" | "failed";
   /**
-   * True once a window has opened while the turn was going: that window's history read may hold the turn (whole or as
-   * the owner's last message), so only such a turn is matched against the history. A turn sent from an open window
-   * went out after its history was read and cannot be in it, however alike an earlier exchange is.
+   * How many messages the core's history held at the newest read this page had applied when the turn went out (null:
+   * none applied yet). The history holds the turn only from there on, so an earlier exchange that reads the same is
+   * never taken for it.
    */
-  carried: boolean;
+  readonly base: number | null;
   /**
-   * True while the turn was sent with this window's history read still out (lina-app#154): the read may hold it as
-   * the owner's last message, but a whole exchange in it is an earlier one, since this turn has no reply yet. A
-   * window opened later reads after the turn went out, so it clears this.
+   * The number of the first history read that began after the core took the turn (null: not taken yet). Only a read from
+   * here on can hold the turn, with a `base` or without: an earlier read cannot, so an earlier or another device's
+   * exchange that reads the same is never taken for it, whatever the two clocks say.
    */
-  late: boolean;
+  from: number | null;
   /** When the message went out and when its reply last moved, in seconds. */
   readonly at: number;
   replyAt: number;
+  /** A failed turn the open window has said so about already: a later window does not say it again. */
+  told: boolean;
 }
 
-/** The window open on an agent now: it takes in a settled turn, redraws a streaming one, and shows a reply that broke off. */
+/** The window open on an agent now: it redraws a streaming turn, says so when a reply broke off, and shows a refusal. */
 interface TalkWindow {
-  take(turn: Sent): void;
   redraw(): void;
   failed(): void;
+  /** Reads the history again, from now. */
+  reread(): void;
   /** The core refused the turn: its words, shown in the window, and the message back in an empty field. */
   refused(error: string, message: string): void;
 }
 
 /**
- * The turns sent to one agent that no window has taken in yet, and the window open on it. A turn settles into the
- * open window; with none open, a kept reply is read back from the core and a failed turn waits for the next window.
+ * The turns this page sent to one agent that the core's history has not shown yet, and the window open on it. A turn
+ * stays here until a history read holds it (`withTurns`), so a read can never take a turn away, whatever the order
+ * of the read, the turn's end and the stream's events.
  */
 interface Outbox {
   readonly turns: Sent[];
   window: TalkWindow | null;
+  /** The size of the newest history this page applied, which a turn sent next is read from (`Sent.base`). */
+  known: number | null;
+  /** How many history reads began, and the number of the newest one applied (`Sent.from`). */
+  started: number;
+  applied: number;
   /** A refusal that came while no window was open, shown by the next one. */
   refusal: { readonly line: string; readonly message: string } | null;
 }
@@ -577,7 +574,7 @@ function outbox(source: Source, agent: string): Outbox {
   let agents = outboxes.get(source);
   if (!agents) outboxes.set(source, (agents = new Map()));
   let box = agents.get(agent);
-  if (!box) agents.set(agent, (box = { turns: [], window: null, refusal: null }));
+  if (!box) agents.set(agent, (box = { turns: [], window: null, known: null, started: 0, applied: 0, refusal: null }));
   return box;
 }
 
@@ -589,10 +586,62 @@ function sentLines(turn: Sent): ThreadLine[] {
   ];
 }
 
+/**
+ * Where the history holds the turn: the owner's message and, when the core has one, its reply (indexes into `kept`),
+ * or null. The history `read` (the number of the read it came from) must have begun after the core took the turn,
+ * whether or not a `base` is known: an older read cannot hold it, and a same-worded message another device added since
+ * is not it. It looks from the newest line back to `base`. The reply is not compared: the core may keep it in other
+ * marks than it streamed.
+ */
+function holdOf(kept: readonly ThreadLine[], read: number, turn: Sent, used: ReadonlySet<number>): readonly number[] | null {
+  if (turn.from === null || read < turn.from) return null;
+  for (let own = kept.length - 1; own >= (turn.base ?? 0); own -= 1) {
+    const line = kept[own];
+    if (used.has(own) || !line.mine || line.text !== turn.message) continue;
+    const answer = kept[own + 1];
+    if (answer && !answer.mine && !used.has(own + 1)) {
+      return [own, own + 1];
+    }
+    if (!answer || answer.mine) return [own];
+  }
+  return null;
+}
+
+/** Whether a history read could hold `turn`, yet began before the core took it, with no base to tell it by. */
+function unsure(kept: readonly ThreadLine[], read: number, turn: Sent): boolean {
+  if (turn.base !== null || turn.from === null || read >= turn.from) return false;
+  return kept.some((line) => line.mine && line.text === turn.message);
+}
+
+/**
+ * What the window draws: the core's history `kept`, then the turns it does not hold yet. A turn still going, or one
+ * that failed, is drawn from the page (the core holds its message at most, or a reply that may differ), so the lines
+ * the core has for it are left out. A turn the core holds whole and that is done or failed is drawn from the history
+ * and `confirmed`: the outbox drops it.
+ */
+export function withTurns(kept: readonly ThreadLine[], read: number, turns: readonly Sent[]): { readonly lines: ThreadLine[]; readonly confirmed: Sent[] } {
+  const used = new Set<number>();
+  const left = new Set<number>();
+  const confirmed: Sent[] = [];
+  for (let at = turns.length - 1; at >= 0; at -= 1) {
+    const turn = turns[at];
+    const held = holdOf(kept, read, turn, used);
+    if (!held) continue;
+    for (const index of held) used.add(index);
+    if (held.length === 2 && turn.state !== "sending" && turn.state !== "streaming") confirmed.push(turn);
+    else for (const index of held) left.add(index);
+  }
+  const own = (turn: Sent) => !confirmed.includes(turn);
+  return { lines: [...kept.filter((_, index) => !left.has(index)), ...turns.filter(own).flatMap(sentLines)], confirmed };
+}
+
+/** A turn's stream has ended, done or failed: the window draws it as it is now; it leaves the outbox when a read holds it. */
 function settle(box: Outbox, turn: Sent) {
-  if (!box.window && turn.state === "failed") return;
-  box.turns.splice(box.turns.indexOf(turn), 1);
-  box.window?.take(turn);
+  if (box.window) {
+    turn.told = true;
+    if (turn.state === "failed") box.window.failed();
+  }
+  box.window?.redraw();
 }
 
 /**
@@ -620,74 +669,95 @@ export function TalkHead({ agent }: { agent: string }) {
  */
 export function AgentTalk({ agent, children }: { agent: string; children?: ComponentChildren }) {
   const { model, store } = useApp();
+  /** The core's history as last read; null until the first read lands. This page's own turns are drawn after it (`withTurns`). */
   const [lines, setLines] = useState<readonly ThreadLine[] | null>(null);
   const [historyError, setHistoryError] = useState(false);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [, redraw] = useState(0);
-  /** The earlier turns are still being read: a turn sent meanwhile may come back in them, so it is matched like a carried one. */
-  const historyPending = useRef(true);
+  /** The stream's count of changes to this conversation that the newest read began at (lina-app#205). */
+  const talkChanges = store.talkWindowChanges(agent);
+  const readAt = useRef(talkChanges);
+  // The number of the newest read begun and of the newest applied: a read that lands after a newer one was applied is
+  // older than it and dropped. `opened` counts the windows, so a read of an earlier window is dropped too.
+  const readSeq = useRef(0);
+  const readApplied = useRef(0);
+  const opened = useRef(0);
   const name = agentName(model, agent) || agent;
   const box = outbox(store.source, agent);
-  const sending = box.turns.length > 0;
+  const sending = box.turns.some((turn) => turn.state === "sending" || turn.state === "streaming");
   // An address naming no agent the core lists (lina-app#154); unknown until the agents are read.
   const missing = store.status("items") === "ok" && !model.agents.some((each) => each.id === agent);
 
-  useEffect(() => {
-    let live = true;
+  /**
+   * Reads the history and draws it in place of the one before. A read can start at any time, a turn of this page going
+   * or not: the turns stay in the outbox, drawn after it, until a history holds them (`withTurns`).
+   */
+  const read = (first: boolean) => {
     const box = outbox(store.source, agent);
-    /** The carried turns this window has taken in whole. */
-    const settled: (readonly [string, string])[] = [];
+    const token = ++readSeq.current;
+    const number = ++box.started;
+    const gen = opened.current;
+    readAt.current = store.talkWindowChanges(agent);
+    void store.source.agentTalkHistory(agent).then((result) => {
+      if (gen !== opened.current || token < readApplied.current) return;
+      if (result.kind !== "data") {
+        // Only the first read has something to say: a later one that fails leaves the history as it was.
+        if (first) {
+          setLines((shown) => shown ?? []);
+          if (result.kind === "failed") setHistoryError(true);
+        }
+        return;
+      }
+      const kept = keptLines(result.data);
+      // A history that began before the core took a turn this page sent, with no earlier history to tell by, may hold
+      // the turn or an earlier exchange that reads the same, and nothing says which: it is not applied, the read the
+      // turn started when the core took it is (`Sent.from`).
+      if (box.turns.some((turn) => unsure(kept, number, turn))) return;
+      readApplied.current = token;
+      for (const turn of withTurns(kept, number, box.turns).confirmed) box.turns.splice(box.turns.indexOf(turn), 1);
+      box.known = kept.length;
+      box.applied = number;
+      setLines(kept);
+      if (!box.turns.length) keepLastLine(store.source, agent, lastLineOf(result.data));
+    });
+  };
+
+  useEffect(() => {
+    const box = outbox(store.source, agent);
     const open: TalkWindow = {
-      take(turn) {
-        setLines((shown) => {
-          const all = shown ?? [];
-          const own = all[all.length - 2];
-          const answer = all[all.length - 1];
-          // The history read can already hold a carried turn whole: it shows once.
-          const held = turn.carried && turn.state === "done" && own?.mine && !answer?.mine && own.text === turn.message && answer.text === turn.reply;
-          return held ? all : [...all, ...sentLines(turn)];
-        });
-        if (turn.carried && turn.state === "done") settled.push([turn.message, turn.reply]);
-        if (turn.state === "failed") setError(W.talkFailed);
-      },
       redraw: () => redraw((count) => count + 1),
       failed: () => setError(W.talkFailed),
+      reread: () => read(box.applied === 0),
       refused(line, message) {
         setError(line);
         setText((typed) => (typed.trim() ? typed : message));
       },
     };
     box.window = open;
-    for (const turn of box.turns) {
-      turn.carried = true;
-      turn.late = false;
-    }
+    opened.current += 1;
     if (box.refusal) {
       open.refused(box.refusal.line, box.refusal.message);
       box.refusal = null;
     }
-    for (const turn of box.turns.filter((each) => each.state === "failed")) settle(box, turn);
-    historyPending.current = true;
-    void store.source.agentTalkHistory(agent).then((result) => {
-      if (!live) return;
-      historyPending.current = false;
-      const going = box.turns.filter((turn) => turn.carried).map((turn) => turn.message);
-      const whole = box.turns.filter((turn) => turn.carried && !turn.late).map((turn) => turn.message);
-      if (result.kind === "data") {
-        setLines((shown) => [...keptLines(result.data, { going, whole, settled }), ...(shown ?? [])]);
-        if (!box.turns.length) keepLastLine(store.source, agent, lastLineOf(result.data));
-      } else {
-        setLines((shown) => shown ?? []);
-        if (result.kind === "failed") setHistoryError(true);
-      }
-    });
-    // Leaving the window does not cancel the turn the owner sent; it settles into the next window (lina-app#127).
+    // A reply that broke off while no window was open is told once, by the first window that opens after.
+    if (box.turns.some((turn) => turn.state === "failed" && !turn.told)) {
+      for (const turn of box.turns) if (turn.state === "failed") turn.told = true;
+      open.failed();
+    }
+    read(true);
+    // Leaving the window does not cancel the turn the owner sent; it stays in the outbox for the next window (lina-app#127).
     return () => {
-      live = false;
       if (box.window === open) box.window = null;
+      opened.current += 1;
     };
   }, [agent, store]);
+
+  // A turn added elsewhere (another device, lina-app#205): the earlier turns are read again and replace what the window
+  // drew from the core. This page's own turns are not in that: they stay in the outbox until a history holds them.
+  useEffect(() => {
+    if (readAt.current !== talkChanges) read(false);
+  }, [agent, store, talkChanges]);
 
   const send = async () => {
     const message = text.trim();
@@ -696,10 +766,10 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
     setText("");
     // The turn is in the outbox before anything is awaited, so a window opened meanwhile sees it going and does not
     // offer a second send. It goes out at once, not behind the history read (a gateway that does not answer holds
-    // that read for 30 s, lina-app#154); a read still out may then hold it, so it is matched as a carried turn.
+    // that read for 30 s, lina-app#154); a read still out may then hold it, which `withTurns` finds.
     const box = outbox(store.source, agent);
     const sentAt = Date.now() / 1000;
-    const turn: Sent = { key: `t${++sentKeys}`, message, reply: "", state: "sending", carried: historyPending.current, late: historyPending.current, at: sentAt, replyAt: sentAt };
+    const turn: Sent = { key: `t${++sentKeys}`, message, reply: "", state: "sending", base: box.known, from: null, at: sentAt, replyAt: sentAt, told: false };
     box.turns.push(turn);
     box.window?.redraw();
     const before = lastLinesOf(store.source).get(agent);
@@ -716,6 +786,9 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
       return;
     }
     turn.state = "streaming";
+    // The core holds the message from here: the next read to begin can show it.
+    turn.from = box.started + 1;
+    box.window?.reread();
     box.window?.redraw();
     let failed = false;
     try {
@@ -752,7 +825,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
   };
 
   // A reply that broke off before its first word leaves no bubble.
-  const shown = [...(lines ?? []), ...box.turns.flatMap(sentLines)].filter((line) => line.mine || line.text || line.state === "streaming");
+  const shown = withTurns(lines ?? [], box.applied, box.turns).lines.filter((line) => line.mine || line.text || line.state === "streaming");
 
   if (missing) {
     return (
@@ -885,7 +958,8 @@ export function TalkAgents() {
                 <span class="title one-line">{agent.name}</span>
                 <TalkPreview agent={agent.id} />
               </span>
-              <CountPair count={running} stopped={stopped} />
+              <CountPair count={running} />
+              <TalkStopped stopped={stopped} />
               <Disclosure />
             </Link>
           </li>

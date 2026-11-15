@@ -21,7 +21,7 @@ The toolbar says how fresh the data is. A failed source shows one orange line wh
 
 ## How to get to it (user POV)
 
-- Look at the toolbar on a wide window, or the bottom bar on a phone.
+- Look at the toolbar on a wide window, or the bottom bar on a phone (drawn only while the line has a word, lina-app#187).
 
 ## Driving it with verify.mjs
 

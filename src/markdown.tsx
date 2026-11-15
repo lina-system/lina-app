@@ -297,3 +297,22 @@ function closing(text: string, at: number, mark: string): number {
   }
   return -1;
 }
+
+/**
+ * One line of a reply as plain words, for an agent row's preview (lina-app#187): its first line with words, without
+ * a heading's, quote's or list item's mark, emphasis and code marks, or a link's address. A code fence and a rule are
+ * not words; a table row reads its cells.
+ */
+export function plainLine(text: string): string {
+  const line = text.split("\n").find((each) => each.trim() && !FENCE.test(each) && !RULE.test(each) && !TABLE_RULE.test(each)) ?? "";
+  return line
+    .replace(/^\s*(?:>\s?)+/, "")
+    .replace(/^\s*(?:#{1,6}\s+|[-*+]\s+|\d{1,9}[.)]\s+)/, "")
+    .replace(/!?\[([^\]\n]+)\]\([^)\s]+(?:\([^)\s]*\)[^)\s]*)*\)/g, "$1")
+    .replace(/(`+)(.+?)\1/g, "$2")
+    .replace(/(\*\*|__)(?=\S)(.+?)(?<=\S)\1/g, "$2")
+    .replace(/\*(?=\S)(.+?)(?<=\S)\*/g, "$1")
+    .replace(/(?<![\p{L}\p{N}])_(?=\S)(.+?)(?<=\S)_(?![\p{L}\p{N}])/gu, "$1")
+    .replace(/\s*\|\s*/g, " ")
+    .trim();
+}

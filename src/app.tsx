@@ -336,12 +336,14 @@ export function Freshness() {
   else if (current) line = { text: "", tone: "" };
   else if (store.live === "down" || now - since > STALE_AFTER_S) line = { text: W.stale, tone: "" };
   else line = { text: W.fresh(Math.max(0, Math.floor(now - since))), tone: "" };
+  const failed = !store.offline && model.errors.length > 0;
+  // Nothing to say: the phone's strip that holds this line draws nothing and takes no height (lina-app#187).
   return (
-    <span class="freshness" data-testid="freshness">
+    <span class="freshness" data-testid="freshness" data-quiet={line.text || failed ? undefined : ""}>
       <span class={line.tone} data-testid="freshness-line">
         {line.text}
       </span>
-      {!store.offline && model.errors.length ? (
+      {failed ? (
         <span class="is-orange" data-testid="read-failed">
           {`${SEP}${W.readFailed(model.errors.join(", "))}`}
         </span>

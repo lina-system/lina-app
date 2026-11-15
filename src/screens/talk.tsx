@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { AgentTalkHistory, ItemDetail } from "../api/client";
 import type { Source, TalkResult } from "../data/source";
 import { KoreanInput } from "../korean-input";
-import { Markdown } from "../markdown";
+import { Markdown, plainLine } from "../markdown";
 import { agentView, foldTitle } from "../model";
 import { href } from "../router";
 import { clock } from "../time";
@@ -398,7 +398,8 @@ function keepLastLine(source: Source, agent: string, line: string | undefined) {
 
 function lastLineOf(history: AgentTalkHistory): string {
   const last = history.messages.at(-1);
-  return last ? firstLine(last.role === "user" ? ownText(last.content) : last.content) : "";
+  // The owner's words as typed; the agent's without their markdown marks (lina-app#187).
+  return last ? (last.role === "user" ? firstLine(ownText(last.content)) : plainLine(last.content)) : "";
 }
 
 /**
@@ -682,7 +683,7 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
             turn.state = "done";
             turn.replyAt = Date.now() / 1000;
             settle(box, turn);
-            keepLastLine(store.source, agent, firstLine(turn.reply));
+            keepLastLine(store.source, agent, plainLine(turn.reply));
             break;
           case "error":
           case "run.failed":

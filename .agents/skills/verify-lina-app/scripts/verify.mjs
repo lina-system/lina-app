@@ -2455,7 +2455,8 @@ const drivers = {
       await page.setViewportSize({ width: 390, height: 480 });
       await openApp(page, "#/items/T4");
       await page.getByTestId("talk").waitFor();
-      const before = await page.evaluate(() => ({ bar: document.querySelector(".navbar").getBoundingClientRect().top, bottom: document.querySelector(".bottombar").getBoundingClientRect().bottom }));
+      // A quiet strip draws nothing (lina-app#187): the screen's bottom edge is then the window's.
+      const before = await page.evaluate(() => ({ bar: document.querySelector(".navbar").getBoundingClientRect().top, bottom: ((strip) => (getComputedStyle(strip).display === "none" ? innerHeight : strip.getBoundingClientRect().bottom))(document.querySelector(".bottombar")) }));
       const after = await page.evaluate(() => {
         const main = document.querySelector(".phone-main");
         main.scrollTo(0, main.scrollHeight);
@@ -2463,7 +2464,7 @@ const drivers = {
           scrolled: main.scrollTop,
           page: document.scrollingElement.scrollTop,
           bar: document.querySelector(".navbar").getBoundingClientRect().top,
-          bottom: document.querySelector(".bottombar").getBoundingClientRect().bottom,
+          bottom: ((strip) => (getComputedStyle(strip).display === "none" ? innerHeight : strip.getBoundingClientRect().bottom))(document.querySelector(".bottombar")),
           height: innerHeight,
           pane: getComputedStyle(main).overscrollBehaviorY,
           root: getComputedStyle(document.documentElement).overscrollBehaviorY,
@@ -2648,22 +2649,30 @@ const drivers = {
         await app.close();
       }
     });
-    await step("the bars keep clear of the status bar and the home indicator", async () => {
+    await step("the bars keep clear of the status bar and the home indicator; a quiet strip draws nothing and the screen still clears the indicator", async () => {
       // Headless Chromium has no notch, so the driver sets the safe-area tokens the page reads from env().
-      await openApp(page, "#/running");
-      await page.evaluate(() => {
-        document.documentElement.style.setProperty("--safe-top", "47px");
-        document.documentElement.style.setProperty("--safe-bottom", "34px");
-      });
+      const notch = () =>
+        page.evaluate(() => {
+          document.documentElement.style.setProperty("--safe-top", "47px");
+          document.documentElement.style.setProperty("--safe-bottom", "34px");
+        });
+      // A stream that cannot open says 연결 중: the strip shows that word above the home indicator.
+      await openApp(page, "#/running", "&live=down", "연결 중");
+      await notch();
       const back = await page.getByTestId("back").evaluate((element) => element.getBoundingClientRect().top);
       const bar = await page.locator(".bottombar").evaluate((element) => {
-        const box = element.getBoundingClientRect();
         const line = element.querySelector("[data-testid=freshness]").getBoundingClientRect();
-        return { bottom: box.bottom, viewport: innerHeight, lineBottom: line.bottom };
+        return { viewport: innerHeight, lineBottom: line.bottom };
       });
       check(back >= 47, "the back control starts at " + back + " px, under a 47 px status bar");
       check(bar.lineBottom <= bar.viewport - 34, "the freshness line ends at " + bar.lineBottom + " px, under the home indicator");
-      return "back at " + back + " px, bar text ends " + (bar.viewport - bar.lineBottom) + " px above the bottom";
+      // All well: no strip at all (lina-app#187); the screen's own bottom padding keeps its end above the indicator.
+      await openApp(page, "#/running");
+      await notch();
+      const quiet = await page.evaluate(() => ({ strip: getComputedStyle(document.querySelector(".bottombar")).display, padding: parseFloat(getComputedStyle(document.querySelector(".phone-main")).paddingBottom) }));
+      check(quiet.strip === "none", "a quiet strip is drawn: " + quiet.strip);
+      check(quiet.padding >= 34 + 20, "the screen's bottom padding is " + quiet.padding + " px with a 34 px home indicator");
+      return "back at " + back + " px, 연결 중 ends " + (bar.viewport - bar.lineBottom) + " px above the bottom; quiet: no strip, padding " + quiet.padding + " px";
     });
   },
 

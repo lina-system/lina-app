@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { agentTalkPath, EVENTS_PATH, routePath, USAGE_RANGES, type ItemSummary, type RouteName } from "../src/api/client";
 import { SyntheticSource } from "../src/data/synthetic-source";
+import { stripTop } from "./strip";
 
 // lina-app#162: an agent with 28 goals, read through the core's client API (not `?source=synthetic`) in the shapes the
 // synthetic scene serves, the way the live hub answers. The first agent's two goals get 26 more, each a made-up title.
@@ -54,7 +55,7 @@ test("on a phone the 28 goals of an open card scroll in their own region, which 
   const bottom = async (selector: string) => (await page.locator(selector).boundingBox())!.y;
   const box = (await region.boundingBox())!;
   expect(box.y + box.height).toBeLessThanOrEqual(await bottom(".agent-talk-form"));
-  expect(box.y + box.height).toBeLessThanOrEqual(await bottom(".bottombar"));
+  expect(box.y + box.height).toBeLessThanOrEqual(await stripTop(page));
   // Scrolled to its end inside the region, the screen not moved: the last row is the element at its centre.
   await region.evaluate((body) => (body.scrollTop = body.scrollHeight));
   expect(await page.locator(".phone-main").evaluate((main) => main.scrollTop)).toBe(0);

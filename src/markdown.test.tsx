@@ -1,6 +1,6 @@
 import { render } from "@testing-library/preact";
 import { expect, test } from "vitest";
-import { Markdown } from "./markdown";
+import { Markdown, plainLine } from "./markdown";
 
 // The rules of the agent's reply in 대화 (lina-app#187), one case per rule: what is drawn, and what stays plain text.
 
@@ -128,6 +128,16 @@ test("while a reply streams, an unclosed mark is plain text until it closes", ()
   expect(open.querySelector("pre")).toBeNull();
   expect(open.textContent).toBe("코드```tsconst a = 1;");
   expect(draw("이건 **굵게**").querySelector("strong")?.textContent).toBe("굵게");
+});
+
+test("an agent row's one-line preview shows the reply's words without its marks", () => {
+  expect(plainLine("## 오늘 정리\n내용")).toBe("오늘 정리");
+  expect(plainLine("\n> **배포**는 `금요일`")).toBe("배포는 금요일");
+  expect(plainLine("- [문서](https://example.com)를 _먼저_ 봐요")).toBe("문서를 먼저 봐요");
+  expect(plainLine("1. 첫째 *할 일*")).toBe("첫째 할 일");
+  expect(plainLine("```sh\nnpm test\n```")).toBe("npm test");
+  expect(plainLine("snake_case_name 그대로")).toBe("snake_case_name 그대로");
+  expect(plainLine("")).toBe("");
 });
 
 test("lines of one paragraph keep their breaks; a blank line starts a new paragraph", () => {

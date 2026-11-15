@@ -101,6 +101,10 @@ async function serveCore(page: Page): Promise<Core> {
   return core;
 }
 
+function phoneWidth(page: Page): boolean {
+  return (page.viewportSize()?.width ?? 0) < 900;
+}
+
 async function openWindow(page: Page): Promise<Core> {
   const core = await serveCore(page);
   await page.goto("/app/#/talk/ag-1");
@@ -144,6 +148,8 @@ test("a long reply draws its markdown inside the bubble: the code block and the 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
   // Grouped: the agent's two messages of yesterday are one group, one mark, one name and one time; a date stands between the days.
   await expect(talk.getByTestId("talk-day")).toHaveText(["어제", "오늘"]);
+  // The agent row's preview reads the reply's words, not its marks.
+  if (!phoneWidth(page)) await expect(page.getByTestId("nav-talk-0").getByTestId("talk-preview")).toHaveText("오늘 정리");
   const groups = await talk.getByTestId("talk-group").evaluateAll((all) => all.map((group) => [group.classList.contains("is-mine") ? "me" : "agent", group.querySelectorAll(".talk-turn").length, group.querySelectorAll(".mark").length, group.querySelectorAll("[data-testid=talk-time]").length].join(":")));
   expect(groups).toEqual(["me:1:0:1", "agent:2:1:1", "me:1:0:1", "agent:1:1:1"]);
   await page.screenshot({ path: info.outputPath(`talk-markdown-${info.project.name}.png`) });
@@ -197,7 +203,9 @@ test("a refused send says why in one line and a lost connection shows in the hea
   await page.screenshot({ path: info.outputPath(`talk-refused-${info.project.name}.png`) });
   await page.unrouteAll({ behavior: "ignoreErrors" });
   await page.route("**/api/**", (route) => route.abort());
-  await core.socket()?.close();
-  await expect(page.getByTestId("freshness-line")).toHaveText(/^(연결 끊김|갱신 지연)$/, { timeout: 15_000 });
+  // One change comes in while the core is unreachable: the read it asks for fails and the head says 연결 끊김.
+  core.socket()?.send(JSON.stringify({ cursor: "c2", events: [{ source: "work", kind: "updated", id: "T1", at: Math.floor(Date.now() / 1000) }] }));
+  await expect(page.getByTestId("freshness-line")).toHaveText("연결 끊김", { timeout: 15_000 });
+  await expect(page.locator(".bottombar")).toBeVisible({ visible: (page.viewportSize()?.width ?? 0) < 900 });
   await page.screenshot({ path: info.outputPath(`talk-offline-${info.project.name}.png`) });
 });

@@ -1915,7 +1915,7 @@ button.check:hover:not([aria-disabled="true"]):not(.is-done) {
 }
 
 .stack ~ .toast-slot {
-  bottom: calc(56px + var(--safe-bottom) + var(--keyboard-inset, 0px));
+  bottom: calc(var(--phone-end) + 12px);
 }
 
 .toast {
@@ -2120,9 +2120,9 @@ html:has(.stack) body {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-bottom: calc(64px + var(--safe-bottom) + var(--keyboard-inset, 0px));
+  padding-bottom: calc(var(--phone-end) + 20px);
   /* A row brought into view (a tap, a focus move, a find) stops above the bottom bar, never under it (lina-app#142). */
-  scroll-padding-bottom: calc(44px + 8px + var(--safe-bottom) + var(--keyboard-inset, 0px));
+  scroll-padding-bottom: calc(var(--phone-end) + 8px);
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
   background: var(--bg-2);
@@ -2228,6 +2228,23 @@ html:has(.stack) body {
   padding: 0 calc(var(--inset) + 12px) 12px;
 }
 
+/* lina-app#187: the bottom strip holds only the head's word. Its height is one value, --bottom-strip: 44 px while the
+   word says something is wrong, 0 while all is well, when the strip draws nothing. --phone-end is what covers the
+   bottom of a phone screen (the strip, the home indicator and the keyboard); every screen, field and button that must
+   stay clear of it reads that one value. */
+:root {
+  --bottom-strip: 44px;
+  --phone-end: calc(var(--bottom-strip) + var(--safe-bottom) + var(--keyboard-inset, 0px));
+}
+
+:root:has(.stack .bottombar .freshness[data-quiet]) {
+  --bottom-strip: 0px;
+}
+
+.stack .bottombar:has(.freshness[data-quiet]) {
+  display: none;
+}
+
 .bottombar {
   position: fixed;
   left: 0;
@@ -2237,7 +2254,7 @@ html:has(.stack) body {
   grid-template-columns: var(--hit) 1fr var(--hit);
   align-items: center;
   gap: 8px;
-  height: calc(44px + var(--safe-bottom));
+  height: calc(var(--bottom-strip) + var(--safe-bottom));
   padding: 0 calc(8px + var(--safe-right)) var(--safe-bottom) calc(8px + var(--safe-left));
   background: var(--bar);
   backdrop-filter: saturate(180%) blur(20px);
@@ -3155,16 +3172,12 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   padding: 8px var(--inset);
 }
 
-/* The field and the strip cover the bottom of the screen: a row brought into view stops above both (lina-app#143). */
-.stack .phone-main:has(> .agent-talk) {
-  scroll-padding-bottom: calc(var(--hit) + 96px + var(--safe-bottom) + var(--keyboard-inset, 0px));
-}
-
 .stack .agent-talk-form {
   position: sticky;
-  bottom: calc(-64px - var(--safe-bottom) - var(--keyboard-inset, 0px));
-  margin-bottom: calc(-64px - var(--safe-bottom) - var(--keyboard-inset, 0px));
-  padding-bottom: calc(10px + 64px + var(--safe-bottom) + var(--keyboard-inset, 0px));
+  /* Over the screen's own bottom padding to the edge, the field 10 px above whatever covers the bottom. */
+  bottom: calc(-20px - var(--phone-end));
+  margin-bottom: calc(-20px - var(--phone-end));
+  padding-bottom: calc(10px + var(--phone-end));
   background: var(--bar);
 }
 
@@ -3223,14 +3236,15 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   margin: 0 0 6px;
 }
 
-/* A refused send's line (and its margin) makes the bar taller; a row brought into view still stops above it, and so
-   does 맨 아래로 (lina-app#143, #187). */
+/* The field bar's top above the bottom of the screen: the field, its padding, a refused send's line and what covers the
+   bottom. A row brought into view stops above it, and 맨 아래로 sits over it (lina-app#143, #187). */
 .stack .phone-main:has(> .agent-talk) {
-  scroll-padding-bottom: calc(var(--hit) + 96px + var(--talk-error-line, 0px) + var(--safe-bottom) + var(--keyboard-inset, 0px));
+  --talk-bar: calc(var(--hit) + 20px + var(--talk-error-line, 0px) + var(--phone-end));
+  scroll-padding-bottom: calc(var(--talk-bar) + 12px);
 }
 
 .stack .agent-talk .talk-jump-bar {
-  bottom: calc(var(--hit) + 96px + var(--talk-error-line, 0px) + var(--safe-bottom) + var(--keyboard-inset, 0px) - 40px);
+  bottom: var(--talk-bar);
 }
 
 .stack .phone-main:has(> .agent-talk .agent-talk-form > .write-error) {
@@ -3245,7 +3259,7 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 }
 
 .stack .agent-card.is-open > .agent-card-body {
-  max-height: max(88px, calc(100cqh - 128px - var(--hit) - 32px - var(--talk-error-line, 0px)));
+  max-height: max(88px, calc(100cqh - 128px - var(--hit) - 12px - var(--talk-error-line, 0px)));
   overflow-y: auto;
 }
 

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { stripTop } from "./strip";
 
 // lina-app#142: every kind of detail opens in the one frame (the right-hand pane at 1280, a sheet rising from the
 // bottom at 390) where the owner is looking, from a row far down its list; back closes it and the list is where it
@@ -43,8 +44,8 @@ for (const hash of ["#/", "#/inbox"]) {
     for (const bring of [() => last.evaluate((row) => row.scrollIntoView({ block: "end" })), () => page.locator(".phone-main").evaluate((main) => (main.scrollTop = main.scrollHeight))]) {
       await bring();
       const row = (await last.boundingBox())!;
-      const bar = (await page.locator(".bottombar").boundingBox())!;
-      expect(row.y + row.height, `the last row ends at ${row.y + row.height}, the bar starts at ${bar.y}`).toBeLessThanOrEqual(bar.y);
+      const bar = await stripTop(page);
+      expect(row.y + row.height, `the last row ends at ${row.y + row.height}, the strip starts at ${bar}`).toBeLessThanOrEqual(bar);
     }
   });
 }

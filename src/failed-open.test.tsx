@@ -126,6 +126,32 @@ test("after the core refused the credential for good nothing is read again", asy
   stop();
 });
 
+test("at 390 a stream that opens 2 s after the first read draws no band over the rows; one still not open after the settle time reads 연결 중", async () => {
+  setWide(false);
+  window.history.replaceState(null, "", "/app/#/");
+  const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000), live: "down" });
+  const view = render(<App store={new Store(source)} />);
+  const band = () => (view.getByTestId("freshness").hasAttribute("data-quiet") ? "" : view.getByTestId("freshness").textContent);
+  const bands: (string | null)[] = [];
+  for (let ms = 0; ms < 2_000; ms += 100) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    if (view.queryAllByTestId("row").length) bands.push(band());
+  }
+  expect(bands.length).toBeGreaterThan(0);
+  expect(bands.filter(Boolean)).toEqual([]);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(3_000);
+  });
+  expect(band()).toBe("연결 중");
+  source.setStreamDown(false);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(30_000);
+  });
+  expect(band()).toBe("");
+});
+
 for (const wide of [false, true]) {
   test(`at ${wide ? 1280 : 390} a failed open fills the home without input once the core answers`, async () => {
     setWide(wide);

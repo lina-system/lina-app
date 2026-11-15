@@ -840,7 +840,7 @@ export function App({ store, pushHost, label = null }: { store: Store; pushHost?
   useLayoutEffect(() => startLive(store), [store]);
   useLayoutEffect(() => {
     store.want(wantsFor(nav.route, store));
-    if (readsEveryFinished(nav.route, store)) void store.showFinished();
+    if (readsEveryFinished(nav.route, store)) void store.showFinished(true);
   }, [nav.hash, version]);
   useEffect(() => {
     if (nav.route.name !== "settings" && nav.route.name !== "setting") settingsEdits.editRules(false);

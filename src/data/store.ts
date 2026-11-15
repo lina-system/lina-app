@@ -109,6 +109,8 @@ export class Store {
   /** A screen lists or counts every finished card: the cards are read without a limit from then on. */
   private finishedAll = false;
   private finishing: Promise<void> | null = null;
+  /** The last read of every finished card left the page short: a screen's own asks stop until the user asks again. */
+  private finishFailed = false;
   private cardsReading = 0;
   private readonly afterPaint: () => Promise<void>;
   private firstPaint: () => void = () => {};
@@ -333,8 +335,10 @@ export class Store {
    * Every finished card from now on: the fold under the work tab's 완료, or a screen that lists or counts them all. A
    * cards read already out or landed is followed by one without a limit; before the first, the first asks for them all.
    */
-  showFinished(): Promise<void> {
+  showFinished(automatic = false): Promise<void> {
     if (this.finishing) return this.finishing;
+    // A screen asks again on every change of the store, a failed read included: only the user's own ask reads again after it.
+    if (automatic && this.finishFailed) return Promise.resolve();
     const entry = this.entries.get("cards");
     // Asked for already: nothing to read while a read is out, before the first read, or once the page holds them all. A
     // read that failed leaves the page with the few it had, so the next ask reads again.
@@ -343,6 +347,7 @@ export class Store {
     if (!entry && !this.cardsReading) return Promise.resolve();
     this.finishing = this.invalidate([["cards"]]).finally(() => {
       this.finishing = null;
+      this.finishFailed = !this.finished().all;
       this.notify();
     });
     this.notify();

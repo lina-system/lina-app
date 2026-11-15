@@ -113,3 +113,28 @@ test("a failed read of the rest of the finished cards is read again by the next 
   await store.showFinished();
   expect(names.filter((name) => name.startsWith("cards"))).toHaveLength(reads);
 });
+
+test("a screen's own ask after a failed read of the finished cards reads nothing again, and the user's ask still does", async () => {
+  const source = new SyntheticSource({ now: NOW, manyFinished: true });
+  const read = source.read.bind(source);
+  let refuse = true;
+  let refused = 0;
+  source.read = ((name, id) => {
+    if (name === "cards" && id === undefined && refuse) {
+      refused += 1;
+      return Promise.resolve({ kind: "failed", offline: false, at: NOW });
+    }
+    return read(name, id);
+  }) as Source["read"];
+  const store = new Store(source, { afterPaint: async () => {} });
+  await store.refresh();
+
+  await store.showFinished(true);
+  expect(refused).toBe(1);
+  for (let index = 0; index < 5; index += 1) await store.showFinished(true);
+  expect(refused).toBe(1);
+
+  refuse = false;
+  await store.showFinished();
+  expect(store.finished().all).toBe(true);
+});

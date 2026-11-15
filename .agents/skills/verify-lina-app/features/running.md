@@ -22,6 +22,7 @@
 - The sidebar's `진행 중인 작업` shows the running cards as a grey number (none when nothing runs) and the stopped cards as their own red words under the label (`2` grey at the right edge, `중단됨 1` red; lina-app#156), so a stopped count never reads as running work; the two are never summed into one count.
 - Each card's kind icon (code, docs, research, device) tells the kind of work apart.
 - A stopped row has `다시 시도` after it only when running it again can clear the stop (no response, failed, budget, gate, hold, or the core does not say); a row waiting on the owner's answer or feedback, on a review or on another to-do, or one the core already runs again (`retry: scheduled`, lina-app#160), has none and opens its detail (lina-app#134). Choosing it asks the agent (see actions.md) and the row reads `<agent>에게 요청함` for five seconds.
+- On a wide window the open card's row is selected: the whole row in the accent, `다시 시도` or `<agent>에게 요청함` inside it in white up to the divider, never the link alone with the button outside on the panel (lina-app#212); a row with nothing after its link is selected as before. A focus ring on the selected row's link or button is white, 3:1 against the selection; with forced colours the selected row is a ring in the system's highlight. On a phone the detail is a sheet over the list, so no selected row shows.
 
 ## Sub-features
 
@@ -29,6 +30,7 @@
 - `running-time` counts the running time up live
 - `running-now` shows the now line on a wide window
 - `running-retry` asks a stopped card running again can clear to try again
+- `running-selected` paints the selected stopped row whole, its `다시 시도` or `요청함` inside, in light, dark and forced colours
 - `running-ended` keeps every worker run and stopped work under a done goal out, names who a stopped row waits on and what it asks, and puts the owner's first
 
 ## How to get to it (user POV)
@@ -51,6 +53,7 @@ Preconditions:
 - **State lines.** Read each grey line. `중단됨 · 응답 없음 · n분 전`, then `진행 중 · 시작 n분 전` or `시작 n시간 전`.
 - **Retry.** The stopped card has one `다시 시도` button; choosing it is driven in actions.md.
 - **No running card.** Load `/app/?source=synthetic&running=none#/running`. The `진행 중` head reads `0` with no rows; `중단됨` with one red `1` and one row, the stopped card, with an accent `다시 시도`; no `없음`. The sidebar's `진행 중인 작업` shows no grey number, only a red `중단됨 1`.
+- **Selected row.** At 1280 load `#/cards/k-103` in light and in dark: the selected row's painted box runs from 6 px inside the row's left edge to 6 px inside its right edge and holds `다시 시도`, drawn in the row's white; the focus ring on the row's link and on `다시 시도` is white, 3:1 or more against the selection. `#/cards/k-101` (nothing after its link) is painted on its link, the same box. Choose `다시 시도`: `<agent>에게 요청함` sits in the same box. With forced colours the row is drawn with a ring no other row has. At 390 the sheet covers the list: no selected row shows.
 - **Now line.** Look for `변경마다 한 줄 요약을 붙이는 중`. Visible at 1280, absent at 390.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/running/running-1280.{png,aria.yml,json}` and `running-390.{png,aria.yml,json}`.
 

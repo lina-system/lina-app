@@ -346,6 +346,52 @@ async function stoppedCardColours(list) {
   return "title " + stopped.title + ", state " + stopped.state + ", time " + stopped.time;
 }
 
+// The selected row's paint (lina-app#212): the box drawn in the selection colour against the row's own box and its
+// trailing words or button, and what the selection reads in its colours. Read from the DOM and computed styles.
+async function selectedRowPaint(page) {
+  return page.locator('.row:has(> a[aria-current="page"])').evaluate((row) => {
+    const box = (element) => {
+      const rect = element.getBoundingClientRect();
+      return { left: Math.round(rect.left * 10) / 10, right: Math.round(rect.right * 10) / 10, top: Math.round(rect.top * 10) / 10, bottom: Math.round(rect.bottom * 10) / 10 };
+    };
+    const link = row.querySelector(':scope > a[aria-current="page"]');
+    const filled = (element) => !/^(transparent|rgba\(0, 0, 0, 0\))$/.test(getComputedStyle(element).backgroundColor);
+    const painter = [row, link].find(filled) ?? null;
+    const trail = row.querySelector(":scope > .retry, :scope > .requested");
+    return {
+      row: box(row),
+      paint: painter ? box(painter) : null,
+      painter: painter === row ? "row" : painter ? "link" : null,
+      fill: painter ? getComputedStyle(painter).backgroundColor : null,
+      outline: painter ? `${getComputedStyle(painter).outlineStyle} ${getComputedStyle(painter).outlineColor}` : null,
+      linkColour: getComputedStyle(link).color,
+      trail: trail ? { kind: trail.classList.contains("retry") ? "retry" : "requested", box: box(trail), colour: getComputedStyle(trail).color } : null,
+    };
+  });
+}
+
+// The painted box holds the trailing cell and runs to the row's inset (the link's own 6 px margin) on both sides.
+function paintCovers(paint) {
+  if (!paint.paint) return false;
+  const inside = (outer, inner) => inner.left >= outer.left - 0.5 && inner.right <= outer.right + 0.5 && inner.top >= outer.top - 0.5 && inner.bottom <= outer.bottom + 0.5;
+  return paint.paint.left <= paint.row.left + 6.5 && paint.paint.right >= paint.row.right - 6.5 && (!paint.trail || inside(paint.paint, paint.trail.box));
+}
+
+// A keyboard focus ring on an element of the selected row: drawn, and 3:1 against the selection it sits on.
+async function focusRing(locator, fill) {
+  await locator.focus();
+  return locator.evaluate((element, under) => {
+    const style = getComputedStyle(element);
+    const rgb = (value) => value.match(/[\d.]+/g).slice(0, 3).map(Number);
+    const lum = (value) => {
+      const [r, g, b] = rgb(value).map((c) => (c / 255 <= 0.03928 ? c / 255 / 12.92 : ((c / 255 + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const [a, b] = [lum(style.outlineColor), lum(under)];
+    return { visible: element.matches(":focus-visible"), style: style.outlineStyle, width: parseFloat(style.outlineWidth), colour: style.outlineColor, ratio: Math.round(((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)) * 100) / 100 };
+  }, fill);
+}
+
 async function decisionNames(list) {
   await list.first().waitFor({ timeout: 10_000 });
   return list.locator(":scope > li > a").evaluateAll((links) => links.map((link) => link.getAttribute("aria-label")));
@@ -919,7 +965,58 @@ const drivers = {
       await openApp(page, "#/running");
       return measured + " titles and second lines, none cut";
     });
+    // lina-app#212: the selected stopped row's selection ran to its link and left 다시 시도 (or `<agent>에게 요청함`)
+    // outside it on the panel, so the row read cut in two.
+    await step("a selected stopped row is painted whole, its 다시 시도 and 요청함 inside, in light, dark and forced colours", async () => {
+      if (page.viewportSize().width < 900) {
+        // On a phone the detail is a sheet over the list: the row under it is never what the page shows.
+        await openApp(page, "#/cards/k-103");
+        const shown = await page.locator('.row > a[aria-current="page"]').evaluateAll((links) =>
+          links.filter((link) => {
+            const rect = link.getBoundingClientRect();
+            return link.contains(document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2));
+          }).length,
+        );
+        check(shown === 0, shown + " selected rows show beside the sheet on a phone");
+        return "the detail is a sheet; no selected row shows";
+      }
+      const seen = [];
+      for (const colorScheme of ["light", "dark"]) {
+        await page.emulateMedia({ colorScheme });
+        await openApp(page, "#/cards/k-103");
+        const paint = await selectedRowPaint(page);
+        check(paint.trail?.kind === "retry" && paintCovers(paint), colorScheme + ": the selection is " + JSON.stringify(paint.paint) + " in the row " + JSON.stringify(paint.row) + ", 다시 시도 at " + JSON.stringify(paint.trail?.box));
+        check(paint.trail.colour === paint.linkColour, colorScheme + ": 다시 시도 reads " + paint.trail.colour + " on the selection, its row " + paint.linkColour);
+        for (const [name, locator] of [["link", page.locator('.row > a[aria-current="page"]')], ["다시 시도", page.getByTestId("retry")]]) {
+          const ring = await focusRing(locator, paint.fill);
+          check(ring.visible && ring.style !== "none" && ring.width >= 2 && ring.ratio >= 3, colorScheme + ": the focus ring on the selected row's " + name + " is " + JSON.stringify(ring));
+        }
+        // A row with no trailing cell keeps its selection on its link, as before.
+        await openApp(page, "#/cards/k-101");
+        const plain = await selectedRowPaint(page);
+        check(plain.painter === "link" && !plain.trail && paintCovers(plain), colorScheme + ": a row with no trailing cell is painted " + JSON.stringify(plain));
+        seen.push(colorScheme + " " + paint.painter + " " + JSON.stringify(paint.paint) + " holds 다시 시도 " + JSON.stringify(paint.trail.box));
+      }
+      await page.emulateMedia({ colorScheme: "light" });
+      // 다시 시도 writes to the page's copy of the scene; the row then reads `<agent>에게 요청함` inside the selection.
+      await openApp(page, "#/cards/k-103");
+      await page.getByTestId("retry").click();
+      await page.getByTestId("retry-requested").waitFor();
+      const asked = await selectedRowPaint(page);
+      check(asked.trail?.kind === "requested" && paintCovers(asked) && asked.trail.colour === asked.linkColour, "요청함 sits outside the selection: " + JSON.stringify(asked));
+      seen.push("요청함 " + JSON.stringify(asked.trail.box));
+      // Forced colours drop the fill: the selection still reads, in the system's highlight.
+      await page.emulateMedia({ forcedColors: "active" });
+      await openApp(page, "#/cards/k-103");
+      const forced = await selectedRowPaint(page);
+      const other = await page.locator(".row:not(:has(> a[aria-current='page']))").first().evaluate((row) => getComputedStyle(row).backgroundColor + " " + getComputedStyle(row).outlineStyle);
+      check(forced.painter === "row" && paintCovers(forced) && forced.fill + " " + forced.outline.split(" ")[0] !== other, "in forced colours the selection is " + JSON.stringify(forced) + ", another row " + other);
+      await page.emulateMedia({ forcedColors: "none" });
+      seen.push("forced colours " + forced.fill);
+      return seen.join("; ");
+    });
     await step("the now line shows at 1280 only", async () => {
+      await openApp(page, "#/running");
       const wide = page.viewportSize().width >= 900;
       const shown = await page.getByText("변경마다 한 줄 요약을 붙이는 중").first().isVisible();
       check(shown === wide, "now line visible=" + shown + " at width " + page.viewportSize().width);

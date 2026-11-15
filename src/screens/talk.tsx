@@ -7,7 +7,7 @@ import { Markdown, plainLine } from "../markdown";
 import { agentView, foldTitle } from "../model";
 import { href } from "../router";
 import { clock } from "../time";
-import { AgentMark, agentName, Box, CountPair, Disclosure, ErrorLine, Link, ListSection, useApp } from "../ui/parts";
+import { AgentMark, agentName, Box, Disclosure, ErrorLine, Link, ListSection, useApp } from "../ui/parts";
 import { SEP, W } from "../words";
 import { GoalLine, goalProgress } from "./lists";
 
@@ -461,16 +461,36 @@ function queuePreviewRead(source: Source, read: () => Promise<unknown>): () => v
   };
 }
 
+/** An agent row's name as it reads: the name, then its work in progress and its stopped work in words. */
+export function talkRowName(name: string, running: number, stopped: number): string {
+  return [name, running ? W.runningCount(running) : "", stopped ? W.stoppedCount(stopped) : ""].filter(Boolean).join(SEP);
+}
+
 /**
- * An agent row's stopped work in words at its right edge (`중단됨 6`), as its name reads it: beside `아직 나눈 대화 없음` a
- * lone red number read as unread messages (lina-app#207). Nothing when none stopped.
+ * An agent row's first line: its name, then at the right edge its work in progress in grey and its stopped work in red,
+ * each in words (`진행 중 1`, `중단됨 6`): a bare number beside `아직 나눈 대화 없음` read as unread messages (lina-app#207,
+ * #219). The counts sit here, never beside the preview, so the line under it has the row's whole width.
  */
-export function TalkStopped({ stopped }: { stopped: number }) {
-  return stopped ? (
-    <span class="talk-stopped" data-testid="talk-stopped">
-      {W.stoppedCount(stopped)}
+export function TalkNameLine({ name, nameClass, running, stopped }: { name: string; nameClass: string; running: number; stopped: number }) {
+  return (
+    <span class="talk-name-line" data-testid="talk-name-line">
+      <span class={`${nameClass} one-line`}>{name}</span>
+      {running || stopped ? (
+        <span class="talk-counts">
+          {running ? (
+            <span class="talk-running" data-testid="talk-running">
+              {W.runningCount(running)}
+            </span>
+          ) : null}
+          {stopped ? (
+            <span class="talk-stopped" data-testid="talk-stopped">
+              {W.stoppedCount(stopped)}
+            </span>
+          ) : null}
+        </span>
+      ) : null}
     </span>
-  ) : null;
+  );
 }
 
 /**
@@ -952,14 +972,12 @@ export function TalkAgents() {
         const { running = 0, stopped = 0 } = model.counts.agents[agent.id] ?? {};
         return (
           <li key={agent.id} class="row" data-testid={`talk-agent-${agent.index}`}>
-            <Link href={target} label={[running ? `${agent.name} ${running}` : agent.name, stopped ? W.stoppedCount(stopped) : ""].filter(Boolean).join(SEP)} current={selected === target}>
+            <Link href={target} label={talkRowName(agent.name, running, stopped)} current={selected === target}>
               <AgentMark id={agent.id} />
               <span class="lines">
-                <span class="title one-line">{agent.name}</span>
+                <TalkNameLine name={agent.name} nameClass="title" running={running} stopped={stopped} />
                 <TalkPreview agent={agent.id} />
               </span>
-              <CountPair count={running} />
-              <TalkStopped stopped={stopped} />
               <Disclosure />
             </Link>
           </li>

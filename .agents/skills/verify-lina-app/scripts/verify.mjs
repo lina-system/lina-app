@@ -3512,19 +3512,23 @@ const drivers = {
       await row(1).waitFor({ timeout: 5_000 });
       const previews = [await text(row(0)), await text(row(1))];
       check(previews[0] === "변경 목록을 모으는 중이에요. 배포 순서는 답을 기다려요." && previews[1] === "아직 나눈 대화 없음", "the rows read " + JSON.stringify(previews));
-      // A row's stopped work reads in words, never a lone red number by its last message, and its name says the same (lina-app#207).
+      // A row's work in progress and stopped work read in words on its name line, never a bare number by its last message,
+      // and its name says the same; the last message has the row's whole width, counts or none (lina-app#207, #219).
       const rows = page.locator(wide ? "[data-testid^=nav-talk-]" : "[data-testid^=talk-agent-]");
       const marks = [];
+      const widths = [];
       for (let index = 0; index < agents; index += 1) {
         const one = rows.nth(index);
-        check((await one.locator(".count.is-stopped-count").count()) === 0, "row " + index + " shows a bare red number");
-        for (const mark of await one.getByTestId("talk-stopped").allInnerTexts()) {
+        check((await one.locator(".count").count()) === 0, "row " + index + " shows a bare number");
+        widths.push(Math.round((await one.getByTestId("talk-preview").boundingBox()).width));
+        for (const mark of await one.getByTestId("talk-name-line").locator("[data-testid=talk-running], [data-testid=talk-stopped]").allInnerTexts()) {
           const name = await one.locator("a").getAttribute("aria-label");
-          check(/^중단됨 \d+$/.test(mark.trim()) && name.includes(mark.trim()), "row " + index + " reads " + mark + " named " + name);
+          check(/^(진행 중|중단됨) \d+$/.test(mark.trim()) && name.includes(mark.trim()), "row " + index + " reads " + mark + " named " + name);
           marks.push(mark.trim());
         }
       }
-      check(marks.length > 0, "no row reads its stopped work");
+      check(marks.some((mark) => mark.startsWith("진행 중")) && marks.some((mark) => mark.startsWith("중단됨")), "the rows read their counts as " + JSON.stringify(marks));
+      check(Math.max(...widths) - Math.min(...widths) <= 1, "the last messages' widths differ: " + JSON.stringify(widths));
       // The sidebar carries no build string (lina-app#207).
       if (wide) check(!(await page.getByTestId("sidebar").innerText()).includes(packageVersion()), "the sidebar shows the build string");
       return agents + " agents; " + previews.join(" / ") + "; " + marks.join(", ");

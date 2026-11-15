@@ -340,14 +340,43 @@ button:disabled {
   padding: 0 5px;
 }
 
-/* An agent row's stopped work in words after its count, never a lone red number by its last message (lina-app#207). */
-.talk-stopped {
+/*
+ * An agent row's counts in words at the right of its name line, never a bare number by its last message, which has the
+ * line under it at the row's whole width (lina-app#207, #219). The name gives way first.
+ */
+.talk-name-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.talk-name-line > .one-line {
+  flex: 0 1 auto;
+}
+
+.talk-counts {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
   flex: none;
-  margin-left: 6px;
-  color: var(--red);
+  margin-left: auto;
   font-size: var(--text-small);
-  font-weight: 600;
   white-space: nowrap;
+}
+
+.talk-running {
+  color: var(--label-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.talk-stopped {
+  color: var(--red);
+  font-weight: 600;
+}
+
+.split .nav-row.is-current .talk-running {
+  color: var(--on-accent);
 }
 
 .split .nav-row.is-current .talk-stopped {

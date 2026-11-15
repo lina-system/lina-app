@@ -35,13 +35,29 @@ test("on a wide window each agent row keeps its counts inside the sidebar under 
   const row = page.getByTestId("nav-talk-1");
   await expect(row.getByTestId("talk-preview")).toHaveText("아직 나눈 대화 없음");
   const sidebar = (await page.locator(".sidebar").boundingBox())!;
-  for (const count of await row.locator(".count-pair .count, .talk-stopped").all()) {
+  for (const count of await row.locator(".talk-running, .talk-stopped").all()) {
     const box = (await count.boundingBox())!;
     expect(box.x + box.width).toBeLessThanOrEqual(sidebar.x + sidebar.width);
   }
-  // The stopped work reads in words, not as a second number (lina-app#207).
-  await expect(row.locator(".count-pair .count")).toHaveText(["1"]);
+  // Both counts read in words, never a bare number (lina-app#207, #219).
+  await expect(row.getByTestId("talk-running")).toHaveText("진행 중 1");
   await expect(row.getByTestId("talk-stopped")).toHaveText("중단됨 1");
+});
+
+test("an agent row's counts sit on its name line and its preview has the row's whole width (lina-app#219)", async ({ page }, info) => {
+  await page.goto(`${APP}#/talk`);
+  const row = (index: number) => page.getByTestId(info.project.name === "phone" ? `talk-agent-${index}` : `nav-talk-${index}`);
+  await expect(row(1).getByTestId("talk-preview")).toHaveText("아직 나눈 대화 없음");
+  const width = async (index: number) => (await row(index).getByTestId("talk-preview").boundingBox())!.width;
+  // Row 1 has counts, row 2 none: the same preview width on both.
+  expect(Math.abs((await width(1)) - (await width(2)))).toBeLessThanOrEqual(1);
+  const counts = (await row(1).getByTestId("talk-stopped").boundingBox())!;
+  const preview = (await row(1).getByTestId("talk-preview").boundingBox())!;
+  expect(counts.y + counts.height).toBeLessThanOrEqual(preview.y + 1);
+  // A preview that fits is whole; only one longer than the row ends in an ellipsis.
+  const fits = await row(1).getByTestId("talk-preview").evaluate((element) => element.scrollWidth <= element.clientWidth);
+  expect(fits).toBe(true);
+  await expect(row(0).getByTestId("talk-preview")).toHaveCSS("text-overflow", "ellipsis");
 });
 
 test("on a wide window with no agent chosen, the middle takes the whole width: no empty right column (lina-app#150)", async ({ page }, info) => {

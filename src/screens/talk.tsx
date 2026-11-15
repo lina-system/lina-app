@@ -414,6 +414,10 @@ function keepLastLine(source: Source, agent: string, line: string | undefined) {
   revisions.set(agent, revisionOf(source, agent) + 1);
   if (line === undefined) lastLinesOf(source).delete(agent);
   else lastLinesOf(source).set(agent, line);
+  redrawLastLines();
+}
+
+function redrawLastLines() {
   for (const watcher of lastLineWatchers) watcher();
 }
 
@@ -455,7 +459,10 @@ function queuePreviewRead(source: Source, read: () => Promise<unknown>): () => v
   };
 }
 
-/** An agent row's second line: the first line of its last message, or `아직 나눈 대화 없음`; nothing until read. */
+/**
+ * An agent row's second line: the first line of its last message, or `아직 나눈 대화 없음`; nothing until read. While a turn
+ * goes it reads `답하는 중` (lina-app#190): neither the owner's own message nor what the core holds mid-turn.
+ */
 export function TalkPreview({ agent }: { agent: string }) {
   const { store } = useApp();
   const [, redraw] = useState(0);
@@ -477,10 +484,11 @@ export function TalkPreview({ agent }: { agent: string }) {
     };
   }, [agent, store]);
   const line = lastLinesOf(store.source).get(agent);
-  if (line === undefined) return null;
+  const going = outboxes.get(store.source)?.get(agent)?.turns.some((turn) => turn.state === "sending" || turn.state === "streaming");
+  if (line === undefined && !going) return null;
   return (
     <span class="sub one-line talk-preview" data-testid="talk-preview">
-      {line || W.noTurns}
+      {going ? W.replying : line || W.noTurns}
     </span>
   );
 }
@@ -738,6 +746,8 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
     if (turn.state === "streaming") {
       turn.state = "failed";
       settle(box, turn);
+      // The row's 답하는 중 goes; the owner's message is the last one.
+      redrawLastLines();
     } else if (failed) box.window?.failed();
   };
 
@@ -835,8 +845,9 @@ export function AgentCard({ agent, folded = false }: { agent: string; folded?: b
           <span class="lines">
             <span class="title">{W.cardGoals(view.goals.rows.length)}</span>
             {/* One line by design: the goals' names and progress at a glance, every row a tap away. A goal with no to-dos
-                reads its name alone, as on its row (lina-app#167). */}
-            <span class="sub one-line">{view.goals.rows.map((goal) => [foldTitle(goal.title) ?? W.untitled, goalProgress(goal)].filter(Boolean).join(" ")).join(SEP)}</span>
+                reads its name alone, as on its row (lina-app#167). Open, the rows under it say the same, so it goes
+                (lina-app#190). */}
+            {open ? null : <span class="sub one-line">{view.goals.rows.map((goal) => [foldTitle(goal.title) ?? W.untitled, goalProgress(goal)].filter(Boolean).join(" ")).join(SEP)}</span>}
           </span>
         </button>
         {open ? (

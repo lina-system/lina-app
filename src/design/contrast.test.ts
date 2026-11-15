@@ -105,6 +105,30 @@ function distance(a: Rgba, b: Rgba): number {
   return Math.hypot(la[0] - lb[0], la[1] - lb[1], la[2] - lb[2]);
 }
 
+/**
+ * The OKLCH hue in degrees. A dim colour can be far in Lab and still the same hue as a state: the slate mark measured
+ * 62 CIE76 units from the accent at 1 degree of hue and read as the selection blue, the brown 9 degrees from orange
+ * (lina-app#190).
+ */
+function hue([r, g, b]: Rgba): number {
+  const linear = (value: number) => {
+    const c = value / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const [lr, lg, lb] = [linear(r), linear(g), linear(b)];
+  const l = Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb);
+  const m = Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb);
+  const s = Math.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb);
+  const a = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
+  const bb = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+  return ((Math.atan2(bb, a) * 180) / Math.PI + 360) % 360;
+}
+
+function hueGap(a: Rgba, b: Rgba): number {
+  const gap = Math.abs(hue(a) - hue(b));
+  return Math.min(gap, 360 - gap);
+}
+
 test.each([
   ["light", light],
   ["dark", dark],
@@ -113,6 +137,9 @@ test.each([
   for (let index = 0; index < 6; index++) {
     const colour = parse(schemeToken(block, `agent-${index}`));
     expect(contrast(MARK_LETTER, colour), `agent-${index}`).toBeGreaterThanOrEqual(4.5);
-    for (const state of states) expect(distance(colour, state), `agent-${index} against ${state}`).toBeGreaterThanOrEqual(30);
+    for (const state of states) {
+      expect(distance(colour, state), `agent-${index} against ${state}`).toBeGreaterThanOrEqual(30);
+      expect(hueGap(colour, state), `agent-${index} hue against ${state}`).toBeGreaterThanOrEqual(30);
+    }
   }
 });

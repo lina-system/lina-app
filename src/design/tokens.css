@@ -19,13 +19,14 @@
   --tab-current: #ffffff;
 
   /* Agent marks: a white letter on each, at least 4.5:1, the same in dark; none reads as the accent, red, orange or the
-     machines' green (lina-app#190, #200; src/design/contrast.test.ts). */
+     machines' green: 30 or more CIE76 units and 30 or more degrees of OKLCH hue from each (lina-app#190, #200;
+     src/design/contrast.test.ts). */
   --agent-0: #7a45c8;
-  --agent-1: #1c6f78;
+  --agent-1: #0f5950;
   --agent-2: #a8327a;
   --agent-3: #62682a;
-  --agent-4: #4f607a;
-  --agent-5: #7d5a44;
+  --agent-4: #2f7990;
+  --agent-5: #6b3873;
 
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Pretendard", sans-serif;
   --text-title: 26px;

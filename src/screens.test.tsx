@@ -1751,7 +1751,7 @@ describe("agent talk", () => {
     field.value = "오늘 어디까지 했어요?";
     fireEvent.input(field);
     fireEvent.click(send);
-    await waitFor(() => expect(preview()).toBe("오늘 어디까지 했어요?"));
+    await waitFor(() => expect(preview()).toBe("답하는 중"));
     refuse();
     await waitFor(() => expect(within(view.getByTestId("agent-talk")).getByTestId("write-error")).toBeTruthy());
     expect(preview()).toBe(before);
@@ -1759,10 +1759,17 @@ describe("agent talk", () => {
   test("a preview read that began before a send does not overwrite the sent message when it answers late (lina-app#143)", async () => {
     let release: () => void = () => undefined;
     const late = new Promise<void>((resolve) => (release = resolve));
+    let cut: () => void = () => undefined;
+    const broken = new Promise<void>((resolve) => (cut = resolve));
     let reads = 0;
     class Slow extends SyntheticSource {
+      // The reply breaks off: the owner's message is then the row's last line (lina-app#190).
       override async agentTalk(_agent: string, _body: { message: string }, _signal?: AbortSignal) {
-        return new Promise<never>(() => undefined);
+        async function* events(): AsyncGenerator<never> {
+          await broken;
+          throw new Error("stream cut");
+        }
+        return { ok: true as const, events: events() };
       }
       override async agentTalkHistory(agent: string) {
         const result = await super.agentTalkHistory(agent);
@@ -1778,12 +1785,13 @@ describe("agent talk", () => {
     field.value = "오늘 어디까지 했어요?";
     fireEvent.input(field);
     fireEvent.click(send);
-    await waitFor(() => expect(preview()).toBe("오늘 어디까지 했어요?"));
+    await waitFor(() => expect(preview()).toBe("답하는 중"));
     release();
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
     });
-    expect(preview()).toBe("오늘 어디까지 했어요?");
+    cut();
+    await waitFor(() => expect(preview()).toBe("오늘 어디까지 했어요?"));
   });
 
   /** A gateway that does not answer, as the core met it: the history read gives up after 30 s, a send after 60 s (lina-app#154). */

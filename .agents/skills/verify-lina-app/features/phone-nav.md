@@ -1,6 +1,6 @@
 # Navigation
 
-On a phone the app is a navigation stack under three tabs (`대화 · 작업 · 상태`): each tab's first screen shows the tabs under its large title (`작업`'s is the home's lines, with its menu behind `메뉴` in the header), a row pushes the next screen in from the right with a back control that names the screen it returns to, and the back control, the browser back button or, in the installed app, a swipe from the left edge slides it out again. A detail (goal, to-do, work card, run) is not a pushed screen: it rises as a sheet over the screen it was opened from (lina-app#142). On a wide window it is a split view: sidebar, list and detail side by side.
+On a phone the app is a navigation stack under three tabs (`대화 · 작업 · 상태`): each tab's first screen shows the tabs under its bar, the pressed tab its one title (`작업`'s is the home's lines, with its menu behind the icon `메뉴` at the bar's left; lina-app#193), a row pushes the next screen in from the right with a back control that names the screen it returns to, and the back control, the browser back button or, in the installed app, a swipe from the left edge slides it out again. A detail (goal, to-do, work card, run) is not a pushed screen: it rises as a sheet over the screen it was opened from (lina-app#142). On a wide window it is a split view: sidebar, list and detail side by side.
 
 ## Platforms
 
@@ -18,8 +18,8 @@ On a phone the app is a navigation stack under three tabs (`대화 · 작업 · 
 - On a phone a detail rises as a sheet from the bottom over the screen it was opened from (lina-app#142), which stays drawn under it with its title and its scroll; the sheet has `닫기`, and back (the control, the browser button, the edge swipe or a tap on the dimmed screen) closes it. While the sheet is open the back control reads the screen under it, the one it returns to: the list's name, or the agent's name for a goal chosen on its card in `대화` (`#/talk/<agent>?goal=<id>`, lina-app#143), which stays under that tab with the agent's card, not its window, under the sheet. The screen under it never slides. Closing it leaves that screen at its scroll with the chosen row highlighted.
 - On a wide window (900 px and up) the sidebar, the list and the detail sit side by side; the open row is an accent rounded rect with white text. With no detail open the detail pane folds away and the list takes the width; the row whose detail was just closed stays highlighted. The list and the detail each scroll in their own pane under the toolbar; the window never scrolls.
 - On a phone the nav row and the bottom bar keep clear of the status bar and the home indicator (`env(safe-area-inset-*)`), so a Home Screen app on an iPhone puts neither under them.
-- The three tabs under a tab's large title show the pressed one as on a wide window, in dark too (see talk-tab.md).
-- When the page carries `window.__LINA_APP_LABEL__ = {text, kind}` (set by the core on /app/, lina#730), a small chip with that text stands right before the bell: in the wide toolbar of every tab and in the phone navbar on every screen, detail sheets included (lina-app#181). `kind: "test"` is tinted orange, `real` or no kind is grey. At 390 the chip keeps its full text (up to 20 characters) and the back control's title shrinks first; the large title and the three tabs are untouched. Text outside 1..20 characters after trim, or no variable, draws no element.
+- The three tabs under a tab's first bar show the pressed one as on a wide window, in dark too (see talk-tab.md).
+- When the page carries `window.__LINA_APP_LABEL__ = {text, kind}` (set by the core on /app/, lina#730), a small chip with that text stands right before the bell: in the wide toolbar of every tab and in the phone navbar on every screen, detail sheets included (lina-app#181). `kind: "test"` is tinted orange, `real` or no kind is grey. At 390 the chip keeps its full text (up to 20 characters) and the back control's title shrinks first; the large titles and the three tabs are untouched. Text outside 1..20 characters after trim, or no variable, draws no element.
 
 ## Sub-features
 
@@ -43,7 +43,7 @@ Preconditions:
 - `verify.mjs doctor` reports `"healthy": true` for this run.
 - The page is `/app/?source=synthetic`, the synthetic scene; the drive opens it fresh for each width.
 
-- **First screen.** At 390, open `/app/?source=synthetic#/`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive phone-nav`. The large title reads `작업`, the first row of `진행 중인 작업` is visible with no tap, and no menu is drawn.
+- **First screen.** At 390, open `/app/?source=synthetic#/`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive phone-nav`. The pressed tab reads `작업` and no large title repeats it (the screen's heading `작업` is for a screen reader), the bar's `메뉴` is an icon with no word, the first row of `진행 중인 작업` is visible with no tap, and no menu is drawn.
 - **Push.** Open `메뉴`, choose `진행 중인 작업`: the title reads `작업` and back reads `작업`. Choose the first card: it rises as a sheet (`detail-frame`, `data-frame="sheet"`) over the list, whose title `작업` stays, and back reads `작업` (one name for the work list, lina-app#148).
 - **Tap the dark part.** With the card's sheet open at 390, once its rise has ended, the strip between the bar's bottom and the sheet's top is at least 8 px tall, and a real pointer tap (`page.mouse.click`) in its middle closes the sheet: the address is `#/running` again and no `detail-frame` is drawn (lina-app#184). A call on the scrim element does not count; whatever is drawn at that point takes the tap. The driver then opens the card again for the next step.
 - **Back and scroll.** Go back in the browser. The list returns. In a 480 px tall window, scroll the home to 120, open `완료` from `메뉴` and go back in the browser as soon as the address changes: the home is at 120 again as soon as the address is back, on every run.
@@ -66,5 +66,5 @@ Preconditions:
 
 ## Not goals
 
-- No bottom tab bar: the three tabs sit under the large title of each tab's first screen, not at the bottom (see talk-tab.md).
+- No bottom tab bar: the three tabs sit under the bar of each tab's first screen, not at the bottom (see talk-tab.md).
 - No restoring of folded or opened boxes on back.

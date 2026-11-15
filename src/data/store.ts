@@ -42,7 +42,7 @@ const LIST_ROUTES: readonly RouteName[] = ["board", "items", "goals", "cards", "
  * slowly: read on the same refresh trigger, at most once a minute. Usage is one route per range, the route's id
  * being the range.
  */
-const SLOW_ROUTES: Want = [
+export const SLOW_ROUTES: Want = [
   ["devices"],
   ["quota"],
   ...USAGE_RANGES.map((range) => ["usage", range] as const),
@@ -51,6 +51,38 @@ const SLOW_ROUTES: Want = [
   ["settingsModels"],
 ];
 export const SLOW_REFRESH_S = 60;
+
+/** How many finished cards the work tab reads first (lina-app#186); the rest are read when its fold opens. */
+export const FINISHED_SHOWN = 5;
+
+/** The finished cards the core holds (`total`), the ones this page read, whether those are all, and a read of the rest out. */
+export interface FinishedCards {
+  readonly total: number;
+  readonly loaded: number;
+  readonly all: boolean;
+  readonly loading: boolean;
+}
+
+export interface StoreOptions {
+  /**
+   * Resolves once the browser has drawn what the last change showed; reads the open screen does not draw wait for it.
+   * The page passes nextPaint; without it they follow the lists at once.
+   */
+  readonly afterPaint?: () => Promise<void>;
+}
+
+/** The frame after the next one, or a tenth of a second when no frame comes (a hidden tab draws none). */
+export function nextPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = window.setTimeout(resolve, 100);
+    window.requestAnimationFrame(() =>
+      window.setTimeout(() => {
+        window.clearTimeout(timer);
+        resolve();
+      }, 0),
+    );
+  });
+}
 
 /**
  * The last answer of every route the screens read. A read that returns 304 keeps the same objects, so the
@@ -74,8 +106,22 @@ export class Store {
   private wanted: Want = [];
   private slowReadAt: number | null = null;
   private shown: ModelInput;
+  /** A screen lists or counts every finished card: the cards are read without a limit from then on. */
+  private finishedAll = false;
+  private finishing: Promise<void> | null = null;
+  /** The last read of every finished card left the page short: a screen's own asks stop until the user asks again. */
+  private finishFailed = false;
+  private cardsReading = 0;
+  private readonly afterPaint: () => Promise<void>;
+  private firstPaint: () => void = () => {};
+  /** The first refresh has landed, its lists on screen: what no screen draws (the change stream, the push key) may start. */
+  readonly painted: Promise<void> = new Promise((resolve) => (this.firstPaint = resolve));
 
-  constructor(readonly source: Source) {
+  constructor(
+    readonly source: Source,
+    options: StoreOptions = {},
+  ) {
+    this.afterPaint = options.afterPaint ?? (() => Promise.resolve());
     this.shown = this.read();
   }
 
@@ -98,7 +144,10 @@ export class Store {
 
   private async load(name: RouteName, id?: string): Promise<boolean> {
     const key = this.key(name, id);
-    const result = await this.source.read(name, id);
+    const cards = name === "cards";
+    if (cards) this.cardsReading += 1;
+    const result = await this.source.read(name, cards && !this.finishedAll ? String(FINISHED_SHOWN) : id);
+    if (cards) this.cardsReading -= 1;
     // What the store holds when the answer lands: another read of the route may have landed meanwhile.
     const before = this.entries.get(key);
     if (result.kind === "data" || result.kind === "unchanged") this.setDenied(false);
@@ -240,19 +289,28 @@ export class Store {
     return this.queue(() => this.readAll());
   }
 
+  /**
+   * The lists first, with the slow routes the open screen draws; once they are on screen, the other slow routes and the
+   * open screen's own routes (lina-app#186: fifteen reads leaving at once held the first screen back). A route the open
+   * screen asked for and is still reading for the first time is not asked again.
+   */
   private async readAll(): Promise<void> {
     const now = nowSeconds();
     const slow: Want = this.slowReadAt === null || now - this.slowReadAt >= SLOW_REFRESH_S - 1 ? SLOW_ROUTES : [];
     if (slow.length) this.slowReadAt = now;
-    const firstWave = await Promise.all([
-      ...LIST_ROUTES.map((name) => this.load(name)),
-      ...slow.map(([name, id]) => this.load(name, id)),
-    ]);
+    const reading = ([name, id]: Want[number]) => this.entries.get(this.key(name, id))?.status === "pending";
+    const drawn = ([name, id]: Want[number]) => this.wanted.some(([wanted, wantedId]) => wanted === name && wantedId === id);
+    const firstWave = await Promise.all([...LIST_ROUTES.map((name) => this.load(name)), ...slow.filter((route) => drawn(route) && !reading(route)).map(([name, id]) => this.load(name, id))]);
     const listed = firstWave.some(Boolean) || this.version === 0;
     if (listed) this.changed();
-    // A route the open screen asked for and is still reading for the first time is not asked again.
-    const reread = this.wanted.filter(([name, id]) => this.entries.get(this.key(name, id))?.status !== "pending");
-    const secondWave = await Promise.all(reread.map(([name, id]) => this.load(name, id)));
+    const later = slow.filter((route) => !drawn(route) && !reading(route));
+    if (later.length) await this.afterPaint();
+    // The lists are on screen: what waits on them (the change stream, the push key) starts without waiting for the rest.
+    this.firstPaint();
+    // A slow route the screen draws was read in the first wave when it was due; it keeps its once-a-minute pace.
+    const slowRoute = ([name, id]: Want[number]) => SLOW_ROUTES.some(([slowName, slowId]) => slowName === name && slowId === id);
+    const reread = this.wanted.filter((route) => !reading(route) && !slowRoute(route));
+    const secondWave = await Promise.all([...later, ...reread].map(([name, id]) => this.load(name, id)));
     this.refreshes += 1;
     if (secondWave.some(Boolean)) this.changed();
     else if (!listed) this.notify();
@@ -267,6 +325,36 @@ export class Store {
     const result = await send(this.source);
     if (result.ok && options.refresh !== false) await this.refresh();
     return result;
+  }
+
+  /** What the page holds of the finished cards, from the last cards read. A core that sends no total sent every one. */
+  finished(): FinishedCards {
+    const loaded = (this.get("cards")?.cards ?? []).filter((card) => card.state === "done").length;
+    const total = this.get("cards")?.finishedTotal ?? loaded;
+    return { total, loaded, all: loaded >= total, loading: this.finishing !== null };
+  }
+
+  /**
+   * Every finished card from now on: the fold under the work tab's 완료, or a screen that lists or counts them all. A
+   * cards read already out or landed is followed by one without a limit; before the first, the first asks for them all.
+   */
+  showFinished(automatic = false): Promise<void> {
+    if (this.finishing) return this.finishing;
+    // A screen asks again on every change of the store, a failed read included: only the user's own ask reads again after it.
+    if (automatic && this.finishFailed) return Promise.resolve();
+    const entry = this.entries.get("cards");
+    // Asked for already: nothing to read while a read is out, before the first read, or once the page holds them all. A
+    // read that failed leaves the page with the few it had, so the next ask reads again.
+    if (this.finishedAll && (this.cardsReading > 0 || !entry || (entry.status === "ok" && this.finished().all))) return Promise.resolve();
+    this.finishedAll = true;
+    if (!entry && !this.cardsReading) return Promise.resolve();
+    this.finishing = this.invalidate([["cards"]]).finally(() => {
+      this.finishing = null;
+      this.finishFailed = !this.finished().all;
+      this.notify();
+    });
+    this.notify();
+    return this.finishing;
   }
 
   /** Reads routes not read yet without changing what the open screen wants (an expanded row's record). */
@@ -321,6 +409,7 @@ export class Store {
       goals: this.get("goals"),
       cards: this.get("cards"),
       cardsAt: this.entries.get("cards")?.receivedAt,
+      finished: this.finished(),
       inbox: this.get("inbox"),
       devices: this.get("devices"),
       quota: this.get("quota"),

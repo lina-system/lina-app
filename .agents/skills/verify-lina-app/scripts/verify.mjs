@@ -313,6 +313,12 @@ async function rowNames(list) {
   return list.getByRole("link").evaluateAll((links) => links.map((link) => link.getAttribute("aria-label") ?? link.textContent));
 }
 
+// The cards finished lines stand for (lina-app#186): one each, n for a `×n` line.
+async function lineCards(rows) {
+  const texts = await rows.allInnerTexts();
+  return texts.reduce((sum, text) => sum + Number(/×(\d+)/.exec(text)?.[1] ?? 1), 0);
+}
+
 // Red marks the problem, not the row: a stopped card's title keeps the label colour, its state words are red when
 // they name who it waits on and grey when the core does not say (lina-app#116), and its time is the same grey as any
 // card's time.
@@ -940,18 +946,18 @@ const drivers = {
       check(/^완료 · \d+(분|시간|일) 전 · 소요 \d+(분|시간)( \d+분)?$/.test(head), "the detail reads " + head);
       return head;
     });
-    await step("on the hub's shape (&hub=round11), 완료 counts the lines it lists, the work tab's lines (×3 is one line)", async () => {
+    await step("on the hub's shape (&hub=round11), 완료 counts the cards behind the lines it lists, the work tab's lines (×3 is one line of three)", async () => {
       await openApp(page, "#/running", "&hub=round11");
-      const home = page.getByTestId("screen-running");
-      const finished = await home.locator("[data-testid=section-recent] li[data-testid=row], [data-testid=section-older] li[data-testid=row]").count();
+      const finished = await lineCards(page.getByTestId("section-finished").locator("li[data-testid=row]"));
       await openApp(page, "#/done", "&hub=round11");
-      const rows = await page.getByTestId("screen-done").getByRole("list", { name: "완료", exact: true }).locator(":scope > li").count();
+      const list = page.getByTestId("screen-done").getByRole("list", { name: "완료", exact: true }).locator(":scope > li");
+      const rows = await lineCards(list);
       const all = (await page.getByTestId("done-filter").getByRole("button").first().getAttribute("aria-label")) ?? "";
       await openMenu(page);
       const nav = await sidebarCount(page, "nav-done");
-      check(rows === finished && all.endsWith(" " + rows) && (nav === null || Number(nav) === rows), "완료 says " + nav + " and " + all + ", lists " + rows + "; the work tab lists " + finished);
+      check(rows === finished && all.endsWith(" " + rows) && (nav === null || Number(nav) === rows), "완료 says " + nav + " and " + all + ", lists " + rows + " cards; the work tab lists " + finished);
       check((await page.getByTestId("screen-done").getByText(/×3$/).count()) === 1, "no ×3 line in 완료");
-      return "완료 " + (nav ?? "(phone)") + ", " + rows + " lines, work tab " + finished;
+      return "완료 " + (nav ?? "(phone)") + ", " + (await list.count()) + " lines of " + rows + " cards, work tab " + finished;
     });
   },
 
@@ -2531,6 +2537,26 @@ const drivers = {
       check(back2 === "작업", "back over the sheet reads " + back2);
       return "작업 → 진행 중인 작업 → card sheet";
     });
+    await step("a real tap on the dimmed strip between the bar and the sheet closes the sheet", async () => {
+      const frame = page.getByTestId("detail-frame");
+      await frame.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+      const bar = await page.locator(".navbar").boundingBox();
+      const sheet = await frame.boundingBox();
+      const top = bar.y + bar.height;
+      check(sheet.y - top >= 8, "the strip above the sheet is " + (sheet.y - top) + " px tall");
+      const y = Math.round((top + sheet.y) / 2);
+      // A pointer at the point the owner taps, not a call on the scrim (lina-app#184): whatever is drawn there takes it.
+      const hit = await page.evaluate((y) => document.elementFromPoint(200, y)?.className ?? "", y);
+      await page.mouse.click(200, y);
+      await page.waitForFunction(() => location.hash === "#/running", null, { timeout: 2000 }).catch(() => {});
+      const hash = new URL(page.url()).hash;
+      check(hash === "#/running", "a tap at y " + y + " landed on " + JSON.stringify(hit) + " and left " + hash);
+      check((await page.getByTestId("detail-frame").count()) === 0, "the sheet is still drawn after the tap");
+      // The card again, so browser back below returns to the list as before.
+      await page.getByRole("list", { name: "진행 중인 작업" }).getByRole("link").first().click();
+      await page.getByTestId("detail-frame").getByTestId("screen-card").waitFor();
+      return "tap at y " + y + " (strip " + top + "-" + sheet.y + ") on " + JSON.stringify(hit) + " closed the sheet";
+    });
     await step("the browser back button restores the screen and its scroll", async () => {
       await page.goBack();
       await page.waitForFunction(() => location.hash === "#/running");
@@ -2811,10 +2837,10 @@ const drivers = {
       await home().waitFor();
       return (await title(page)) + " at " + new URL(page.url()).hash;
     });
-    await step("the home order: one decisions line, review, running, the owner's to-dos (their first three), stopped, planned, the last 24 hours", async () => {
+    await step("the home order: one decisions line, review, running, the owner's to-dos (their first three), stopped, planned, then 완료", async () => {
       // The waiting card waits on review, so 대기 does not repeat it; r7 and r8 are worker runs, no row (lina-app#141).
       const lists = await home().locator("ul.rows").evaluateAll((all) => all.map((list) => list.getAttribute("aria-label")));
-      check(JSON.stringify(lists) === JSON.stringify(["수신함", "검토 필요", "진행 중인 작업", "내 할 일", "중단됨", "예정", "최근 완료"]), "the home lists " + JSON.stringify(lists));
+      check(JSON.stringify(lists) === JSON.stringify(["수신함", "검토 필요", "진행 중인 작업", "내 할 일", "중단됨", "예정", "완료"]), "the home lists " + JSON.stringify(lists));
       // Two to-dos: the head counts both and both rows read without a tap, with no fold (lina-app#152).
       const head = (await page.getByTestId("head-mine").innerText()).replace(/\s+/g, " ").trim();
       const own = { review: await rowsOf("검토 필요").count(), mine: await rowsOf("내 할 일").count(), folds: await home().locator(".more-row").count() };
@@ -2830,7 +2856,7 @@ const drivers = {
     });
     await step("every count equals its list", async () => {
       const found = [];
-      for (const id of ["review", "active", "stopped", "recent"]) {
+      for (const id of ["review", "active", "stopped", "finished"]) {
         const section = page.getByTestId("section-" + id);
         // The 중단됨 group's head is its one red number (lina-app#134).
         const shown = id === "stopped" ? 0 : Number((await section.getByTestId("count").innerText()).trim());
@@ -2845,10 +2871,32 @@ const drivers = {
         const red = Number((await page.getByTestId("nav-running").getByTestId("nav-stopped").innerText()).trim());
         check(Number(nav) + red === running, "the sidebar says " + nav + " and red " + red + ", the list has " + running);
         const done = Number(await sidebarCount(page, "nav-done"));
-        const finished = (await rowsOf("최근 완료").count()) + (await rowsOf("완료").count());
+        const finished = await lineCards(rowsOf("완료"));
         check(done === finished, "완료 says " + done + ", the home lists " + finished + " finished");
       }
       return found.join(", ") + "; running list " + running;
+    });
+    await step("with 40 more finished cards (&finished=many), 완료 lists the newest five and one fold; the fold reads the rest in place, and no number moves", async () => {
+      await openApp(page, "#/", "&finished=many");
+      const group = page.getByTestId("section-finished");
+      const head = Number((await group.getByTestId("head-finished").getByTestId("count").innerText()).trim());
+      const fold = group.locator(".more-row");
+      const hidden = Number(/외 (\d+)개/.exec(await fold.innerText())?.[1] ?? 0);
+      const shown = await lineCards(group.locator("li[data-testid=row]"));
+      const nav = await sidebarCount(page, "nav-done");
+      check(head === 41 && shown === 5 && shown + hidden === head && (nav === null || Number(nav) === head), "완료 says " + head + ", the sidebar " + nav + ", the rows " + shown + " and the fold " + hidden);
+      check((await fold.getByRole("button").getAttribute("aria-expanded")) === "false", "the fold is not a closed button");
+      // Measured against the list's own top: the click scrolls the fold into view, which moves every row on the screen alike.
+      const offset = () => page.getByTestId("screen-running").evaluate((list) => Math.round(list.querySelector("[data-testid=section-finished] li[data-testid=row]").getBoundingClientRect().top - list.getBoundingClientRect().top));
+      const first = await offset();
+      await fold.getByRole("button").click();
+      await fold.waitFor({ state: "detached" });
+      const after = await lineCards(group.locator("li[data-testid=row]"));
+      const again = Number((await group.getByTestId("head-finished").getByTestId("count").innerText()).trim());
+      const moved = await offset();
+      check(after === head && again === head && (nav === null || Number(await sidebarCount(page, "nav-done")) === head), "opened, 완료 says " + again + " and lists " + after);
+      check(first === moved, "the first finished row moved from " + first + " to " + moved + " px below the list's top");
+      return "완료 " + head + ": " + shown + " + 외 " + hidden + "개, opened " + after + " rows";
     });
     await step("one card per run: three rounds of one card stay one card, and no worker run is a row", async () => {
       const release = await home().getByRole("link", { name: /릴리스 노트 정리/ }).count();
@@ -2923,11 +2971,9 @@ const drivers = {
       const stoppedHead = page.getByTestId("head-stopped");
       const red = (await stoppedHead.getByTestId("stopped-count").innerText()).trim();
       check((await stoppedHead.locator("span").first().innerText()).trim() === "중단됨" && red === "1" && (await stoppedHead.getByTestId("count").count()) === 0, "the 중단됨 group heads red " + red);
-      const recent = await page.getByTestId("section-recent").locator(".sub:not(.row-sub)").allInnerTexts();
-      const older = await page.getByTestId("section-older").locator(".sub:not(.row-sub)").allInnerTexts();
-      check(recent.every((line) => /^완료 · \d+(분|시간) 전$/.test(line)), "the last 24 hours read " + recent.join(", "));
-      check(older.every((line) => /^완료 · \d+일 전$/.test(line)), "older cards read " + older.join(", "));
-      return words + " " + grey + " / " + red + "; " + recent.join(", ") + "; " + older.join(", ");
+      const finished = await page.getByTestId("section-finished").locator(".sub:not(.row-sub)").allInnerTexts();
+      check(finished.length > 0 && finished.every((line) => /^완료 · \d+(분|시간|일) 전$/.test(line)), "finished cards read " + finished.join(", "));
+      return words + " " + grey + " / " + red + "; " + finished.join(", ");
     });
     await step("a comment with a path, a hash or a cut-off fragment reads its first sentence with those left out, one line", async () => {
       await openApp(page, "#/cards/k-103");

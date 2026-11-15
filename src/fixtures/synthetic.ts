@@ -119,7 +119,16 @@ export interface SceneOptions {
    * days ago while the item list serves T2 `waiting` with no reason, its state moved two days ago.
    */
   readonly hubRound11?: boolean;
+  /**
+   * MANY_FINISHED more finished cards (`&finished=many`, lina-app#186), three hours apart before k-105, each its own
+   * line: the work tab reads the first few and its fold reads the rest.
+   */
+  readonly manyFinished?: boolean;
 }
+
+export const MANY_FINISHED = 40;
+const FINISHED_WORK = ["문서", "백업", "배포", "점검", "정리", "보고", "목록", "설정"];
+const FINISHED_STEP = ["다듬기", "확인하기", "옮기기", "묶기", "살피기"];
 
 /** lina-app#171: a stop reason as long as the hub's longest, made up; the core's ask keeps its first 60 letters. */
 export const LONG_STOP_REASON = [
@@ -1010,6 +1019,16 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     // Every card the hub serves from its board is read-only (lina#481).
     for (const card of cardList.cards) Object.assign(card, { readOnly: true });
     for (const detail of Object.values(cardDetails)) Object.assign(detail, { readOnly: true });
+  }
+  if (options.manyFinished) {
+    const done = cardList.cards.find((card) => card.id === "k-105");
+    if (done) {
+      for (let index = 0; index < MANY_FINISHED; index++) {
+        const ended = now - (3 + 3 * index) * HOUR;
+        const title = `${FINISHED_WORK[index % FINISHED_WORK.length]} ${FINISHED_STEP[Math.floor(index / FINISHED_WORK.length)]}`;
+        cardList.cards.push({ ...done, id: `k-${300 + index}`, title, plain: plain(title, null, "끝까지 마쳤음"), endedAt: ended, lastHeartbeatAt: ended });
+      }
+    }
   }
   if (options.hubRound11) {
     // The hub's planned card (lina-app#179): not started, with no to-do, run, comment or line of its own yet.

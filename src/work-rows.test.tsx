@@ -75,7 +75,7 @@ describe("work tab rows (lina-app#148)", () => {
 describe("work tab first screen (lina-app#152)", () => {
   beforeEach(() => setWide(false));
 
-  const ORDER = ["home-decisions", "section-review", "section-active", "home-mine", "section-stopped", "section-planned", "section-waiting", "section-recent", "section-older"];
+  const ORDER = ["home-decisions", "section-review", "section-active", "home-mine", "section-stopped", "section-planned", "section-waiting", "section-finished"];
   const order = (screen: HTMLElement) => [...screen.querySelectorAll("[data-testid=home-decisions], [data-testid^=section-], [data-testid=home-mine]")].map((each) => each.getAttribute("data-testid") ?? "");
   const rowsOf = (view: Awaited<ReturnType<typeof open>>, name: string) => within(view.getByRole("list", { name })).queryAllByTestId("row");
 

@@ -644,6 +644,9 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
   /** The stream's count of changes to this conversation that the window's turns were last read at (lina-app#205). */
   const talkChanges = store.talkWindowChanges(agent);
   const readAt = useRef(talkChanges);
+  // The change read is out for (null: none) and the number of the newest read; a window change or a newer read drops an older one.
+  const readOut = useRef<number | null>(null);
+  const readSeq = useRef(0);
   /** Counts the first read's ends, so a change that came in while it was out is read once it has landed. */
   const [historyRead, setHistoryRead] = useState(0);
   const name = agentName(model, agent) || agent;
@@ -688,6 +691,8 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
     }
     for (const turn of box.turns.filter((each) => each.state === "failed")) settle(box, turn);
     historyPending.current = true;
+    readSeq.current += 1;
+    readOut.current = null;
     readAt.current = store.talkWindowChanges(agent);
     void store.source.agentTalkHistory(agent).then((result) => {
       if (!live) return;
@@ -707,6 +712,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
     return () => {
       live = false;
       if (box.window === open) box.window = null;
+      readSeq.current += 1;
     };
   }, [agent, store]);
 
@@ -720,16 +726,20 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
     // A change that comes while one of this page's turns goes stays unread too: a refused turn brings no event of its
     // own, so the read waits for the outbox to empty (`sending` is a dependency) instead of being dropped.
     if (historyPending.current || box.turns.length) return;
-    readAt.current = talkChanges;
-    let live = true;
+    // That read is out already and lands on its own: a re-run of this effect (a send began or ended) must not drop it.
+    if (readOut.current === talkChanges) return;
+    const token = ++readSeq.current;
+    readOut.current = talkChanges;
     void store.source.agentTalkHistory(agent).then((result) => {
-      if (!live || result.kind !== "data" || box.turns.length) return;
+      if (token !== readSeq.current) return;
+      readOut.current = null;
+      // A read that lands while a turn of this page goes, or fails, is not applied and the change stays unread: the
+      // effect runs again when the outbox empties (`sending`).
+      if (result.kind !== "data" || box.turns.length) return;
+      readAt.current = talkChanges;
       setLines((shown) => [...keptLines(result.data), ...(shown ?? []).filter((line) => line.state === "failed")]);
       keepLastLine(store.source, agent, lastLineOf(result.data));
     });
-    return () => {
-      live = false;
-    };
   }, [agent, store, talkChanges, historyRead, sending]);
 
   const send = async () => {

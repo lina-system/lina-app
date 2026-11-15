@@ -103,10 +103,14 @@ button:disabled {
   min-height: 0;
 }
 
+/*
+ * Title, tabs, tools: the two sides share what the tabs leave, so the tabs stand in the middle whatever the title or the
+ * tools hold. Between them (flex) the tabs moved by half the difference when an agent's name filled the title (lina-app#223).
+ */
 .toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: var(--gap);
   padding: 0 var(--inset);
   border-bottom: var(--line) solid var(--separator);
@@ -128,8 +132,10 @@ button:disabled {
 
 .toolbar-tools {
   display: flex;
+  justify-content: flex-end;
   align-items: center;
   gap: 4px;
+  min-width: 0;
 }
 
 /*

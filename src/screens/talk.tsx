@@ -809,10 +809,12 @@ export function AgentCard({ agent, folded = false }: { agent: string; folded?: b
       ])}
     </p>
   );
-  // A goal opens under 대화, beside the window on a wide one and one step deeper on a phone (lina-app#143).
+  // A goal opens under 대화, beside the window on a wide one and one step deeper on a phone (lina-app#143). Its mark
+  // follows its to-dos beside the n/n it writes: every n/n draws the done mark, also one that still waits to be closed
+  // (lina-app#200); the goal's page keeps the owner's own done check.
   const body = (
     <>
-      <ListSection section={view.goals} render={(goal) => <GoalLine key={goal.id} goal={{ ...goal, href: href({ name: "talk", id: agent, goal: goal.id }) }} showAgent={false} count />} />
+      <ListSection section={view.goals} render={(goal) => <GoalLine key={goal.id} goal={{ ...goal, state: goal.allDone ? "done" : goal.state, href: href({ name: "talk", id: agent, goal: goal.id }) }} showAgent={false} count />} />
       <ul class="rows" aria-label={W.done}>
         <li class="row" data-testid="card-done-today">
           <Link href={href({ name: "done", agent })} label={view.doneToday ? W.doneToday(view.doneToday.count) : W.loading}>

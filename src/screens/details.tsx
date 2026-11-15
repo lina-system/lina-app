@@ -2,19 +2,19 @@ import { Fragment, type ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
-import { cardTitle, goalCards, goalState, itemContext, runRow, todoState, type CardRow, type Model } from "../model";
+import { cardTitle, goalCards, goalState, itemContext, runRow, todoState, type CardRow, type Model, type StopReasonText } from "../model";
 import { foldedText, foldReason } from "../model/fold";
 import { plainText } from "../model/plain";
 import { holds } from "../model/rounds";
 import { stopReason } from "../model/stop-reason";
-import { answerOf, commentHistory, decisionHistory, goalHistory, historyLines, isMachineNotice, outcomeOf } from "../model/timeline";
+import { answerOf, commentHistory, decisionHistory, firstSentence, goalHistory, historyLines, isMachineNotice, outcomeOf } from "../model/timeline";
 import type { CardKind } from "../model/kind";
 import { isRunId } from "../data/store";
 import { back, baseOf, href, isFrame, navigate, parse, tabOf } from "../router";
 import { ago, clockAt, dayLabel } from "../time";
 import { useActions } from "../ui/actions";
 import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, stateWords, useApp } from "../ui/parts";
-import { BANNED_WORDS, DETAIL_WORD, reasonWord, RUN_LINE_WORD, SEP, STATE_WORD, stateLabel, W } from "../words";
+import { BANNED_WORDS, DETAIL_WORD, reasonWord, ROUND9_WORD, RUN_LINE_WORD, SEP, STATE_WORD, stateLabel, W } from "../words";
 import { PastEvents, RunModelLine, Timeline, type PastEvent } from "./timeline";
 import { Comments, SendButton } from "./comments";
 import { Talk } from "./talk";
@@ -632,20 +632,6 @@ function roundGroups(rounds: readonly Round[]): (Round | Round[])[] {
 }
 
 /**
- * Why a stopped card stopped, above its run box (lina-app#161): its rounds may all read 완료 while the card is stopped.
- * The reason's word (결정 대기, 피드백 대기, else its own word), else the stop words its row reads (stopReason), so it
- * never says 이유 없음 where the head says why.
- */
-function RunsStopWhy({ reason, row }: { reason: string | null; row: CardRow | undefined }) {
-  const word = (reason ? (DETAIL_WORD.waitFor[reason] ?? reasonWord(reason)) : null) || (row ? stopReason(row).word : null) || DETAIL_WORD.noReason;
-  return (
-    <p class="sub runs-stop-why" data-testid="runs-stop-why">
-      {[STATE_WORD.stopped, word].join(SEP)}
-    </p>
-  );
-}
-
-/**
  * A work card's comments, one history line each, newest first: its time and its first sentence a person may read,
  * with any id, hash, path or command taken out (lina-app#142, historyText #157); its author is the line's tooltip. A
  * machine notice is no line, and each run of comments with no sentence left is one 접힌 댓글 line with their count
@@ -666,12 +652,59 @@ function CardComments({ comments }: { comments: WorkCardDetail["comments"] }) {
   );
 }
 
-/** The one line a read-only card has where the owner would write (lina-app#149): it cannot be changed here (lina-app#153). */
-function ReadOnlyLine() {
+/**
+ * The one line a read-only card has where the owner would write (lina-app#149): it cannot be changed here (lina-app#153).
+ * A card that waits on the owner adds where to answer (lina-app#171): the 대화 of the agent that owns it, when the card
+ * names one the app knows. Text and a link only: no write.
+ */
+function ReadOnlyLine({ agent = null, waits = false }: { agent?: string | null; waits?: boolean }) {
+  const { model } = useApp();
+  const owner = waits ? model.agents.find((each) => each.id === agent) : undefined;
   return (
-    <span class="sub" data-testid="read-only">
-      {W.readOnlyHere}
-    </span>
+    <>
+      <span class="sub" data-testid="read-only">
+        {W.readOnlyHere}
+      </span>
+      {owner ? (
+        <span class="sub" data-testid="answer-where">
+          {`${ROUND9_WORD.answerWhere}${SEP}`}
+          <Link href={href({ name: "talk", id: owner.id })}>{ROUND9_WORD.talkWith(owner.name)}</Link>
+        </span>
+      ) : null}
+    </>
+  );
+}
+
+/** Whether a stopped card waits on the owner's answer: its row says so, or the core's reason does. */
+function waitsOnOwner(state: WorkState, reason: string | null, row: CardRow | undefined): boolean {
+  return state === "stopped" && (Boolean(row?.stop?.owner) || reason === "decision" || reason === "feedback");
+}
+
+/**
+ * The cards a folded line stands for (lina-app#171), in the detail it opens: one `time · state · sentence` line each, the
+ * opened card first, then newest first, each the link to its own card. The sentence is its result line, else the first
+ * sentence of its latest note a person may read, else its own name.
+ */
+function FoldMembers({ id }: { id: string }) {
+  const { model, store, now } = useApp();
+  const fold = [...model.home.recent.rows, ...model.home.older.rows].find((line) => line.fold?.some((card) => card.id === id))?.fold;
+  if (!fold) return null;
+  const note = (cardId: string) => firstSentence(store.get("cards")?.cards.find((card) => card.id === cardId)?.now);
+  const cards = [...fold.filter((card) => card.id === id), ...fold.filter((card) => card.id !== id)];
+  return (
+    <Box title={ROUND9_WORD.foldMembers(cards.length)} testid="fold-members">
+      <ul class="history-rows" aria-label={ROUND9_WORD.foldMembers(cards.length)}>
+        {cards.map((card) => {
+          const at = card.endedAt ?? card.stateAt ?? card.startedAt;
+          const line = [at === null ? "" : clockAt(at, now), stateWords(card.state, card.reason, card.stop), card.result ?? note(card.id) ?? card.own ?? card.name].filter(Boolean).join(SEP);
+          return (
+            <li key={card.id} class="history-row" data-testid="fold-member">
+              <Link href={card.href}>{line}</Link>
+            </li>
+          );
+        })}
+      </ul>
+    </Box>
   );
 }
 
@@ -699,17 +732,19 @@ function stateSaysWhy(state: WorkState, reason: string | null, row: CardRow | un
 function HeadState({ state, reason, row, time, readOnly = false }: { state: WorkState; reason: string | null; row: CardRow | undefined; time: string; readOnly?: boolean }) {
   const onOwner = Boolean(row?.stop?.owner) || reason === "decision" || reason === "feedback";
   if (readOnly && onOwner) return <StateTime state={state} time={time} />;
-  const stop = state === "stopped" && row?.stop ? { ...row.stop, words: stopReason(row).word } : undefined;
+  // A reason longer than the row says is said whole under the state line, which keeps the words before it (lina-app#171).
+  const stop = state === "stopped" && row?.stop ? { ...row.stop, words: row.stop.reason?.lead ?? stopReason(row).word } : undefined;
   return <StateTime state={state} reason={reason} stop={stop} time={time} />;
 }
 
 /**
  * Why a stopped card stopped, one line under its state line (lina-app#157): what it waits for by the core's reason
- * (결정 대기, 피드백 대기, else the reason's own word) and its ask; 이유 없음 when the card gives neither. When the newest
+ * (결정 대기, 피드백 대기, else the reason's own word) and its ask; 이유 없음 when the card gives neither. A reason longer
+ * than its row says (`whole`) is said once, all of it, wrapped, under the words before it (lina-app#171). When the newest
  * of its comments is the owner's, made after the stop, a second line says the owner decided and the state has not
  * moved yet.
  */
-function StopWhy({ reason, words, carried, stoppedAt, comments = [] }: { reason: string | null; words: string | null | undefined; carried: boolean; stoppedAt: number | null; comments?: WorkCardDetail["comments"] }) {
+function StopWhy({ reason, words, whole = null, carried, stoppedAt, comments = [] }: { reason: string | null; words: string | null | undefined; whole?: StopReasonText | null; carried: boolean; stoppedAt: number | null; comments?: WorkCardDetail["comments"] }) {
   const { store } = useApp();
   const owner = store.get("items")?.owner?.id ?? "owner";
   const word = reason ? (DETAIL_WORD.waitFor[reason] ?? reasonWord(reason)) : null;
@@ -719,9 +754,18 @@ function StopWhy({ reason, words, carried, stoppedAt, comments = [] }: { reason:
     <>
       {carried ? null : (
         <span class="sub" data-testid="stop-why">
-          {words || word || DETAIL_WORD.noReason}
+          {whole?.lead || words || word || DETAIL_WORD.noReason}
         </span>
       )}
+      {whole ? (
+        <span class="sub wrap-line" data-testid="stop-reason">
+          {whole.text.split("\n").map((line, index) => (
+            <span key={index} class="wrap-line">
+              {line}
+            </span>
+          ))}
+        </span>
+      ) : null}
       {decided ? (
         <span class="sub" data-testid="decided-since-stop">
           {DETAIL_WORD.decidedSinceStop}
@@ -799,9 +843,9 @@ export function CardScreen({ id }: { id: string }) {
       <article class="detail" data-testid="screen-card">
         <CardHead work={row.work} title={row.title}>
           <HeadState state={row.state} reason={row.reason} row={row} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} readOnly={row.readOnly} />
-          {row.state === "stopped" ? <StopWhy reason={row.reason} words={row.stop?.words} carried={stateSaysWhy(row.state, row.reason, row, Boolean(row.readOnly))} stoppedAt={row.stateAt} /> : null}
+          {row.state === "stopped" ? <StopWhy reason={row.reason} words={row.stop?.words} whole={row.stop?.reason} carried={stateSaysWhy(row.state, row.reason, row, Boolean(row.readOnly))} stoppedAt={row.stateAt} /> : null}
           <OwnTitleLine own={row.own} title={row.title} />
-          {row.readOnly ? <ReadOnlyLine /> : null}
+          {row.readOnly ? <ReadOnlyLine agent={row.agent} waits={waitsOnOwner(row.state, row.reason, row)} /> : null}
         </CardHead>
         {row.now && row.state === "in_progress" ? (
           <Box title={W.now} testid="card-now">
@@ -846,11 +890,15 @@ export function CardScreen({ id }: { id: string }) {
   // detail read later may already say another (lina-app#157). A card with no row reads its detail's.
   const state = row?.state ?? detail.state;
   const reason = row ? row.reason : detail.reason;
+  // The card's comments box holds its comments under the one 댓글 heading; the record then heads no block 댓글 of its own
+  // with the same comments (lina-app#171).
+  const boxed = detail.comments.filter((comment) => plainText(comment.body) && !isMachineNotice(comment.body, comment.author));
+  const shown = new Set(boxed.map((comment) => plainText(comment.body).trim()));
   return (
     <article class="detail" data-testid="screen-card">
       <CardHead work={row?.work ?? "code"} title={title}>
         <HeadState state={state} reason={reason} row={row} time={row ? [cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP) : ""} readOnly={readOnly} />
-        {state === "stopped" ? <StopWhy reason={reason} words={row?.stop?.words} carried={stateSaysWhy(state, reason, row, readOnly)} stoppedAt={row?.stateAt ?? detail.lastHeartbeatAt ?? null} comments={detail.comments} /> : null}
+        {state === "stopped" ? <StopWhy reason={reason} words={row?.stop?.words} whole={row?.stop?.reason} carried={stateSaysWhy(state, reason, row, readOnly)} stoppedAt={row?.stateAt ?? detail.lastHeartbeatAt ?? null} comments={detail.comments} /> : null}
         <OwnTitleLine own={own} title={title} />
         {goalLine && goalLine !== title ? (
           <span class="sub" data-testid="card-goal">
@@ -858,8 +906,9 @@ export function CardScreen({ id }: { id: string }) {
           </span>
         ) : null}
         {state === "in_progress" && detail.todoProgress.total > 0 ? <Progress done={detail.todoProgress.done} total={detail.todoProgress.total} word /> : null}
-        {readOnly ? <ReadOnlyLine /> : null}
+        {readOnly ? <ReadOnlyLine agent={row?.agent ?? detail.agent} waits={waitsOnOwner(state, reason, row)} /> : null}
       </CardHead>
+      <FoldMembers id={id} />
       {/* Each question with the place to answer it, keyed as its 수신함 row, so answering here hides that row too. */}
       {questions.map((question) => (
         <Fragment key={question.commentId}>
@@ -903,11 +952,11 @@ export function CardScreen({ id }: { id: string }) {
           {W.noHistory}
         </p>
       )}
-      {state === "stopped" && workerRuns.length ? <RunsStopWhy reason={reason} row={row} /> : null}
       {/* One round list: the record's blocks (기록), each head the link to its worker run. 실행 stands only while the
           record is not shown, and under its error line when the read failed, so the worker links never disappear. */}
       <Timeline
         runs={workerRuns.map((worker) => worker.id)}
+        shown={shown}
         live={(runId) => runLive(model, runId)}
         link={(runId, n) => href({ name: "run", id: roundRun(runId, n) })}
         modelRun={roundRun}

@@ -151,7 +151,8 @@ test("comments made between rounds one after another are one 댓글 block, newes
   for (let index = 1; index < heads.length; index += 1) expect(heads[index] === "댓글" && heads[index - 1] === "댓글", heads.join(" | ")).toBe(false);
   const block = view.getAllByTestId("timeline-block")[1];
   const lines = [...block.querySelectorAll(".timeline-row")].map((row) => (row.textContent ?? "").replace(LINE, ""));
-  expect(lines).toEqual(["요약은 한 줄로 해 주세요.", "표 머리는 짧게 해 주세요.", "변경 목록은 표로 보여 주세요"]);
+  // A comment the card's 댓글 box already holds is not said again in the record (lina-app#171).
+  expect(lines).toEqual(["요약은 한 줄로 해 주세요.", "표 머리는 짧게 해 주세요."]);
 });
 
 test("a decision's row in 수신함 and its record's head read the same time", async () => {

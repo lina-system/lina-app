@@ -345,7 +345,7 @@ export class SyntheticSource implements Source {
   private readonly signing = new Set<string>();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null } = {}) {
     this.staleNext = options.settings === "stale";
     this.raceNext = options.settings === "race";
     this.talkRefusal = options.talk ?? null;
@@ -363,6 +363,7 @@ export class SyntheticSource implements Source {
         writerStopped: options.writerStopped,
         endedRuns: options.endedRuns,
         manyTodos: options.manyTodos,
+        hubRound9: options.hubRound9,
         settings: options.settings === "stale" || options.settings === "race" ? null : options.settings,
         power: options.power,
       });

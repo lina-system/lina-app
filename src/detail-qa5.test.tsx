@@ -89,7 +89,7 @@ test("item 2: a writable card waiting on the owner keeps its answer box and its 
   const view = await open("#/cards/k-112", scene());
   const card = within(await frame(view));
   expect(card.getByTestId("card-answer")).toBeTruthy();
-  expect(view.getByTestId("detail-frame").querySelector(".detail-head [data-testid=state]")?.textContent).toBe("중단됨 · 결정 대기");
+  expect(view.getByTestId("detail-frame").querySelector(".detail-head [data-testid=state]")?.textContent).toBe("중단됨 · 결정 대기 · 이유 기록 없음");
 });
 
 /** T2 as the real core serves it after the owner answered: still waiting on a decision, the decision answered, the answer stored as a comment of kind answer. */

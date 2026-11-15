@@ -23,11 +23,11 @@ import type {
   WorkInbox,
   WorkState,
 } from "../api/client";
-import { BANNED_WORDS, CRUMB, KIND_TITLE, SEP, SOURCE_WORD, STATE_WORD, STOP_WAIT, STOP_WORD, W, reasonWord } from "../words";
+import { BANNED_WORDS, CRUMB, KIND_TITLE, ROUND9_WORD, SEP, SOURCE_WORD, STATE_WORD, STOP_WAIT, STOP_WORD, W, reasonWord } from "../words";
 import { href } from "../router";
 import { clockAt } from "../time";
 import { checksView, type ChecksView } from "./checks";
-import { foldReason, titleMayDraw, withoutRefs } from "./fold";
+import { foldedText, foldReason, titleMayDraw, withoutRefs } from "./fold";
 import { cardKind, type CardKind } from "./kind";
 import { ocxView, usageViews, type OcxView, type UsageRangeView } from "./usage";
 
@@ -120,7 +120,7 @@ export interface CardRow {
    * come first in the stopped group. `retry` is true when running it again can clear the stop (not when it waits on
    * an answer or a review, lina-app#134): only then does the row offer 다시 시도. Null for any other state.
    */
-  readonly stop?: { readonly words: string; readonly known: boolean; readonly owner: boolean; readonly retry: boolean } | null;
+  readonly stop?: { readonly words: string; readonly known: boolean; readonly owner: boolean; readonly retry: boolean; readonly reason?: StopReasonText | null } | null;
   /**
    * A stopped card's ask from the core (lina#690) as its own line under the title. Null on every list row since
    * lina-app#156: the ask is said after the stop's words (`stop.words`), or names the row when nothing else does.
@@ -144,6 +144,17 @@ export interface CardRow {
   readonly repeat?: number;
   /** The title the core names the card's goal by (its `goalTitle`, else its work goal's): what links it to a record goal of that title (goalFold). */
   readonly goalTitle?: string | null;
+  /** The cards such a line stands for, newest first, the line's own card first (lina-app#171); absent for one. */
+  readonly fold?: readonly CardRow[];
+}
+
+/**
+ * A stop reason longer than its row says (lina-app#171): the words before it (`결정 대기`) and all of it, for the detail,
+ * where the row cuts it at a word. Absent when the row says the whole reason.
+ */
+export interface StopReasonText {
+  readonly lead: string;
+  readonly text: string;
 }
 
 /** Where an answer to a decision goes: the record's item (comments with answer) or a work card's question. */
@@ -371,6 +382,42 @@ export function plainLine(text: string | null | undefined): string | null {
   return text && mayDraw(text) && !BANNED_WORDS.some((word) => text.includes(word)) ? text : null;
 }
 
+/** How many letters of a stop reason a row says after its words, so its state line stays two lines at 390 (lina-app#171). */
+export const ROW_REASON_MAX = 30;
+
+/** A text cut at a word end to at most `max` letters with `…`, its line breaks read as spaces; whole when it fits. */
+export function cutAtWord(text: string, max: number): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  const letters = [...flat];
+  if (letters.length <= max) return flat;
+  const head = letters.slice(0, max - 1).join("");
+  const space = head.lastIndexOf(" ");
+  return `${(space > 0 ? head.slice(0, space) : head).replace(/[\s.,:;·]+$/, "")}…`;
+}
+
+/** A text the core cut itself: it ends in a fold marker. */
+const CUT_END = /(?:…|\.\.\.)\s*$/;
+
+/**
+ * The whole reason the core keeps for a stop (the inbox's `blockReason`, lina-app#171) as the detail may show it: each
+ * line through the comments' fold (foldedText), a sentence with no Hangul, an English sentence or a word the screens
+ * never use left out. Null when nothing a person reads is left (an internal word such as a status name).
+ */
+export function stopReasonText(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const kept = text
+    .split("\n")
+    .map((line) =>
+      foldedText(line)
+        .split(/(?<=[.!?。])\s+/)
+        .filter((sentence) => titleMayDraw(sentence) && !BANNED_WORDS.some((word) => sentence.includes(word)))
+        .join(" "),
+    )
+    .filter(Boolean)
+    .join("\n");
+  return kept || null;
+}
+
 /** The time a row last moved: its end, its start or its state's. */
 const movedAt = (row: CardRow) => row.endedAt ?? row.startedAt ?? row.stateAt;
 
@@ -401,7 +448,7 @@ function collapsed(rows: readonly CardRow[]): CardRow[] {
   for (const row of rows) {
     const key = [row.name, row.sub ?? ""].join("\n");
     const first = lines.get(key);
-    lines.set(key, first ? { ...first, repeat: (first.repeat ?? 1) + 1 } : { ...row, when: null });
+    lines.set(key, first ? { ...first, repeat: (first.repeat ?? 1) + 1, fold: [...(first.fold ?? [first]), row] } : { ...row, when: null });
   }
   return [...lines.values()];
 }
@@ -554,6 +601,14 @@ export function buildModel(input: ModelInput, now: number): Model {
     if (retry === "none" || (isRun && (reason === "failed" || reason === "rejected"))) return { words: [word, W.notRetried].filter(Boolean).join(SEP), known: true, owner: false, retry: again };
     return { words: word ?? STOP_WORD.none, known: false, owner: false, retry: again };
   };
+  // A stopped row's words with its reason (lina-app#171): cut at a word on the row, whole in the detail when cut; a stop
+  // that waits on the owner's decision or feedback with no sentence of why says so instead of leaving a gap.
+  const stopWithReason = (stop: NonNullable<CardRow["stop"]>, reasonKey: string | null, reason: string | null): NonNullable<CardRow["stop"]> => {
+    if (reason === null) return reasonKey && STOP_WAIT[reasonKey] ? { ...stop, words: [stop.words, ROUND9_WORD.noReasonRecord].join(SEP) } : stop;
+    const short = cutAtWord(reason.replace(CUT_END, ""), ROW_REASON_MAX);
+    const words = [stop.words, short].filter(Boolean).join(SEP);
+    return short === reason ? { ...stop, words } : { ...stop, words, reason: { lead: stop.words, text: reason } };
+  };
   // The title of a to-do in the work record (never a goal: a goal names a row last), when it may be drawn.
   const todoName = (ids: readonly (string | null)[]) => ids.map((id) => (id ? itemMap.get(id) : undefined)).map((item) => (item && item.kind !== "goal" ? plainName(item.title) : null)).find(Boolean) ?? null;
   const runListRow = (run: RunCard): CardRow => {
@@ -588,7 +643,11 @@ export function buildModel(input: ModelInput, now: number): Model {
       const title = row.title ?? (card.state === "stopped" ? (ask ?? W.untitled) : null);
       // An ask that ends in the status word before it says that word once (lina-app#160).
       const said = ask !== null && ask !== title ? withoutRepeat(ask, row.stop?.words ?? "") : null;
-      const stop = row.stop && said ? { ...row.stop, words: [row.stop.words, said].filter(Boolean).join(SEP) } : row.stop;
+      // The whole reason the inbox keeps (lina-app#171): the core cuts its ask at a length, so a cut ask reads from it.
+      const whole = card.state === "stopped" ? stopReasonText(workInbox?.blocked.find((entry) => entry.cardId === card.id)?.blockReason) : null;
+      const reason = said !== null && CUT_END.test(said) ? (whole ?? said) : (said ?? whole);
+      // An ask that names the row is its reason already.
+      const stop = row.stop && !(ask !== null && ask === title) ? stopWithReason(row.stop, row.reason, reason) : row.stop;
       return { row: { ...row, title, name: title ?? row.name, stop, ask: null }, listed: !isEnded(card) };
     }),
     ...(board?.cards ?? []).map((run) => ({ row: runListRow(run), listed: false })),

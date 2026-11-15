@@ -606,3 +606,15 @@ export const RUN_LINE_WORD = {
   /** A card's worker run that ended with no round on record to say how (the screen words table's 결과 누락). */
   noResult: REASON_WORD.result_missing,
 };
+
+/** lina-app#171: the detail's words added in UI QA round 9. */
+export const ROUND9_WORD = {
+  /** A stop that waits on the owner's decision or feedback with no sentence of why, after its word. */
+  noReasonRecord: "이유 기록 없음",
+  /** The head of a folded line's cards, in its detail. */
+  foldMembers: (n: number) => `묶인 작업 ${n}건`,
+  /** Where the owner answers a read-only card that waits on them: its agent's 대화. */
+  answerWhere: "답할 곳",
+  /** That agent's conversation, as its link reads. */
+  talkWith: (name: string) => `${name} 대화`,
+};

@@ -293,9 +293,9 @@ test("a stopped row says its ask after why it stopped, by the title rule; a deci
   expect(words("s1")).toBe("결정 대기 · 가짜 묶음 주문서 폰 시험");
   // A number and a lone Latin word are words of the title rule; a banned word is not said at all.
   expect(words("s6")).toBe("결정 대기 · 가짜 봇이 lina 235 실사에서 알릴 때까지 기다림");
-  expect(words("s7")).toBe("결정 대기");
+  expect(words("s7")).toBe("결정 대기 · 이유 기록 없음");
   // A goal-less card whose title is kept says its ask after the reason too.
-  expect(words("s8")).toBe("결정 대기 · 원인은 가짜 fakeproxy의 구독 경로(이력이 안 이어지면…");
+  expect(words("s8")).toBe("결정 대기 · 원인은 가짜 fakeproxy의 구독 경로(이력이…");
   // The ask is never a line of its own on a row.
   expect([...model.cards.values()].filter((each) => each.ask)).toEqual([]);
 

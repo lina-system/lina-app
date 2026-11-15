@@ -22,7 +22,7 @@ async function open(hash: string, options: { wide?: boolean; source?: SyntheticS
   window.history.replaceState(null, "", `/app/${hash}`);
   const synthetic = options.source ?? source();
   const view = render(<App store={new Store(synthetic)} />);
-  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("실시간"));
+  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe(""));
   await waitFor(() => expect(view.container.querySelector("[data-testid=screen-settings], [data-testid=setting-page] .rows")).not.toBeNull());
   return { view, synthetic };
 }
@@ -46,7 +46,7 @@ describe("the settings screen", () => {
       setWide(wide);
       window.history.replaceState(null, "", "/app/#/status");
       const view = render(<App store={new Store(source())} />);
-      await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("실시간"));
+      await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe(""));
       if (wide) {
         const rows = [...view.getByTestId("sidebar").querySelectorAll("li[data-testid^=nav-]")].map((row) => row.getAttribute("data-testid"));
         expect(rows).toEqual(["nav-status", "nav-settings"]);

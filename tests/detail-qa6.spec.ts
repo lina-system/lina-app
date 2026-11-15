@@ -7,7 +7,7 @@ for (const colorScheme of ["light", "dark"] as const) {
     test.skip(info.project.name !== "phone", "phone layout only");
     await page.emulateMedia({ colorScheme });
     await page.goto("/app/?source=synthetic#/inbox");
-    await expect(page.getByTestId("freshness-line")).toHaveText("실시간");
+    await expect(page.getByTestId("freshness-line")).toHaveText("");
     await expect(page.locator(".phone-main .large-title")).toBeVisible();
     await page.locator("[data-testid=screen-inbox] .decision-row > a").first().click();
     const frame = page.getByTestId("detail-frame");

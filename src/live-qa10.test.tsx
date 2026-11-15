@@ -64,7 +64,7 @@ test("one failed read on a quiet open stream counts from the same moment on ever
   const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
   const { store, view } = open(source);
   await step(60_000);
-  expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
+  expect(view.getByTestId("freshness-line").textContent).toBe("");
   const read = source.read.bind(source);
   vi.spyOn(source, "read").mockImplementation(((name: Parameters<typeof read>[0], id?: string) =>
     name === "board" ? Promise.resolve({ kind: "failed", offline: false, at: Date.now() / 1000 }) : read(name, id)) as typeof source.read);
@@ -82,7 +82,7 @@ test("one failed read on a quiet open stream counts from the same moment on ever
 });
 
 // A hidden tab closes its socket; shown again it said 갱신 지연 at once, until its reconnect answered.
-test("a tab hidden for a moment reads 실시간 throughout when its reconnect lands within the settle time", async () => {
+test("a tab hidden for a moment shows no word throughout when its reconnect lands within the settle time", async () => {
   const { view } = open(new SyntheticSource({ now: Math.floor(Date.now() / 1000) }));
   await step(5_000);
   const words = wordsOf(view);
@@ -91,7 +91,7 @@ test("a tab hidden for a moment reads 실시간 throughout when its reconnect la
   await go("#/talk");
   show("visible");
   await step(LIVE_SETTLE_MS * 2);
-  expect(words).toEqual(["실시간"]);
+  expect(words).toEqual([""]);
 });
 
 test("a tab shown again whose reconnect does not land reads 갱신 지연 exactly after the settle time", async () => {
@@ -103,7 +103,7 @@ test("a tab shown again whose reconnect does not land reads 갱신 지연 exactl
   source.setStreamDown(true);
   show("visible");
   await step(LIVE_SETTLE_MS - 1);
-  expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
+  expect(view.getByTestId("freshness-line").textContent).toBe("");
   await step(1);
   expect(view.getByTestId("freshness-line").textContent).toBe("갱신 지연");
 });

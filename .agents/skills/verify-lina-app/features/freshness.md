@@ -10,7 +10,7 @@ The toolbar says how fresh the data is. A failed source shows one orange line wh
 
 ## Intended behavior
 
-- `실시간` while the change stream is open; a neutral `연결 중` until the stream's first connection opens, however long that takes (lina-app#172); grey `갱신 지연` once a stream that was open has been down for the settle time (3 s, `LIVE_SETTLE_MS` in `src/data/live.ts`, live.md), so a drop the reconnect mends sooner never shows and the two words cannot alternate faster than that; a reconnect reads `실시간` at once (lina-app#150); red `연결 끊김` when the core cannot be reached. Only after a read fails while the stream is open does the line read `갱신 n초 전`: while the stream is open nothing is read until something changes, so the age counts from the last moment the stream vouched for the screens, not from the last read, and `갱신 지연` follows only 30 s later (lina-app#152).
+- Nothing while the change stream is open: the head shows a word only when something is wrong (lina-app#187; `실시간` is gone app-wide); a neutral `연결 중` until the stream's first connection opens, however long that takes (lina-app#172); grey `갱신 지연` once a stream that was open has been down for the settle time (3 s, `LIVE_SETTLE_MS` in `src/data/live.ts`, live.md), so a drop the reconnect mends sooner never shows and the two words cannot alternate faster than that; a reconnect clears the word at once (lina-app#150); red `연결 끊김` when the core cannot be reached. Only after a read fails while the stream is open does the line read `갱신 n초 전`: while the stream is open nothing is read until something changes, so the age counts from the last moment the stream vouched for the screens, not from the last read, and `갱신 지연` follows only 30 s later (lina-app#152).
 - Nothing else stands beside the word: the stopped writer of the checked lines (`요약 중단됨`) is in `상태`'s `점검` panel, not here (lina-app#150).
 - A source listed in the core's `errors[]`, or a route whose read failed, shows `읽기 실패: <source word>` in orange; other screens still draw.
 
@@ -30,13 +30,13 @@ Preconditions:
 - `verify.mjs doctor` reports `"healthy": true` for this run.
 - The page is `/app/?source=synthetic`, the synthetic scene; the drive opens it fresh for each width.
 
-- **Freshness.** Open 수신함. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive freshness`. The line reads `실시간`.
+- **Freshness.** Open 수신함. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive freshness`. The line is empty and takes no width.
 - **Failed source.** Load `/app/?source=synthetic&error=quota#/inbox`. The line adds `· 읽기 실패: 쿼터` and 결정 필요 still has 4 rows.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/freshness/freshness-1280.{png,aria.yml,json}` and `freshness-390.{png,aria.yml,json}`.
 
 ## Gotchas
 
-- `연결 끊김` needs a core that stops answering; the unit tests cover it (`src/screens.test.tsx`), the drive does not. `연결 중` is driven in live.md with `&live=down`, and `갱신 지연` is held by `src/chrome-qa9.test.tsx`; `&live=drop` and `&live=token` reconnect within the settle time, so their drives check that the line never leaves `실시간`. The settle time itself is held by `src/data/live.test.ts` on a fake clock.
+- `연결 끊김` needs a core that stops answering; the unit tests cover it (`src/screens.test.tsx`), the drive does not. `연결 중` is driven in live.md with `&live=down`, and `갱신 지연` is held by `src/chrome-qa9.test.tsx`; `&live=drop` and `&live=token` reconnect within the settle time, so their drives check that the line never shows a word. The settle time itself is held by `src/data/live.test.ts` on a fake clock.
 
 ## Not goals
 

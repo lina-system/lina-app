@@ -332,7 +332,8 @@ export function Freshness() {
   else if (store.lastOk === null || store.version === 0) line = { text: W.loading, tone: "" };
   // A stream that was never open has nothing late yet: its first connection is still being made (lina-app#172).
   else if (store.live === "connecting") line = { text: W.connecting, tone: "" };
-  else if (current) line = { text: W.live, tone: "" };
+  // A current screen needs no word: the head speaks only when something is wrong (lina-app#187).
+  else if (current) line = { text: "", tone: "" };
   else if (store.live === "down" || now - since > STALE_AFTER_S) line = { text: W.stale, tone: "" };
   else line = { text: W.fresh(Math.max(0, Math.floor(now - since))), tone: "" };
   return (

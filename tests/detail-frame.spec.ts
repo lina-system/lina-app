@@ -27,7 +27,7 @@ const KINDS: readonly { kind: string; list: string; row: string; prepare?: (page
 
 async function ready(page: Page, hash: string) {
   await page.goto(`${APP}${hash}`);
-  await expect(page.getByTestId("freshness-line")).toHaveText("실시간");
+  await expect(page.getByTestId("freshness-line")).toHaveText("");
 }
 
 // A row brought into view (a tap, a focus move, a find) stops above the bottom bar on a phone, never under it.
@@ -36,7 +36,7 @@ for (const hash of ["#/", "#/inbox"]) {
     test.skip(info.project.name !== "phone", "phone layout only");
     await page.setViewportSize({ width: 390, height: 480 });
     await page.goto(`/app/?source=synthetic&writer=stopped&runs=ended&todos=many${hash}`);
-    await expect(page.getByTestId("freshness-line")).toHaveText(/^\S/);
+    await expect(page.getByTestId("freshness-line")).toHaveText("");
     const fold = page.getByRole("button", { name: /^내 할 일/ });
     if (await fold.count()) await fold.first().click();
     const last = page.locator(".phone-main [data-testid=row]").last();

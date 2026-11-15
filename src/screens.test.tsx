@@ -55,7 +55,7 @@ async function open(hash: string, options: { wide: boolean; source?: Source }) {
   window.history.replaceState(null, "", `/app/${hash}`);
   const source = options.source ?? new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
   const view = render(<App store={new Store(source)} />);
-  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("실시간"));
+  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe(""));
   if (/^#\/(goals|items|cards|runs)\//.test(hash)) {
     await waitFor(() => expect(view.container.querySelector("article.detail")).not.toBeNull());
     // A card opens on its list row and fills in when its detail answers.
@@ -603,7 +603,7 @@ describe("freshness", () => {
     await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("연결 끊김"));
   });
 
-  test("with the stream open the line reads 실시간; down past the settle time, it reads 갱신 지연 until a reconnect", async () => {
+  test("with the stream open the line shows no word (lina-app#187); down past the settle time, it reads 갱신 지연 until a reconnect", async () => {
     vi.useFakeTimers(TIMERS);
     try {
       const source = new SyntheticSource();
@@ -611,7 +611,7 @@ describe("freshness", () => {
       source.setStreamDown(true);
       await act(async () => source.dropStreams());
       // The word holds for the settle time, so a drop mended sooner never shows (lina-app#150).
-      expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
+      expect(view.getByTestId("freshness-line").textContent).toBe("");
       await act(async () => {
         await vi.advanceTimersByTimeAsync(LIVE_SETTLE_MS);
       });
@@ -624,7 +624,7 @@ describe("freshness", () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(BACKOFF_MAX_MS);
       });
-      expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
+      expect(view.getByTestId("freshness-line").textContent).toBe("");
     } finally {
       vi.useRealTimers();
     }
@@ -640,7 +640,7 @@ describe("freshness", () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(120_000);
       });
-      expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
+      expect(view.getByTestId("freshness-line").textContent).toBe("");
       failBoard = true;
       await act(async () => {
         source.recordSays("r1", "가짜 한 줄");
@@ -657,13 +657,13 @@ describe("freshness", () => {
         source.recordSays("r1", "가짜 두 줄");
         await vi.advanceTimersByTimeAsync(STREAM_TICK_MS * 3);
       });
-      expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
+      expect(view.getByTestId("freshness-line").textContent).toBe("");
     } finally {
       vi.useRealTimers();
     }
   });
 
-  test("a stream that never opens reads 연결 중 past the settle time, never 갱신 지연 or 실시간 (lina-app#172)", async () => {
+  test("a stream that never opens reads 연결 중 past the settle time, never 갱신 지연 and never the open stream's empty line (lina-app#172)", async () => {
     vi.useFakeTimers(TIMERS);
     try {
       setWide(true);
@@ -1674,7 +1674,7 @@ describe("agent talk", () => {
     expect(field.value).toBe("오늘 어디까지 했어요?");
   });
 
-  test("보내기 in the agent's window says why while it is off: an empty field, the turn going out, the reply coming in (lina-app#158)", async () => {
+  test("보내기 in the agent's window is a dim icon while it is off, with no line under the field: an empty field, the turn going out, the reply coming in (lina-app#187)", async () => {
     let answer: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => (answer = resolve));
     class Held extends SyntheticSource {
@@ -1685,18 +1685,25 @@ describe("agent talk", () => {
     }
     const view = await open("#/talk/ag-1", { wide: true, source: new Held() });
     const { box, field, send } = parts(view);
+    const quiet = () => {
+      expect(box.queryByTestId("send-why")).toBeNull();
+      for (const word of ["글 입력 대기", "보내는 중", "답하는 중"]) expect(view.getByTestId("agent-talk").textContent).not.toContain(word);
+    };
+    expect(field.tagName).toBe("TEXTAREA");
+    expect(send.textContent).toBe("");
     expect(send.disabled).toBe(true);
-    expect(box.getByTestId("send-why").textContent).toBe("글 입력 대기");
+    quiet();
     field.value = "가짜 질문 하나";
     fireEvent.input(field);
     await waitFor(() => expect(send.disabled).toBe(false));
-    expect(box.queryByTestId("send-why")).toBeNull();
     fireEvent.click(send);
-    await waitFor(() => expect(box.getByTestId("send-why").textContent).toBe("보내는 중"));
+    await waitFor(() => expect(box.getAllByTestId("talk-mine").at(-1)?.dataset.state).toBe("sending"));
     expect(send.disabled).toBe(true);
+    quiet();
     answer();
-    await waitFor(() => expect(box.getByTestId("send-why").textContent).toBe("답하는 중"));
+    await waitFor(() => expect(box.getAllByTestId("talk-live")).toHaveLength(1));
     expect(send.disabled).toBe(true);
+    quiet();
   });
 
   test("a refused turn puts the agent row's preview back to what it showed before the send (lina-app#143)", async () => {
@@ -1774,7 +1781,7 @@ describe("agent talk", () => {
     }
   }
 
-  test("a send shows at once as 보내는 중 while the history read waits on the gateway, is not held behind it, and its refusal shows when it comes with the text back in the field (lina-app#154)", async () => {
+  test("a send shows at once, drawn as going, while the history read waits on the gateway, is not held behind it, and its refusal shows when it comes with the text back in the field (lina-app#154)", async () => {
     vi.useFakeTimers(TIMERS);
     try {
       const source = new Unreachable();
@@ -1790,8 +1797,8 @@ describe("agent talk", () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(0);
       });
-      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["지금 상태 알려 주세요보내는 중"]);
-      expect(box.getByTestId("talk-sending").textContent).toBe("보내는 중");
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["지금 상태 알려 주세요"]);
+      expect(box.getByTestId("talk-mine").dataset.state).toBe("sending");
       expect(field.value).toBe("");
       expect(source.posts).toBe(1);
       // The history read gives up first; the turn still shows as going.
@@ -1799,13 +1806,12 @@ describe("agent talk", () => {
         await vi.advanceTimersByTimeAsync(30_000);
       });
       expect(box.queryByTestId("talk-loading")).toBeNull();
-      expect(box.getByTestId("talk-sending")).toBeTruthy();
+      expect(box.getByTestId("talk-mine").dataset.state).toBe("sending");
       // The send's answer comes 60 s after it went out; its reason shows within 5 s of it.
       await act(async () => {
         await vi.advanceTimersByTimeAsync(30_000 + 5_000);
       });
       expect(box.getByTestId("write-error").textContent).toBe("에이전트 연결 안 됨");
-      expect(box.queryByTestId("talk-sending")).toBeNull();
       expect(box.queryAllByTestId("talk-mine")).toHaveLength(0);
       expect(field.value).toBe("지금 상태 알려 주세요");
     } finally {
@@ -1870,7 +1876,7 @@ describe("agent talk", () => {
         await vi.advanceTimersByTimeAsync(30_000);
       });
       // The history landed first: the earlier exchange is its own, not this send.
-      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "어디까지 왔어요?보내는 중"]);
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "어디까지 왔어요?"]);
       await act(async () => {
         await vi.advanceTimersByTimeAsync(10_000 + 5_000);
       });
@@ -1903,7 +1909,7 @@ describe("talk", () => {
     fireEvent.input(field);
   }
 
-  test("보내기 under a to-do's 대화 says why while it is off, in the same words as 댓글 (lina-app#158)", async () => {
+  test("보내기 under a to-do's 대화 is a dim icon while it is off, with no line under the field (lina-app#187; 댓글 keeps its own, lina-app#158)", async () => {
     let answer: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => (answer = resolve));
     class Held extends SyntheticSource {
@@ -1914,15 +1920,21 @@ describe("talk", () => {
     }
     const view = await open("#/items/T4", { wide: true, source: new Held() });
     const { box, field, send } = talkParts(view);
+    const quiet = () => {
+      expect(box.queryByTestId("send-why")).toBeNull();
+      for (const word of ["글 입력 대기", "보내는 중", "답하는 중"]) expect(view.getByTestId("talk").textContent).not.toContain(word);
+    };
+    expect(field.tagName).toBe("TEXTAREA");
     expect(send.disabled).toBe(true);
-    expect(box.getByTestId("send-why").textContent).toBe("글 입력 대기");
+    quiet();
     type(field, "가짜 질문 하나");
     await waitFor(() => expect(send.disabled).toBe(false));
-    expect(box.queryByTestId("send-why")).toBeNull();
     fireEvent.click(send);
-    await waitFor(() => expect(box.getByTestId("send-why").textContent).toBe("보내는 중"));
+    await waitFor(() => expect(send.disabled).toBe(true));
+    quiet();
     answer();
-    await waitFor(() => expect(box.getByTestId("send-why").textContent).toBe("답하는 중"));
+    await waitFor(() => expect(box.getByTestId("talk-live")).toBeTruthy());
+    quiet();
   });
 
   test("대화 sits under 댓글; Enter sends, the reply streams with a live mark, then one line says the agent keeps it", async () => {
@@ -1948,9 +1960,9 @@ describe("talk", () => {
         await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 5);
       });
       const reply = box.getByTestId("talk-reply");
-      expect(reply.querySelector(".talk-bubble")?.textContent).toBe(`${TALK_REPLY_DELTAS[0]}${TALK_REPLY_DELTAS[1]}답하는 중`);
+      expect(reply.querySelector(".talk-bubble")?.textContent).toBe(`${TALK_REPLY_DELTAS[0]}${TALK_REPLY_DELTAS[1]}`);
       expect(box.getByTestId("talk-live")).toBeTruthy();
-      expect(reply.querySelector(".mark")?.textContent).toBe(Array.from(agent ?? "")[0]);
+      expect(reply.closest("[data-testid=talk-group]")?.querySelector(".mark")?.textContent).toBe(Array.from(agent ?? "")[0]);
       expect(box.queryByTestId("talk-carried")).toBeNull();
       await act(async () => {
         await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 10);
@@ -2038,15 +2050,15 @@ describe("live updates", () => {
         await vi.advanceTimersByTimeAsync(STREAM_TICK_MS);
       });
       await act(async () => core.dropStreams());
-      // The reconnect mends the drop within the settle time: the word never leaves 실시간 (lina-app#150).
-      expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
+      // The reconnect mends the drop within the settle time: the line never leaves the open stream's empty state (lina-app#150).
+      expect(view.getByTestId("freshness-line").textContent).toBe("");
       await otherDevice.write((source) => source.readNotices({ keys: [core.scene.board.notices.find((notice) => !notice.read)?.key ?? ""] }));
       await act(async () => {
         await vi.advanceTimersByTimeAsync(BACKOFF_MAX_MS);
       });
       expect(core.stream.at(-1)).toMatchObject({ first: "missed", missed: 1, open: true });
       await waitFor(() => expect(view.getByRole("button", { name: "알림 4" })).toBeTruthy());
-      expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
+      expect(view.getByTestId("freshness-line").textContent).toBe("");
 
       expect(view.getByTestId("screen-inbox")).toBe(screen);
       expect(decisionButton(view, "배포를 금요일 오후에 할지 결정 필요")).toBe(row);
@@ -2064,8 +2076,8 @@ test("a core restarted with a new token: the page reads it once and resumes, wit
       const view = await open("#/inbox", { wide: true, source: core });
       const screen = view.getByTestId("screen-inbox");
       await act(async () => core.restartCore());
-      // The renewal and the reconnect land within the settle time: the word never leaves 실시간 (lina-app#150).
-      expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
+      // The renewal and the reconnect land within the settle time: the line never leaves the open stream's empty state (lina-app#150).
+      expect(view.getByTestId("freshness-line").textContent).toBe("");
       await act(async () => {
         await vi.advanceTimersByTimeAsync(BACKOFF_MAX_MS);
       });
@@ -2075,7 +2087,7 @@ test("a core restarted with a new token: the page reads it once and resumes, wit
       expect(core.stream.at(-1)).toMatchObject({ since: expect.stringMatching(/^s\./), first: "missed", missed: 1, open: true });
       expect(core.stream.filter((connection) => connection.open)).toHaveLength(1);
       await waitFor(() => expect(view.getByRole("button", { name: "알림 4" })).toBeTruthy());
-      expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
+      expect(view.getByTestId("freshness-line").textContent).toBe("");
       expect(view.getByTestId("screen-inbox")).toBe(screen);
     } finally {
       vi.useRealTimers();

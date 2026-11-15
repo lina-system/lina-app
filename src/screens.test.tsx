@@ -2930,6 +2930,40 @@ describe("the work tab's first screen (lina-app#124)", () => {
       expect(count(within(mine).getByTestId("head-mine").querySelector("[data-testid=count]"))).toBe(2);
     });
 
+    /** Saves one to-do on the home against a core that refuses it with `detail`; the line under the field. */
+    const refusedLine = async (title: string, detail: string) => {
+      class Guide extends SyntheticSource {
+        override async addItem() {
+          return { ok: false as const, status: 400, detail };
+        }
+      }
+      Element.prototype.scrollIntoView = () => {}; // jsdom has none; the field scrolls itself into view on focus
+      const view = await open("#/", { wide, source: new Guide({ now: Math.floor(Date.now() / 1000) }) });
+      const mine = view.getByTestId("home-mine");
+      fireEvent.click(within(mine).getByRole("button", { name: "할 일 추가" }));
+      const field = within(mine).getByRole("textbox", { name: "할 일" }) as HTMLInputElement;
+      field.value = title;
+      fireEvent.input(field);
+      fireEvent.click(within(mine).getByRole("button", { name: "저장" }));
+      return await waitFor(() => within(mine).getByTestId("write-error").textContent ?? "");
+    };
+
+    test("a to-do title the writing guide refuses for its parentheses names that rule, with no 다시 시도 (lina-app#183)", async () => {
+      // The core's refusal with the rule it hit, as `lina work` writes it in en.
+      const line = await refusedLine(
+        "수락 시험 할 일 (시험 사본)",
+        'Rule hit: parentheses "(" · 수락 시험 할 일 (시험 사본)\nGuide: /srv/lina/docs/work/writing-guide.en.md · work fields to-do title',
+      );
+      expect(line).toBe("글쓰기 규칙 · 괄호 없는 제목만 저장됨");
+    });
+
+    test("a writing-guide refusal that names no rule reads one general line of the rules, with no 다시 시도 (lina-app#183)", async () => {
+      // The core's 400 today: only the last line of the refusal, the guide and the field.
+      const line = await refusedLine("수락 시험 할 일 (시험 사본)", "Guide: /srv/lina/docs/work/writing-guide.en.md · work fields to-do title");
+      expect(line).toBe("글쓰기 규칙에 맞지 않는 제목 · 번호, 명령·옵션, 경로, 내부 이름, 괄호, 앞의 '이름: ' 꼬리표는 뺌");
+      expect(line).not.toMatch(/다시 시도|[A-Za-z]/);
+    });
+
     test("a to-do just added can be ticked done and taken back from the toast (lina-app#95)", async () => {
       const source = new SpySource({ now: Math.floor(Date.now() / 1000) });
       const view = await open("#/", { wide, source });

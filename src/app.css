@@ -181,7 +181,7 @@ button:disabled {
   height: 16px;
   padding: 0 4px;
   border-radius: 8px;
-  background: var(--red);
+  background: var(--red-fill);
   color: #ffffff;
   font-size: 11px;
   font-weight: 600;
@@ -335,7 +335,7 @@ button:disabled {
 
 .split .nav-row.is-current .nav-stopped-mark {
   color: #ffffff;
-  background: var(--red);
+  background: var(--red-fill);
   border-radius: 8px;
   padding: 0 5px;
 }
@@ -352,7 +352,7 @@ button:disabled {
 
 .split .nav-row.is-current .talk-stopped {
   color: #ffffff;
-  background: var(--red);
+  background: var(--red-fill);
   border-radius: 8px;
   padding: 0 5px;
 }
@@ -2405,7 +2405,7 @@ html:has(.stack) body {
 
 .split .nav-row.is-current .count-pair .count.is-stopped-count {
   color: #ffffff;
-  background: var(--red);
+  background: var(--red-fill);
   border-radius: 8px;
   padding: 0 5px;
 }
@@ -2962,7 +2962,7 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--red);
+  background: var(--red-fill);
   color: #ffffff;
   font-weight: 700;
   line-height: 1;

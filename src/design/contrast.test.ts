@@ -129,6 +129,27 @@ function hueGap(a: Rgba, b: Rgba): number {
   return Math.min(gap, 360 - gap);
 }
 
+// lina-app#213: the bell's count is a white number on red at 11-13 px; on the red the state words use it measured
+// 3.41:1 in dark. Every white word on a red fill (the count, the stopped pills) needs 4.5:1, light and dark, and the
+// fill stays the alert red: the state red's own hue, within 5 degrees.
+const whiteOnRed = [...readFileSync("src/app.css", "utf8").matchAll(/\{([^{}]*)\}/g)]
+  .map((rule) => rule[1])
+  .filter((body) => /(^|\s)color:\s*#ffffff;/.test(body))
+  .map((body) => body.match(/background:\s*var\(--(red[\w-]*)\)/)?.[1])
+  .filter((name): name is string => Boolean(name));
+
+test.each([
+  ["light", light],
+  ["dark", dark],
+])("every white word on a red fill reaches 4.5:1, and the fill reads as the red (%s)", (_scheme, block) => {
+  expect(whiteOnRed.length).toBeGreaterThanOrEqual(5);
+  for (const name of whiteOnRed) {
+    const fill = parse(schemeToken(block, name));
+    expect(contrast(MARK_LETTER, fill), `--${name}`).toBeGreaterThanOrEqual(4.5);
+    expect(hueGap(fill, parse(schemeToken(block, "red"))), `--${name} hue`).toBeLessThanOrEqual(5);
+  }
+});
+
 test.each([
   ["light", light],
   ["dark", dark],

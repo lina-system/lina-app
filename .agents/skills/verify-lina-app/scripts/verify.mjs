@@ -16,6 +16,7 @@ import { createServer } from "node:net";
 import { appendFileSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { failingPairs, readTextLayers } from "./contrast.mjs";
 import { previewReady } from "./preview-log.mjs";
 
 const skillDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -398,6 +399,21 @@ async function decisionNames(list) {
 }
 
 const ACCENT = "rgb(0, 122, 255)";
+
+// Text under 4.5:1 that only a palette change clears (lina-app#213): white on the accent fill (a selected row, the
+// current sidebar row), the accent as a text button's colour in light, and the state red and orange as words. The
+// contrast sweep lets these exact pairs through and fails on any other.
+const OPEN_CONTRAST = new Set([
+  "#ffffff on #007aff",
+  "#ffffff on #0a84ff",
+  "#007aff on #ffffff",
+  "#007aff on #f2f2f7",
+  "#ff3b30 on #ffffff",
+  "#ff3b30 on #f2f2f7",
+  "#ff3b30 on #efeff4",
+  "#ff453a on #29292b",
+  "#ff9500 on #ffffff",
+]);
 
 // A text button reads as a button: accent text when enabled, secondary grey only when disabled, 44 px tall on a phone.
 async function buttonLook(page, locator) {
@@ -3710,6 +3726,23 @@ const drivers = {
       } finally {
         await context.close();
       }
+    });
+    // lina-app#213: every text on the first screens of the three tabs, against what it is drawn on, from computed styles.
+    await step("every text on the three tabs' first screens reaches 4.5:1 (3:1 large), light and dark", async () => {
+      const seen = [];
+      for (const colorScheme of ["light", "dark"]) {
+        await page.emulateMedia({ colorScheme });
+        for (const [hash, drawn] of [["#/talk", "talk-preview"], ["#/", "row"], ["#/status", "row"]]) {
+          await openApp(page, hash);
+          await page.getByTestId(drawn).first().waitFor();
+          const nodes = await page.evaluate(readTextLayers);
+          const failing = failingPairs(nodes).filter((pair) => !OPEN_CONTRAST.has(`${pair.text} on ${pair.surface}`));
+          check(nodes.length > 10 && failing.length === 0, `${colorScheme} ${hash}, ${nodes.length} texts: ` + failing.map((pair) => `${pair.where} ${pair.text} on ${pair.surface} ${pair.ratio}:1 < ${pair.needs}:1`).join("; "));
+          seen.push(`${colorScheme} ${hash} ${nodes.length}`);
+        }
+      }
+      await page.emulateMedia({ colorScheme: "light" });
+      return seen.join(", ") + " texts, none under but the open pairs";
     });
   },
 

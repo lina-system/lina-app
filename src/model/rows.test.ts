@@ -185,6 +185,29 @@ test("finished cards whose visible lines are equal collapse to one line with the
   expect(model.done).toHaveLength(8);
 });
 
+// lina-app#196: the hub's finished cards, more than the first page, some with no name the screen may draw (an English
+// own title and no goal) and those only past the first page, as in the hub's reply.
+test("the 완료 head counts the same cards on the first page and once every finished card is read: what has no name is one counted line (lina-app#196)", () => {
+  const named = Array.from({ length: 8 }, (_, index) => row(`n${index + 1}`, `가짜 정리 ${index + 1}단계 마치기`, "done", { endedAt: NOW - (index + 1) * 600 }));
+  const unnamed = Array.from({ length: 3 }, (_, index) => row(`u${index + 1}`, `fake cleanup pass ${index + 1}`, "done", { endedAt: NOW - 2 * DAY - index * 600 }));
+  const every = [...named, ...unnamed];
+  // The core's first page: the five newest finished cards and the total of every one it holds (lina#729).
+  const firstPage = (rows: readonly RealRow[]) => buildModel({ board, items, cards: { cards: rows.slice(0, 5), finishedTotal: rows.length } as WorkCardList, cardsAt: NOW, cardDetails: {}, failed: [], finished: { total: rows.length, all: false } }, NOW);
+  const lineCards = (rows: readonly CardRow[]) => rows.reduce((sum, line) => sum + (line.repeat ?? 1), 0);
+  const first = firstPage(every);
+  const opened = buildModel({ board, items, cards: { cards: every, finishedTotal: every.length } as WorkCardList, cardsAt: NOW, cardDetails: {}, failed: [], finished: { total: every.length, all: true } }, NOW);
+
+  expect(first.home.finished.count).toBe(11);
+  expect(first.counts.done).toBe(11);
+  expect(lineCards(first.home.finished.rows) + first.finished.more).toBe(11);
+  // Opened, the head, the sidebar and the rows are the same number: the three with no name are one line ×3.
+  expect(opened.home.finished.count).toBe(11);
+  expect(opened.counts.done).toBe(11);
+  expect(lineCards(opened.home.finished.rows)).toBe(11);
+  expect(lineCards(doneFor(opened))).toBe(11);
+  expect(opened.home.finished.rows.at(-1)).toMatchObject({ id: "u1", name: W.untitled, repeat: 3 });
+});
+
 test("running, stopped and planned cards never collapse, whatever their titles (lina-app#168)", () => {
   const same = (id: string, state: CardSummary["state"]) => row(id, "가짜 같은 제목 dev 1a2b3c4d로 올리기", state, { lastHeartbeatAt: NOW - 100 });
   const model = realModel([same("a1", "in_progress"), same("a2", "in_progress"), same("b1", "stopped"), same("b2", "stopped"), same("c1", "planned"), same("c2", "planned")]);

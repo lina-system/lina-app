@@ -2129,7 +2129,9 @@ html:has(.stack) body {
   overscroll-behavior: none;
 }
 
+/* One head height on every phone screen, a chat app's, above the safe area (lina-app#202). */
 .stack {
+  --navbar: 58px;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -2145,7 +2147,7 @@ html:has(.stack) body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: calc(44px + var(--safe-top));
+  height: calc(var(--navbar) + var(--safe-top));
   padding: var(--safe-top) calc(8px + var(--safe-right)) 0 calc(8px + var(--safe-left));
   background: var(--bg-2);
 }
@@ -2161,14 +2163,19 @@ html:has(.stack) body {
   flex: 1;
 }
 
+/* The name one type step over the body (Title 3), the picture 38 px with 10 px above and below it (lina-app#202). */
+.navbar.is-talk .talk-head {
+  gap: 10px;
+}
+
 .navbar.is-talk .talk-head > h1 {
-  font-size: 17px;
+  font-size: 20px;
 }
 
 .stack .navbar.is-talk .talk-head > .mark {
-  width: 32px;
-  height: 32px;
-  font-size: 14px;
+  width: 38px;
+  height: 38px;
+  font-size: 16px;
 }
 
 /* A tab's first screen leads its bar with the menu's icon, tinted like back (lina-app#193). */
@@ -2580,7 +2587,7 @@ html:has(.stack) body {
 
 .detail-scrim {
   position: fixed;
-  inset: calc(var(--safe-top) + 44px) 0 0;
+  inset: calc(var(--safe-top) + var(--navbar)) 0 0;
   z-index: 18;
   background: rgba(0, 0, 0, 0.3);
   animation: fade-in var(--motion);
@@ -2591,7 +2598,7 @@ html:has(.stack) body {
   left: 0;
   right: 0;
   bottom: 0;
-  top: calc(var(--safe-top) + 56px);
+  top: calc(var(--safe-top) + var(--navbar) + 12px);
   z-index: 19;
   display: flex;
   flex-direction: column;
@@ -3246,8 +3253,9 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   background: var(--bar);
 }
 
+/* Folded on a phone under the bar: its own room below the bar's edge, never touching it (lina-app#202). */
 .agent-card.is-folded {
-  margin: 0 var(--inset) 8px;
+  margin: 10px var(--inset) 8px;
   border-radius: 10px;
   background: var(--bg);
   overflow: hidden;
@@ -3324,7 +3332,7 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 }
 
 .stack .agent-card.is-open > .agent-card-body {
-  max-height: max(88px, calc(100cqh - 66px - var(--hit) - 12px - var(--talk-error-line, 0px)));
+  max-height: max(88px, calc(100cqh - 76px - var(--hit) - 12px - var(--talk-error-line, 0px)));
   overflow-y: auto;
 }
 

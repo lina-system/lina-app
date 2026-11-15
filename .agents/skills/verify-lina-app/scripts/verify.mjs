@@ -2323,7 +2323,7 @@ const drivers = {
     await step("a failed source reads 읽기 실패 and the rest still draws", async () => {
       await openApp(page, "#/inbox", "&error=quota");
       const failed = (await page.getByTestId("read-failed").innerText()).trim();
-      check(failed === "· 읽기 실패: 쿼터", "failure reads " + failed);
+      check(failed === "읽기 실패: 쿼터", "failure reads " + failed);
       const rows = (await decisionNames(page.getByRole("list", { name: "결정 필요" }))).length;
       check(rows === 4, "the inbox drew " + rows + " decisions");
       return failed;

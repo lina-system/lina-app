@@ -1503,6 +1503,11 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+/* Nothing a phone shows is under 13 px (iOS Footnote). */
+.stack .talk-time {
+  font-size: 13px;
+}
+
 .talk-carried {
   margin: 0 4px;
 }
@@ -2560,7 +2565,12 @@ html:has(.stack) body {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0 var(--safe-right) calc(24px + var(--safe-bottom) + var(--keyboard-inset, 0px)) var(--safe-left);
+  padding: 0 var(--safe-right) calc(24px + var(--bottom-strip) + var(--safe-bottom) + var(--keyboard-inset, 0px)) var(--safe-left);
+}
+
+/* A word in the strip (연결 중 …) shows over the sheet's foot, and the sheet's last line ends above it (lina-app#187). */
+.stack:has(> .detail-sheet) .bottombar {
+  z-index: 20;
 }
 
 @keyframes fade-in {

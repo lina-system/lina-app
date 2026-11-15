@@ -359,7 +359,7 @@ describe("machines, quota and checks", () => {
     const view = await open("#/status", { wide: true, source: new SyntheticSource({ checksError: true }) });
     expect(view.getByTestId("checks-empty").textContent).toBe("점검 없음");
     expect(view.queryByRole("list", { name: "점검" })).toBeNull();
-    await waitFor(() => expect(view.getByTestId("read-failed").textContent).toBe(" · 읽기 실패: 점검"));
+    await waitFor(() => expect(view.getByTestId("read-failed").textContent).toBe("읽기 실패: 점검"));
     expect(view.getByRole("list", { name: "쿼터" })).toBeTruthy();
   });
 });
@@ -587,13 +587,13 @@ describe("freshness", () => {
 
   test("a failed route shows its error line and the rest still draws", async () => {
     const view = await open("#/inbox", { wide: true, source: new FailingSource((name) => (name === "devices" ? "failed" : null)) });
-    await waitFor(() => expect(view.getByTestId("read-failed").textContent).toBe(" · 읽기 실패: 기기"));
+    await waitFor(() => expect(view.getByTestId("read-failed").textContent).toBe("읽기 실패: 기기"));
     expect(rowsIn(view.getByTestId("screen-inbox"))).toBe(SCENE_COUNTS.inbox);
   });
 
   test("a source listed in errors[] shows 읽기 실패 with its word", async () => {
     const view = await open("#/inbox", { wide: true, source: new SyntheticSource({ sourceError: true }) });
-    expect(view.getByTestId("read-failed").textContent).toBe(" · 읽기 실패: 쿼터");
+    expect(view.getByTestId("read-failed").textContent).toBe("읽기 실패: 쿼터");
   });
 
   test("an unreachable core reads 연결 끊김", async () => {
@@ -674,6 +674,22 @@ describe("freshness", () => {
       });
       expect(view.getByTestId("freshness-line").textContent).toBe("연결 중");
       expect(rowsIn(view.getByTestId("screen-inbox"))).toBe(SCENE_COUNTS.inbox);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a failed read joins a word with a dot, and stands alone with none when the head has nothing to say (lina-app#187)", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      setWide(true);
+      window.history.replaceState(null, "", "/app/#/inbox");
+      const view = render(<App store={new Store(new SyntheticSource({ live: "down", sourceError: true }))} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LIVE_SETTLE_MS * 10);
+      });
+      expect(view.getByTestId("freshness-line").textContent).toBe("연결 중");
+      expect(view.getByTestId("read-failed").textContent).toBe(" · 읽기 실패: 쿼터");
     } finally {
       vi.useRealTimers();
     }

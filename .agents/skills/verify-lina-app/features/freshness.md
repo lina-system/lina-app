@@ -31,7 +31,7 @@ Preconditions:
 - The page is `/app/?source=synthetic`, the synthetic scene; the drive opens it fresh for each width.
 
 - **Freshness.** Open 수신함. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive freshness`. The line is empty and takes no width.
-- **Failed source.** Load `/app/?source=synthetic&error=quota#/inbox`. The line adds `· 읽기 실패: 쿼터` and 결정 필요 still has 4 rows.
+- **Failed source.** Load `/app/?source=synthetic&error=quota#/inbox`. With the stream open the line is `읽기 실패: 쿼터` alone, with no dot before it; a dot joins it only to a word before it: `&live=down&error=quota` reads `연결 중 · 읽기 실패: 쿼터`. 결정 필요 still has 4 rows.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/freshness/freshness-1280.{png,aria.yml,json}` and `freshness-390.{png,aria.yml,json}`.
 
 ## Gotchas

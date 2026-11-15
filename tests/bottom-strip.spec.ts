@@ -81,5 +81,31 @@ for (const colorScheme of ["light", "dark"] as const) {
         expect(top - (row.y + row.height), query || "quiet").toBeLessThanOrEqual(40);
       }
     });
+
+    test("a detail sheet leaves the strip showing, and its last line ends above it", async ({ page }) => {
+      await page.goto("/app/?source=synthetic&live=down#/goals/G2");
+      await expect(page.getByTestId("freshness-line")).toHaveText("연결 중");
+      const body = page.locator(".detail-sheet-body");
+      await expect(body).toBeVisible();
+      await body.evaluate((element) => (element.scrollTop = element.scrollHeight));
+      const strip = (await page.locator(".bottombar").boundingBox())!;
+      expect(await onTop(page, "[data-testid=freshness-line]")).toBe(true);
+      const field = body.locator("textarea").last();
+      // The sheet scrolls smoothly: wait for the last line to come to rest.
+      await expect
+        .poll(async () => {
+          const box = (await field.boundingBox())!;
+          return box.y + box.height;
+        })
+        .toBeLessThanOrEqual(strip.y);
+    });
+
+    test("every word a phone shows in the 대화 window is at least 13 px", async ({ page }) => {
+      await page.goto("/app/?source=synthetic#/talk/ag-1");
+      await expect(page.getByTestId("talk-time").first()).toBeVisible();
+      const sizes = await page.getByTestId("talk-time").evaluateAll((nodes) => nodes.map((node) => parseFloat(getComputedStyle(node).fontSize)));
+      expect(sizes.length).toBeGreaterThan(0);
+      for (const size of sizes) expect(size).toBeGreaterThanOrEqual(13);
+    });
   });
 }

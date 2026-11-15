@@ -345,7 +345,7 @@ export function Freshness() {
       </span>
       {failed ? (
         <span class="is-orange" data-testid="read-failed">
-          {`${SEP}${W.readFailed(model.errors.join(", "))}`}
+          {`${line.text ? SEP : ""}${W.readFailed(model.errors.join(", "))}`}
         </span>
       ) : null}
     </span>

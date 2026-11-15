@@ -561,3 +561,29 @@ test("a route read once with ensure is read again with the lists, so a resync le
   await store.refresh();
   expect(store.get("item", "T4")?.comments.length).toBe(before + 1);
 });
+
+test("a route read once with ensure whose read failed is healable and is read again (lina-app#209)", async () => {
+  const inner = new SyntheticSource();
+  let failing = true;
+  const source = new Proxy(inner, {
+    get(target, key, receiver) {
+      if (key !== "read") return Reflect.get(target, key, receiver);
+      return (name: Parameters<SyntheticSource["read"]>[0], id?: string) => {
+        if (failing && name === "item" && id === "T4") return Promise.resolve({ kind: "failed", offline: false } as Awaited<ReturnType<SyntheticSource["read"]>>);
+        return target.read(name, id);
+      };
+    },
+  });
+  const store = new Store(source);
+  await store.refresh();
+  expect(store.healable()).toBe(false);
+  store.ensure([["item", "T4"]]);
+  await vi.waitFor(() => expect(store.status("item", "T4")).toBe("failed"));
+  expect(store.ensuredFailed()).toBe(true);
+  expect(store.healable()).toBe(true);
+  failing = false;
+  await store.readFailed();
+  expect(store.status("item", "T4")).toBe("ok");
+  expect(store.ensuredFailed()).toBe(false);
+  expect(store.healable()).toBe(false);
+});

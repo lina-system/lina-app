@@ -153,6 +153,7 @@ export class Store {
    */
   private readonly talks = new Map<string, number>();
   private talkResyncs = 0;
+  private talkTails = 0;
 
   constructor(
     readonly source: Source,
@@ -287,6 +288,20 @@ export class Store {
     return (this.talks.get(agent) ?? 0) + this.talkResyncs;
   }
 
+  /**
+   * What the open conversation reads its history again at: the changes above, and the first tail. The rows' last lines
+   * leave the tail out: reading all of them again would double the first screen's history reads (lina-app#162).
+   */
+  talkWindowChanges(agent: string): number {
+    return this.talkChanges(agent) + this.talkTails;
+  }
+
+  /** The first tail came: a turn another device finished after a history was read is in no event, so a window reads again (lina-app#209). */
+  talkTailed(): void {
+    this.talkTails += 1;
+    this.notify();
+  }
+
   /** A turn was added to these agents' app conversations, or with no agents, to any of them (a resync). */
   talkChanged(agents?: readonly string[]): void {
     if (!agents) this.talkResyncs += 1;
@@ -413,7 +428,12 @@ export class Store {
    */
   healable(): boolean {
     if (this.refused || this.denied) return false;
-    return LIST_ROUTES.some((name) => this.entries.get(name)?.status === "failed");
+    return LIST_ROUTES.some((name) => this.entries.get(name)?.status === "failed") || this.ensuredFailed();
+  }
+
+  /** A route read once with ensure (a stopped card's comments) whose last read failed: nothing else reads it again (lina-app#209). */
+  ensuredFailed(): boolean {
+    return this.ensured.some(([name, id]) => this.entries.get(this.key(name, id))?.status === "failed");
   }
 
   /**

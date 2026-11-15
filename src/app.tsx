@@ -371,7 +371,7 @@ export function Freshness() {
   else line = { text: W.fresh(Math.max(0, Math.floor(now - since))), tone: "" };
   const failed = !store.offline && model.errors.length > 0;
   // With 다시 시도 the sources' words alone give way at a narrow width; the button is never cut off (lina-app#199).
-  const again = failed && unread;
+  const again = failed && (unread || store.ensuredFailed());
   // Nothing to say: the phone's strip that holds this line draws nothing and takes no height (lina-app#187).
   return (
     <span class="freshness" data-testid="freshness" data-quiet={line.text || failed ? undefined : ""} style={again ? { display: "flex", alignItems: "baseline", justifyContent: wide ? "flex-start" : "center", minWidth: 0 } : undefined}>

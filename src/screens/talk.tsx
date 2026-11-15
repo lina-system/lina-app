@@ -642,7 +642,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
   /** The earlier turns are still being read: a turn sent meanwhile may come back in them, so it is matched like a carried one. */
   const historyPending = useRef(true);
   /** The stream's count of changes to this conversation that the window's turns were last read at (lina-app#205). */
-  const talkChanges = store.talkChanges(agent);
+  const talkChanges = store.talkWindowChanges(agent);
   const readAt = useRef(talkChanges);
   /** Counts the first read's ends, so a change that came in while it was out is read once it has landed. */
   const [historyRead, setHistoryRead] = useState(0);
@@ -688,7 +688,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
     }
     for (const turn of box.turns.filter((each) => each.state === "failed")) settle(box, turn);
     historyPending.current = true;
-    readAt.current = store.talkChanges(agent);
+    readAt.current = store.talkWindowChanges(agent);
     void store.source.agentTalkHistory(agent).then((result) => {
       if (!live) return;
       historyPending.current = false;

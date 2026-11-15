@@ -145,6 +145,18 @@ describe("the change stream", () => {
     stop();
   });
 
+  test("the first tail makes the open conversation read its history again, and leaves the rows' last lines alone (lina-app#209)", async () => {
+    const source = new SyntheticSource();
+    const store = new Store(source);
+    const [first] = source.scene.items.agents.map((agent) => agent.id);
+    const before = { window: store.talkWindowChanges(first), rows: store.talkChanges(first) };
+    const stop = new Live(store, tab().host).start();
+    await settle();
+    expect(store.talkWindowChanges(first)).toBe(before.window + 1);
+    expect(store.talkChanges(first)).toBe(before.rows);
+    stop();
+  });
+
   test("a resync reads every snapshot once", async () => {
     const source = new SyntheticSource();
     const store = new Store(source);

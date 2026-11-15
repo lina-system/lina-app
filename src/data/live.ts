@@ -270,9 +270,11 @@ export class Live {
 
   private receive(message: ChangeMessage, fromTail: boolean, opened: boolean): void {
     this.cursor = message.cursor;
-    // The first tail has no events; anything written between the first snapshot and it is read once more.
-    // A resync may have missed talk turns too: every conversation on screen is read again.
+    // The first tail has no events; anything written between the first snapshot and it is read once more, and so is
+    // the open conversation (a turn another device completed after its history was read; lina-app#209). A resync may
+    // have missed talk turns too: every conversation on screen is read again.
     if ("resync" in message) this.store.talkChanged();
+    else if (fromTail) this.store.talkTailed();
     if ("resync" in message || fromTail) void this.store.refresh();
     else {
       if (message.events.length) void this.store.invalidate(routesFor(message.events, this.store));

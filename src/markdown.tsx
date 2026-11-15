@@ -197,7 +197,7 @@ function safeHref(address: string): string | null {
 const WORD = /[\p{L}\p{N}]/u;
 
 /** `[text](address)`; an address may hold one level of parentheses. */
-const LINK = /^\[([^\]\n]+)\]\(([^)\s]+(?:\([^)\s]*\)[^)\s]*)*)\)/;
+const LINK = /^\[([^\]\n]+)\]\(([^()\s]+(?:\([^()\s]*\)[^()\s]*)*)\)/;
 
 /** One line's inline marks. A mark with no closing mark is text. */
 function inline(text: string): ComponentChildren[] {
@@ -308,7 +308,7 @@ export function plainLine(text: string): string {
   return line
     .replace(/^\s*(?:>\s?)+/, "")
     .replace(/^\s*(?:#{1,6}\s+|[-*+]\s+|\d{1,9}[.)]\s+)/, "")
-    .replace(/!?\[([^\]\n]+)\]\([^)\s]+(?:\([^)\s]*\)[^)\s]*)*\)/g, "$1")
+    .replace(/!?\[([^\]\n]+)\]\([^()\s]+(?:\([^()\s]*\)[^()\s]*)*\)/g, "$1")
     .replace(/(`+)(.+?)\1/g, "$2")
     .replace(/(\*\*|__)(?=\S)(.+?)(?<=\S)\1/g, "$2")
     .replace(/\*(?=\S)(.+?)(?<=\S)\*/g, "$1")

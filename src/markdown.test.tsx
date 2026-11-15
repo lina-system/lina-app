@@ -83,6 +83,14 @@ test("a table is a table inside its own sideways-scrolling box, with each column
   expect(root.querySelector("tbody td code")?.textContent).toBe("나");
 });
 
+test("a links address keeps one level of parentheses, in the bubble and in an agent rows preview", () => {
+  const root = draw("[위키](https://en.wikipedia.org/wiki/Function_(mathematics)) 와 [끝](https://example.com/a).");
+  const links = [...root.querySelectorAll("a")];
+  expect(links.map((link) => link.getAttribute("href"))).toEqual(["https://en.wikipedia.org/wiki/Function_(mathematics)", "https://example.com/a"]);
+  expect(root.textContent).toBe("위키 와 끝.");
+  expect(plainLine("[위키](https://en.wikipedia.org/wiki/Function_(mathematics)) 참고")).toBe("위키 참고");
+});
+
 test("links open http, https and mailto in a new tab with noopener noreferrer", () => {
   const root = draw("[문서](https://example.com/a?b=1) [메일](mailto:owner) [옛](http://example.com)");
   const links = [...root.querySelectorAll("a")];

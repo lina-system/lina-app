@@ -312,15 +312,20 @@ export function Sidebar({ current, tab = "work", settings = false }: { current?:
 /** How old the screens may be before the line says 갱신 지연. */
 const STALE_AFTER_S = 30;
 
+/**
+ * The last moment each store's screens were known current. It belongs to the store, not to one drawn head: 작업 and
+ * 대화 are two shells on a wide window, and a head drawn anew by a route change must not forget it (lina-app#176).
+ */
+const vouchedAt = new WeakMap<Store, number>();
+
 export function Freshness() {
   const { model, store, now } = useApp();
   // While the stream is open nothing is read until something changes, so the last read can be minutes old while the
   // screens are current. The last moment the stream vouched for them is when they were last known current
   // (lina-app#152): one failed read counts from there, not from the last change.
-  const vouched = useRef<number | null>(null);
   const current = store.live === "open" && !store.boardFailed && store.lastOk !== null && store.version > 0;
-  if (current) vouched.current = now;
-  const since = Math.max(store.lastOk ?? 0, store.live === "open" ? (vouched.current ?? 0) : 0);
+  if (current) vouchedAt.set(store, now);
+  const since = Math.max(store.lastOk ?? 0, store.live === "open" ? (vouchedAt.get(store) ?? 0) : 0);
   let line: { text: string; tone: string };
   if (store.offline || store.denied) line = { text: W.offline, tone: "is-red" };
   else if (store.lastOk === null || store.version === 0) line = { text: W.loading, tone: "" };

@@ -8,7 +8,8 @@ export const BACKOFF_MAX_MS = 30_000;
 /**
  * How long a dropped stream must stay down before the store says `down` (lina-app#150): a drop the reconnect mends
  * sooner never shows, so the header cannot alternate 실시간 and 갱신 지연 faster than this. A reconnect says `open` at once.
- * A stream that was never open stays `connecting` however long its first connection takes (lina-app#172).
+ * A stream that was never open stays `connecting` however long its first connection takes (lina-app#172). A hidden tab
+ * closes its socket without saying `down`; the settle time starts when it is shown again (lina-app#176).
  */
 export const LIVE_SETTLE_MS = 3_000;
 
@@ -117,13 +118,15 @@ export class Live {
     };
   }
 
-  /** A hidden tab closes its socket; showing it again resumes from the cursor. */
+  /**
+   * A hidden tab closes its socket; showing it again resumes from the cursor. Nobody reads the line meanwhile, so it
+   * keeps its word: shown again, it says `down` only if the reconnect has not landed within the settle time.
+   */
   private pause(): void {
     this.clearTimer();
     this.clearSettling();
     this.socket?.close();
     this.socket = null;
-    if (this.store.live === "open") this.store.setLive("down");
   }
 
   /** Now, not after the wait: the tab is back or the network changed. A denied page tries one more renewal. */
@@ -132,6 +135,7 @@ export class Live {
     this.store.credentialTaken();
     this.clearTimer();
     this.attempt = 0;
+    this.wentDown();
     this.connect();
   }
 

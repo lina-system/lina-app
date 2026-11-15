@@ -3,11 +3,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { AgentTalkHistory, ItemDetail } from "../api/client";
 import type { Source, TalkResult } from "../data/source";
 import { KoreanInput } from "../korean-input";
-import { agentView } from "../model";
+import { agentView, foldTitle } from "../model";
 import { href } from "../router";
 import { AgentMark, agentName, Box, CountPair, Disclosure, ErrorLine, Link, ListSection, useApp } from "../ui/parts";
 import { SEP, W } from "../words";
-import { GoalLine } from "./lists";
+import { GoalLine, goalProgress } from "./lists";
 
 interface Turn {
   readonly key: number;
@@ -676,7 +676,9 @@ export function AgentCard({ agent, folded = false }: { agent: string; folded?: b
         <button type="button" class="agent-card-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
           <span class="lines">
             <span class="title">{W.cardGoals(view.goals.rows.length)}</span>
-            <span class="sub one-line">{view.goals.rows.map((goal) => `${goal.title} ${W.progress(goal.todosDone, goal.todosTotal)}`).join(SEP)}</span>
+            {/* One line by design: the goals' names and progress at a glance, every row a tap away. A goal with no to-dos
+                reads its name alone, as on its row (lina-app#167). */}
+            <span class="sub one-line">{view.goals.rows.map((goal) => [foldTitle(goal.title) ?? W.untitled, goalProgress(goal)].filter(Boolean).join(" ")).join(SEP)}</span>
           </span>
         </button>
         {open ? (

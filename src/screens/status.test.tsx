@@ -392,3 +392,19 @@ describe("status tab, QA round 7 (lina-app#160)", () => {
     expect(rowOf(view, "모래톱").querySelector(".row-body")?.getAttribute("aria-label")).toContain("경고 · 온도 85°C");
   });
 });
+
+describe("status tab, QA round 8 (lina-app#167)", () => {
+  test("a long check line wraps at a word instead of ending in an ellipsis", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const at = now - 20 * 60;
+    const checks: StatusChecks = {
+      version: 1,
+      at,
+      checks: [{ name: "runner-sync", ok: false, line: RUNNER_SYNC, at, staleAfter: 172800, stale: false, state: "failing", file: "runner-sync.json" }],
+    };
+    const view = await open(new SyntheticSource({ now, scene: { ...fresh().scene, checks } }));
+    const title = view.getByRole("list", { name: "점검" }).querySelector(".status-check-row .title") as HTMLElement;
+    expect(title.textContent).toBe(RUNNER_SYNC_TITLE);
+    expect(title.classList.contains("one-line")).toBe(false);
+  });
+});

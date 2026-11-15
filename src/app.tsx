@@ -453,7 +453,7 @@ export function Toast() {
 
 /**
  * 작업's menu on a phone (오늘, the lists, the agents, 목표): the first screen is the lines, and the menu opens from the
- * header as a sheet; choosing a row goes there and closes it (lina-app#124).
+ * header as a sheet; choosing a row goes there and closes it (lina-app#124). The 대화 list has the same entry (lina-app#167).
  */
 function MenuButton() {
   const [open, setOpen] = useState(false);
@@ -696,7 +696,7 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
             <BackIcon />
             <span class="one-line">{isRoot ? TAB_WORD[tabOf(screen)] : titleOf(screen, model, store)}</span>
           </button>
-        ) : screen.name === "home" ? (
+        ) : screen.name === "home" || screen.name === "talks" ? (
           <MenuButton />
         ) : isRoot ? (
           <span />

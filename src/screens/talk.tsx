@@ -580,6 +580,8 @@ interface TalkWindow {
 interface Outbox {
   readonly turns: Sent[];
   window: TalkWindow | null;
+  /** Counts the turns that began, settled or were refused, so a history read can tell its snapshot is older than one. */
+  epoch: number;
   /** A refusal that came while no window was open, shown by the next one. */
   refusal: { readonly line: string; readonly message: string } | null;
 }
@@ -591,7 +593,7 @@ function outbox(source: Source, agent: string): Outbox {
   let agents = outboxes.get(source);
   if (!agents) outboxes.set(source, (agents = new Map()));
   let box = agents.get(agent);
-  if (!box) agents.set(agent, (box = { turns: [], window: null, refusal: null }));
+  if (!box) agents.set(agent, (box = { turns: [], window: null, epoch: 0, refusal: null }));
   return box;
 }
 
@@ -605,6 +607,7 @@ function sentLines(turn: Sent): ThreadLine[] {
 
 function settle(box: Outbox, turn: Sent) {
   if (!box.window && turn.state === "failed") return;
+  box.epoch += 1;
   box.turns.splice(box.turns.indexOf(turn), 1);
   box.window?.take(turn);
 }
@@ -729,6 +732,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
     // That read is out already and lands on its own: a re-run of this effect (a send began or ended) must not drop it.
     if (readOut.current === talkChanges) return;
     const token = ++readSeq.current;
+    const began = box.epoch;
     readOut.current = talkChanges;
     void store.source.agentTalkHistory(agent).then((result) => {
       if (token !== readSeq.current) return;
@@ -736,6 +740,12 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
       // A read that lands while a turn of this page goes, or fails, is not applied and the change stays unread: the
       // effect runs again when the outbox empties (`sending`).
       if (result.kind !== "data" || box.turns.length) return;
+      // A turn began or settled after this snapshot was taken, and the snapshot cannot hold it: dropping it would
+      // delete the turn the owner just saw complete. The read is thrown away and taken again.
+      if (box.epoch !== began) {
+        setHistoryRead((count) => count + 1);
+        return;
+      }
       readAt.current = talkChanges;
       setLines((shown) => [...keptLines(result.data), ...(shown ?? []).filter((line) => line.state === "failed")]);
       keepLastLine(store.source, agent, lastLineOf(result.data));
@@ -754,11 +764,13 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
     const sentAt = Date.now() / 1000;
     const turn: Sent = { key: `t${++sentKeys}`, message, reply: "", state: "sending", carried: historyPending.current, late: historyPending.current, at: sentAt, replyAt: sentAt };
     box.turns.push(turn);
+    box.epoch += 1;
     box.window?.redraw();
     const before = lastLinesOf(store.source).get(agent);
     keepLastLine(store.source, agent, firstLine(message));
     const result = await store.source.agentTalk(agent, { message });
     if (!result.ok) {
+      box.epoch += 1;
       box.turns.splice(box.turns.indexOf(turn), 1);
       // A refused turn is not the last message: the row goes back to what it showed before the send.
       keepLastLine(store.source, agent, before);

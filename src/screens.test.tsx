@@ -1718,6 +1718,63 @@ describe("agent talk", () => {
     }
   });
 
+  test("a turn this window sent and finished while a change read was out is kept when that older read lands (lina-app#209)", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      let land: () => void = () => undefined;
+      const landing = new Promise<void>((resolve) => (land = resolve));
+      let held = false;
+      let landed = false;
+      class Slow extends SyntheticSource {
+        override async agentTalkHistory(agent: string) {
+          // The snapshot is taken now; it reaches the window later.
+          const snapshot = await super.agentTalkHistory(agent);
+          if (held) await landing;
+          // Reads that begin after the older one has landed never answer: only the older snapshot is looked at.
+          else if (landed) await new Promise<never>(() => undefined);
+          return snapshot;
+        }
+      }
+      const source = new Slow();
+      const view = await open("#/talk/ag-1", { wide: true, source });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      held = true;
+      const otherDevice = new SyntheticSource({ scene: source.scene });
+      const turn = await otherDevice.agentTalk("ag-1", { message: "배포 순서는 정해졌어요?" });
+      if (!turn.ok) throw new Error("the turn was refused");
+      const frames = (async () => {
+        for await (const _ of turn.events);
+      })();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      await frames;
+      // The read the change started is out; this window sends and the reply completes before it lands.
+      // The completion event of this window's own turn never reaches it (the change socket is down), so no newer read starts.
+      (source as unknown as { talked: () => void }).talked = () => undefined;
+      const { field } = parts(view);
+      field.value = "끝까지 가는 말";
+      fireEvent.input(field);
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      held = false;
+      landed = true;
+      land();
+      // Looked at the moment the older read has landed, before any later read can bring the turn back.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const { box } = parts(view);
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toContain("끝까지 가는 말");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("a message sent just before choosing another agent stays in its window, and the reply joins it there", async () => {
     vi.useFakeTimers(TIMERS);
     try {

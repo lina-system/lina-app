@@ -19,6 +19,7 @@
 - An owner to-do that an open decision targets by its id shows once, as the decision; its to-do notice leaves the bell with it. Only an explicit id link counts, never similar text.
 - Review and 내 할 일 rows are links named by agent and title, and open their item (`#/items/<id>` or `#/runs/<id>`).
 - The 수신함 count in the sidebar equals the number of rows.
+- No row text is cut, at 390 and at 1280 with a detail open beside the list (the list then about 380 px wide): a decision's question and its small line, and a to-do's title, wrap at a word and the row grows (lina-app#167), as the work rows do (lina-app#156).
 
 ## Sub-features
 
@@ -46,6 +47,7 @@ Preconditions:
 - **Order.** Read the ages on the decision rows. Each is the same age as or newer than the one above it.
 - **Each decision reaches its record.** Follow every decision row in turn. A row aimed at a record opens `#/items/<id>` or `#/goals/<id>`, whose `결정 필요` box holds the same sentence, kind word and age, and whose title ends the row's small line. The card question opens `#/cards/<id>`, whose first box is that question and whose title ends the row's `목표 › 작업` line. The scene has decisions on to-dos and on a goal, and one card question.
 - **Open at once.** Choose the first decision. Its record (`#/items/<id>`, the item title) opens in the detail frame (`data-frame` `panel` at 1280, `sheet` at 390), with `금요일 오후` marked `추천` there.
+- **Nothing cut beside a detail (spec).** `npx playwright test tests/layout-qa8.spec.ts` (after `npm run build`): with every question and title as long as the hub's, open the first decision at 1280; with the detail open no element on the page has text running past its clipping box. The same holds beside a detail opened from `목표`, `마감일` and `오늘` (lina-app#167).
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/inbox/inbox-1280.{png,aria.yml,json}` and `inbox-390.{png,aria.yml,json}`.
 
 ## Gotchas

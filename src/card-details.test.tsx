@@ -17,8 +17,9 @@ function manyCards(): SyntheticSource {
   const { scene } = new SyntheticSource();
   const template = scene.cards.cards.find((card) => card.state === "done");
   if (!template) throw new Error("the synthetic scene has no finished card");
-  // The copies sit in no goal: the core names none on their rows.
-  const extra = Array.from({ length: CARDS - scene.cards.cards.length }, (_, index) => ({ ...template, id: `k-${1000 + index}`, goalTitle: null }));
+  // The copies sit in no goal: the core names none on their rows. Each has its own title, so none collapses into
+  // another's line (lina-app#168).
+  const extra = Array.from({ length: CARDS - scene.cards.cards.length }, (_, index) => ({ ...template, id: `k-${1000 + index}`, goalTitle: null, plain: { ...template.plain, title: `${template.plain.title} ${index + 1}` } }));
   const details = Object.fromEntries(extra.map((card) => [card.id, { ...scene.cardDetails[template.id], id: card.id, workerRuns: [] }]));
   return new SyntheticSource({ scene: { ...scene, cards: { cards: [...scene.cards.cards, ...extra] }, cardDetails: { ...scene.cardDetails, ...details } } });
 }
@@ -248,7 +249,7 @@ test("the lists draw while a card's detail takes 30 seconds; the open card shows
   });
   expect(homeCards(view)).toBeGreaterThan(CARDS - 10);
   const card = view.getByTestId("screen-card");
-  expect(card.querySelector(".detail-title")?.textContent).toBe("백업: 지난 기록 살펴보기");
+  expect(card.querySelector(".detail-title")?.textContent).toBe("백업: 지난 기록 살펴보기 101");
   expect(card.querySelector(".detail-head .sub")?.textContent).toMatch(/^완료/);
   expect(card.querySelector("[data-testid=detail-loading]")?.textContent).toBe("불러오는 중");
   expect(core.details()).toEqual(["k-1100"]);

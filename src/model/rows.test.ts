@@ -161,14 +161,63 @@ test("no two rows of a group read the same: line 1 is the goal's title, line 2 t
   expect(model.home.stopped.rows.filter((each) => each.name === ORDER).map((each) => each.sub ?? null)).toEqual(["가짜 관문: 주문 여러 건 묶기", "가짜 관문: 장 밖 주문 채우기", "가짜 매매 관문(fake-gate·fake-board)을 허브로"]);
 });
 
-test("cards whose titles differ only by a hash fold to one clean line, no debris, and read apart by their times (lina-app#160)", () => {
-  const deploy = (id: string, hashes: string, endedAt: number) => row(id, `가짜 코어를 dev ${hashes}로, 앱 빌드를 올리기 (가짜 반영 · #12 · · FAKE_KEY 확인)`, "done", { endedAt });
-  const model = realModel([deploy("h1", "1a2b3c4d", NOW - 600), deploy("h2", "5e6f7a8b", NOW - 1800), deploy("h3", "9c0d1e2f", NOW - 3600)]);
-  const rows = model.home.recent.rows;
-  expect(rows.map((each) => each.name)).toEqual(Array(3).fill("가짜 코어를, 앱 빌드를 올리기 (가짜 반영 · 확인)"));
-  expect(new Set(rows.map((each) => each.when)).size).toBe(3);
-  expect(rows.every((each) => /^\d\d:\d\d$|^어제 \d\d:\d\d$/.test(each.when ?? ""))).toBe(true);
-  expect(duplicates(rows)).toBe(0);
+// lina-app#168: the hub's finished cards whose titles differ only by a hash the screen cuts.
+const deploy = (id: string, hash: string, endedAt: number) => row(id, `가짜 코어를 dev ${hash}로, 앱 빌드를 올리기 (가짜 반영 · #12 · · FAKE_KEY 확인)`, "done", { endedAt });
+const DEPLOY = "가짜 코어를, 앱 빌드를 올리기 (가짜 반영 · 확인)";
+
+test("finished cards whose visible lines are equal collapse to one line with their count and the newest time; the head counts lines (lina-app#168)", () => {
+  const older = ["1a2b3c4d", "5e6f7a8b", "9c0d1e2f", "3a4b5c6d", "7e8f9a0b"].map((hash, index) => deploy(`h${index + 1}`, hash, NOW - 2 * DAY - index * 600));
+  const recent = [deploy("r1", "aa11bb22", NOW - 1800), deploy("r2", "cc33dd44", NOW - 600), row("r3", "가짜 다른 정리", "done", { endedAt: NOW - 900 })];
+  const model = realModel([...older, ...recent]);
+  // 완료: five cards, one line ×5, named as each of them reads, opening the newest.
+  expect(model.home.older.rows).toHaveLength(1);
+  expect(model.home.older.rows[0]).toMatchObject({ id: "h1", name: DEPLOY, repeat: 5, endedAt: NOW - 2 * DAY, when: null });
+  expect(model.home.older.count).toBe(1);
+  // 최근 완료: its own lines, the repeated two as one line with the newer end.
+  expect(model.home.recent.rows.map((each) => [each.id, each.repeat ?? 1])).toEqual([
+    ["r2", 2],
+    ["r3", 1],
+  ]);
+  expect(model.home.recent.count).toBe(2);
+  // The sidebar's 완료 and the 완료 screen still count and list every card.
+  expect(model.counts.done).toBe(8);
+  expect(model.done).toHaveLength(8);
+});
+
+test("running, stopped and planned cards never collapse, whatever their titles (lina-app#168)", () => {
+  const same = (id: string, state: CardSummary["state"]) => row(id, "가짜 같은 제목 dev 1a2b3c4d로 올리기", state, { lastHeartbeatAt: NOW - 100 });
+  const model = realModel([same("a1", "in_progress"), same("a2", "in_progress"), same("b1", "stopped"), same("b2", "stopped"), same("c1", "planned"), same("c2", "planned")]);
+  for (const group of [model.home.active, model.home.stopped, model.home.planned]) {
+    expect(group.rows, group.id).toHaveLength(2);
+    expect(group.rows.every((each) => each.repeat === undefined)).toBe(true);
+  }
+});
+
+// lina-app#168 item 2: the hub's running card names its goal by `goalTitle` only; the link is its runs' to-do, a to-do
+// of the record goal, while the record still says both are planned.
+const LIVE_GOAL = "가상 앱을 쓸 수 있게";
+const liveItems: ItemList = {
+  ...items,
+  items: [{ ...item("G7", "goal", LIVE_GOAL, null), state: "planned", todos: { done: 0, total: 1 } }, { ...item("T70", "todo", "가상 세 탭 점검과 수정", "G7"), state: "planned" }],
+};
+
+function liveModel() {
+  const template = generateScene(SYNTHETIC_SEED, { now: NOW }).board.cards[0];
+  const run = (id: string, todo: string | null, state: RunCard["state"]): RunCard => ({ ...template, id, card: "k-live", todo, state, agent: "ag-a" });
+  const live = row("k-live", "가상 앱을 쓸 수 있는 수준으로: 세 탭 점검", "in_progress", { goalTitle: LIVE_GOAL, elapsedSeconds: DAY });
+  return buildModel({ board: { ...board, cards: [run("r1", "T70", "done"), run("r2", null, "done")] }, items: liveItems, cards: { cards: [live] } as WorkCardList, goals: { goals: [] }, cardsAt: NOW, cardDetails: {}, failed: [] }, NOW);
+}
+
+test("a goal whose to-do one running card takes on reads 진행 중 wherever it shows, the work tab's fold (lina-app#168)", () => {
+  const model = liveModel();
+  expect(model.home.active.rows.map((each) => [each.id, each.state, each.name])).toEqual([["k-live", "in_progress", LIVE_GOAL]]);
+  const detail = { id: "G7", kind: "goal", state: "planned", reason: null, stateSince: NOW - 3 * DAY, workCards: [] } as unknown as ItemDetail;
+  // The goal's page head (both tabs open it), its row in the goal lists and on the agent's card read the same.
+  expect(goalState(model, detail, { goals: [] })).toEqual({ state: "in_progress", reason: null, stateSince: NOW - DAY });
+  expect(model.goals.find((each) => each.id === "G7")).toMatchObject({ state: "in_progress", stateSince: NOW - DAY, runningCount: 1 });
+  expect(agentView(model, "ag-a")?.goals.rows.find((each) => each.id === "G7")).toMatchObject({ state: "in_progress", runningCount: 1 });
+  // A stopped card still makes it 중단됨 first; a done goal stays done.
+  expect(goalState(model, { ...detail, state: "done" }, { goals: [] }).state).toBe("done");
 });
 
 test("every stopped card is a row: a reference and a hash are cut from its title, and the head counts the rows (lina-app#148)", () => {

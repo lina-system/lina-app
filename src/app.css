@@ -3023,3 +3023,21 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 .thread > .folded-records {
   color: var(--label-2);
 }
+
+/* lina-app#167: a title, a done condition, a decision's question and its context line, and a check's line wrap at a
+   word instead of ending in an ellipsis, so they read beside an open detail (a 380 px list), in the 320 px goal pane of
+   대화 and at 390. One line stays where one line is the design: tabs, chips, an agent row's last message and the folded
+   card's summary in 대화. */
+.wrap-line {
+  display: block;
+  min-width: 0;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* lina-app#167: on a phone the 대화 field bar is opaque, so a message scrolled under it never shows through the reason
+   beside 보내기. */
+.stack .agent-talk-form {
+  background: var(--bg);
+}

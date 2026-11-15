@@ -30,8 +30,8 @@ function DecisionRow({ row }: { row: DecideRow }) {
       <Link href={row.href} label={[name, row.text, kind].filter(Boolean).join(SEP)} current={selected === row.href}>
         <AgentMark id={row.agent} />
         <span class="lines">
-          {row.context ? <span class="context one-line">{row.context}</span> : null}
-          <span class="title one-line">{row.text}</span>
+          {row.context ? <span class="context wrap-line">{row.context}</span> : null}
+          <span class="title wrap-line">{row.text}</span>
         </span>
         <span class="trail">
           <span class="kind-word">{kind}</span>
@@ -53,7 +53,7 @@ function MineRow({ row }: { row: Extract<InboxRow, { type: "mine" }> }) {
       <Link href={row.href} label={[name, row.title, W.mine].filter(Boolean).join(SEP)} current={selected === row.href}>
         <AgentMark id={row.agent} />
         <span class="lines">
-          <span class="title one-line">{row.title}</span>
+          <span class="title wrap-line">{row.title}</span>
         </span>
         {row.due ? <DueDate day={row.due} /> : null}
       </Link>
@@ -225,7 +225,8 @@ export function RunningScreen() {
       <ListSection section={home.planned} render={(card) => <CardRowView key={card.key} card={card} />} />
       <ListSection section={home.waiting} render={(card) => <CardRowView key={card.key} card={card} />} />
       {[home.recent, home.older].map((section) => (
-        <ListSection key={section.id} section={section} render={(card) => <CardRowView key={card.key} card={card} />} />
+        // A line standing for cards whose lines read the same says how many (lina-app#168).
+        <ListSection key={section.id} section={section} render={(card) => <CardRowView key={card.key} card={card.repeat ? { ...card, name: `${card.name} ${W.repeated(card.repeat)}` } : card} />} />
       ))}
     </div>
   );
@@ -238,7 +239,7 @@ function DueRowView({ row }: { row: DueRow }) {
       <Link href={row.href} label={[agentName(model, row.agent), row.title].filter(Boolean).join(SEP)} current={selected === row.href}>
         <AgentMark id={row.agent} />
         <span class="lines">
-          <span class="title one-line">{row.title}</span>
+          <span class="title wrap-line">{row.title}</span>
         </span>
         {row.due ? <DueDate day={row.due} /> : null}
       </Link>
@@ -307,6 +308,11 @@ export function DoneScreen({ agent }: { agent?: string }) {
   );
 }
 
+/** A goal's progress, or nothing for a goal with no to-dos: no 0/0 (lina-app#160, #167). */
+export function goalProgress(goal: Pick<GoalRow, "todosDone" | "todosTotal">): string {
+  return goal.todosTotal > 0 ? W.progress(goal.todosDone, goal.todosTotal) : "";
+}
+
 export function GoalLine({ goal, showAgent }: { goal: GoalRow; showAgent: boolean }) {
   const { model, selected } = useApp();
   const actions = useActions();
@@ -316,20 +322,20 @@ export function GoalLine({ goal, showAgent }: { goal: GoalRow; showAgent: boolea
   const title = foldTitle(goal.title) ?? W.untitled;
   const condition = foldTitle(goal.doneCondition);
   // A goal with no to-dos has no progress to show: no 0/0, no empty dial (lina-app#160).
-  const counted = goal.todosTotal > 0;
+  const progress = goalProgress(goal);
   return (
     <li class={`row goal-row${closed ? " check-row" : ""}${closed && shown ? " is-checked" : ""}`} data-testid="row">
       {closed ? <DoneCheck id={goal.id} title={goal.title} done={goal.state === "done"} /> : null}
       <Link
         href={goal.href}
-        label={[showAgent ? agentName(model, goal.agent) : "", title, counted ? W.progress(goal.todosDone, goal.todosTotal) : ""].filter(Boolean).join(SEP)}
+        label={[showAgent ? agentName(model, goal.agent) : "", title, progress].filter(Boolean).join(SEP)}
         current={selected === goal.href}
       >
-        {closed ? null : counted ? <Dial done={goal.todosDone} totalCount={goal.todosTotal} /> : <span class="dial-space" aria-hidden="true" />}
+        {closed ? null : progress ? <Dial done={goal.todosDone} totalCount={goal.todosTotal} /> : <span class="dial-space" aria-hidden="true" />}
         {showAgent ? <AgentMark id={goal.agent} /> : null}
         <span class="lines">
-          <span class="title one-line">{title}</span>
-          {condition ? <span class="sub one-line">{condition}</span> : null}
+          <span class="title wrap-line">{title}</span>
+          {condition ? <span class="sub wrap-line">{condition}</span> : null}
         </span>
         {goal.runningCount ? <span class="trail">{W.runningCount(goal.runningCount)}</span> : null}
       </Link>
@@ -987,7 +993,7 @@ function CheckRow({ check }: { check: OpenCheck }) {
     <li class={`row status-check-row is-${check.state}`} data-testid="row">
       <div class="row-body" aria-label={[check.title, word, ago(now - check.at)].filter(Boolean).join(SEP)}>
         <span class="lines">
-          <span class="title one-line">{check.title}</span>
+          <span class="title wrap-line">{check.title}</span>
         </span>
         <span class="trail">
           <span class={`check-state is-${check.state}`}>{word}</span>

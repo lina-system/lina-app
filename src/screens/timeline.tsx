@@ -2,6 +2,7 @@ import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import type { RecordRow, Settings } from "../api/client";
 import { foldReason } from "../model/fold";
+import { plainText } from "../model/plain";
 import { runModelLine } from "../model/settings";
 import { firstSentence, historyLines, timelineBlocks, type TimelineBlock } from "../model/timeline";
 import { clockAt } from "../time";
@@ -31,6 +32,16 @@ export function RunModelLine({ runId, class: className = "sub" }: { runId: strin
 /** A line the screen may show as it is: no raw English, paths, commands or ids. */
 function clean(text: string | null): text is string {
   return Boolean(text) && !foldReason(text ?? "");
+}
+
+/**
+ * A block with the markdown markers out of its result and its rows (plainText): a row that was only markers and spaces
+ * is no row, and a comment block left with none is no block (lina-app#166).
+ */
+function plainBlock(block: TimelineBlock): TimelineBlock | null {
+  const rows = block.rows.flatMap((row) => (row.text === null ? [row] : plainText(row.text) ? [{ ...row, text: plainText(row.text) }] : []));
+  if (block.type === "comment") return rows.length ? { ...block, rows } : null;
+  return { ...block, rows, result: block.result === null ? null : plainText(block.result) || null };
 }
 
 /** One event of a history: `time · one sentence` on one line (lina-app#123, #128). */
@@ -159,7 +170,7 @@ export function Timeline({ runs, live, link = () => null, modelRun = () => null,
     const record = store.get("record", id);
     return record ? [{ id, record }] : [];
   });
-  const blocks = timelineBlocks(records, live, now);
+  const blocks = timelineBlocks(records, live, now).flatMap((block) => plainBlock(block) ?? []);
   if (!blocks.length) return <>{fallback}</>;
   const owner = agentName(model, store.get("items")?.owner?.id);
   return (

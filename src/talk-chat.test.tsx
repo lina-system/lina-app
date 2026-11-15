@@ -170,3 +170,66 @@ test("the agent's reply draws its markdown; the owner's message stays plain text
   expect(mine.querySelector("strong, code")).toBeNull();
   expect(mine.textContent).toBe("**그대로** `둠`");
 });
+
+/** A source whose to-do talk answers at once, each turn as the agent `agents` names for it; a turn waits for its gate. */
+function talkingAs(agents: readonly string[], gates: readonly Promise<void>[] = []) {
+  let turn = 0;
+  return class extends SyntheticSource {
+    override async talk(id: string, body: { message: string }) {
+      const result = await super.talk(id, body);
+      if (!result.ok) return result;
+      const index = turn++;
+      const agent = agents[Math.min(index, agents.length - 1)];
+      const gate = gates[index];
+      async function* events() {
+        if (gate) await gate;
+        yield { event: "talk.started" as const, data: { item: { id, title: "" }, agent, session_id: `app-${agent}` } };
+        yield { event: "assistant.completed" as const, data: { session_id: `app-${agent}`, run_id: `r${index}`, seq: 1, ts: 1, message_id: `m${index}`, content: `답 ${index + 1}` } };
+        yield { event: "done" as const, data: { session_id: `app-${agent}`, run_id: `r${index}`, seq: 2, ts: 1 } };
+      }
+      return { ok: true as const, events: events() };
+    }
+  };
+}
+
+function sendFrom(box: ReturnType<typeof within>, message: string) {
+  const field = box.getByRole("textbox", { name: "메시지" }) as HTMLTextAreaElement;
+  field.value = message;
+  fireEvent.input(field);
+  fireEvent.keyDown(field, { key: "Enter" });
+}
+
+test("a to-do's window names the agent that answered each turn, not the latest one for all", async () => {
+  const Source = talkingAs(["ag-1", "ag-2"]);
+  const view = await open("#/goals/G2", true, new Source({ now: Math.floor(Date.now() / 1000) }));
+  const box = within(view.getByTestId("talk"));
+  sendFrom(box, "하나");
+  await waitFor(() => expect(box.getAllByTestId("talk-reply")).toHaveLength(1));
+  await waitFor(() => expect(box.getByTestId("talk-reply").getAttribute("aria-busy")).toBeNull());
+  sendFrom(box, "둘");
+  await waitFor(() => expect(box.getAllByTestId("talk-reply")).toHaveLength(2));
+  await waitFor(() => expect(box.getAllByTestId("talk-name")).toHaveLength(2));
+  expect(box.getAllByTestId("talk-name").map((name) => name.textContent)).toEqual(["Pesk", "Mirel"]);
+});
+
+test("sent from a scrolled-up window, the owner's message and its reply placeholder go to the bottom and count as nothing new", async () => {
+  let answer: () => void = () => undefined;
+  const second = new Promise<void>((resolve) => (answer = resolve));
+  const Source = talkingAs(["ag-1"], [Promise.resolve(), second]);
+  const view = await open("#/goals/G2", true, new Source({ now: Math.floor(Date.now() / 1000) }));
+  const talk = view.getByTestId("talk");
+  const box = within(talk);
+  const scroll = scrollBox(talk, 2000, 500);
+  sendFrom(box, "하나");
+  await waitFor(() => expect(box.getAllByTestId("talk-reply")).toHaveLength(1));
+  await waitFor(() => expect(box.getByTestId("talk-reply").getAttribute("aria-busy")).toBeNull());
+  scroll.to(200);
+  await waitFor(() => expect(box.getByTestId("talk-jump")).toBeTruthy());
+  sendFrom(box, "둘");
+  await waitFor(() => expect(box.getAllByTestId("talk-mine")).toHaveLength(2));
+  expect(box.getAllByTestId("talk-reply")).toHaveLength(2);
+  expect(scroll.top).toBe(1500);
+  await waitFor(() => expect(box.queryByTestId("talk-jump")).toBeNull());
+  answer();
+  await waitFor(() => expect(box.getAllByTestId("talk-reply")[1].getAttribute("aria-busy")).toBeNull());
+});

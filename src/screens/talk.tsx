@@ -56,12 +56,14 @@ export interface ThreadLine {
   readonly text: string;
   readonly at: number | null;
   readonly state: "kept" | "sending" | "streaming" | "done" | "failed";
+  /** Who wrote an agent line, when one window holds lines of more than one agent; else the window's agent. */
+  readonly agent?: string;
 }
 
 /** A date between days, or a run of one sender's messages: its time is the last message's. */
 export type ThreadPart =
   | { readonly kind: "day"; readonly key: string; readonly label: string }
-  | { readonly kind: "group"; readonly key: string; readonly mine: boolean; readonly lines: readonly ThreadLine[]; readonly at: number | null };
+  | { readonly kind: "group"; readonly key: string; readonly mine: boolean; readonly agent: string | undefined; readonly lines: readonly ThreadLine[]; readonly at: number | null };
 
 /** A pause longer than this starts a new group, as a chat app does. */
 const GROUP_GAP_S = 5 * 60;
@@ -79,22 +81,22 @@ function dayWord(at: number, now: number): string {
 
 /**
  * The window's messages as a chat app lays them out (lina-app#187): a date before each day's first message, and the
- * consecutive messages of one sender in one group unless more than GROUP_GAP_S passed. A message with no time joins
+ * consecutive messages of one sender (of one agent, for the agent's) in one group unless more than GROUP_GAP_S passed. A message with no time joins
  * the group before it.
  */
 export function threadOf(lines: readonly ThreadLine[], now: number): ThreadPart[] {
   const parts: ThreadPart[] = [];
   let day: string | null = null;
-  let group: { kind: "group"; key: string; mine: boolean; lines: ThreadLine[]; at: number | null } | null = null;
+  let group: { kind: "group"; key: string; mine: boolean; agent: string | undefined; lines: ThreadLine[]; at: number | null } | null = null;
   for (const line of lines) {
     if (line.at !== null && dayOf(line.at) !== day) {
       day = dayOf(line.at);
       parts.push({ kind: "day", key: `day-${line.key}`, label: dayWord(line.at, now) });
       group = null;
     }
-    const joins = group && group.mine === line.mine && (line.at === null || group.at === null || line.at - group.at <= GROUP_GAP_S);
+    const joins = group && group.mine === line.mine && group.agent === line.agent && (line.at === null || group.at === null || line.at - group.at <= GROUP_GAP_S);
     if (!group || !joins) {
-      group = { kind: "group", key: `group-${line.key}`, mine: line.mine, lines: [], at: null };
+      group = { kind: "group", key: `group-${line.key}`, mine: line.mine, agent: line.agent, lines: [], at: null };
       parts.push(group);
     }
     group.lines.push(line);
@@ -150,7 +152,7 @@ function Thread({ lines, agent, after }: { lines: readonly ThreadLine[]; agent: 
   const { model, now } = useApp();
   const list = useRef<HTMLOListElement>(null);
   const atEnd = useRef(true);
-  const seen = useRef<{ count: number; last: string | null }>({ count: 0, last: null });
+  const seen = useRef<{ count: number; lastMine: string | null }>({ count: 0, lastMine: null });
   const [away, setAway] = useState(false);
   const [unseen, setUnseen] = useState(0);
   const name = agentName(model, agent) || agent || "";
@@ -177,13 +179,16 @@ function Thread({ lines, agent, after }: { lines: readonly ThreadLine[]; agent: 
   }, []);
 
   const last = lines.at(-1);
+  // The owner's newest message wherever it stands: a send adds it together with the agent's empty reply after it.
+  let lastMine: string | null = null;
+  for (const line of lines) if (line.mine) lastMine = line.key;
   useLayoutEffect(() => {
     const before = seen.current;
-    seen.current = { count: lines.length, last: last?.key ?? null };
+    seen.current = { count: lines.length, lastMine };
     if (!lines.length) return;
-    if (atEnd.current || before.count === 0 || (last?.mine && last.key !== before.last)) toEnd();
+    if (atEnd.current || before.count === 0 || (lastMine !== null && lastMine !== before.lastMine)) toEnd();
     else if (lines.length > before.count) setUnseen((count) => count + lines.length - before.count);
-  }, [lines.length, last?.key, last?.text]);
+  }, [lines.length, last?.key, last?.text, lastMine]);
 
   return (
     <>
@@ -195,11 +200,11 @@ function Thread({ lines, agent, after }: { lines: readonly ThreadLine[]; agent: 
             </li>
           ) : (
             <li key={part.key} class={`talk-group ${part.mine ? "is-mine" : "is-agent"}`} data-testid="talk-group">
-              {part.mine ? null : <AgentMark id={agent} />}
+              {part.mine ? null : <AgentMark id={part.agent ?? agent} />}
               <div class="talk-lines">
                 {part.mine ? null : (
                   <span class="talk-name" data-testid="talk-name">
-                    {name}
+                    {part.agent ? agentName(model, part.agent) || part.agent : name}
                   </span>
                 )}
                 {part.lines.map((line) =>
@@ -323,7 +328,7 @@ export function Talk({ detail }: { detail: ItemDetail }) {
   const last = turns.at(-1);
   const lines = turns.flatMap((turn): ThreadLine[] => [
     { key: `${turn.key}-mine`, mine: true, text: turn.mine, at: turn.at, state: "done" },
-    ...(turn.reply || turn.state === "streaming" ? [{ key: `${turn.key}-reply`, mine: false, text: turn.reply, at: turn.replyAt, state: turn.state }] : []),
+    ...(turn.reply || turn.state === "streaming" ? [{ key: `${turn.key}-reply`, mine: false, text: turn.reply, at: turn.replyAt, state: turn.state, agent: turn.agent ?? undefined }] : []),
   ]);
   const name = agentName(model, last?.agent ?? null) || last?.agent || "";
   return (

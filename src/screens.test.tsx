@@ -1706,7 +1706,7 @@ describe("agent talk", () => {
     expect(field.tagName).toBe("TEXTAREA");
     expect(send.textContent).toBe("");
     expect(send.disabled).toBe(true);
-    expect(why()).toBe("글 입력 대기");
+    expect(why()).toBeNull();
     field.value = "가짜 질문 하나";
     fireEvent.input(field);
     await waitFor(() => expect(send.disabled).toBe(false));
@@ -1722,7 +1722,7 @@ describe("agent talk", () => {
     // The reason sits in the field's bar, never in the turns.
     expect(view.getByTestId("agent-talk").querySelector(".agent-talk-turns")?.textContent).not.toContain("답하는 중");
     await waitFor(() => expect(box.queryAllByTestId("talk-live")).toHaveLength(0), { timeout: 5000 });
-    expect(why()).toBe("글 입력 대기");
+    expect(why()).toBeNull();
   });
 
   test("a refused turn puts the agent row's preview back to what it showed before the send (lina-app#143)", async () => {
@@ -1942,9 +1942,8 @@ describe("talk", () => {
     const why = () => box.queryByTestId("send-why")?.textContent ?? null;
     expect(field.tagName).toBe("TEXTAREA");
     expect(send.disabled).toBe(true);
-    expect(why()).toBe("글 입력 대기");
-    // The same words as 댓글's line beside it.
-    expect(within(view.getByTestId("comments")).getByTestId("send-why").textContent).toBe(why());
+    // An empty field says nothing in the chat (the owner took 글 입력 대기 out); 댓글 keeps its own line.
+    expect(why()).toBeNull();
     type(field, "가짜 질문 하나");
     await waitFor(() => expect(send.disabled).toBe(false));
     expect(why()).toBeNull();

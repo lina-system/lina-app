@@ -1202,7 +1202,11 @@ const drivers = {
       const area = await box.boundingBox();
       check(mine.x + mine.width > area.x + area.width - 24 && mine.x > theirs.x, "the owner's message is not on the right");
       check((await box.getByTestId("talk-group").filter({ has: page.getByTestId("talk-reply") }).locator(".mark").count()) === 1, "the reply's group has no agent mark");
-      for (const word of ["글 입력 대기", "보내는 중", "답하는 중"]) check(!(await box.innerText()).includes(word), "the window reads " + word);
+      // The reason 보내기 is off is one line in the field's bar, never in the turns (lina-app#200).
+      const turns = await box.evaluate((element) => [...element.children].filter((child) => !child.classList.contains("talk-form")).map((child) => child.innerText).join("\n"));
+      for (const word of ["글 입력 대기", "보내는 중", "답하는 중"]) check(!turns.includes(word), "the window reads " + word);
+      const why = (await box.getByTestId("send-why").innerText().catch(() => "")).trim();
+      check(why === "답하는 중", "the line by 보내기 reads " + JSON.stringify(why) + " while the reply streams");
       check((await field.inputValue()) === "", "the field still holds the sent text");
       check(await send.isDisabled(), "보내기 is enabled while the reply streams");
       return "mid-stream: " + partial + " (" + ready + ")";
@@ -3355,16 +3359,20 @@ const drivers = {
       check((await field.inputValue()) === "", "the field kept " + (await field.inputValue()));
       return "reply: " + (await box().getByTestId("talk-reply").last().locator(".talk-bubble").innerText());
     });
-    await step("a chat's look: a date between days, one mark and name per group of the agent's, no state word under the field", async () => {
+    await step("a chat's look: a date between days, one mark and name per group of the agent's, and the field's bar says why 보내기 is off", async () => {
       const days = await box().getByTestId("talk-day").allInnerTexts();
       check(JSON.stringify(days) === JSON.stringify(["어제", "오늘"]), "the dates read " + JSON.stringify(days));
       const groups = await box()
         .getByTestId("talk-group")
         .evaluateAll((all) => all.map((group) => ({ agent: group.classList.contains("is-agent"), marks: group.querySelectorAll(".mark").length, names: group.querySelectorAll("[data-testid=talk-name]").length, times: group.querySelectorAll("[data-testid=talk-time]").length })));
       check(groups.every((group) => group.times === 1 && group.marks === (group.agent ? 1 : 0) && group.names === (group.agent ? 1 : 0)), "the groups read " + JSON.stringify(groups));
-      for (const word of ["글 입력 대기", "보내는 중", "답하는 중"]) check(!(await box().innerText()).includes(word), "the window reads " + word);
+      const turns = await box().locator(".agent-talk-turns").innerText();
+      for (const word of ["글 입력 대기", "보내는 중", "답하는 중"]) check(!turns.includes(word), "the window reads " + word);
       const send = box().getByRole("button", { name: "보내기", exact: true });
       check((await send.innerText()).trim() === "" && (await send.isDisabled()), "보내기 is not a dim icon on an empty field");
+      // A disabled 보내기 says why in the words 댓글 and 답 use (lina-app#200).
+      const why = (await box().getByTestId("send-why").innerText().catch(() => "")).trim();
+      check(why === "글 입력 대기", "the line by 보내기 reads " + JSON.stringify(why) + " on an empty field");
       return groups.length + " groups under " + days.join(", ");
     });
     await step("Shift+Enter breaks a line and the field grows up to about 5 lines, then scrolls; Enter sends", async () => {

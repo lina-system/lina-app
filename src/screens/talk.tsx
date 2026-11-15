@@ -143,6 +143,20 @@ function SendButton({ disabled, onSend }: { disabled: boolean; onSend: () => voi
 }
 
 /**
+ * Why 보내기 is off, in the words 댓글 and 답 use (lina-app#200): the reply coming in, the turn going out, or an empty
+ * field. It sits beside 보내기 on the field's row, so the bar keeps its height and the field its place on a phone.
+ */
+function SendWhy({ replying, sending, empty }: { replying: boolean; sending: boolean; empty: boolean }) {
+  const why = replying ? W.replying : sending ? W.sendWhyBusy : empty ? W.sendWhyEmpty : null;
+  if (!why) return null;
+  return (
+    <span class="send-why" data-testid="send-why">
+      {why}
+    </span>
+  );
+}
+
+/**
  * A window's messages: the owner's on the right, plain text; the agent's on the left under its mark and name, its
  * markdown drawn; a date between days. A new message keeps the window at the bottom, and the owner's own always goes
  * there; read up, the window stays put and 맨 아래로 counts what came in (lina-app#187). `after` draws one line under
@@ -353,6 +367,7 @@ export function Talk({ detail }: { detail: ItemDetail }) {
       ) : null}
       <div class="comment-form talk-form">
         <KoreanInput label={W.talkField} value={text} onValue={setText} onEnter={() => void send()} inline multiline />
+        <SendWhy replying={last?.state === "streaming"} sending={busy} empty={!text.trim()} />
         <SendButton disabled={busy || !text.trim()} onSend={() => void send()} />
       </div>
       <ErrorLine line={error ?? undefined} />
@@ -761,6 +776,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
       </div>
       <div class="comment-form talk-form agent-talk-form">
         <KoreanInput label={W.talkField} value={text} onValue={setText} onEnter={() => void send()} inline multiline />
+        <SendWhy replying={box.turns.some((turn) => turn.state === "streaming")} sending={sending} empty={!text.trim()} />
         <SendButton disabled={sending || !text.trim()} onSend={() => void send()} />
         {/* Inside the field's bar: on a phone the bar is sticky and would cover a line drawn after it (lina-app#158). */}
         <ErrorLine line={error ?? undefined} />

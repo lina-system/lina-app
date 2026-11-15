@@ -453,6 +453,15 @@ function collapsed(rows: readonly CardRow[]): CardRow[] {
   return [...lines.values()];
 }
 
+/**
+ * Finished cards as the lines they are listed in (lina-app#168, #179): the last 24 hours first, then the older ones, each
+ * part collapsed. The work tab's two groups, the 완료 screen and the sidebar's 완료 read these same lines.
+ */
+function doneLines(done: readonly CardRow[], now: number): { recent: CardRow[]; older: CardRow[] } {
+  const recent = done.filter((card) => card.endedAt !== null && now - card.endedAt < RECENT_SECONDS);
+  return { recent: collapsed(recent), older: collapsed(done.filter((card) => !recent.includes(card))) };
+}
+
 /** The one naming rule: that title, else the kind of work (코드 작업, 문서 작업, 조사, 기기 작업). */
 export function cardName(title: string | null, work: CardKind, ownTitle: string | null = null): string {
   return cardTitle(title, ownTitle) ?? KIND_TITLE[work];
@@ -668,7 +677,7 @@ export function buildModel(input: ModelInput, now: number): Model {
   const runningSections = [section("stopped", "", stopped), section("running", "", running)];
   const done = apart(allCards.filter((card) => card.state === "done").sort(newestFirst((card) => card.endedAt)), now);
   const waiting = apart(allCards.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt)), now);
-  const recent = done.filter((card) => card.endedAt !== null && now - card.endedAt < RECENT_SECONDS);
+  const finished = doneLines(done, now);
 
   // Inbox: decisions (oldest first), finished runs waiting on the owner, then the owner's own to-dos.
   const goalTitleOfCard = (cardId: string) => input.goals?.goals.find((goal) => goal.workCards.some((card) => card.id === cardId))?.title;
@@ -831,8 +840,8 @@ export function buildModel(input: ModelInput, now: number): Model {
       planned: section("planned", STATE_WORD.planned, planned),
       stopped: section("stopped", STATE_WORD.stopped, stopped),
       waiting: section("waiting", STATE_WORD.waiting, waiting.filter((card) => !reviewRows.some((row) => row.type === "review" && row.card.id === card.id))),
-      recent: section("recent", W.doneRecent, collapsed(recent)),
-      older: section("older", W.doneOlder, collapsed(done.filter((card) => !recent.includes(card)))),
+      recent: section("recent", W.doneRecent, finished.recent),
+      older: section("older", W.doneOlder, finished.older),
     },
     summariesStopped: board?.writer.state === "stopped",
     goals,
@@ -859,7 +868,7 @@ export function buildModel(input: ModelInput, now: number): Model {
       running: running.length,
       stopped: stopped.length,
       due: dueRows.length,
-      done: done.length,
+      done: finished.recent.length + finished.older.length,
       goals: goals.length,
       notices: notices.length,
       unread: (board?.counts.unread ?? allNotices.filter((notice) => !notice.read).length) - hiddenUnread,
@@ -883,17 +892,47 @@ export function latestActivity(cards: Iterable<CardRow>): number | null {
   return maxOf([...cards].flatMap((card) => [card.startedAt, card.stateAt, card.endedAt]));
 }
 
-/** 완료, for every agent or for one; the filter's counts and the list are this one list. */
+/** 완료, for every agent or for one: its lines (doneLines); the filter's counts and the list are this one list. */
 export function doneFor(model: Model, agentId?: string): readonly CardRow[] {
-  return agentId ? model.done.filter((card) => card.agent === agentId) : model.done;
+  const { recent, older } = doneLines(agentId ? model.done.filter((card) => card.agent === agentId) : model.done, model.now);
+  return [...recent, ...older];
+}
+
+/** A goal's or to-do's state line (lina-app#179): its fold, or while a decision on it is open, that wait since it was asked. */
+export interface ItemLine {
+  readonly state: WorkState;
+  readonly reason: string | null;
+  readonly since: number | null;
+  /** `since` is when the open decision was asked, not when the state moved. */
+  readonly asked: boolean;
+}
+
+/**
+ * The one state line of a goal or to-do (lina-app#179), in 수신함's row, its head and its goal's 할 일 alike: its fold
+ * (todoState, goalState), and while a decision on it is open, the time since the question was asked (the time its 수신함 row
+ * reads, its record's question when no row lists it yet), with the decision's wait as its reason when the record gives
+ * none (the item list serves the to-do a decision waits on with no reason).
+ */
+export function itemLine(model: Pick<Model, "inbox">, id: string, fold: { readonly state: WorkState; readonly reason: string | null; readonly stateSince: number | null }, decision?: ItemDetail["decision"]): ItemLine {
+  const row = model.inbox.rows.find((each) => each.type === "decide" && each.target.kind === "item" && each.target.id === id);
+  const asked = row?.type === "decide" ? row.at : decision && !decision.answered ? decision.at : null;
+  return asked ? { state: fold.state, reason: fold.reason ?? "decision", since: asked, asked: true } : { state: fold.state, reason: fold.reason, since: fold.stateSince, asked: false };
+}
+
+/** A goal's or to-do's state line by its id, from the lists (its row's fold): what 수신함's decision row says; null when unlisted. */
+export function itemLineOf(model: Model, id: string): ItemLine | null {
+  const goal = model.goals.find((each) => each.id === id);
+  if (goal) return itemLine(model, id, goal);
+  const item = model.items.get(id);
+  return item ? itemLine(model, id, todoState(model, item)) : null;
 }
 
 export function agentView(model: Model, agentId: string): AgentView | null {
   const agent = model.agents.find((candidate) => candidate.id === agentId);
   if (!agent) return null;
   const mine = [...model.cards.values()].filter((card) => card.agent === agentId && !model.unlisted.has(card.id));
-  const stoppedCards = mine.filter((card) => card.state === "stopped").sort(stoppedOrder);
-  const running = [...stoppedCards, ...mine.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt))];
+  // The rows 진행 중인 작업 lists and the sidebar counts for this agent (lina-app#179).
+  const running = model.running.rows.filter((card) => card.agent === agentId);
   const review = mine.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt));
   const planned = mine.filter((card) => card.state === "planned").sort(newestFirst((card) => card.stateAt));
   // An agent's goals: the ones it owns and the ones holding its to-dos, another agent's included. The dial and its

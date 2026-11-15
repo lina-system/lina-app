@@ -112,7 +112,6 @@ export const W = {
   ownerWords: "내 말",
   todos: "할 일",
   cards: "작업",
-  workerRuns: "실행",
   runs: "실행",
   comments: "댓글",
   evidence: "완료 근거",
@@ -151,9 +150,6 @@ export const W = {
   personHead: (all: number, connected: number, offline: number) => [`내 기기 ${all}`, connected ? `연결됨 ${connected}` : "", offline ? `연결 끊김 ${offline}` : ""].filter(Boolean).join(SEP),
   /** A runner's update: the version the node has, then the fleet's. */
   versionGap: (installed: string, fleet: string) => `${installed} → ${fleet}`,
-  checkMore: "자세히",
-  /** A line the core cut short, ended at its last whole word. */
-  cutShort: (text: string) => `${text}…`,
   restartWorker: "작업 실행기",
   restartOcx: "모델 연결",
   restartWorkerConfirm: "작업 실행기를 다시 시작합니다.",
@@ -629,4 +625,12 @@ export const ROUND9_WORD = {
   answerWhere: "답할 곳",
   /** That agent's conversation, as its link reads. */
   talkWith: (name: string) => `${name} 대화`,
+};
+
+/** lina-app#179: the words added in UI QA round 11. */
+export const ROUND11_WORD = {
+  /** A pending decision's one state word: 수신함's row, its record's head and its goal's 할 일 say it (STOP_WAIT.decision). */
+  decisionWait: STOP_WAIT.decision,
+  /** A card's detail with nothing of its own to show yet (no to-do, run, line or comment), one line under its head. */
+  nothingYet: "아직 기록 없음",
 };

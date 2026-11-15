@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import type { BoardSnapshot, ItemDetail, ItemList, RunCard, WorkCardList, WorkGoal } from "../api/client";
 import { generateScene, SYNTHETIC_SEED } from "../fixtures/synthetic";
 import { CRUMB, KIND_TITLE, STATE_WORD, W } from "../words";
-import { agentView, buildModel, cardTitle, goalCards, goalState, itemContext, todoState, type CardRow, type CardSummary, type Section } from "./index";
+import { agentView, buildModel, cardTitle, doneFor, goalCards, goalState, itemContext, todoState, type CardRow, type CardSummary, type Section } from "./index";
 
 /**
  * A scene in the shape of the hub's real `/work/cards` rows (lina-app#148): every row carries `goalTitle`, `ask`,
@@ -179,8 +179,13 @@ test("finished cards whose visible lines are equal collapse to one line with the
     ["r3", 1],
   ]);
   expect(model.home.recent.count).toBe(2);
-  // The sidebar's 완료 and the 완료 screen still count and list every card.
-  expect(model.counts.done).toBe(8);
+  // The sidebar's 완료 and the 완료 screen count and list these same lines (lina-app#179); the cards stay behind them.
+  expect(model.counts.done).toBe(3);
+  expect(doneFor(model).map((each) => [each.id, each.repeat ?? 1])).toEqual([
+    ["r2", 2],
+    ["r3", 1],
+    ["h1", 5],
+  ]);
   expect(model.done).toHaveLength(8);
 });
 

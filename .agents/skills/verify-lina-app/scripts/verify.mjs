@@ -665,7 +665,8 @@ const drivers = {
       // k-104 is titled by its goal (결제 화면 개편, lina-app#122): find it by its address.
       const k104 = await page.getByRole("list", { name: "검토 필요" }).locator('a[href="#/cards/k-104"]').count();
       check(k104 === 1, "the card waiting for review is not in 검토 필요: " + review.join(" | "));
-      check(decide.filter((name) => name.endsWith("질문")).length === 2 && decide.filter((name) => name.endsWith("요청")).length === 2, "decisions are not two 질문 and two 요청: " + decide.join(" | "));
+      // Each row says its record's state line, the one its head reads (lina-app#179): T12 waits on feedback, the rest on the decision.
+      check(decide.filter((name) => name.endsWith("결정 대기")).length === 3 && decide.filter((name) => name.endsWith("피드백 대기")).length === 1, "decisions do not read three 결정 대기 and one 피드백 대기: " + decide.join(" | "));
       const all = [...decide, ...review, ...mine];
       check(new Set(all).size === all.length, "an item appears twice");
       const shown = await sidebarCount(page, "nav-inbox");
@@ -694,13 +695,13 @@ const drivers = {
           check(boxText.includes(row.text), row.href + " shows a different decision: " + boxText);
           check(boxText.includes(row.kind) && /\d+(분|시간|일) 전/.test(boxText), row.href + " decision box lacks kind word or age: " + boxText);
         } else {
-          // A goal or a to-do says its decision once (lina-app#161): the question is the head's second line, 결정 필요 and
-          // its age the state line; the box names the kind word and holds the place to answer.
+          // A goal or a to-do says its decision once (lina-app#161): the question is the head's second line, its state word
+          // (the row's, lina-app#179) and its age the state line; the box names the agent only and holds the place to answer.
           const article = (await page.locator(".detail").first().innerText()).replace(/\s+/g, " ");
           check(article.split(row.text).length - 1 === 1, row.href + " says its question " + (article.split(row.text).length - 1) + " times");
           const state = (await page.locator(".detail-head .sub").first().innerText()).trim();
           check(/^(?:결정|피드백|다른 일) 대기 · \d+(분|시간|일) 전$/.test(state), row.href + " state line " + state);
-          check(boxText.includes(row.kind) && !(await box.locator(".box-head").count()), row.href + " decision box reads " + boxText);
+          check(state.startsWith(row.kind + " · ") && !boxText.includes(row.kind) && !(await box.locator(".box-head").count()), row.href + " decision box reads " + boxText + ", its state line " + state + ", its row " + row.kind);
         }
         // A work card's head reads its row's name; its own title, the name the question gives it, is the line under the
         // head when it differs (lina-app#153).
@@ -923,6 +924,19 @@ const drivers = {
       check(/^완료 · \d+(분|시간|일) 전 · 소요 \d+(분|시간)( \d+분)?$/.test(head), "the detail reads " + head);
       return head;
     });
+    await step("on the hub's shape (&hub=round11), 완료 counts the lines it lists, the work tab's lines (×3 is one line)", async () => {
+      await openApp(page, "#/running", "&hub=round11");
+      const home = page.getByTestId("screen-running");
+      const finished = await home.locator("[data-testid=section-recent] li[data-testid=row], [data-testid=section-older] li[data-testid=row]").count();
+      await openApp(page, "#/done", "&hub=round11");
+      const rows = await page.getByTestId("screen-done").getByRole("list", { name: "완료", exact: true }).locator(":scope > li").count();
+      const all = (await page.getByTestId("done-filter").getByRole("button").first().getAttribute("aria-label")) ?? "";
+      await openMenu(page);
+      const nav = await sidebarCount(page, "nav-done");
+      check(rows === finished && all.endsWith(" " + rows) && (nav === null || Number(nav) === rows), "완료 says " + nav + " and " + all + ", lists " + rows + "; the work tab lists " + finished);
+      check((await page.getByTestId("screen-done").getByText(/×3$/).count()) === 1, "no ×3 line in 완료");
+      return "완료 " + (nav ?? "(phone)") + ", " + rows + " lines, work tab " + finished;
+    });
   },
 
   async "agent-screen"(page, step) {
@@ -1107,12 +1121,29 @@ const drivers = {
       check(title === line1 && line1.endsWith("배포 순서 정하기"), "the to-do opened is " + title + ", the row reads " + line1);
       const second = (await page.getByTestId("head-line").innerText()).trim();
       check(second === line2, "the head's second line is " + second + ", the row's is " + line2);
-      // The question once, on that line (lina-app#161): the box under it names the kind word, with no head and no age.
+      // The question once, on that line (lina-app#161), and its state word once, on the state line (lina-app#179): the box
+      // under it names the agent only, with no head and no age.
       const box = (await page.getByTestId("decision").innerText()).replace(/\s+/g, " ");
-      check(!box.includes("배포를 금요일 오후에 할지 결정 필요") && box.includes("질문") && !/\d+일 전/.test(box), "the decision box reads " + box);
+      check(!box.includes("배포를 금요일 오후에 할지 결정 필요") && !/대기|질문/.test(box) && !/\d+일 전/.test(box), "the decision box reads " + box);
       const state = (await page.locator(".detail-head .sub").first().innerText()).trim();
       check(/^결정 대기 · \d+일 전$/.test(state), "the state line reads " + state);
       return "#/items/T2 " + title + ": " + box;
+    });
+    await step("on the hub's shape (&hub=round11), one decision reads one word and one time in 수신함, its head and its goal's 할 일", async () => {
+      await openApp(page, "#/inbox", "&hub=round11");
+      const row = page.getByRole("list", { name: "결정 필요" }).locator(":scope > li").filter({ has: page.locator('a[href="#/items/T2"]') });
+      const inbox = [(await row.locator(".kind-word").innerText()).trim(), (await row.locator(".time").innerText()).trim()].join(" · ");
+      await openApp(page, "#/items/T2", "&hub=round11");
+      const head = (await page.locator(".detail-head .head-check .sub").first().innerText()).trim();
+      await openApp(page, "#/talk/ag-1?goal=G1", "&hub=round11");
+      const goal = page.getByTestId("screen-goal");
+      await goal.waitFor();
+      const line = (await goal.locator('a[href="#/items/T2"] .sub').innerText()).trim();
+      check(inbox === "결정 대기 · 19일 전" && head === inbox && line === inbox, "T2 reads " + inbox + " in 수신함, " + head + " in its head, " + line + " in its goal");
+      // T3 waits for its date: 예정 alone, no time since it was planned (lina-app#179).
+      const planned = (await goal.locator('a[href="#/items/T3"] .sub').innerText()).trim();
+      check(planned === "예정", "T3 reads " + planned);
+      return inbox + "; T3 " + planned;
     });
   },
 
@@ -1215,9 +1246,9 @@ const drivers = {
       check(/^진행 중 · 시작 \d+분 전$/.test(state), "state reads " + state);
       await page.getByTestId("timeline").waitFor();
       const heads = await page.locator(".detail .box-head").allInnerTexts();
-      // One round list: the record's blocks; 실행 does not stand beside them.
+      // One round list: the record's blocks; the worker runs' box does not stand beside them.
       check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "기록", "댓글"]), "boxes " + heads.join(", "));
-      check((await page.getByTestId("worker-runs").count()) === 0, "the 실행 box stands beside the record");
+      check((await page.getByTestId("worker-runs").count()) === 0, "the worker runs' box stands beside the record");
       check((await page.getByTestId("card-now").innerText()).includes("변경마다 한 줄 요약을 붙이는 중"), "the now box does not read the checked now line");
       const todos = page.locator(".detail .box").filter({ has: page.locator(".box-head", { hasText: /^할 일$/ }) });
       // A to-do mark the card cannot change is a plain status mark: no control and no action name (lina-app#128).
@@ -1298,6 +1329,22 @@ const drivers = {
       const lines = (await page.getByTestId("timeline").locator("li.timeline-row").allInnerTexts()).map((line) => line.trim());
       check(lines.length === 2 && /^(어제 )?\d\d:\d\d · 용어 표를 맨 앞으로 옮김$/.test(lines[0]) && /^(어제 )?\d\d:\d\d · 작업 시작$/.test(lines[1]), "r7's history reads " + JSON.stringify(lines));
       return lines.join(" | ");
+    });
+    await step("a running and a stopped card name their run history 기록; a planned card with nothing yet says so in one line", async () => {
+      const heads = [];
+      for (const [hash, testid] of [["#/cards/k-101", "timeline"], ["#/cards/k-103", "worker-runs"]]) {
+        await openApp(page, hash, "&hub=round11");
+        await page.getByTestId(testid).waitFor();
+        heads.push((await page.getByTestId(testid).locator(".box-head").first().innerText()).trim());
+      }
+      check(heads.every((head) => head === "기록"), "the run history reads " + heads.join(" / "));
+      await openApp(page, "#/cards/k-106", "&hub=round11");
+      await page.getByTestId("screen-card").waitFor();
+      const state = (await page.locator(".detail-head [data-testid=state]").first().innerText()).trim();
+      const nothing = page.getByTestId("card-nothing");
+      await nothing.waitFor({ timeout: 5_000 }).catch(() => check(false, "the planned card k-106 shows a blank detail"));
+      check(state === "예정" && (await nothing.innerText()).trim() === "아직 기록 없음", "k-106 reads " + state + " / " + (await nothing.innerText()));
+      return heads.join(" / ") + "; k-106 " + state + " · " + (await nothing.innerText()).trim();
     });
   },
 

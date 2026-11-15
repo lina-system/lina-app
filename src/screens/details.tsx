@@ -2,7 +2,7 @@ import { Fragment, type ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, RecordRow, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
-import { cardTitle, goalCards, goalState, itemContext, runRow, todoState, type CardRow, type Model, type StopReasonText } from "../model";
+import { cardTitle, goalCards, goalState, itemContext, itemLine, runRow, todoState, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
 import { foldedText, foldReason } from "../model/fold";
 import { plainText } from "../model/plain";
 import { holds } from "../model/rounds";
@@ -13,8 +13,8 @@ import { isRunId } from "../data/store";
 import { back, baseOf, href, isFrame, navigate, parse, tabOf } from "../router";
 import { ago, clockAt, dayLabel } from "../time";
 import { useActions } from "../ui/actions";
-import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, stateWords, useApp } from "../ui/parts";
-import { BANNED_WORDS, DETAIL_WORD, reasonWord, ROUND9_WORD, RUN_LINE_WORD, SEP, STATE_WORD, stateLabel, W, waitWord } from "../words";
+import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, itemTime, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, stateWords, useApp } from "../ui/parts";
+import { BANNED_WORDS, DETAIL_WORD, reasonWord, ROUND11_WORD, ROUND9_WORD, RUN_LINE_WORD, SEP, STATE_WORD, stateLabel, W, waitWord } from "../words";
 import { PastEvents, RunModelLine, Timeline, type PastEvent } from "./timeline";
 import { Comments, SendButton } from "./comments";
 import { Talk } from "./talk";
@@ -186,14 +186,15 @@ function withoutAnswer(detail: ItemDetail): ItemDetail {
 /**
  * A pending decision or a card's question, drawn the same way on a goal, a to-do or a work card. A goal's or a to-do's
  * head already says 결정 필요 and when it was asked, and its question when it reads the decision row's two lines: that
- * box has no head, no age and no sentence the head shows (lina-app#161).
+ * box has no head, no age, no state word and no sentence the head shows (lina-app#161, #179: the head's state line is the
+ * word its 수신함 row reads). A card's question names the decision's wait, as its 수신함 row does.
  */
-function DecisionBox({ text, agent, ask, at, title = W.decide }: { text: string | null; agent: string | null; ask: boolean; at: number | null; title?: string | null }) {
+function DecisionBox({ text, agent, at, word = ROUND11_WORD.decisionWait, title = W.decide }: { text: string | null; agent: string | null; at: number | null; word?: string | null; title?: string | null }) {
   const { model, now } = useApp();
   return (
     <Box title={title ?? undefined} testid="decision">
       {text ? <p class="box-text">{text}</p> : null}
-      <span class="sub">{[agentName(model, agent), ask ? W.ask : W.act, at ? ago(now - at) : null].filter(Boolean).join(SEP)}</span>
+      <span class="sub">{[agentName(model, agent), word, at ? ago(now - at) : null].filter(Boolean).join(SEP)}</span>
     </Box>
   );
 }
@@ -282,7 +283,7 @@ function ItemDecision({ detail, headLine }: { detail: ItemDetail; headLine?: str
   const waiting = detail.children.filter((child) => child.reason === "blocked_by_item").map((child) => child.title);
   return (
     <>
-      <DecisionBox text={headLine ? null : plainText(detail.decision.text)} agent={detail.agent} ask={detail.decision.kind === "ask"} at={null} title={null} />
+      <DecisionBox text={headLine ? null : plainText(detail.decision.text)} agent={detail.agent} at={null} word={null} title={null} />
       {waiting.length ? (
         <p class="sub waiting-on" data-testid="waiting-on">
           {W.waitingOn(waiting.join(", "))}
@@ -303,22 +304,28 @@ function HistoryLine({ at, text, kind, who }: { at: number; text: string; kind?:
   );
 }
 
+/**
+ * A goal's or to-do's state line on its own page (itemLine): a goal reads the same fold of its cards as the work tab, a
+ * stopped card makes it 중단됨 (lina-app#148); so does a to-do, of the cards its runs take it on in (lina-app#170). An open
+ * decision dates it as its 수신함 row does, from when it was asked (lina-app#149, #179).
+ */
+function useItemLine(detail: ItemDetail): ItemLine {
+  const { model, store } = useApp();
+  return itemLine(model, detail.id, detail.kind === "goal" ? goalState(model, detail, store.get("goals")) : todoState(model, detail), detail.decision);
+}
+
 /** The head's check box with its state line, 되돌리기 while the owner's mark can be taken back, and a goal's question. */
 function DoneHead({ detail }: { detail: ItemDetail }) {
   const actions = useActions();
   const answering = useAnswering();
-  const { model, store, now } = useApp();
+  const { model, now } = useApp();
   const [asking, setAsking] = useState(false);
-  // A goal reads the same fold of its cards as the work tab: a stopped card makes it 중단됨 (lina-app#148); so does a
-  // to-do, of the cards its runs take it on in (lina-app#170).
-  const head = detail.kind === "goal" ? goalState(model, detail, store.get("goals")) : todoState(model, detail);
+  const line = useItemLine(detail);
   const open = detail.kind === "goal" ? detail.children.filter((child) => !actions.isDone(child.id, child.state === "done")).map((child) => child.id) : [];
   const withIds = detail.ownerDone?.with ?? [];
   const shown = actions.isDone(detail.id, detail.state === "done");
   const until = actions.undoUntil(detail.id, detail.ownerDone?.undoUntil);
   const showUndo = shown && until !== null && now < until && actions.toast?.owner !== detail.id;
-  // An open decision dates the head as its 수신함 row does, from when it was asked (lina-app#149).
-  const since = detail.decision && !detail.decision.answered && detail.decision.at ? detail.decision.at : head.stateSince;
   // An answered decision no longer waits on the owner: the head reads 답함 and when, until the item moves on (lina-app#153).
   // So does one whose answer waits for its toast (lina-app#166).
   const answered = (detail.decision?.answered || (detail.decision && answering(`decide:${detail.id}`))) && detail.state !== "done";
@@ -335,7 +342,7 @@ function DoneHead({ detail }: { detail: ItemDetail }) {
             {answer ? <span class="time">{`${SEP}${ago(now - answer.at)}`}</span> : null}
           </span>
         ) : (
-          <StateTime state={head.state} reason={head.reason} time={sinceText(head.state, since, now)} />
+          <StateTime state={line.state} reason={line.reason} time={itemTime(line, now)} />
         )}
         {showUndo ? (
           <button type="button" class="text-button head-undo" disabled={actions.busy(`done:${detail.id}`)} onClick={() => void actions.undoDone(detail.id, withIds)}>
@@ -375,19 +382,22 @@ function DoneHead({ detail }: { detail: ItemDetail }) {
   );
 }
 
-/** A goal's to-do line, in its goal page from 작업 and from 대화: its state is the work tab's fold (todoState, lina-app#170). */
+/**
+ * A goal's to-do line, in its goal page from 작업 and from 대화: its state is the work tab's fold (todoState, lina-app#170),
+ * and the to-do's own head's line while a decision on it is open (itemLine, lina-app#179).
+ */
 function TodoLine({ todo }: { todo: ItemSummary }) {
   const actions = useActions();
   const { model, now } = useApp();
   const shown = actions.isDone(todo.id, todo.state === "done");
-  const fold = todoState(model, todo);
+  const line = itemLine(model, todo.id, todoState(model, todo));
   return (
     <li class={`row check-row${shown ? " is-checked" : ""}`} data-testid="row">
       <DoneCheck id={todo.id} title={todo.title} done={todo.state === "done"} />
-      <Link href={href({ name: "item", id: todo.id })} label={[todo.title, stateLabel(fold.state, fold.reason)].join(SEP)}>
+      <Link href={href({ name: "item", id: todo.id })} label={[todo.title, stateLabel(line.state, line.reason)].join(SEP)}>
         <span class="lines">
           <span class="title one-line">{todo.title}</span>
-          <StateTime state={fold.state} reason={fold.reason} time={sinceText(fold.state, fold.stateSince, now)} />
+          <StateTime state={line.state} reason={line.reason} time={itemTime(line, now)} />
         </span>
       </Link>
       <ErrorLine line={actions.error(`done:${todo.id}`)?.line} />
@@ -638,11 +648,14 @@ function roundGroups(rounds: readonly Round[]): (Round | Round[])[] {
  * (lina-app#149). A comment that was only markdown markers and spaces is no line at all (lina-app#166). `recorded` are
  * the comments only its worker runs' record holds, with no author: they read in this box too (lina-app#174).
  */
-function CardComments({ comments, recorded }: { comments: WorkCardDetail["comments"]; recorded: readonly RecordRow[] }) {
-  const { model } = useApp();
+function cardCommentLines(comments: WorkCardDetail["comments"], recorded: readonly RecordRow[]) {
   const own = comments.map((comment) => ({ id: String(comment.id), at: comment.createdAt, author: comment.author, body: comment.body }));
   const fromRecord = recorded.map((row, index) => ({ id: `record:${row.at}:${index}`, at: row.at, author: null, body: row.text ?? "" }));
-  const lines = commentHistory([...own, ...fromRecord].filter((comment) => plainText(comment.body)).map((comment) => ({ ...comment, body: historyComment(comment.body, comment.author) })));
+  return commentHistory([...own, ...fromRecord].filter((comment) => plainText(comment.body)).map((comment) => ({ ...comment, body: historyComment(comment.body, comment.author) })));
+}
+
+function CardComments({ lines }: { lines: ReturnType<typeof cardCommentLines> }) {
+  const { model } = useApp();
   if (!lines.length) return null;
   return (
     <Box title={W.comments} testid="card-comments">
@@ -688,9 +701,8 @@ function waitsOnOwner(state: WorkState, reason: string | null, row: CardRow | un
  * opened card first, then newest first, each the link to its own card. The sentence is its result line, else the first
  * sentence of its latest note a person may read, else its own name.
  */
-function FoldMembers({ id }: { id: string }) {
-  const { model, store, now } = useApp();
-  const fold = [...model.home.recent.rows, ...model.home.older.rows].find((line) => line.fold?.some((card) => card.id === id))?.fold;
+function FoldMembers({ id, fold }: { id: string; fold: readonly CardRow[] | undefined }) {
+  const { store, now } = useApp();
   if (!fold) return null;
   const note = (cardId: string) => firstSentence(store.get("cards")?.cards.find((card) => card.id === cardId)?.now);
   const cards = [...fold.filter((card) => card.id === id), ...fold.filter((card) => card.id !== id)];
@@ -790,7 +802,7 @@ function WorkerRows({ ids, model, seen, state }: { ids: readonly string[]; model
   const startOf = (workerId: string) => model.runs.get(workerId)?.startedAt ?? seen(workerId);
   const ordered = [...ids].sort((a, b) => (startOf(b) ?? 0) - (startOf(a) ?? 0));
   return (
-    <ul class="rows" aria-label={W.workerRuns}>
+    <ul class="rows" aria-label={W.record}>
       {ordered.map((workerId) => {
         const run = model.runs.get(workerId);
         const row = run ? runRow(run) : null;
@@ -899,6 +911,14 @@ export function CardScreen({ id }: { id: string }) {
   const recorded = workerRuns
     .flatMap((worker) => store.get("record", worker.id)?.comments ?? [])
     .filter((row, index, all) => row.kind === "comment" && !held.has(plainText(row.text ?? "").trim()) && all.findIndex((other) => other.at === row.at && other.text === row.text) === index);
+  const commentLines = cardCommentLines(detail.comments, recorded);
+  const recordFailed = workerRuns.some((worker) => store.status("record", worker.id) === "failed");
+  const fold = [...model.home.recent.rows, ...model.home.older.rows].find((line) => line.fold?.some((card) => card.id === id))?.fold;
+  const askHere = Boolean(ask && !readOnly && !everyQuestion.length && !answering(`answer:${id}`));
+  const nowLine = detail.plain.now && state === "in_progress" ? detail.plain.now : null;
+  // A card with nothing of its own yet (a planned one: no to-do, run, line or comment) says so in one line under its head,
+  // never a blank frame (lina-app#179).
+  const nothing = !fold && !questions.length && !askHere && !nowLine && !detail.plain.result && !detail.todos.length && kept && !workerRuns.length && !commentLines.length;
   return (
     <article class="detail" data-testid="screen-card">
       <CardHead work={row?.work ?? "code"} title={title}>
@@ -913,22 +933,22 @@ export function CardScreen({ id }: { id: string }) {
         {state === "in_progress" && detail.todoProgress.total > 0 ? <Progress done={detail.todoProgress.done} total={detail.todoProgress.total} word /> : null}
         {readOnly ? <ReadOnlyLine agent={row?.agent ?? detail.agent} waits={waitsOnOwner(state, reason, row)} /> : null}
       </CardHead>
-      <FoldMembers id={id} />
+      <FoldMembers id={id} fold={fold} />
       {/* Each question with the place to answer it, keyed as its 수신함 row, so answering here hides that row too. */}
       {questions.map((question) => (
         <Fragment key={question.commentId}>
-          <DecisionBox text={plainText(question.body)} agent={question.agent} ask at={question.askedAt} />
+          <DecisionBox text={plainText(question.body)} agent={question.agent} at={question.askedAt} />
           {readOnly ? null : <AnswerPlace key={question.commentId} answerKey={`question:${id}:${question.commentId}`} target={{ kind: "card", id }} label={W.answerField} testid="decision-answer" />}
         </Fragment>
       ))}
-      {ask && !readOnly && !everyQuestion.length && !answering(`answer:${id}`) ? (
+      {ask && askHere ? (
         <Box>
           <AnswerPlace key={`answer:${id}`} answerKey={`answer:${id}`} target={{ kind: "card", id }} label={ask} testid="card-answer" />
         </Box>
       ) : null}
-      {detail.plain.now && state === "in_progress" ? (
+      {nowLine ? (
         <Box title={W.now} testid="card-now">
-          <p class="box-text">{detail.plain.now}</p>
+          <p class="box-text">{nowLine}</p>
         </Box>
       ) : null}
       {/* A box shows only when it adds something: the checked to-dos and the first open one are the list below, so
@@ -957,8 +977,14 @@ export function CardScreen({ id }: { id: string }) {
           {W.noHistory}
         </p>
       )}
-      {/* One round list: the record's blocks (기록), each head the link to its worker run. 실행 stands only while the
-          record is not shown, and under its error line when the read failed, so the worker links never disappear. */}
+      {nothing ? (
+        <p class="empty" data-testid="card-nothing">
+          {ROUND11_WORD.nothingYet}
+        </p>
+      ) : null}
+      {/* One round list, one name (기록, lina-app#179): the record's blocks, each head the link to its worker run. The worker
+          runs' box stands only while the record is not shown, and under the 기록 box's error line, with no head of its own,
+          when the read failed, so the worker links never disappear. */}
       <Timeline
         runs={workerRuns.map((worker) => worker.id)}
         boxed
@@ -967,7 +993,7 @@ export function CardScreen({ id }: { id: string }) {
         modelRun={roundRun}
         fallback={
           workerRuns.length ? (
-            <Box title={W.workerRuns} testid="worker-runs">
+            <Box title={recordFailed ? undefined : W.record} testid="worker-runs">
               {/* A round's own line is its content, its ids cut; rounds whose line would show a path or a command are no
                   comment: each run of them is one folded 이전 기록 N건 row, their worker runs inside (lina-app#157, #161). */}
               {roundGroups(rounds).map((group) =>
@@ -987,12 +1013,12 @@ export function CardScreen({ id }: { id: string }) {
           ) : null
         }
       />
-      <CardComments comments={detail.comments} recorded={recorded} />
+      <CardComments lines={commentLines} />
     </article>
   );
 }
 
-/** One round of the 실행 box: its head, its own line when one may show, and its worker runs. */
+/** One round of the worker runs' 기록 box: its head, its own line when one may show, and its worker runs. */
 function RoundSection({ round, line, workers }: { round: Round; line: string | null; workers: ComponentChildren }) {
   const { now } = useApp();
   return (

@@ -114,6 +114,11 @@ export interface SceneOptions {
    * inbox entry keeps the whole reason (over 400 letters).
    */
   readonly hubRound9?: boolean;
+  /**
+   * The hub's shapes UI QA round 11 met (`&hub=round11`, lina-app#179): the round 9 shapes, and the decision on T2 asked 19
+   * days ago while the item list serves T2 `waiting` with no reason, its state moved two days ago.
+   */
+  readonly hubRound11?: boolean;
 }
 
 /** lina-app#171: a stop reason as long as the hub's longest, made up; the core's ask keeps its first 60 letters. */
@@ -416,7 +421,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
   const todoWorkCards: Record<string, string[]> = { T1: ["k-101"], T3: ["k-101"], T4: ["k-102"], T5: ["k-103"], T6: ["k-104"], T7: ["k-105"] };
 
   const decisions: Record<string, { text: string; kind: "ask" | "act"; ago: number; choices?: string[]; recommended?: string }> = {
-    T2: { text: "배포를 금요일 오후에 할지 결정 필요", kind: "ask", ago: 3 * DAY, choices: ["금요일 오후", "월요일 오전"], recommended: "금요일 오후" },
+    T2: { text: "배포를 금요일 오후에 할지 결정 필요", kind: "ask", ago: (options.hubRound11 ? 19 : 3) * DAY, choices: ["금요일 오후", "월요일 오전"], recommended: "금요일 오후" },
     G3: { text: "복구 연습에 쓸 두 시간 확인 필요", kind: "act", ago: 2 * DAY },
     T12: { text: "자주 쓰는 검색어 열 개 확인 필요", kind: "act", ago: 1 * DAY },
   };
@@ -508,6 +513,14 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
   });
 
   const question = { cardId: "k-102", title: "위키: 결제 화면 문서 정리", agent: agentId(1), commentId: 7, body: "카드 번호를 앞 여섯 자리까지 표시할지 결정 필요", askedAt: now - 1 * DAY - 4 * HOUR };
+
+  if (options.hubRound11) {
+    // As the hub serves it: the list's T2 (and its goal's 할 일) has no reason, and its state moved after the question.
+    const relisted = { reason: null, stateSince: now - 2 * DAY };
+    listItems.splice(listItems.findIndex((item) => item.id === "T2"), 1, { ...listItems.find((item) => item.id === "T2")!, ...relisted });
+    itemDetails.G1 = { ...itemDetails.G1, children: itemDetails.G1.children.map((child) => (child.id === "T2" ? { ...child, ...relisted } : child)) };
+    itemDetails.T2 = { ...itemDetails.T2, stateSince: relisted.stateSince };
+  }
 
   const decide = Object.entries(decisions).map(([target, decision]) => ({
     target,
@@ -953,7 +966,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
   }
 
   const blocked: WorkInbox["blocked"] = [];
-  if (options.hubRound9) {
+  if (options.hubRound9 || options.hubRound11) {
     const hubCard = (id: string, fields: { title: string; agent: number; state: WorkState; reason: string | null; at: number; elapsed: number; note: string | null }): WorkCardSummary => {
       const detail: WorkCardDetail = {
         id,
@@ -996,6 +1009,11 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     // Every card the hub serves from its board is read-only (lina#481).
     for (const card of cardList.cards) Object.assign(card, { readOnly: true });
     for (const detail of Object.values(cardDetails)) Object.assign(detail, { readOnly: true });
+  }
+  if (options.hubRound11) {
+    // The hub's planned card (lina-app#179): not started, with no to-do, run, comment or line of its own yet.
+    for (const card of cardList.cards) if (card.id === "k-106") Object.assign(card, { todoProgress: { done: 0, total: 0 } });
+    Object.assign(cardDetails["k-106"], { todos: [], todoProgress: { done: 0, total: 0 } });
   }
 
   return {

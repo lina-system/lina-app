@@ -2,7 +2,7 @@ import { createContext, type ComponentChildren, type JSX } from "preact";
 import { useContext } from "preact/hooks";
 import type { WorkState } from "../api/client";
 import type { Store } from "../data/store";
-import type { CardRow, Model, Section } from "../model";
+import type { CardRow, ItemLine, Model, Section } from "../model";
 import { linkClick } from "../router";
 import { ago, duration, total } from "../time";
 import { KIND_WORD, SEP, STATE_WORD, stateLabel, W } from "../words";
@@ -102,9 +102,15 @@ export function cardTook(card: CardRow): string {
   return card.state === "done" && card.totalSeconds !== null ? W.took(total(card.totalSeconds)) : "";
 }
 
+/** A record's time beside its state; a planned one has not started, so none, as on a card's row (cardTime, lina-app#179). */
 export function sinceText(state: WorkState, since: number | null, now: number): string {
-  if (since === null) return "";
+  if (since === null || state === "planned") return "";
   return state === "in_progress" ? duration(now - since) : ago(now - since);
+}
+
+/** A goal's or to-do's state line's time (itemLine): an open decision waits since it was asked, as its 수신함 row says. */
+export function itemTime(line: ItemLine, now: number): string {
+  return line.asked && line.since !== null ? ago(now - line.since) : sinceText(line.state, line.since, now);
 }
 
 export function Link({ href, class: className, label, children, current }: { href: string; class?: string; label?: string; children: ComponentChildren; current?: boolean }) {

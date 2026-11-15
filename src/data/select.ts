@@ -39,6 +39,7 @@ export function chooseSource(location: Pick<Location, "search"> = window.locatio
       endedRuns: params.get("runs") === "ended",
       manyTodos: params.get("todos") === "many",
       hubRound9: params.get("hub") === "round9",
+      hubRound11: params.get("hub") === "round11",
       talk: talk && TALK_REFUSALS.includes(talk) ? (talk as TalkRefusal) : null,
       live: live && STREAM_SCRIPTS.includes(live) ? (live as StreamScript) : "ok",
       pushOff: params.get("push") === "off",

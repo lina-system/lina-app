@@ -70,16 +70,20 @@ const cellsOf = (row: HTMLElement) => [...row.querySelectorAll("[data-testid=run
 const RUNNER_SYNC =
   'hold: dsh on hub 0.2.2-rc.1 (trial): trial: ACP error: Internal error: turn failed: llm-deepseek: no API key for provider route "deepseek-official"; store DEEPSEEK_API_KEY through the credentials service (the web Mo';
 
-/**
- * The hub's line cut at its last whole clause: the bracket its cut left open (`(the web Mo`) goes whole and the line ends
- * in one ellipsis (lina-app#150, #160).
- */
-const RUNNER_SYNC_WHOLE = `${RUNNER_SYNC.slice(0, RUNNER_SYNC.lastIndexOf(" ("))}…`;
+/** Product names and short abbreviations a Korean line may keep (lina-app#178). */
+const KEPT = /DeepSeek|OCX|API|PR|QA/g;
+
+/** A check row shows its Korean line, state word and age only: no 자세히, and none of the engine's English (lina-app#178). */
+function expectKoreanOnly(row: HTMLElement) {
+  expect(row.querySelector("details")).toBeNull();
+  expect(row.textContent).not.toContain("자세히");
+  expect((row.textContent ?? "").replace(KEPT, "")).not.toMatch(/[A-Za-z]/);
+}
 /** One Korean line for it: the check, the tool it names and why, all from the glossary (lina-app#160). */
 const RUNNER_SYNC_TITLE = "실행기 업데이트 보류 · DeepSeek · API 키 없음";
 
 describe("status tab on the hub's real shapes (lina-app#144)", () => {
-  test("a check whose line is not Korean reads one Korean line, with the original folded behind 자세히", async () => {
+  test("a check whose line is not Korean reads one Korean line, with no 자세히 and none of the line (lina-app#178)", async () => {
     const now = Math.floor(Date.now() / 1000);
     const at = now - 20 * 60;
     const checks: StatusChecks = {
@@ -94,19 +98,7 @@ describe("status tab on the hub's real shapes (lina-app#144)", () => {
     const rows = [...view.getByRole("list", { name: "점검" }).querySelectorAll(".status-check-row")] as HTMLElement[];
     expect(rows).toHaveLength(2);
     expect(rows.map((row) => row.querySelector(".title")?.textContent)).toEqual([RUNNER_SYNC_TITLE, "점검 실패 · 시간 초과"]);
-    for (const [row, line] of [
-      [rows[0], RUNNER_SYNC_WHOLE],
-      [rows[1], "fail: probe timed out"],
-    ] as const) {
-      const fold = row.querySelector("details") as HTMLDetailsElement;
-      expect(fold.open).toBe(false);
-      expect(fold.querySelector("summary")?.textContent).toBe("자세히");
-      const original = fold.querySelector(".check-original") as HTMLElement;
-      expect(original.textContent).toBe(line);
-      // Wrapped, never cut by the width.
-      expect(original.classList.contains("one-line")).toBe(false);
-      expect(row.querySelector(".title")?.textContent?.replace("DeepSeek", "").replace("API", "")).not.toMatch(/[A-Za-z]/);
-    }
+    for (const row of rows) expectKoreanOnly(row);
   });
 
   test("an unreachable node and the owner's Macs read 연결 끊김 and nothing else, and each block counts itself", async () => {
@@ -235,7 +227,7 @@ describe("status tab, QA round 4 (lina-app#150)", () => {
     expect(view.getByTestId("section-machines").textContent).not.toContain("실행기");
   });
 
-  test("a check cut by the hub mid-word reads a neutral summary, and its fold holds whole words only", async () => {
+  test("a check cut by the hub mid-word reads a neutral summary, and none of the cut line shows", async () => {
     const now = Math.floor(Date.now() / 1000);
     const at = now - 2 * 60 * 60;
     const checks: StatusChecks = { version: 1, at, checks: [{ name: "runner-sync", ok: false, line: RUNNER_SYNC, at, staleAfter: 172800, stale: false, state: "failing", file: "runner-sync.json" }] };
@@ -243,9 +235,7 @@ describe("status tab, QA round 4 (lina-app#150)", () => {
     const row = view.getByRole("list", { name: "점검" }).querySelector(".status-check-row") as HTMLElement;
     expect(row.querySelector(".title")?.textContent).toBe(RUNNER_SYNC_TITLE);
     expect(row.querySelector(".check-state")?.textContent).toBe("실패");
-    const original = row.querySelector(".check-original")?.textContent ?? "";
-    expect(original).toBe(RUNNER_SYNC_WHOLE);
-    expect(original).not.toMatch(/\bMo…?$|\(the web/);
+    expectKoreanOnly(row);
   });
 
   test("요약 중단됨 stays out of the header and shows in 점검 only", async () => {
@@ -263,7 +253,7 @@ describe("status tab, QA round 4 (lina-app#150)", () => {
 
 // lina-app#152: QA round 5 on the hub's real responses (11-14). Invented names and text; the length and the cut are the hub's.
 describe("status tab, QA round 5 (lina-app#152)", () => {
-  test("an English check line the hub cut at 200 characters mid-word reads one Korean line, its fold holding whole words only", async () => {
+  test("an English check line the hub cut at 200 characters mid-word reads one Korean line, and none of the line shows", async () => {
     const now = Math.floor(Date.now() / 1000);
     const full = "fail: night probe could not reach the backup line within the window and gave up after several attempts; ".repeat(4);
     const line = full.slice(0, 200);
@@ -273,11 +263,7 @@ describe("status tab, QA round 5 (lina-app#152)", () => {
     const view = await open(new SyntheticSource({ now, scene: { ...fresh().scene, checks } }));
     const row = view.getByRole("list", { name: "점검" }).querySelector(".status-check-row") as HTMLElement;
     expect(row.querySelector(".title")?.textContent).toBe("점검 실패");
-    const fold = row.querySelector("details") as HTMLDetailsElement;
-    expect(fold.open).toBe(false);
-    const original = fold.querySelector(".check-original")?.textContent ?? "";
-    expect(original).toBe(`${line.slice(0, line.lastIndexOf(" "))}…`);
-    expect(full.startsWith(original.slice(0, -1) + " ")).toBe(true);
+    expectKoreanOnly(row);
   });
 
   test("a phone's 상태 says how many machines once: the machines head, no second line above it", async () => {
@@ -313,7 +299,7 @@ describe("status tab, QA round 6 (lina-app#156)", () => {
     expect(tools).toEqual(["OMO 1.0", "Codex 1.0", "Claude 1.0", "DeepSeek 1.0", "Grok 1.0", "Cursor 1.0", "Antigravity 1.0"]);
   });
 
-  test("an English check line reads one Korean line with its age, the raw text folded and ending at a whole word", async () => {
+  test("an English check line reads one Korean line with its age, and none of the raw text", async () => {
     const now = Math.floor(Date.now() / 1000);
     const line = `hold: tool on node 0.2.2-rc.1 (trial): trial: ACP error: Internal error: turn failed: fake-route: no API key for provider route "fake-official"; store FAKE_API_KEY through the credentials service (the web Mo`;
     const checks: StatusChecks = { version: 1, at: now, checks: [{ name: "runner-sync", ok: false, line, at: now - 3 * 60 * 60, staleAfter: 172800, stale: false, state: "failing", file: "runner-sync.json" }] };
@@ -323,12 +309,7 @@ describe("status tab, QA round 6 (lina-app#156)", () => {
     // A tool the glossary does not know is not named in the Korean line (lina-app#160).
     expect(body.textContent).toMatch(/^실행기 업데이트 보류 · API 키 없음실패3시간 전$/);
     expect(body.getAttribute("aria-label")).toBe("실행기 업데이트 보류 · API 키 없음 · 실패 · 3시간 전");
-    const fold = row.querySelector("details") as HTMLDetailsElement;
-    expect(fold.open).toBe(false);
-    const original = fold.querySelector(".check-original")?.textContent ?? "";
-    // The bracket the hub's cut left open goes whole: the fold ends at the clause before it (lina-app#160).
-    expect(original.endsWith("through the credentials service…")).toBe(true);
-    expect(line.startsWith(original.slice(0, -1) + " ")).toBe(true);
+    expectKoreanOnly(row);
   });
 });
 

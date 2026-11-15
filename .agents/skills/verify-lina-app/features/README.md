@@ -51,6 +51,22 @@ Keep implementation details out of the map. Name only user paths, stable handles
 - A pull request that adds or changes a screen adds or updates that screen's feature file, and its driver in `scripts/verify.mjs`, in the same pull request.
 - `/maintain-verification-skill` (`.agents/skills/maintain-verification-skill/`) is the periodic audit of this map against the app.
 
+## Screen state words
+
+One word per state on every screen (lina-app#179); `src/words.ts` holds them (`STATE_WORD`, `waitWord`, `ROUND11_WORD`). A decision row in 수신함, the record's head and its line in its goal's `할 일` read the same word and the same time.
+
+| State | Word | Time beside it |
+| --- | --- | --- |
+| planned | `예정` | none: it has not started |
+| in_progress | `진행 중` | since it started |
+| waiting | `대기`, or its wait's one word: `결정 대기`, `피드백 대기`, `다른 일 대기` | since its state moved |
+| waiting on an open decision | `결정 대기` (the record's own wait word when it gives one) | since the question was asked |
+| stopped | `중단됨` (with its wait's word after it) | since it stopped |
+| done | `완료` | since it ended |
+| answered decision | `답함` | since the answer |
+
+A card's run history is `기록`, whether the card runs or stopped. A card with nothing of its own yet says `아직 기록 없음`.
+
 ## Features
 
 - [수신함](./inbox.md) covers decisions, runs waiting for review and the owner's to-dos.

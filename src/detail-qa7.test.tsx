@@ -55,9 +55,9 @@ for (const wide of [true, false]) {
     // The status word once: the state line, never again as a box head.
     expect(item.querySelector(".detail-head .sub")?.textContent).toMatch(/^결정 대기 · \d+일 전$/);
     expect([...article.querySelectorAll(".box-head")].map((head) => head.textContent)).not.toContain("결정 필요");
-    // Its age is the state line's: the box under it names the agent and the kind word only.
+    // Its age and its state word are the state line's (lina-app#179): the box under it names the agent only.
     expect(within(item).getByTestId("decision").textContent).not.toMatch(/\d+일 전/);
-    expect(within(item).getByTestId("decision").textContent).toContain("질문");
+    expect(within(item).getByTestId("decision").querySelector(".sub")?.textContent).toMatch(/^[^·]+$/);
   });
 }
 

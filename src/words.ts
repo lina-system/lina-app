@@ -600,3 +600,9 @@ export function glossaryKnows(key: string): boolean {
   const bare = key.replace(/-command$/, "");
   return Object.hasOwn(TOOL_NAME, bare) || Object.hasOwn(STATUS_WORD.toolMore, bare);
 }
+
+/** lina-app#166: the detail's words added in UI QA round 8. */
+export const RUN_LINE_WORD = {
+  /** A card's worker run that ended with no round on record to say how (the screen words table's 결과 누락). */
+  noResult: REASON_WORD.result_missing,
+};

@@ -1286,7 +1286,7 @@ const drivers = {
       await page.getByTestId("worker-runs").waitFor();
       const lines = await page.getByTestId("worker-runs").getByRole("link").evaluateAll((items) => items.map((item) => item.getAttribute("aria-label")));
       // One line per run, its time and state word; the card's title is its head's, never repeated (lina-app#142).
-      check(lines.length === 1 && /^(어제 )?\d\d:\d\d · 완료 기록 없음$/.test(lines[0]), "k-104's run lines read " + JSON.stringify(lines));
+      check(lines.length === 1 && /^(어제 )?\d\d:\d\d · 결과 누락$/.test(lines[0]), "k-104's run lines read " + JSON.stringify(lines));
       check(!(await page.locator("article.detail").innerText()).includes("코드 작업"), "k-104 reads 코드 작업");
       return title + " · " + state + "; k-104 " + lines.join(", ");
     });

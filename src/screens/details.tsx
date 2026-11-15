@@ -1,9 +1,10 @@
 import { Fragment, type ComponentChildren } from "preact";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
 import { cardTitle, goalCards, goalState, runRow, type CardRow, type Model } from "../model";
 import { foldedText, foldReason } from "../model/fold";
+import { plainText } from "../model/plain";
 import { holds } from "../model/rounds";
 import { stopReason } from "../model/stop-reason";
 import { answerOf, commentHistory, decisionHistory, goalHistory, historyLines, isMachineNotice, outcomeOf } from "../model/timeline";
@@ -13,7 +14,7 @@ import { back, baseOf, href, isFrame, navigate, parse, tabOf } from "../router";
 import { ago, clockAt, dayLabel } from "../time";
 import { useActions } from "../ui/actions";
 import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, stateWords, useApp } from "../ui/parts";
-import { BANNED_WORDS, DETAIL_WORD, reasonWord, SEP, STATE_WORD, stateLabel, W } from "../words";
+import { BANNED_WORDS, DETAIL_WORD, reasonWord, RUN_LINE_WORD, SEP, STATE_WORD, stateLabel, W } from "../words";
 import { PastEvents, RunModelLine, Timeline, type PastEvent } from "./timeline";
 import { Comments, SendButton } from "./comments";
 import { Talk } from "./talk";
@@ -51,18 +52,27 @@ function Header({ title, line, children }: { title: string; line?: string | null
 
 /**
  * Closes the detail frame the way the phone sheet's 닫기 does, one step back (or to the screen under it when the frame
- * was opened directly), then puts focus back on the list row that opened it (lina-app#161).
+ * was opened directly), then puts focus back on the list row that opened it (lina-app#161). Every record opened in the
+ * frame since it opened is one step: 닫기 goes back past them all, so the frame closes at once, and the list keeps the
+ * scroll it has now (lina-app#166).
  */
 function closeFrame() {
   const hash = window.location.hash || "#/";
   const stack = (window.history.state as { stack?: readonly string[] } | null)?.stack ?? [hash];
+  let frames = 0;
+  while (frames < stack.length && isFrame(parse(stack[stack.length - 1 - frames]))) frames += 1;
+  const list = document.querySelector<HTMLElement>(".list-pane");
+  const scroll = list?.scrollTop ?? null;
   const focusRow = () => {
     if (isFrame(parse(window.location.hash || "#/"))) return;
-    [...document.querySelectorAll<HTMLAnchorElement>(".list-pane a")].find((link) => link.getAttribute("href") === hash)?.focus();
+    const pane = document.querySelector<HTMLElement>(".list-pane");
+    if (pane && scroll !== null) pane.scrollTop = scroll;
+    [...document.querySelectorAll<HTMLAnchorElement>(".list-pane a")].find((link) => link.getAttribute("href") === hash)?.focus({ preventScroll: true });
   };
-  if (stack.length > 1) {
+  if (frames < stack.length) {
     window.addEventListener("popstate", () => setTimeout(focusRow), { once: true });
-    back();
+    if (frames === 1) back();
+    else window.history.go(-frames);
   } else {
     navigate(baseOf(parse(hash), stack), { replace: true });
     setTimeout(focusRow);
@@ -100,8 +110,13 @@ function FrameClose() {
  */
 function useDecisionRow(id: string): { context: string; text: string } | null {
   const { model } = useApp();
+  const answering = useAnswering();
+  const pressed = useRef<{ id: string; row: { context: string; text: string } } | null>(null);
   const row = model.inbox.rows.find((each) => each.type === "decide" && each.target.kind === "item" && each.target.id === id);
-  return row?.type === "decide" && row.context ? row : null;
+  const shown = row?.type === "decide" && row.context ? { context: row.context, text: row.text } : null;
+  if (shown) pressed.current = { id, row: shown };
+  // The row leaves 수신함 as its answer is sent; the head keeps the two lines that were pressed (lina-app#166).
+  return shown ?? (answering(`decide:${id}`) && pressed.current?.id === id ? pressed.current.row : null);
 }
 
 /** A bracket with a time of day in a sentence (`(에이전트 16:5x)`, who wrote it and when): no part of what a history line reads. */
@@ -117,7 +132,7 @@ const LEADING_TAGS = /^(?:\s*\[[^\]\n]*\])+\s*/;
  * Empty when nothing is left: the line folds.
  */
 export function historyText(text: string): string {
-  return text
+  return plainText(text)
     .split("\n")
     .map((line) =>
       foldedText(line.replace(LEADING_TAGS, "").replace(WHO_WHEN, " "))
@@ -133,6 +148,15 @@ export function historyText(text: string): string {
 /** A comment's text for its history line: a machine notice keeps its own text, so it is still known as one and left out. */
 function historyComment(text: string, author: string | null): string {
   return isMachineNotice(text, author) ? text : historyText(text);
+}
+
+/**
+ * The item with its comments' markdown markers out (plainText): a comment that was only markers and spaces, with no
+ * reply, is no comment at all, never an empty or folded row (lina-app#166).
+ */
+function plainItem(detail: ItemDetail): ItemDetail {
+  const plain = <T extends { readonly text: string }>(entries: readonly T[]) => entries.map((entry) => ({ ...entry, text: plainText(entry.text) }));
+  return { ...detail, comments: plain(detail.comments).map((comment) => ({ ...comment, replies: plain(comment.replies).filter((reply) => reply.text) })).filter((comment) => comment.text || comment.replies.length) };
 }
 
 /** The item with its comments' and its decision's text as history reads them (historyText), for its 기록 lines. */
@@ -170,14 +194,15 @@ function DecisionBox({ text, agent, ask, at, title = W.decide }: { text: string 
  * Where the owner answers, in the detail frame (lina-app#142): the choices, or a field with 보내기. The answer goes
  * the way it goes from 수신함 (Actions.answer, keyed as its 수신함 row), so the row leaves there too.
  */
-function AnswerPlace({ answerKey, target, label, choices = [], recommended = null, testid }: { answerKey: string; target: { kind: "item" | "card"; id: string }; label: string; choices?: readonly string[]; recommended?: string | null; testid: string }) {
+function AnswerPlace({ answerKey, target, label, choices = [], recommended = null, draft = null, onSend, testid }: { answerKey: string; target: { kind: "item" | "card"; id: string }; label: string; choices?: readonly string[]; recommended?: string | null; draft?: string | null; onSend?: (answer: string) => void; testid: string }) {
   const actions = useActions();
   const error = actions.error(answerKey);
-  const [text, setText] = useState(error?.text ?? "");
+  const [text, setText] = useState(error?.text ?? draft ?? "");
   const busy = actions.busy(answerKey);
   const send = (answer: string) => {
     const body = answer.trim();
     if (!body || busy) return;
+    onSend?.(body);
     actions.answer(answerKey, target, body);
   };
   return (
@@ -219,16 +244,20 @@ function useAnswering(): (key: string) => boolean {
   return (key) => actions.pending().hidden.has(key);
 }
 
-/** An answered decision where its box stood (lina-app#153): its question and the owner's answer together. */
-function AnsweredDecision({ detail }: { detail: ItemDetail }) {
+/**
+ * An answered decision where its box stood (lina-app#153): its question and the owner's answer together. `sent` is an
+ * answer still waiting for its toast (lina-app#166): it shows at once, with no age yet, and its question is not said
+ * again when the head's second line (`headLine`) still reads it.
+ */
+function AnsweredDecision({ detail, headLine = null, sent = null }: { detail: ItemDetail; headLine?: string | null; sent?: string | null }) {
   const { model, now } = useApp();
-  const answer = answerOf(detail);
+  const answer = sent === null ? answerOf(detail) : { text: sent, at: null };
   if (!detail.decision) return null;
   return (
     <Box title={[detail.decision.kind === "ask" ? W.ask : W.act, W.answer].join(SEP)} testid="decision-answered">
-      <p class="box-text">{detail.decision.text}</p>
-      {answer ? <p class="box-text">{answer.text}</p> : null}
-      <span class="sub">{[agentName(model, detail.agent), W.answered, answer ? ago(now - answer.at) : null].filter(Boolean).join(SEP)}</span>
+      {headLine ? null : <p class="box-text">{plainText(detail.decision.text)}</p>}
+      {answer ? <p class="box-text">{plainText(answer.text)}</p> : null}
+      <span class="sub">{[agentName(model, detail.agent), W.answered, answer?.at ? ago(now - answer.at) : null].filter(Boolean).join(SEP)}</span>
     </Box>
   );
 }
@@ -236,18 +265,22 @@ function AnsweredDecision({ detail }: { detail: ItemDetail }) {
 function ItemDecision({ detail, headLine }: { detail: ItemDetail; headLine?: string | null }) {
   const answering = useAnswering();
   const key = `decide:${detail.id}`;
+  const [sent, setSent] = useState<string | null>(null);
   if (detail.decision?.answered) return <AnsweredDecision detail={detail} />;
-  if (!detail.decision || answering(key)) return null;
+  if (!detail.decision) return null;
+  // While the answer waits for its toast, the question and the answer just sent stand where the box stood; 되돌리기
+  // brings the box back with the answer in its field (lina-app#166).
+  if (answering(key)) return <AnsweredDecision detail={detail} headLine={headLine} sent={sent} />;
   const waiting = detail.children.filter((child) => child.reason === "blocked_by_item").map((child) => child.title);
   return (
     <>
-      <DecisionBox text={headLine ? null : detail.decision.text} agent={detail.agent} ask={detail.decision.kind === "ask"} at={null} title={null} />
+      <DecisionBox text={headLine ? null : plainText(detail.decision.text)} agent={detail.agent} ask={detail.decision.kind === "ask"} at={null} title={null} />
       {waiting.length ? (
         <p class="sub waiting-on" data-testid="waiting-on">
           {W.waitingOn(waiting.join(", "))}
         </p>
       ) : null}
-      <AnswerPlace key={key} answerKey={key} target={{ kind: "item", id: detail.id }} label={W.answerField} choices={detail.decision.choices} recommended={detail.decision.recommended} testid="decision-answer" />
+      <AnswerPlace key={key} answerKey={key} target={{ kind: "item", id: detail.id }} label={W.answerField} choices={detail.decision.choices} recommended={detail.decision.recommended} draft={sent} onSend={setSent} testid="decision-answer" />
     </>
   );
 }
@@ -265,6 +298,7 @@ function HistoryLine({ at, text, kind, who }: { at: number; text: string; kind?:
 /** The head's check box with its state line, 되돌리기 while the owner's mark can be taken back, and a goal's question. */
 function DoneHead({ detail }: { detail: ItemDetail }) {
   const actions = useActions();
+  const answering = useAnswering();
   const { model, store, now } = useApp();
   const [asking, setAsking] = useState(false);
   // A goal reads the same fold of its cards as the work tab: a stopped card makes it 중단됨 (lina-app#148).
@@ -277,8 +311,9 @@ function DoneHead({ detail }: { detail: ItemDetail }) {
   // An open decision dates the head as its 수신함 row does, from when it was asked (lina-app#149).
   const since = detail.decision && !detail.decision.answered && detail.decision.at ? detail.decision.at : head.stateSince;
   // An answered decision no longer waits on the owner: the head reads 답함 and when, until the item moves on (lina-app#153).
-  const answered = detail.decision?.answered && detail.state !== "done";
-  const answer = answered ? answerOf(detail) : null;
+  // So does one whose answer waits for its toast (lina-app#166).
+  const answered = (detail.decision?.answered || (detail.decision && answering(`decide:${detail.id}`))) && detail.state !== "done";
+  const answer = answered && detail.decision?.answered ? answerOf(detail) : null;
   return (
     <>
       <div class="head-check">
@@ -358,8 +393,9 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
   // Its merges (the finished cards' evidence), question, runs, comments and close, one line each, ids cut. An open
   // question is the box and the head above, so it is no history line until it is answered (lina-app#161).
   const open = detail.decision && !detail.decision.answered;
+  const plain = plainItem(detail);
   const history = goalHistory(
-    open ? { ...historyItem(detail), decision: null } : historyItem(detail),
+    open ? { ...historyItem(plain), decision: null } : historyItem(plain),
     evidence.map((entry) => ({ ...entry, text: historyText(entry.text) })),
   );
   const decisionRow = useDecisionRow(detail.id);
@@ -368,7 +404,7 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
       <Header title={decisionRow?.context ?? detail.title} line={decisionRow?.text}>
         <DoneHead detail={detail} />
       </Header>
-      <ItemDecision detail={detail} headLine={decisionRow?.text} />
+      <ItemDecision key={detail.id} detail={detail} headLine={decisionRow?.text} />
       {detail.doneCondition ? (
         <Box title={W.doneCondition}>
           <p class="box-text">{detail.doneCondition}</p>
@@ -411,7 +447,7 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
           </ul>
         </Box>
       ) : null}
-      <Comments detail={withoutAnswer(detail)} />
+      <Comments detail={withoutAnswer(plain)} />
       {talkWindowOpen(wide) ? null : <Talk key={detail.id} detail={detail} />}
     </article>
   );
@@ -431,14 +467,15 @@ function talkWindowOpen(wide: boolean): boolean {
 function TodoBody({ detail }: { detail: ItemDetail }) {
   const { model, wide } = useApp();
   // An answered decision's question and answer are history (lina-app#153); an open one is its box above.
-  const history = detail.decision?.answered ? historyLines(decisionHistory(historyItem(detail))) : [];
+  const plain = plainItem(detail);
+  const history = detail.decision?.answered ? historyLines(decisionHistory(historyItem(plain))) : [];
   const decisionRow = useDecisionRow(detail.id);
   return (
     <article class="detail" data-testid="screen-item">
       <Header title={decisionRow?.context ?? detail.title} line={decisionRow?.text}>
         <DoneHead detail={detail} />
       </Header>
-      <ItemDecision detail={detail} headLine={decisionRow?.text} />
+      <ItemDecision key={detail.id} detail={detail} headLine={decisionRow?.text} />
       {detail.doneCondition ? (
         <Box title={W.doneCondition}>
           <p class="box-text">{detail.doneCondition}</p>
@@ -478,7 +515,7 @@ function TodoBody({ detail }: { detail: ItemDetail }) {
           </ul>
         </Box>
       ) : null}
-      <Comments detail={withoutAnswer(detail)} />
+      <Comments detail={withoutAnswer(plain)} />
       {talkWindowOpen(wide) ? null : <Talk key={detail.id} detail={detail} />}
     </article>
   );
@@ -600,11 +637,11 @@ function RunsStopWhy({ reason, row }: { reason: string | null; row: CardRow | un
  * A work card's comments, one history line each, newest first: its time and its first sentence a person may read,
  * with any id, hash, path or command taken out (lina-app#142, historyText #157); its author is the line's tooltip. A
  * machine notice is no line, and each run of comments with no sentence left is one 접힌 댓글 line with their count
- * (lina-app#149).
+ * (lina-app#149). A comment that was only markdown markers and spaces is no line at all (lina-app#166).
  */
 function CardComments({ comments }: { comments: WorkCardDetail["comments"] }) {
   const { model } = useApp();
-  const lines = commentHistory(comments.map((comment) => ({ id: comment.id, at: comment.createdAt, author: comment.author, body: historyComment(comment.body, comment.author) })));
+  const lines = commentHistory(comments.filter((comment) => plainText(comment.body)).map((comment) => ({ id: comment.id, at: comment.createdAt, author: comment.author, body: historyComment(comment.body, comment.author) })));
   if (!lines.length) return null;
   return (
     <Box title={W.comments} testid="card-comments">
@@ -774,7 +811,7 @@ export function CardScreen({ id }: { id: string }) {
   const workerState = (runId: string) => {
     if (runLive(model, runId)) return STATE_WORD.in_progress;
     const round = rounds.find((candidate) => candidate.workers.includes(runId));
-    if (!round) return W.outcome.unknown;
+    if (!round) return RUN_LINE_WORD.noResult;
     return round.endedAt !== null ? W.outcome.ended : STATE_WORD.stopped;
   };
   const seen = (runId: string) => workerRuns.find((worker) => worker.id === runId)?.firstSeenAt ?? null;
@@ -814,7 +851,7 @@ export function CardScreen({ id }: { id: string }) {
       {/* Each question with the place to answer it, keyed as its 수신함 row, so answering here hides that row too. */}
       {questions.map((question) => (
         <Fragment key={question.commentId}>
-          <DecisionBox text={question.body} agent={question.agent} ask at={question.askedAt} />
+          <DecisionBox text={plainText(question.body)} agent={question.agent} ask at={question.askedAt} />
           {readOnly ? null : <AnswerPlace key={question.commentId} answerKey={`question:${id}:${question.commentId}`} target={{ kind: "card", id }} label={W.answerField} testid="decision-answer" />}
         </Fragment>
       ))}

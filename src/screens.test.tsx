@@ -3082,7 +3082,7 @@ describe("a card's detail (lina-app#128)", () => {
     // title is its head's, never repeated on its runs (lina-app#142).
     const card = await open("#/cards/k-104", { wide: true });
     const lines = within(card.getByTestId("worker-runs")).getAllByRole("link");
-    expect(lines.map((line) => line.getAttribute("aria-label"))).toEqual([expect.stringMatching(new RegExp(`^${TIME} · 완료 기록 없음$`))]);
+    expect(lines.map((line) => line.getAttribute("aria-label"))).toEqual([expect.stringMatching(new RegExp(`^${TIME} · 결과 누락$`))]);
     expect(card.getByTestId("screen-card").querySelector(".detail-title")?.textContent).toBe("결제 화면 개편");
     expect(card.getByTestId("card-own-title").textContent).toBe("결제: 실패 화면 검토");
     expect(screenText(card.container)).not.toContain("코드 작업");

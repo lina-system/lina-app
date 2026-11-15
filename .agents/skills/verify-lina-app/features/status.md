@@ -45,6 +45,7 @@
 ## How to get to it (user POV)
 
 - Choose `상태` in the tabs: a phone opens on this screen, a wide window on its `기기` line under `기기·쿼터`.
+- On a phone the header has the same `메뉴` as 작업 and 대화: its sheet holds the 작업 rows and ends with `설정` (lina-app#172); `설정` is also the screen's last line.
 - Address `/app/#/status`.
 
 ## Driving it with verify.mjs

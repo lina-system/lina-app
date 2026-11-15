@@ -120,7 +120,7 @@ function sevenRoundsScene() {
   return new SyntheticSource({ now: scene.now, scene: { ...scene, cards, cardDetails } });
 }
 
-test("item 4: rounds with nothing left to read are one 이전 기록 N건 row, and why the card stopped stands above the run box", async () => {
+test("item 4: rounds with nothing left to read are one 이전 기록 N건 row, and why the card stopped is said once, in its head", async () => {
   const view = await open("#/cards/k-108", sevenRoundsScene());
   const card = await frame(view);
   const box = await waitFor(() => within(card).getByTestId("worker-runs"));
@@ -129,18 +129,19 @@ test("item 4: rounds with nothing left to read are one 이전 기록 N건 row, a
   expect(text).toContain("이전 기록 7건");
   // Every worker run still has its link (inside the folded row).
   expect(box.querySelectorAll("[data-testid=row] a")).toHaveLength(7);
-  const why = within(card).getByTestId("runs-stop-why");
-  expect(why.textContent).toBe("중단됨 · 결정 대기");
-  // It stands above the run box.
-  expect(why.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  // The head says it; the run box does not say it again (lina-app#171).
+  expect(within(card).getByTestId("stop-why").textContent).toBe("결정 대기 · 보고서 받는 사람 확인 필요");
+  expect(count(card.textContent ?? "", "결정 대기")).toBe(1);
 });
 
-test("item 4: a stopped card the core gives no reason for says the stop words its row reads above the run box, never 이유 없음", async () => {
+test("item 4: a stopped card the core gives no reason for says the stop words its row reads in its head, never 이유 없음", async () => {
   const view = await open("#/cards/k-108", new SyntheticSource({ now: Math.floor(Date.now() / 1000), endedRuns: true }));
   const card = await frame(view);
-  const why = await waitFor(() => within(card).getByTestId("runs-stop-why"));
-  expect(why.textContent).toMatch(/^중단됨 · .*확인 필요/);
-  expect(why.textContent).not.toContain("이유 없음");
+  await waitFor(() => within(card).getByTestId("worker-runs"));
+  const state = card.querySelector(".detail-head [data-testid=state]")?.textContent ?? "";
+  expect(state).toMatch(/^중단됨 · .*확인 필요/);
+  expect(card.textContent).not.toContain("이유 없음");
+  expect(count(card.textContent ?? "", "확인 필요")).toBe(1);
 });
 
 /** A local day `days` from today as the hub serves `due` (YYYY-MM-DD). */

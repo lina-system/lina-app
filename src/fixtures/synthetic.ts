@@ -107,7 +107,26 @@ export interface SceneOptions {
   readonly settings?: SettingsVariant | null;
   /** The power section (`&power=`, lina-app#82): the watch stopped 25 minutes ago, or the core serves no section. */
   readonly power?: PowerVariant | null;
+  /**
+   * The hub's shapes UI QA round 9 met (`&hub=round9`, lina-app#171), in made-up words: every card read-only; three
+   * finished cards whose titles differ only by a hash (one `×3` line); a stopped card waiting on feedback with no ask and
+   * an internal word for its block reason; and one waiting on a decision whose ask the core cut at 60 letters while its
+   * inbox entry keeps the whole reason (over 400 letters).
+   */
+  readonly hubRound9?: boolean;
 }
+
+/** lina-app#171: a stop reason as long as the hub's longest, made up; the core's ask keeps its first 60 letters. */
+export const LONG_STOP_REASON = [
+  "원인은 대화 기록이 이어지지 않을 때 앞선 기록 전체를 한 덩어리로 펴서 처음부터 다시 쓰는 경로로 좁혀짐.",
+  "고칠 설정은 없고 그 경로의 코드는 공개되지 않아 직접 바꿀 수 없음.",
+  "결정할 것은 두 가지로, 정리한 문제 설명을 공개 게시판에 올릴지와 다음 판을 먼저 올려 볼지임.",
+  "결정이 나면 하루 동안 다시 쓰기 횟수를 전과 비교하고, 기준선은 지난 이틀 동안의 다시 쓰기 스물여덟 번과 그때 쓴 토큰 양으로 둠.",
+  "비교 결과가 나오면 같은 표에 한 줄로 더하고, 줄어들지 않으면 다른 원인 후보를 다시 좁혀 보고서에 적음.",
+  "두 결정 모두 늦어져도 지금 도는 일에는 영향이 없으며, 다시 쓰기가 늘어 사용량이 한도에 가까워지면 그때 다시 알림.",
+  "그사이 모은 기록은 같은 폴더에 날짜별로 두고, 비교가 끝나면 필요 없는 것은 지움.",
+].join(" ");
+
 
 export type PowerVariant = "stopped" | "none";
 
@@ -933,6 +952,52 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     for (const card of cardList.cards) if (card.id === "k-102") Object.assign(card, { goalTitle: "결제 화면 개편: 카드사별 실패 문구와 다시 시도 버튼 정리" });
   }
 
+  const blocked: WorkInbox["blocked"] = [];
+  if (options.hubRound9) {
+    const hubCard = (id: string, fields: { title: string; agent: number; state: WorkState; reason: string | null; at: number; elapsed: number; note: string | null }): WorkCardSummary => {
+      const detail: WorkCardDetail = {
+        id,
+        title: fields.title,
+        agent: agentId(fields.agent),
+        state: fields.state,
+        reason: fields.reason,
+        elapsedSeconds: fields.elapsed,
+        todoProgress: { done: 0, total: 0 },
+        now: fields.note,
+        plain: NO_LINES,
+        endedAt: fields.state === "done" ? fields.at : null,
+        lastHeartbeatAt: fields.at,
+        readOnly: true,
+        todos: [],
+        workerRuns: [],
+        gates: [],
+        comments: [],
+        runs: [{ id: 1, profile: null, status: fields.state === "done" ? "done" : "blocked", outcome: null, startedAt: fields.at - fields.elapsed, endedAt: fields.state === "done" ? fields.at : null, lastHeartbeatAt: fields.at, summary: null, live: false }],
+      };
+      cardDetails[id] = detail;
+      const { todos: _t, workerRuns: _w, gates: _g, comments: _c, runs: _r, ...fieldsOnly } = detail;
+      return { ...fieldsOnly, goalTitle: null } as WorkCardSummary;
+    };
+    // Three builds of one deploy, titled alike but for a hash, each with its own note.
+    const builds = [
+      hubCard("k-131", { title: "허브 앱 빌드 올리기 a1b2c3d", agent: 0, state: "done", reason: null, at: now - 5 * MIN, elapsed: 60, note: "첫 화면 문구를 고친 빌드를 올림." }),
+      hubCard("k-132", { title: "허브 앱 빌드 올리기 b2c3d4e", agent: 0, state: "done", reason: null, at: now - 40 * MIN, elapsed: 90, note: "알림 줄을 고친 빌드를 올림." }),
+      hubCard("k-133", { title: "허브 앱 빌드 올리기 c3d4e5f", agent: 0, state: "done", reason: null, at: now - 3 * HOUR, elapsed: 70, note: "목록 간격을 고친 빌드를 올림." }),
+    ];
+    // Waits on the owner's feedback with no ask; the hub's block reason is its internal start word.
+    const bare = Object.assign(hubCard("k-134", { title: "빌드 기기에 새 판 고정하기 (뒷일)", agent: 1, state: "stopped", reason: "feedback", at: now - 4 * DAY, elapsed: 4 * DAY, note: null }), { waitingOn: "owner", retry: "none", ask: null });
+    // Waits on the owner's decision: the ask is the reason's first 60 letters, the inbox keeps all of it.
+    const long = Object.assign(hubCard("k-135", { title: "대화 기록 캐시를 통째 다시 쓰는 원인 찾기", agent: 1, state: "stopped", reason: "decision", at: now - 2 * DAY, elapsed: 2 * DAY, note: null }), { waitingOn: "owner", retry: "none", ask: `${LONG_STOP_REASON.slice(0, 60)}…` });
+    cardList.cards.push(...builds, bare, long);
+    blocked.push(
+      { cardId: bare.id, title: bare.title, agent: bare.agent, state: "stopped", reason: "feedback", blockKind: null, blockReason: "initial_status" },
+      { cardId: long.id, title: long.title, agent: long.agent, state: "stopped", reason: "decision", blockKind: null, blockReason: LONG_STOP_REASON },
+    );
+    // Every card the hub serves from its board is read-only (lina#481).
+    for (const card of cardList.cards) Object.assign(card, { readOnly: true });
+    for (const detail of Object.values(cardDetails)) Object.assign(detail, { readOnly: true });
+  }
+
   return {
     now,
     board,
@@ -946,7 +1011,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     goals: { goals: goalCards },
     cards: cardList,
     cardDetails,
-    inbox: { blocked: [], questions: [question] },
+    inbox: { blocked, questions: [question] },
     runs: runCards,
     records: records(now),
     settings: settingsScene(now, options.settings ?? null),

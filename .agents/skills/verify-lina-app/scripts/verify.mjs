@@ -248,7 +248,7 @@ async function text(locator) {
 // The app lives under /app/ on the core's origin; the drive always draws the synthetic scene.
 // Always a fresh load: going to the address the page already shows only moves the hash and keeps the scene.
 // Ready means the data is drawn and the change stream is open (실시간); a page whose stream cannot open
-// (&live=down) is ready at 갱신 지연.
+// (&live=down) is ready at 연결 중, since nothing is late before the stream was ever open (lina-app#172).
 async function openApp(page, hash, query = "", line = "실시간") {
   if (page.url() !== "about:blank") await page.goto("about:blank");
   await page.goto(APP_PATH + query + hash);
@@ -400,17 +400,19 @@ async function phoneRules(page, where) {
 }
 
 // Rows show a title and the card's own name, both never cut (they wrap and the row grows, lina-app#156), and one
-// status line (a stopped row's, with its ask, wraps at a word beside its button). A work row's title or second line
-// that is clipped or ends in an ellipsis is reported too.
-async function rowLines(page) {
+// status line (a stopped row's, with its ask, wraps at a word beside its button). A line drawn to wrap (a goal's title
+// and done condition, a decision's question, lina-app#167) may take as many lines as it needs (lina-app#172). A work
+// row's title or second line, or a line drawn to wrap, that is clipped or ends in an ellipsis is reported too.
+export async function rowLines(page) {
   return page.locator("[data-testid=row]:not(.is-open) .lines").evaluateAll((all) =>
     all.flatMap((lines) => {
       const children = [...lines.children].filter((child) => child.getBoundingClientRect().height > 0);
       const lineHeight = (child) => parseFloat(getComputedStyle(child).lineHeight) || parseFloat(getComputedStyle(child).fontSize) * 1.35;
       const stoppedState = (child) => child.classList.contains("sub") && !child.matches(".row-sub, .stop-ask") && Boolean(child.closest(".is-stopped"));
       const workLine = (child) => Boolean(child.closest(".card-row")) && (child.classList.contains("title") || child.classList.contains("row-sub"));
-      const allowed = (child) => (workLine(child) || stoppedState(child) ? Infinity : child.classList.contains("title") ? 2.5 : 1.5);
-      const cut = children.filter((child) => workLine(child) && (child.scrollHeight > child.clientHeight + 1 || (getComputedStyle(child).textOverflow === "ellipsis" && child.scrollWidth > child.clientWidth + 1)));
+      const wraps = (child) => workLine(child) || child.classList.contains("wrap-line");
+      const allowed = (child) => (wraps(child) || stoppedState(child) ? Infinity : child.classList.contains("title") ? 2.5 : 1.5);
+      const cut = children.filter((child) => wraps(child) && (child.scrollHeight > child.clientHeight + 1 || (getComputedStyle(child).textOverflow === "ellipsis" && child.scrollWidth > child.clientWidth + 1)));
       if (cut.length) return [lines.textContent.trim().slice(0, 40) + " (cut)"];
       const tall = children.filter((child) => child.getBoundingClientRect().height > lineHeight(child) * allowed(child) + 1);
       const asks = children.filter((child) => child.getAttribute("data-testid") === "stop-ask").length;
@@ -812,7 +814,7 @@ const drivers = {
       check(rows.length === 7, "expected 7 stopped rows, got " + rows.length + ": " + hrefs.join(" "));
       check(!hrefs.some((href) => href.startsWith("#/runs/")), "a worker run is a row of its own: " + hrefs.join(" "));
       // Why each waits on the owner, never on whom (lina-app#156): the reason in words, then the core's ask.
-      const OWNER = { "#/cards/k-108": "중단됨 · 확인 필요 · 야간 보고서를 받을 사람", "#/cards/k-107": "중단됨 · 피드백 대기", "#/cards/k-112": "중단됨 · 결정 대기" };
+      const OWNER = { "#/cards/k-108": "중단됨 · 확인 필요 · 야간 보고서를 받을 사람", "#/cards/k-107": "중단됨 · 피드백 대기 · 이유 기록 없음", "#/cards/k-112": "중단됨 · 결정 대기 · 이유 기록 없음" };
       check(rows.slice(0, 3).every((row) => OWNER[row.href] === row.state), "the rows waiting on the owner are not first, or read otherwise: " + rows.map((row) => row.state).join(" | "));
       check(rows.slice(3).every((row) => !Object.hasOwn(OWNER, row.href)), "an owner row is below another row");
       check(!rows.some((row) => /도윤|확인 필요$/.test(row.state.replace(OWNER["#/cards/k-108"], ""))), "a state line names a person: " + rows.map((row) => row.state).join(" | "));
@@ -2331,8 +2333,8 @@ const drivers = {
       }
     });
     await page.setViewportSize({ width: 390, height: 844 });
-    await step("at 390, the stale line on a stream that is down keeps the phone rules", async () => {
-      await openApp(page, "#/inbox", "&live=down", "갱신 지연");
+    await step("at 390, the line on a stream that cannot open keeps the phone rules", async () => {
+      await openApp(page, "#/inbox", "&live=down", "연결 중");
       return phoneRules(page, "stream down @390");
     });
     await dividerSteps(page, step, 390);
@@ -2684,8 +2686,9 @@ const drivers = {
       await page.waitForTimeout(1_500);
       const after = (await stream(page)).reads;
       const { connections } = await stream(page);
-      // One refresh reads each list route and each card's detail once.
-      const once = await page.evaluate(() => 5 + window.__linaScene.cards.cards.length);
+      // One refresh reads each of the 5 list routes once, and a detail only while a screen shows it (lina-app#100):
+      // 수신함 shows none, so a resync reads exactly the 5 lists (lina-app#118, #172).
+      const once = 5;
       check(after - before === once, "the resync read " + (after - before) + " route(s), one refresh is " + once);
       check(connections.length === 1, "the resync opened another connection");
       check(await notReloaded(page), "the page reloaded");
@@ -2709,14 +2712,17 @@ const drivers = {
       check(await notReloaded(page), "the page reloaded");
       return "실시간 throughout, 1 renewal, connections " + connections.map((connection) => connection.first).join(" → ") + ", 알림 5 → 알림 4";
     });
-    await step("a stream that cannot open says 갱신 지연 and retries with growing waits; the screens still draw", async () => {
-      await openApp(page, "#/inbox", "&live=down", "갱신 지연");
+    await step("a stream that cannot open says 연결 중, never 갱신 지연, and retries with growing waits; the screens still draw", async () => {
+      await openApp(page, "#/inbox", "&live=down", "연결 중");
+      await recordFreshness(page);
       const rows = (await decisionNames(page.getByRole("list", { name: "결정 필요" }))).length;
       check(rows === 4, "the inbox drew " + rows + " decisions");
       await page.waitForTimeout(5_000);
       const { connections } = await stream(page);
       check(connections.length >= 2 && connections.length <= 5, connections.length + " tries in 5 s");
       check(connections.every((connection) => !connection.open), "a connection opened");
+      const words = await page.evaluate(() => window.__linaWords);
+      check(words.every((word) => word === "연결 중"), "the line left 연결 중 before the stream was ever open: " + JSON.stringify(words));
       return (await freshnessLine(page)) + ", " + connections.length + " tries in 5 s, 결정 필요 " + rows;
     });
   },
@@ -2913,9 +2919,10 @@ const drivers = {
       check(heads.slice(-2).join(",") === "기록,댓글", "the timeline is not between the boxes and the comments: " + heads.join(", "));
       const blocks = timeline.getByTestId("timeline-block");
       const outcomes = await blocks.evaluateAll((items) => items.map((item) => item.getAttribute("data-outcome")));
-      check(JSON.stringify(outcomes) === JSON.stringify(["going", "comment", "rejected", "comment", "ended"]), "the blocks read " + JSON.stringify(outcomes));
+      // The comments between rounds are the card's own, read in its 댓글 box: the record heads no block 댓글 with them (lina-app#171).
+      check(JSON.stringify(outcomes) === JSON.stringify(["going", "rejected", "ended"]), "the blocks read " + JSON.stringify(outcomes));
       const titles = await timeline.locator(".timeline-head").allInnerTexts();
-      check(/^(어제 )?\d\d:\d\d · 진행 중$/.test(titles[0]) && /^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/.test(titles[2]) && titles[3] === "댓글" && /^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/.test(titles[4]) && !titles.some((title) => title.includes("라운드")) && !titles.some((title) => title.includes(" –") || title.startsWith("–")), "the heads read " + JSON.stringify(titles));
+      check(/^(어제 )?\d\d:\d\d · 진행 중$/.test(titles[0]) && /^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/.test(titles[1]) && /^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/.test(titles[2]) && !titles.some((title) => title.includes("라운드")) && !titles.some((title) => title.includes(" –") || title.startsWith("–")), "the heads read " + JSON.stringify(titles));
       const rows = await blocks.first().locator(".timeline-row").evaluateAll((items) =>
         items.map((item) => ({ kind: item.getAttribute("data-kind"), text: item.textContent.trim(), colour: getComputedStyle(item).color })),
       );
@@ -2924,7 +2931,7 @@ const drivers = {
       const said = rows.map((row) => row.text.replace(/^(어제 )?\d\d:\d\d · /, "")).join(" | ");
       check(rows.every((row) => /^(어제 )?\d\d:\d\d · \S/.test(row.text)) && said === "요약을 표로 옮기는 중 ×3 | 도구 사용 4번 | 변경마다 한 줄 요약을 붙이는 중", "the going round reads " + rows.map((row) => row.text).join(" | "));
       check(rows[0].colour === label && rows[1].colour !== label && rows[2].colour === label, "sentence and dim colours " + JSON.stringify(rows.map((row) => row.colour)) + ", label " + label);
-      const noStart = (await blocks.nth(4).getByTestId("timeline-no-start").innerText()).trim();
+      const noStart = (await blocks.nth(2).getByTestId("timeline-no-start").innerText()).trim();
       check(noStart === "시작 기록 없음", "the start-unknown round reads " + noStart);
       const text = await timeline.innerText();
       check(!/Running|npm|packages|run 3|3f2a1c9/.test(text) && !text.includes("가린 문장"), "raw text or a placeholder in the timeline: " + text.slice(0, 160));
@@ -3360,7 +3367,10 @@ async function drive(args) {
   if (defects.length) process.exit(1);
 }
 
-const [command, ...rest] = process.argv.slice(2);
-const commands = { launch, doctor, drive, map, cleanup };
-if (!commands[command]) fail(`usage: verify.mjs launch [--no-build] | doctor | drive <feature-id>... | drive --all | map | cleanup`);
-await commands[command](rest);
+// Run as a command; imported (a spec reading rowLines), it does nothing.
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const [command, ...rest] = process.argv.slice(2);
+  const commands = { launch, doctor, drive, map, cleanup };
+  if (!commands[command]) fail(`usage: verify.mjs launch [--no-build] | doctor | drive <feature-id>... | drive --all | map | cleanup`);
+  await commands[command](rest);
+}

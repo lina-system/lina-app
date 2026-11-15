@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import type { BoardSnapshot, ItemDetail, ItemList, RunCard, WorkCardList, WorkGoal } from "../api/client";
 import { generateScene, SYNTHETIC_SEED } from "../fixtures/synthetic";
 import { CRUMB, KIND_TITLE, STATE_WORD, W } from "../words";
-import { agentView, buildModel, cardTitle, goalCards, goalState, type CardRow, type CardSummary, type Section } from "./index";
+import { agentView, buildModel, cardTitle, goalCards, goalState, itemContext, todoState, type CardRow, type CardSummary, type Section } from "./index";
 
 /**
  * A scene in the shape of the hub's real `/work/cards` rows (lina-app#148): every row carries `goalTitle`, `ask`,
@@ -220,6 +220,53 @@ test("a goal whose to-do one running card takes on reads 진행 중 wherever it 
   expect(goalState(model, { ...detail, state: "done" }, { goals: [] }).state).toBe("done");
 });
 
+test("a to-do reads the fold of the card its runs take it on in, the same rule as its goal (lina-app#170 item 1)", () => {
+  const model = liveModel();
+  const todo = model.items.get("T70");
+  if (!todo) throw new Error("T70 missing");
+  // The record still says planned; the open card its runs belong to runs, so the goal page, the conversation goal view
+  // and the to-do's own head read 진행 중, since the card started.
+  expect(todo.state).toBe("planned");
+  expect(todoState(model, todo)).toEqual({ state: "in_progress", reason: null, stateSince: NOW - DAY });
+  // A to-do no run takes on keeps the record's state; a done one stays done.
+  expect(todoState(model, { id: "T-none", state: "planned", reason: null, stateSince: NOW - 3 * DAY })).toEqual({ state: "planned", reason: null, stateSince: NOW - 3 * DAY });
+  expect(todoState(model, { ...todo, state: "done" }).state).toBe("done");
+  // The goal's running to-dos count it too.
+  expect(model.goals.find((each) => each.id === "G7")?.runningTodos.map((each) => each.id)).toEqual(["T70"]);
+  // A to-do whose card is stopped reads the stop word.
+  const template = generateScene(SYNTHETIC_SEED, { now: NOW }).board.cards[0];
+  const stoppedCard = row("k-stop", "가상 점검 다시 하기", "stopped", { goalTitle: LIVE_GOAL, lastHeartbeatAt: NOW - 500 });
+  const run: RunCard = { ...template, id: "r9", card: "k-stop", todo: "T70", state: "done", agent: "ag-a" };
+  const stopped = buildModel({ board: { ...board, cards: [run] }, items: liveItems, cards: { cards: [stoppedCard] } as WorkCardList, goals: { goals: [] }, cardsAt: NOW, cardDetails: {}, failed: [] }, NOW);
+  expect(todoState(stopped, todo)).toEqual({ state: "stopped", reason: null, stateSince: NOW - 500 });
+});
+
+// lina-app#170 item 2: the hub links a waiting goal's stopped cards by nothing but their `goalTitle`, the goal's title; no
+// run takes on its to-dos and its detail links no card.
+const waitItems: ItemList = {
+  ...items,
+  items: [
+    { ...item("G8", "goal", ORDER, null), state: "waiting", stateSince: NOW - 2 * DAY },
+    { ...item("T81", "todo", "가상 묶음 주문서 추가", "G8"), state: "waiting", reason: "feedback" },
+    { ...item("T82", "todo", "가상 주문 기능 채우기", "G8"), state: "waiting", reason: "feedback" },
+  ],
+};
+
+test("a goal whose cards are all stopped reads 중단됨 and lists those cards in both tabs, the work tab's fold (lina-app#170 item 2)", () => {
+  const orderCards = cards.filter((each) => each.goalTitle === ORDER);
+  const model = buildModel({ board, items: waitItems, cards: { cards: orderCards } as WorkCardList, goals: { goals: [] }, cardsAt: NOW, cardDetails: {}, failed: [] }, NOW);
+  expect(model.home.stopped.rows.map((each) => each.id)).toEqual(["s1", "s2", "s3"]);
+  const detail = { id: "G8", kind: "goal", title: ORDER, state: "waiting", reason: null, stateSince: NOW - 2 * DAY, workCards: [] } as unknown as ItemDetail;
+  // Its page head (opened from 작업 or 대화) and its row in the goal lists read what the work tab shows.
+  expect(goalState(model, detail, { goals: [] })).toEqual({ state: "stopped", reason: null, stateSince: NOW - 100 });
+  expect(model.goals.find((each) => each.id === "G8")?.state).toBe("stopped");
+  // Its page lists the same cards with the same names and words as the work tab's rows.
+  const lines = (rows: readonly CardRow[]) => rows.map((each) => [each.id, each.name, each.sub, each.stop?.words]);
+  expect(lines(goalCards(model, detail, { goals: [] }).cards.rows)).toEqual(lines(model.home.stopped.rows));
+  // A goal of another title takes none of them.
+  expect(goalState(model, { ...detail, title: "가상 다른 목표" }, { goals: [] }).state).toBe("waiting");
+});
+
 test("every stopped card is a row: a reference and a hash are cut from its title, and the head counts the rows (lina-app#148)", () => {
   const model = realModel();
   const stoppedCards = cards.filter((each) => each.state === "stopped");
@@ -246,18 +293,46 @@ test("a stopped row says its ask after why it stopped, by the title rule; a deci
   expect(words("s1")).toBe("결정 대기 · 가짜 묶음 주문서 폰 시험");
   // A number and a lone Latin word are words of the title rule; a banned word is not said at all.
   expect(words("s6")).toBe("결정 대기 · 가짜 봇이 lina 235 실사에서 알릴 때까지 기다림");
-  expect(words("s7")).toBe("결정 대기");
+  expect(words("s7")).toBe("결정 대기 · 이유 기록 없음");
   // A goal-less card whose title is kept says its ask after the reason too.
-  expect(words("s8")).toBe("결정 대기 · 원인은 가짜 fakeproxy의 구독 경로(이력이 안 이어지면…");
+  expect(words("s8")).toBe("결정 대기 · 원인은 가짜 fakeproxy의 구독 경로(이력이…");
   // The ask is never a line of its own on a row.
   expect([...model.cards.values()].filter((each) => each.ask)).toEqual([]);
 
   const context = (target: string) => model.inbox.rows.find((each) => each.type === "decide" && each.key === `decide:${target}`);
-  // The to-do's title is raw text; its goal's title still says where the decision sits.
-  expect(context("T1")).toMatchObject({ context: "가상 견적 목표" });
-  // Nothing passes: the context line is empty and is not drawn.
-  expect(context("T2")).toMatchObject({ context: "" });
+  // A reference is cut from a name, as from a row's title.
+  expect(context("T2")).toMatchObject({ context: "가상 회신 대기" });
   expect(context("T3")).toMatchObject({ context: `가상 견적 목표${CRUMB}가상 배경 견적 회신` });
+});
+
+test("a decision row names its goal and to-do by the title rule, a Latin word in a name included (lina-app#170 item 3)", () => {
+  const model = realModel();
+  const decision = model.inbox.rows.find((each) => each.type === "decide" && each.key === "decide:T1");
+  expect(decision).toMatchObject({ context: `가상 견적 목표${CRUMB}fakecorp·가상 회신 대기` });
+  // The same to-do as a 내 할 일 row reads the same name.
+  const mineBoard = { ...board, inbox: { decide: [], mine: [{ id: "T1", title: "fakecorp·가상 회신 대기", agent: "ag-a", due: null }] } } as unknown as BoardSnapshot;
+  const mine = buildModel({ board: mineBoard, items, cards: { cards: [] } as unknown as WorkCardList, cardsAt: NOW, cardDetails: {}, failed: [] }, NOW).inbox.rows.find((each) => each.type === "mine");
+  expect(decision?.type === "decide" && mine?.type === "mine" && decision.context.endsWith(`${CRUMB}${mine.title}`)).toBe(true);
+  // A name in Latin alone is an internal one and stays out; its goal still says where the decision sits.
+  expect(itemContext(model.items, { title: "fake reply wait list", parent: "G1" })).toBe("가상 견적 목표");
+});
+
+test("a to-do's detail head reads its goal and its own name whether its decision is open or answered (lina-app#170 item 4)", () => {
+  const head = (model: ReturnType<typeof buildModel>, id: string) => {
+    const todo = model.items.get(id);
+    return todo ? itemContext(model.items, todo) : null;
+  };
+  // While open, the head is the row that was pressed.
+  const open = realModel();
+  const row = open.inbox.rows.find((each) => each.type === "decide" && each.key === "decide:T3");
+  expect(head(open, "T3")).toBe(row?.type === "decide" ? row.context : "-");
+  // Answered (after the undo window): the row is gone, the head still reads the goal and the to-do.
+  const answeredBoard = { ...board, inbox: { ...board.inbox, decide: board.inbox.decide.map((each) => ({ ...each, answered: true })) } } as BoardSnapshot;
+  const answered = buildModel({ board: answeredBoard, items, cards: { cards: [...cards] } as WorkCardList, cardsAt: NOW, cardDetails: {}, failed: [] }, NOW);
+  expect(answered.inbox.rows.some((each) => each.type === "decide")).toBe(false);
+  expect(head(answered, "T3")).toBe(`가상 견적 목표${CRUMB}가상 배경 견적 회신`);
+  // A to-do with no goal reads its own name.
+  expect(head(answered, "T2")).toBe("가상 회신 대기");
 });
 
 test("a goal with a stopped card reads 중단됨, the same fold the work tab shows (lina-app#148)", () => {

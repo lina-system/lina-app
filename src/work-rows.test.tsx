@@ -58,15 +58,16 @@ describe("work tab rows (lina-app#148)", () => {
     expect(view.getByTestId("section-active").querySelectorAll("[data-testid=row]")).toHaveLength(0);
   });
 
-  test("a decision whose context is raw text draws no context line", async () => {
+  // lina-app#170 item 3: a name with a Latin word in it reads as on its 내 할 일 row, by the row title rule.
+  test("a decision whose to-do's name holds a Latin word draws that name as its context line", async () => {
     const scene = generateScene(SYNTHETIC_SEED, { now: now() });
     const target = scene.board.inbox.decide[0].target;
     const items = { ...scene.items, items: scene.items.items.map((item) => (item.id === target ? { ...item, title: "fakecorp·가상 회신", parent: null } : item)) };
     const board = { ...scene.board, inbox: { ...scene.board.inbox, decide: scene.board.inbox.decide.map((row) => (row.target === target ? { ...row, title: "fakecorp·가상 회신" } : row)) } };
     const view = await open("#/inbox", new SyntheticSource({ scene: { ...scene, items, board } }));
     const rows = within(view.getByRole("list", { name: W.decide })).getAllByTestId("row");
-    expect(rows.some((row) => row.textContent?.includes("fakecorp"))).toBe(false);
-    expect(rows.filter((row) => !row.querySelector(".context")).length).toBe(1);
+    expect(rows.filter((row) => row.querySelector(".context")?.textContent === "fakecorp·가상 회신")).toHaveLength(1);
+    expect(rows.filter((row) => !row.querySelector(".context"))).toHaveLength(0);
   });
 });
 

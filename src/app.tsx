@@ -260,7 +260,7 @@ function TalkRows({ current }: { current?: Route }) {
   );
 }
 
-export function Sidebar({ current, tab = "work" }: { current?: Route; tab?: Tab }) {
+export function Sidebar({ current, tab = "work", settings = false }: { current?: Route; tab?: Tab; settings?: boolean }) {
   const { model } = useApp();
   const is = (name: string, id?: string) => Boolean(current && current.name === name && (id === undefined || ("id" in current && current.id === id)));
   if (tab === "talk") return <TalkRows current={current} />;
@@ -297,6 +297,11 @@ export function Sidebar({ current, tab = "work" }: { current?: Route; tab?: Tab 
       <ul class="nav-group">
         <NavRow to={{ name: "goals" }} icon={<GoalIcon />} label={W.goals} count={model.counts.goals} current={is("goals")} testid="nav-goals" />
       </ul>
+      {settings ? (
+        <ul class="nav-group">
+          <NavRow to={{ name: "settings" }} icon={<GearIcon />} label={W.settings} current={is("settings")} testid="nav-settings" />
+        </ul>
+      ) : null}
       <p class="version" data-testid="version">
         {APP_VERSION}
       </p>
@@ -319,6 +324,8 @@ export function Freshness() {
   let line: { text: string; tone: string };
   if (store.offline || store.denied) line = { text: W.offline, tone: "is-red" };
   else if (store.lastOk === null || store.version === 0) line = { text: W.loading, tone: "" };
+  // A stream that was never open has nothing late yet: its first connection is still being made (lina-app#172).
+  else if (store.live === "connecting") line = { text: W.connecting, tone: "" };
   else if (current) line = { text: W.live, tone: "" };
   else if (store.live === "down" || now - since > STALE_AFTER_S) line = { text: W.stale, tone: "" };
   else line = { text: W.fresh(Math.max(0, Math.floor(now - since))), tone: "" };
@@ -453,9 +460,10 @@ export function Toast() {
 
 /**
  * 작업's menu on a phone (오늘, the lists, the agents, 목표): the first screen is the lines, and the menu opens from the
- * header as a sheet; choosing a row goes there and closes it (lina-app#124). The 대화 list has the same entry (lina-app#167).
+ * header as a sheet; choosing a row goes there and closes it (lina-app#124). The 대화 list has the same entry (lina-app#167),
+ * and so has 상태, whose sheet ends with 설정 (lina-app#172).
  */
-function MenuButton() {
+function MenuButton({ tab }: { tab: Tab }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -486,7 +494,7 @@ function MenuButton() {
             if ((event.target as Element).closest("a")) setOpen(false);
           }}
         >
-          <Sidebar />
+          <Sidebar settings={tab === "status"} />
         </div>
       ) : null}
     </div>
@@ -696,10 +704,8 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
             <BackIcon />
             <span class="one-line">{isRoot ? TAB_WORD[tabOf(screen)] : titleOf(screen, model, store)}</span>
           </button>
-        ) : screen.name === "home" || screen.name === "talks" ? (
-          <MenuButton />
         ) : isRoot ? (
-          <span />
+          <MenuButton tab={tabOf(screen)} />
         ) : (
           <button type="button" class="back" onClick={goBack} data-testid="back">
             <BackIcon />

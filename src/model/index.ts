@@ -23,11 +23,11 @@ import type {
   WorkInbox,
   WorkState,
 } from "../api/client";
-import { BANNED_WORDS, CRUMB, KIND_TITLE, SEP, SOURCE_WORD, STATE_WORD, STOP_WAIT, STOP_WORD, W, reasonWord } from "../words";
+import { BANNED_WORDS, CRUMB, KIND_TITLE, ROUND9_WORD, SEP, SOURCE_WORD, STATE_WORD, STOP_WAIT, STOP_WORD, W, reasonWord } from "../words";
 import { href } from "../router";
 import { clockAt } from "../time";
 import { checksView, type ChecksView } from "./checks";
-import { foldReason, titleMayDraw, withoutRefs } from "./fold";
+import { foldedText, foldReason, titleMayDraw, withoutRefs } from "./fold";
 import { cardKind, type CardKind } from "./kind";
 import { ocxView, usageViews, type OcxView, type UsageRangeView } from "./usage";
 
@@ -120,7 +120,7 @@ export interface CardRow {
    * come first in the stopped group. `retry` is true when running it again can clear the stop (not when it waits on
    * an answer or a review, lina-app#134): only then does the row offer 다시 시도. Null for any other state.
    */
-  readonly stop?: { readonly words: string; readonly known: boolean; readonly owner: boolean; readonly retry: boolean } | null;
+  readonly stop?: { readonly words: string; readonly known: boolean; readonly owner: boolean; readonly retry: boolean; readonly reason?: StopReasonText | null } | null;
   /**
    * A stopped card's ask from the core (lina#690) as its own line under the title. Null on every list row since
    * lina-app#156: the ask is said after the stop's words (`stop.words`), or names the row when nothing else does.
@@ -142,6 +142,19 @@ export interface CardRow {
   readonly readOnly?: boolean;
   /** A finished group's line standing for this many cards whose lines read the same (lina-app#168); absent for one. */
   readonly repeat?: number;
+  /** The title the core names the card's goal by (its `goalTitle`, else its work goal's): what links it to a record goal of that title (goalFold). */
+  readonly goalTitle?: string | null;
+  /** The cards such a line stands for, newest first, the line's own card first (lina-app#171); absent for one. */
+  readonly fold?: readonly CardRow[];
+}
+
+/**
+ * A stop reason longer than its row says (lina-app#171): the words before it (`결정 대기`) and all of it, for the detail,
+ * where the row cuts it at a word. Absent when the row says the whole reason.
+ */
+export interface StopReasonText {
+  readonly lead: string;
+  readonly text: string;
 }
 
 /** Where an answer to a decision goes: the record's item (comments with answer) or a work card's question. */
@@ -333,6 +346,16 @@ export function foldTitle(title: string | null | undefined): string | null {
   return title ? cleanTitle(title) : null;
 }
 
+/**
+ * A goal's or to-do's name as its 결정 필요 row and its detail head read it, in every state (lina-app#157, #170): its
+ * goal's title, then its own, each by the row title rule (foldTitle), so a name with a Latin word in it reads as on its
+ * 내 할 일 row. Empty when neither may be drawn.
+ */
+export function itemContext(items: ReadonlyMap<string, ItemSummary>, item: Pick<ItemSummary, "title" | "parent">): string {
+  const parent = item.parent ? items.get(item.parent) : undefined;
+  return [parent?.kind === "goal" ? parent.title : null, item.title].map(foldTitle).filter(Boolean).join(CRUMB);
+}
+
 /** A stopped card's ask as a row says it: the title rule, and no word the screens never use (lina-app#156). */
 function askLine(text: string | null | undefined): string | null {
   const cut = foldTitle(text);
@@ -352,11 +375,47 @@ function mayDraw(title: string, latin = false): boolean {
 }
 
 /**
- * A line from an agent the row draws under its title (a stopped card's ask, a decision's context): the title rule with
- * no Latin exception, and no word the screens never use (lina-app#148). Null draws no line.
+ * A line from an agent the row draws under its title (a stopped card's ask, a card question's context): the title rule
+ * with no Latin exception, and no word the screens never use (lina-app#148). Null draws no line.
  */
 export function plainLine(text: string | null | undefined): string | null {
   return text && mayDraw(text) && !BANNED_WORDS.some((word) => text.includes(word)) ? text : null;
+}
+
+/** How many letters of a stop reason a row says after its words, so its state line stays two lines at 390 (lina-app#171). */
+export const ROW_REASON_MAX = 30;
+
+/** A text cut at a word end to at most `max` letters with `…`, its line breaks read as spaces; whole when it fits. */
+export function cutAtWord(text: string, max: number): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  const letters = [...flat];
+  if (letters.length <= max) return flat;
+  const head = letters.slice(0, max - 1).join("");
+  const space = head.lastIndexOf(" ");
+  return `${(space > 0 ? head.slice(0, space) : head).replace(/[\s.,:;·]+$/, "")}…`;
+}
+
+/** A text the core cut itself: it ends in a fold marker. */
+const CUT_END = /(?:…|\.\.\.)\s*$/;
+
+/**
+ * The whole reason the core keeps for a stop (the inbox's `blockReason`, lina-app#171) as the detail may show it: each
+ * line through the comments' fold (foldedText), a sentence with no Hangul, an English sentence or a word the screens
+ * never use left out. Null when nothing a person reads is left (an internal word such as a status name).
+ */
+export function stopReasonText(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const kept = text
+    .split("\n")
+    .map((line) =>
+      foldedText(line)
+        .split(/(?<=[.!?。])\s+/)
+        .filter((sentence) => titleMayDraw(sentence) && !BANNED_WORDS.some((word) => sentence.includes(word)))
+        .join(" "),
+    )
+    .filter(Boolean)
+    .join("\n");
+  return kept || null;
 }
 
 /** The time a row last moved: its end, its start or its state's. */
@@ -389,7 +448,7 @@ function collapsed(rows: readonly CardRow[]): CardRow[] {
   for (const row of rows) {
     const key = [row.name, row.sub ?? ""].join("\n");
     const first = lines.get(key);
-    lines.set(key, first ? { ...first, repeat: (first.repeat ?? 1) + 1 } : { ...row, when: null });
+    lines.set(key, first ? { ...first, repeat: (first.repeat ?? 1) + 1, fold: [...(first.fold ?? [first]), row] } : { ...row, when: null });
   }
   return [...lines.values()];
 }
@@ -542,6 +601,14 @@ export function buildModel(input: ModelInput, now: number): Model {
     if (retry === "none" || (isRun && (reason === "failed" || reason === "rejected"))) return { words: [word, W.notRetried].filter(Boolean).join(SEP), known: true, owner: false, retry: again };
     return { words: word ?? STOP_WORD.none, known: false, owner: false, retry: again };
   };
+  // A stopped row's words with its reason (lina-app#171): cut at a word on the row, whole in the detail when cut; a stop
+  // that waits on the owner's decision or feedback with no sentence of why says so instead of leaving a gap.
+  const stopWithReason = (stop: NonNullable<CardRow["stop"]>, reasonKey: string | null, reason: string | null): NonNullable<CardRow["stop"]> => {
+    if (reason === null) return reasonKey && STOP_WAIT[reasonKey] ? { ...stop, words: [stop.words, ROUND9_WORD.noReasonRecord].join(SEP) } : stop;
+    const short = cutAtWord(reason.replace(CUT_END, ""), ROW_REASON_MAX);
+    const words = [stop.words, short].filter(Boolean).join(SEP);
+    return short === reason ? { ...stop, words } : { ...stop, words, reason: { lead: stop.words, text: reason } };
+  };
   // The title of a to-do in the work record (never a goal: a goal names a row last), when it may be drawn.
   const todoName = (ids: readonly (string | null)[]) => ids.map((id) => (id ? itemMap.get(id) : undefined)).map((item) => (item && item.kind !== "goal" ? plainName(item.title) : null)).find(Boolean) ?? null;
   const runListRow = (run: RunCard): CardRow => {
@@ -569,14 +636,18 @@ export function buildModel(input: ModelInput, now: number): Model {
       // its runs take on.
       const fallback = todoName(cardRuns.map((run) => run.todo));
       const goal = plainName((card as CardSummary).goalTitle) ?? plainName(cardGoal.get(card.id)?.title);
-      const row = contextRow(workCardRow(card, input.cardDetails[card.id], receivedAt, cardRuns), goal, fallback, false, card);
+      const row = { ...contextRow(workCardRow(card, input.cardDetails[card.id], receivedAt, cardRuns), goal, fallback, false, card), goalTitle: (card as CardSummary).goalTitle ?? cardGoal.get(card.id)?.title ?? null };
       // A stopped card nothing else names still is a row, named by its ask, else 제목 없음 (lina-app#156). The ask is
       // said after the stop's words, unless it already names the row.
       const ask = card.state === "stopped" ? askLine((card as CardSummary).ask) : null;
       const title = row.title ?? (card.state === "stopped" ? (ask ?? W.untitled) : null);
       // An ask that ends in the status word before it says that word once (lina-app#160).
       const said = ask !== null && ask !== title ? withoutRepeat(ask, row.stop?.words ?? "") : null;
-      const stop = row.stop && said ? { ...row.stop, words: [row.stop.words, said].filter(Boolean).join(SEP) } : row.stop;
+      // The whole reason the inbox keeps (lina-app#171): the core cuts its ask at a length, so a cut ask reads from it.
+      const whole = card.state === "stopped" ? stopReasonText(workInbox?.blocked.find((entry) => entry.cardId === card.id)?.blockReason) : null;
+      const reason = said !== null && CUT_END.test(said) ? (whole ?? said) : (said ?? whole);
+      // An ask that names the row is its reason already.
+      const stop = row.stop && !(ask !== null && ask === title) ? stopWithReason(row.stop, row.reason, reason) : row.stop;
       return { row: { ...row, title, name: title ?? row.name, stop, ask: null }, listed: !isEnded(card) };
     }),
     ...(board?.cards ?? []).map((run) => ({ row: runListRow(run), listed: false })),
@@ -612,12 +683,9 @@ export function buildModel(input: ModelInput, now: number): Model {
       .map(plainLine)
       .filter((part, index, all) => part && all.indexOf(part) === index)
       .join(CRUMB);
-  // A decision's context draws only the parts the title rule lets through (plainLine, lina-app#148); none, no line.
   const contextOf = (target: string) => {
     const item = itemMap.get(target);
-    if (!item) return "";
-    const parent = item.parent ? itemMap.get(item.parent) : undefined;
-    return [parent?.kind === "goal" ? parent.title : null, item.title].map(plainLine).filter(Boolean).join(CRUMB);
+    return item ? itemContext(itemMap, item) : "";
   };
   const hidden = input.pending?.hidden ?? new Set<string>();
   const decideRows: InboxRow[] = [
@@ -689,12 +757,13 @@ export function buildModel(input: ModelInput, now: number): Model {
     );
   const dueSections = [dueSection("overdue", W.dueOverdue), dueSection("today", W.dueToday), dueSection("week", W.dueWeek), dueSection("later", W.dueLater)];
 
+  const parts = { cards: cardMap, unlisted, runs, runOwner, items: itemMap };
   const goals: GoalRow[] = (items?.items ?? [])
     .filter((item) => item.kind === "goal")
     .map((goal) => {
-      const runningTodos = (items?.items ?? []).filter((item) => item.kind === "todo" && item.parent === goal.id && item.state === "in_progress");
+      const runningTodos = (items?.items ?? []).filter((item) => item.kind === "todo" && item.parent === goal.id && todoState(parts, item).state === "in_progress");
       // The goal list reads the work tab's fold of its cards, as its page head does (lina-app#168).
-      const fold = goalFold({ cards: cardMap, unlisted, runs, runOwner, items: itemMap }, goal, []);
+      const fold = goalFold(parts, goal, []);
       return {
         id: goal.id,
         href: href({ name: "goal", id: goal.id }),
@@ -822,7 +891,7 @@ export function agentView(model: Model, agentId: string): AgentView | null {
   const goals = model.goals
     .map((goal) => {
       const todos = [...model.items.values()].filter((item) => item.kind === "todo" && item.parent === goal.id && item.agent === agentId);
-      const runningTodos = todos.filter((todo) => todo.state === "in_progress");
+      const runningTodos = todos.filter((todo) => todoState(model, todo).state === "in_progress");
       const runningCards = goal.runningCards.filter((card) => card.agent === agentId);
       return { goal, row: { ...goal, todosDone: todos.filter((todo) => todo.state === "done").length, todosTotal: todos.length, runningTodos, runningCards, runningCount: Math.max(runningTodos.length, runningCards.length) } };
     })
@@ -843,7 +912,9 @@ export function agentView(model: Model, agentId: string): AgentView | null {
 /** A goal's work cards (kanban goal cards excluded) and the evidence that closed it. */
 export function goalCards(model: Model, detail: ItemDetail, goals: GoalList | undefined): { cards: Section<CardRow>; evidence: { key: string; text: string; at: number | null }[] } {
   const goalCardIds = new Set((goals?.goals ?? []).map((goal) => goal.id));
-  const cards = detail.workCards.filter((id) => !goalCardIds.has(id)).map((id) => model.cards.get(id)).filter((card): card is CardRow => card !== undefined);
+  // Its detail's cards, then the ones the work tab's fold links to it (lina-app#170): the same rows both tabs show.
+  const ids = [...new Set([...detail.workCards.filter((id) => !goalCardIds.has(id)), ...linkedCards(model, goalIds(model, detail.id), [], detail.title).map((card) => card.id)])];
+  const cards = ids.map((id) => model.cards.get(id)).filter((card): card is CardRow => card !== undefined);
   const linked = new Set(detail.workCards);
   const evidence = (goals?.goals ?? [])
     .flatMap((goal) => goal.evidence)
@@ -852,22 +923,51 @@ export function goalCards(model: Model, detail: ItemDetail, goals: GoalList | un
   return { cards: section("cards", W.cards, apart(cards, model.now)), evidence };
 }
 
-type GoalFacts = { readonly id: string; readonly state: WorkState; readonly reason: string | null; readonly stateSince: number | null };
+type GoalFacts = { readonly id: string; readonly title?: string; readonly state: WorkState; readonly reason: string | null; readonly stateSince: number | null };
+type FoldParts = Pick<Model, "cards" | "unlisted" | "runs" | "runOwner" | "items">;
+
+/** A goal's id and its to-dos' ids: the record ids its cards' runs may take on. */
+function goalIds(parts: Pick<Model, "items">, goalId: string): ReadonlySet<string> {
+  return new Set([goalId, ...[...parts.items.values()].filter((item) => item.parent === goalId).map((item) => item.id)]);
+}
 
 /**
- * A goal's state as the work tab folds its cards (lina-app#148, #168): the one derivation its page head (opened from
- * 작업 and from 대화) and its rows in the goal lists read. A done goal stays done; a goal with a stopped card listed on
- * the work tab is 중단됨 since its latest stop; one with a running card is 진행 중 since the first of them started;
- * otherwise the record's own state. Its cards are the ones linked by id: `cardIds` (its detail's work cards) and the
- * cards whose runs take on the goal or one of its to-dos (the hub links its cards no other way).
+ * The listed work cards linked to record ids: `cardIds` (a detail's work cards), the cards whose runs take on one of
+ * `ids`, and the cards the core names the goal titled `goalTitle` as theirs (`goalTitle`, the name the work tab puts
+ * on their rows first; the hub links its cards no other way, lina-app#170).
  */
-function goalFold(parts: Pick<Model, "cards" | "unlisted" | "runs" | "runOwner" | "items">, goal: GoalFacts, cardIds: readonly string[]): GoalFacts & { readonly running: readonly CardRow[] } {
-  const todos = new Set([goal.id, ...[...parts.items.values()].filter((item) => item.parent === goal.id).map((item) => item.id)]);
+function linkedCards(parts: FoldParts, ids: ReadonlySet<string>, cardIds: readonly string[], goalTitle: string | null | undefined): CardRow[] {
   const byRuns = [...parts.runs.values()]
-    .filter((run) => run.todo !== null && todos.has(run.todo))
+    .filter((run) => run.todo !== null && ids.has(run.todo))
     .map((run) => parts.runOwner.get(run.id))
     .filter((id): id is string => id !== undefined);
-  const cards = [...new Set([...cardIds, ...byRuns])].map((id) => parts.cards.get(id)).filter((card): card is CardRow => card !== undefined && !parts.unlisted.has(card.id));
+  const byTitle = goalTitle ? [...parts.cards.values()].filter((card) => card.goalTitle === goalTitle).map((card) => card.id) : [];
+  return [...new Set([...cardIds, ...byRuns, ...byTitle])].map((id) => parts.cards.get(id)).filter((card): card is CardRow => card !== undefined && !parts.unlisted.has(card.id));
+}
+
+/**
+ * A goal's state as the work tab folds its cards (lina-app#148, #168, #170): the one derivation its page head (opened
+ * from 작업 and from 대화) and its rows in the goal lists read. Its cards are the ones linkedCards finds for the goal and
+ * its to-dos; the fold is foldState's.
+ */
+function goalFold(parts: FoldParts, goal: GoalFacts, cardIds: readonly string[]): GoalFacts & { readonly running: readonly CardRow[] } {
+  return foldState(goal, linkedCards(parts, goalIds(parts, goal.id), cardIds, goal.title));
+}
+
+/**
+ * A to-do's state as the work tab folds the cards its runs take it on in (lina-app#170), the rule its goal follows: the
+ * goal page's and the conversation goal view's 할 일 lines and the to-do's own head read it.
+ */
+export function todoState(parts: FoldParts, todo: GoalFacts): { state: WorkState; reason: string | null; stateSince: number | null } {
+  const { state, reason, stateSince } = foldState(todo, linkedCards(parts, new Set([todo.id]), [], null));
+  return { state, reason, stateSince };
+}
+
+/**
+ * A goal's or to-do's state folded from its cards: done stays done; a stopped card makes it 중단됨 since its latest
+ * stop; a running card 진행 중 since the first of them started; otherwise the record's own state.
+ */
+function foldState(goal: GoalFacts, cards: readonly CardRow[]): GoalFacts & { readonly running: readonly CardRow[] } {
   const stopped = cards.filter((card) => card.state === "stopped");
   const running = cards.filter((card) => card.state === "in_progress");
   const facts = { id: goal.id, state: goal.state, reason: goal.reason, stateSince: goal.stateSince };
@@ -879,7 +979,7 @@ function goalFold(parts: Pick<Model, "cards" | "unlisted" | "runs" | "runOwner" 
 }
 
 /** A goal page's head state (goalFold): its cards are the ones its detail links, a linked work goal standing for its cards. */
-export function goalState(model: Model, detail: Pick<ItemDetail, "id" | "state" | "reason" | "stateSince" | "workCards">, goals: GoalList | undefined): { state: WorkState; reason: string | null; stateSince: number | null } {
+export function goalState(model: Model, detail: Pick<ItemDetail, "id" | "title" | "state" | "reason" | "stateSince" | "workCards">, goals: GoalList | undefined): { state: WorkState; reason: string | null; stateSince: number | null } {
   const workGoals = new Map((goals?.goals ?? []).map((goal) => [goal.id, goal]));
   const ids = detail.workCards.flatMap((id) => workGoals.get(id)?.workCards.map((card) => card.id) ?? [id]);
   const { state, reason, stateSince } = goalFold(model, detail, ids);

@@ -8,6 +8,7 @@ export const BACKOFF_MAX_MS = 30_000;
 /**
  * How long a dropped stream must stay down before the store says `down` (lina-app#150): a drop the reconnect mends
  * sooner never shows, so the header cannot alternate 실시간 and 갱신 지연 faster than this. A reconnect says `open` at once.
+ * A stream that was never open stays `connecting` however long its first connection takes (lina-app#172).
  */
 export const LIVE_SETTLE_MS = 3_000;
 
@@ -72,8 +73,8 @@ const browserHost = (): LiveHost => ({
  * The app's one change stream, opened through the store's source. The last cursor stays in memory: a reconnect
  * (after sleep, a network change, or the tab shown again) resumes with `since` and gets what it missed. A resync
  * reads every snapshot once. A failed or dropped connection tries again after a doubling, jittered wait; nothing
- * polls. Once no connection has been open for LIVE_SETTLE_MS, the store says `down` and the freshness line says the
- * screens may be stale.
+ * polls. Once an open stream has had no connection for LIVE_SETTLE_MS, the store says `down` and the freshness line
+ * says the screens may be stale; until the first connection opens it says `connecting`.
  */
 export class Live {
   cursor: string | null = null;
@@ -144,9 +145,9 @@ export class Live {
     this.settling = null;
   }
 
-  /** The stream dropped: `down` only once it has stayed down for the settle time. */
+  /** The stream dropped: `down` only once it has stayed down for the settle time, and only if it was ever open. */
   private wentDown(): void {
-    if (this.settling !== null || this.store.live === "down") return;
+    if (this.settling !== null || this.store.live !== "open") return;
     this.settling = this.host.setTimeout(() => {
       this.settling = null;
       this.store.setLive("down");

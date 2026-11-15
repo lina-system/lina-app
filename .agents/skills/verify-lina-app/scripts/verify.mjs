@@ -1530,13 +1530,16 @@ const drivers = {
       check((await button.innerText()).trim() === "서비스 다시 시작", "the restart control reads " + (await button.innerText()));
       check((await page.locator(".machine-row.is-down").getByRole("button").count()) === 0, "the unreachable node has a button");
       await button.click();
-      const dialog = page.getByRole("dialog", { name: "다시 시작" });
+      // The sheet and its confirmation name the node, so a mis-tap is seen before anything restarts (lina-app#200).
+      const dialog = page.getByRole("dialog", { name: name + " 다시 시작", exact: true });
       await dialog.waitFor();
       await dialog.getByRole("button", { name: "작업 실행기", exact: true }).click();
+      const question = (await dialog.locator(".settings-sheet-text").innerText()).trim();
+      check(question === name + "의 작업 실행기를 다시 시작합니다.", "the confirmation reads " + question);
       await dialog.getByRole("button", { name: "다시 시작", exact: true }).click();
       await dialog.waitFor({ state: "detached" });
       check((await page.getByTestId("write-error").count()) === 0, "the restart showed an error");
-      return name + " restarted, nothing new";
+      return name + " restarted after " + JSON.stringify(question) + ", nothing new";
     });
     await step("read 내 기기", async () => {
       const list = page.getByRole("list", { name: "내 기기", exact: true });

@@ -300,13 +300,13 @@ describe("machines, quota and checks", () => {
     const machine = source.scene.devices.machines.find((item) => item.role === "work" && item.state === "ok");
     expect(machine).toBeTruthy();
     fireEvent.click(view.getByRole("button", { name: `${machine?.name} 서비스 다시 시작` }));
-    const dialog = view.getByRole("dialog", { name: "다시 시작" });
+    const dialog = view.getByRole("dialog", { name: `${machine?.name} 다시 시작` });
     expect(source.deviceWrites).toEqual([]);
     fireEvent.click(within(dialog).getByRole("button", { name: "작업 실행기" }));
     expect(source.deviceWrites).toEqual([]);
     fireEvent.click(view.getByRole("button", { name: "다시 시작" }));
     expect(source.deviceWrites).toEqual([{ device: machine?.name, action: "restart", service: "worker" }]);
-    expect(view.queryByRole("dialog", { name: "다시 시작" })).toBeNull();
+    expect(view.queryByRole("dialog")).toBeNull();
     expect(view.queryByTestId("write-error")).toBeNull();
   });
 
@@ -319,7 +319,7 @@ describe("machines, quota and checks", () => {
     fireEvent.click(view.getByRole("button", { name: "작업 실행기" }));
     fireEvent.click(view.getByRole("button", { name: "다시 시작" }));
     await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("기기가 거절함"));
-    expect(view.queryByRole("dialog", { name: "다시 시작" })).toBeNull();
+    expect(view.queryByRole("dialog")).toBeNull();
   });
 
   test("one quota row per service with its accounts folded under it, known services by their display names", async () => {

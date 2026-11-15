@@ -895,16 +895,17 @@ export function RestartSheet() {
   return (
     <>
       <div class="settings-scrim" aria-hidden="true" onClick={closeRestart} />
-      <div class="settings-sheet" role="dialog" aria-modal="true" aria-label={W.restart} data-testid="restart-sheet">
+      <div class="settings-sheet" role="dialog" aria-modal="true" aria-label={W.restartOf(ask.device)} data-testid="restart-sheet">
         {confirming ? (
           <>
-            <p class="settings-sheet-text">{ask.step === "worker" ? W.restartWorkerConfirm : W.restartOcxConfirm}</p>
+            <p class="settings-sheet-text">{ask.step === "worker" ? W.restartWorkerConfirm(ask.device) : W.restartOcxConfirm(ask.device)}</p>
             <button type="button" class="settings-sheet-button" onClick={send}>
               {W.restart}
             </button>
           </>
         ) : (
           <>
+            <p class="settings-sheet-text">{W.restartServiceOf(ask.device)}</p>
             <button type="button" class="settings-sheet-button" onClick={() => chooseRestart("worker")}>
               {W.restartWorker}
             </button>

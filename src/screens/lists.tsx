@@ -225,7 +225,8 @@ export function RunningScreen() {
       <ListSection section={home.planned} render={(card) => <CardRowView key={card.key} card={card} />} />
       <ListSection section={home.waiting} render={(card) => <CardRowView key={card.key} card={card} />} />
       {[home.recent, home.older].map((section) => (
-        <ListSection key={section.id} section={section} render={(card) => <CardRowView key={card.key} card={card} />} />
+        // A line standing for cards whose lines read the same says how many (lina-app#168).
+        <ListSection key={section.id} section={section} render={(card) => <CardRowView key={card.key} card={card.repeat ? { ...card, name: `${card.name} ${W.repeated(card.repeat)}` } : card} />} />
       ))}
     </div>
   );

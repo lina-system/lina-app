@@ -140,6 +140,8 @@ export interface CardRow {
   readonly when?: string | null;
   /** The card lives on a board the core only reads (lina#481): no write control is drawn for it. */
   readonly readOnly?: boolean;
+  /** A finished group's line standing for this many cards whose lines read the same (lina-app#168); absent for one. */
+  readonly repeat?: number;
 }
 
 /** Where an answer to a decision goes: the record's item (comments with answer) or a work card's question. */
@@ -181,6 +183,8 @@ export interface GoalRow {
   readonly todosDone: number;
   readonly todosTotal: number;
   readonly runningTodos: readonly ItemSummary[];
+  /** The listed work cards running for the goal (goalFold). */
+  readonly runningCards: readonly CardRow[];
   readonly runningCount: number;
   /** Every to-do of the goal is done, whoever owns it (the check box marks the whole goal). */
   readonly allDone: boolean;
@@ -373,6 +377,21 @@ export function apart(rows: readonly CardRow[], now: number): CardRow[] {
     const at = movedAt(row);
     return (seen.get(key(row)) ?? 0) > 1 && at !== null ? { ...row, when: clockAt(at, now) } : row;
   });
+}
+
+/**
+ * A finished group's lines (lina-app#168): cards whose lines read the same (the hub's titles that differ only by a hash
+ * or a number the screen cuts) are one line, the newest of them, which it opens, with how many it stands for
+ * (`repeat`). The rows come newest first; the group head counts the lines.
+ */
+function collapsed(rows: readonly CardRow[]): CardRow[] {
+  const lines = new Map<string, CardRow>();
+  for (const row of rows) {
+    const key = [row.name, row.sub ?? ""].join("\n");
+    const first = lines.get(key);
+    lines.set(key, first ? { ...first, repeat: (first.repeat ?? 1) + 1 } : { ...row, when: null });
+  }
+  return [...lines.values()];
 }
 
 /** The one naming rule: that title, else the kind of work (코드 작업, 문서 작업, 조사, 기기 작업). */
@@ -674,19 +693,22 @@ export function buildModel(input: ModelInput, now: number): Model {
     .filter((item) => item.kind === "goal")
     .map((goal) => {
       const runningTodos = (items?.items ?? []).filter((item) => item.kind === "todo" && item.parent === goal.id && item.state === "in_progress");
+      // The goal list reads the work tab's fold of its cards, as its page head does (lina-app#168).
+      const fold = goalFold({ cards: cardMap, unlisted, runs, runOwner, items: itemMap }, goal, []);
       return {
         id: goal.id,
         href: href({ name: "goal", id: goal.id }),
         title: goal.title,
         agent: goal.agent,
-        state: goal.state,
-        reason: goal.reason,
-        stateSince: goal.stateSince,
+        state: fold.state,
+        reason: fold.reason,
+        stateSince: fold.stateSince,
         doneCondition: goal.doneCondition,
         todosDone: goal.todos?.done ?? 0,
         todosTotal: goal.todos?.total ?? 0,
         runningTodos,
-        runningCount: runningTodos.length,
+        runningCards: fold.running,
+        runningCount: Math.max(runningTodos.length, fold.running.length),
         allDone: (goal.todos?.total ?? 0) > 0 && goal.todos?.done === goal.todos?.total,
       };
     });
@@ -739,8 +761,8 @@ export function buildModel(input: ModelInput, now: number): Model {
       planned: section("planned", STATE_WORD.planned, planned),
       stopped: section("stopped", STATE_WORD.stopped, stopped),
       waiting: section("waiting", STATE_WORD.waiting, waiting.filter((card) => !reviewRows.some((row) => row.type === "review" && row.card.id === card.id))),
-      recent: section("recent", W.doneRecent, recent),
-      older: section("older", W.doneOlder, done.filter((card) => !recent.includes(card))),
+      recent: section("recent", W.doneRecent, collapsed(recent)),
+      older: section("older", W.doneOlder, collapsed(done.filter((card) => !recent.includes(card)))),
     },
     summariesStopped: board?.writer.state === "stopped",
     goals,
@@ -801,7 +823,8 @@ export function agentView(model: Model, agentId: string): AgentView | null {
     .map((goal) => {
       const todos = [...model.items.values()].filter((item) => item.kind === "todo" && item.parent === goal.id && item.agent === agentId);
       const runningTodos = todos.filter((todo) => todo.state === "in_progress");
-      return { goal, row: { ...goal, todosDone: todos.filter((todo) => todo.state === "done").length, todosTotal: todos.length, runningTodos, runningCount: runningTodos.length } };
+      const runningCards = goal.runningCards.filter((card) => card.agent === agentId);
+      return { goal, row: { ...goal, todosDone: todos.filter((todo) => todo.state === "done").length, todosTotal: todos.length, runningTodos, runningCards, runningCount: Math.max(runningTodos.length, runningCards.length) } };
     })
     .filter(({ goal, row }) => goal.agent === agentId || row.todosTotal > 0)
     .map(({ row }) => row);
@@ -829,17 +852,38 @@ export function goalCards(model: Model, detail: ItemDetail, goals: GoalList | un
   return { cards: section("cards", W.cards, apart(cards, model.now)), evidence };
 }
 
+type GoalFacts = { readonly id: string; readonly state: WorkState; readonly reason: string | null; readonly stateSince: number | null };
+
 /**
- * A goal's state as the work tab folds its cards (lina-app#148): a goal with a stopped card listed on the work tab is
- * 중단됨 since its latest stop, whatever the record says; otherwise the record's own state. Its cards are the ones its
- * detail links, a linked work goal standing for its cards.
+ * A goal's state as the work tab folds its cards (lina-app#148, #168): the one derivation its page head (opened from
+ * 작업 and from 대화) and its rows in the goal lists read. A done goal stays done; a goal with a stopped card listed on
+ * the work tab is 중단됨 since its latest stop; one with a running card is 진행 중 since the first of them started;
+ * otherwise the record's own state. Its cards are the ones linked by id: `cardIds` (its detail's work cards) and the
+ * cards whose runs take on the goal or one of its to-dos (the hub links its cards no other way).
  */
-export function goalState(model: Model, detail: Pick<ItemDetail, "state" | "reason" | "stateSince" | "workCards">, goals: GoalList | undefined): { state: WorkState; reason: string | null; stateSince: number | null } {
+function goalFold(parts: Pick<Model, "cards" | "unlisted" | "runs" | "runOwner" | "items">, goal: GoalFacts, cardIds: readonly string[]): GoalFacts & { readonly running: readonly CardRow[] } {
+  const todos = new Set([goal.id, ...[...parts.items.values()].filter((item) => item.parent === goal.id).map((item) => item.id)]);
+  const byRuns = [...parts.runs.values()]
+    .filter((run) => run.todo !== null && todos.has(run.todo))
+    .map((run) => parts.runOwner.get(run.id))
+    .filter((id): id is string => id !== undefined);
+  const cards = [...new Set([...cardIds, ...byRuns])].map((id) => parts.cards.get(id)).filter((card): card is CardRow => card !== undefined && !parts.unlisted.has(card.id));
+  const stopped = cards.filter((card) => card.state === "stopped");
+  const running = cards.filter((card) => card.state === "in_progress");
+  const facts = { id: goal.id, state: goal.state, reason: goal.reason, stateSince: goal.stateSince };
+  if (goal.state === "done") return { ...facts, running };
+  if (stopped.length) return { ...facts, state: "stopped", reason: null, stateSince: maxOf(stopped.map((card) => card.stateAt)), running };
+  const started = running.map((card) => card.startedAt).filter((at): at is number => at !== null);
+  if (running.length) return { ...facts, state: "in_progress", reason: null, stateSince: started.length ? Math.min(...started) : goal.stateSince, running };
+  return { ...facts, running };
+}
+
+/** A goal page's head state (goalFold): its cards are the ones its detail links, a linked work goal standing for its cards. */
+export function goalState(model: Model, detail: Pick<ItemDetail, "id" | "state" | "reason" | "stateSince" | "workCards">, goals: GoalList | undefined): { state: WorkState; reason: string | null; stateSince: number | null } {
   const workGoals = new Map((goals?.goals ?? []).map((goal) => [goal.id, goal]));
   const ids = detail.workCards.flatMap((id) => workGoals.get(id)?.workCards.map((card) => card.id) ?? [id]);
-  const stopped = ids.map((id) => model.cards.get(id)).filter((card): card is CardRow => card !== undefined && card.state === "stopped" && !model.unlisted.has(card.id));
-  if (detail.state === "done" || !stopped.length) return { state: detail.state, reason: detail.reason, stateSince: detail.stateSince };
-  return { state: "stopped", reason: null, stateSince: maxOf(stopped.map((card) => card.stateAt)) };
+  const { state, reason, stateSince } = goalFold(model, detail, ids);
+  return { state, reason, stateSince };
 }
 
 export function quotaHasData(view: QuotaView | undefined): boolean {

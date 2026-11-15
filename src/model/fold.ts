@@ -86,6 +86,20 @@ export function withoutRefs(text: string): string {
   );
 }
 
+/**
+ * A Latin word with what it holds but Hangul (`gate-check`, `notes/a.md`, `9AB`), the particle glued after it and a
+ * `·` glued before it.
+ */
+const LATIN_WORD = String.raw`·?(?<![A-Za-z0-9_])[\w.\-/]*[A-Za-z][\w.\-/]*${PARTICLE}`;
+
+/**
+ * The text with its Latin words cut, each with the particle glued to it, and the debris left tidied (tidyFoldedText,
+ * and an arrow left at either end): the looser reading of a finished card's own title the row rule refuses (lina-app#214).
+ */
+export function withoutLatin(text: string): string {
+  return tidyFoldedText(text.replace(new RegExp(LATIN_WORD, "gu"), " ")).replace(/^→\s*|\s*→$/g, "");
+}
+
 /** A Korean particle standing as its own word: a ref written apart from its particle (`t_e6e0f90a 가`) leaves it alone. */
 const LONE_PARTICLE = String.raw`(?:으로|에서|까지|부터|이라|라고|가|은|는|을|를|라|로|와|과|도|의|만|에)(?=[\s.,!?。]|$)`;
 /** A particle's two forms, after a noun with a final consonant and after one without (을/를, 이/가, 은/는, 과/와, 이라/라). */

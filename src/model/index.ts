@@ -27,7 +27,7 @@ import { BANNED_WORDS, CRUMB, KIND_TITLE, ROUND9_WORD, SEP, SOURCE_WORD, STATE_W
 import { href } from "../router";
 import { clockAt } from "../time";
 import { checksView, type ChecksView } from "./checks";
-import { foldedText, foldReason, titleMayDraw, withoutRefs } from "./fold";
+import { foldedText, foldReason, titleMayDraw, withoutLatin, withoutRefs } from "./fold";
 import { cardKind, type CardKind } from "./kind";
 import { ocxView, usageViews, type OcxView, type UsageRangeView } from "./usage";
 
@@ -355,6 +355,16 @@ function cleanTitle(title: string, latin = false): string | null {
   return cut && (titleMayDraw(cut) || (latin && mayDraw(cut, true))) ? cut : null;
 }
 
+/**
+ * A finished card's own title the row rule refuses (lina-app#214): its refs and Latin words cut (withoutLatin), read
+ * when at least four Hangul letters are left, so 제목 없음 holds only the finished cards nothing names. Stopped, running
+ * and planned rows keep the row rule.
+ */
+function finishedTitle(title: string | null): string | null {
+  const cut = title ? withoutLatin(withoutRefs(title)) : "";
+  return (cut.match(/\p{Script=Hangul}/gu) ?? []).length >= 4 ? cut : null;
+}
+
 /** A title as a row draws it (cleanTitle), for the panes that draw a title or a line of their own (the goals). */
 export function foldTitle(title: string | null | undefined): string | null {
   return title ? cleanTitle(title) : null;
@@ -676,7 +686,8 @@ export function buildModel(input: ModelInput, now: number): Model {
       // A stopped card nothing else names still is a row, named by its ask, else 제목 없음 (lina-app#156). The ask is
       // said after the stop's words, unless it already names the row.
       const ask = card.state === "stopped" ? askLine((card as CardSummary).ask) : null;
-      const title = row.title ?? (card.state === "stopped" ? (ask ?? W.untitled) : null);
+      // A finished card nothing else names reads by the Hangul words of its own title (lina-app#214).
+      const title = row.title ?? (card.state === "stopped" ? (ask ?? W.untitled) : card.state === "done" ? finishedTitle(card.title) : null);
       // An ask that ends in the status word before it says that word once (lina-app#160).
       const said = ask !== null && ask !== title ? withoutRepeat(ask, row.stop?.words ?? "") : null;
       // The whole reason the inbox keeps (lina-app#171): the core cuts its ask at a length, so a cut ask reads from it.

@@ -342,6 +342,17 @@ test("a route the stream asked for that fails to read leaves the earlier copy, s
   again.stop();
 });
 
+test("no copy is written while a list has never answered, so a later page reads every list", async () => {
+  const storage = memory();
+  const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
+  const read = source.read.bind(source);
+  source.read = ((name, id) => (name === "goals" ? Promise.resolve({ kind: "failed", offline: false, at: Math.floor(Date.now() / 1000) }) : read(name, id))) as Source["read"];
+  const page = await open(source, copyIn(storage));
+  expect(page.store.status("goals")).toBe("failed");
+  expect(storage.items.get(KEY)).toBeUndefined();
+  page.stop();
+});
+
 test("the settings are not kept: a page opened again reads them, so its edits carry the ETag of that read", async () => {
   const storage = memory();
   const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });

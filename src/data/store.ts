@@ -176,6 +176,9 @@ export class Store {
     // A route whose last read failed still holds older data: a copy written now would carry it as current under a
     // cursor past the change it missed. The earlier copy stays; it is consistent at its own cursor.
     for (const entry of this.entries.values()) if (entry.status === "failed" && entry.data !== undefined) return;
+    // A list that never answered would be missing from the copy while the cursor says nothing changed: a page opened from
+    // it would not read that list until some event named it. Without every list there is no copy.
+    for (const list of LIST_ROUTES) if (this.entries.get(list)?.data === undefined) return;
     const routes: Record<string, StoredRoute> = {};
     for (const [name, id] of [...LIST_ROUTES.map((list) => [list] as const), ...SLOW_ROUTES, ...this.wanted]) {
       // The settings' writes need the ETag of the read that is on screen, which a kept copy does not hold.

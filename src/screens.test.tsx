@@ -1568,6 +1568,48 @@ describe("agent talk", () => {
     }
   });
 
+  test("a message another device sends while the first history read is out shows once that read has landed (lina-app#209)", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      const source = new SyntheticSource();
+      const real = source.agentTalkHistory.bind(source);
+      const releases: (() => void)[] = [];
+      let held = true;
+      // The first read takes its snapshot now and answers late: what another device adds meanwhile is not in it.
+      source.agentTalkHistory = async (agent) => {
+        const snapshot = await real(agent);
+        if (held) await new Promise<void>((resolve) => releases.push(resolve));
+        return snapshot;
+      };
+      const view = await open("#/talk/ag-1", { wide: true, source });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const otherDevice = new SyntheticSource({ scene: source.scene });
+      const turn = await otherDevice.agentTalk("ag-1", { message: "배포 순서는 정해졌어요?" });
+      if (!turn.ok) throw new Error("the turn was refused");
+      const frames = (async () => {
+        for await (const _ of turn.events);
+      })();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      await frames;
+      held = false;
+      await act(async () => {
+        for (const release of releases) release();
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+      const { box } = parts(view);
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "배포 순서는 정해졌어요?"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("a message sent just before choosing another agent stays in its window, and the reply joins it there", async () => {
     vi.useFakeTimers(TIMERS);
     try {

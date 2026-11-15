@@ -644,6 +644,8 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
   /** The stream's count of changes to this conversation that the window's turns were last read at (lina-app#205). */
   const talkChanges = store.talkChanges(agent);
   const readAt = useRef(talkChanges);
+  /** Counts the first read's ends, so a change that came in while it was out is read once it has landed. */
+  const [historyRead, setHistoryRead] = useState(0);
   const name = agentName(model, agent) || agent;
   const box = outbox(store.source, agent);
   const sending = box.turns.length > 0;
@@ -690,6 +692,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
     void store.source.agentTalkHistory(agent).then((result) => {
       if (!live) return;
       historyPending.current = false;
+      setHistoryRead((count) => count + 1);
       const going = box.turns.filter((turn) => turn.carried).map((turn) => turn.message);
       const whole = box.turns.filter((turn) => turn.carried && !turn.late).map((turn) => turn.message);
       if (result.kind === "data") {
@@ -708,13 +711,15 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
   }, [agent, store]);
 
   // A turn added elsewhere (another device, lina-app#205): the earlier turns are read again and replace what the window
-  // drew from the core, this page's own turns among them. Not while one of this page's turns goes or the first read is
-  // out: its end brings one more event, and the first read holds the change already.
+  // drew from the core, this page's own turns among them. Not while one of this page's turns goes: its end brings one
+  // more event. A change that comes while the first read is out stays unread (its snapshot may be older than the change)
+  // and is read when that read has landed.
   useEffect(() => {
     if (readAt.current === talkChanges) return;
-    readAt.current = talkChanges;
     const box = outbox(store.source, agent);
-    if (box.turns.length || historyPending.current) return;
+    if (historyPending.current) return;
+    readAt.current = talkChanges;
+    if (box.turns.length) return;
     let live = true;
     void store.source.agentTalkHistory(agent).then((result) => {
       if (!live || result.kind !== "data" || box.turns.length) return;
@@ -724,7 +729,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
     return () => {
       live = false;
     };
-  }, [agent, store, talkChanges]);
+  }, [agent, store, talkChanges, historyRead]);
 
   const send = async () => {
     const message = text.trim();

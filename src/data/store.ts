@@ -114,6 +114,8 @@ export class Store {
   private readonly entries = new Map<string, Entry>();
   private readonly listeners = new Set<() => void>();
   private wanted: Want = [];
+  /** Routes a screen read once with ensure (a stopped card comments): read again with every read of the lists, so a resync leaves them current. */
+  private ensured: Want = [];
   private slowReadAt: number | null = null;
   private shown: ModelInput;
   /** A screen lists or counts every finished card: the cards are read without a limit from then on. */
@@ -491,7 +493,7 @@ export class Store {
     this.firstPaint();
     // A slow route the screen draws was read in the first wave when it was due; it keeps its once-a-minute pace.
     const slowRoute = ([name, id]: Want[number]) => SLOW_ROUTES.some(([slowName, slowId]) => slowName === name && slowId === id);
-    const reread = this.wanted.filter((route) => !reading(route) && !slowRoute(route));
+    const reread = distinct([...this.wanted, ...this.ensured]).filter((route) => !reading(route) && !slowRoute(route));
     const secondWave = await Promise.all([...later, ...reread].map(([name, id]) => this.load(name, id)));
     this.refreshes += 1;
     if (secondWave.some(Boolean)) this.changed();
@@ -546,6 +548,8 @@ export class Store {
    * Read after the last cursor whose reads landed, so the kept copy written then stays at least as new as its cursor.
    */
   ensure(routes: Want): void {
+    // Kept for every later read of the lists, so a resync after a missed event reads them again (lina-app#209).
+    this.ensured = distinct([...this.ensured, ...routes]);
     const missing = distinct(routes).filter(([name, id]) => !this.entries.has(this.key(name, id)));
     if (!missing.length) return;
     for (const [name, id] of missing) this.entries.set(this.key(name, id), { status: "pending" });

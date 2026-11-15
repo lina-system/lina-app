@@ -547,3 +547,17 @@ test("a read that lands after another read of the same route keeps the data the 
   expect(store.status("settingsModels")).toBe("ok");
   expect(store.get("settingsModels")?.models).toHaveLength(3);
 });
+
+test("a route read once with ensure is read again with the lists, so a resync leaves it current (lina-app#209)", async () => {
+  const source = new SyntheticSource();
+  const store = new Store(source);
+  await store.refresh();
+  store.ensure([["item", "T4"]]);
+  await vi.waitFor(() => expect(store.get("item", "T4")).toBeTruthy());
+  const before = store.get("item", "T4")?.comments.length ?? 0;
+  const otherDevice = new SyntheticSource({ scene: source.scene });
+  await otherDevice.comment("T4", { text: "다른 기기에서 쓴 댓글" });
+  expect(store.get("item", "T4")?.comments.length).toBe(before);
+  await store.refresh();
+  expect(store.get("item", "T4")?.comments.length).toBe(before + 1);
+});

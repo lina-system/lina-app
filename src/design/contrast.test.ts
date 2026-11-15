@@ -74,3 +74,45 @@ test("a detail's link in accent reaches 4.5:1 in dark", () => {
     expect(contrast(parse(token(dark, "accent")), surface), surfaceName).toBeGreaterThanOrEqual(4.5);
   }
 });
+
+// lina-app#200 item 5: an agent's mark is its first letter in white on its colour, 11-14 px, so the letter needs 4.5:1
+// in light and dark (white on the green one measured 2.0:1 in dark). The colours must not read as the states either
+// (lina-app#190): far from the accent (selection, done), red (stopped), orange (warning) and the machines' green dot.
+const MARK_LETTER: Rgba = [255, 255, 255, 1];
+const OK_DOT = "#34c759";
+
+/** What the scheme computes: its own value, else the one :root sets for both. */
+function schemeToken(block: string, name: string): string {
+  return block === dark && dark.includes(`--${name}:`) ? token(dark, name) : token(light, name);
+}
+
+/** CIE76 distance in Lab, enough to tell a hue apart from a state colour. */
+function lab([r, g, b]: Rgba): [number, number, number] {
+  const linear = (value: number) => {
+    const c = value / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const [lr, lg, lb] = [linear(r), linear(g), linear(b)];
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  const x = f((lr * 0.4124 + lg * 0.3576 + lb * 0.1805) / 0.95047);
+  const y = f(lr * 0.2126 + lg * 0.7152 + lb * 0.0722);
+  const z = f((lr * 0.0193 + lg * 0.1192 + lb * 0.9505) / 1.08883);
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+
+function distance(a: Rgba, b: Rgba): number {
+  const [la, lb] = [lab(a), lab(b)];
+  return Math.hypot(la[0] - lb[0], la[1] - lb[1], la[2] - lb[2]);
+}
+
+test.each([
+  ["light", light],
+  ["dark", dark],
+])("every agent mark's white letter reaches 4.5:1 on its colour, and no colour reads as a state (%s)", (_scheme, block) => {
+  const states = [schemeToken(block, "accent"), schemeToken(block, "red"), schemeToken(block, "orange"), OK_DOT].map(parse);
+  for (let index = 0; index < 6; index++) {
+    const colour = parse(schemeToken(block, `agent-${index}`));
+    expect(contrast(MARK_LETTER, colour), `agent-${index}`).toBeGreaterThanOrEqual(4.5);
+    for (const state of states) expect(distance(colour, state), `agent-${index} against ${state}`).toBeGreaterThanOrEqual(30);
+  }
+});

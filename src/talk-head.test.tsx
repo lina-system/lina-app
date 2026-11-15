@@ -60,6 +60,21 @@ test("an agent without the picture flag gets the letter circle and no image requ
   expect(bar(view, false).querySelector("img")).toBeNull();
 });
 
+test("a core served under a base path gets the picture from under that path", async () => {
+  vi.stubGlobal("__HERMES_BASE_PATH__", "/core/");
+  try {
+    const { view } = await open("#/talk/ag-1", false);
+    const img = await waitFor(() => {
+      const found = bar(view, false).querySelector(".talk-head > .mark img");
+      expect(found).toBeTruthy();
+      return found as HTMLImageElement;
+    });
+    expect(img.getAttribute("src")).toBe("/core/api/lina/agents/ag-1/avatar");
+  } finally {
+    vi.stubGlobal("__HERMES_BASE_PATH__", undefined);
+  }
+});
+
 // Last: a picture that failed is remembered for the page, so later marks of that agent stay the letter circle.
 test("an agent the people list gives a picture draws it in its mark; a picture that fails leaves the letter circle in the same place", async () => {
   const { view, agents } = await open("#/talk/ag-1", false);

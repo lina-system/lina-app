@@ -1,7 +1,7 @@
 import { createContext, type ComponentChildren, type JSX } from "preact";
 import { useContext, useState } from "preact/hooks";
 import { BOARD_BASE, type WorkState } from "../api/client";
-import type { AppLabel } from "../data/http-source";
+import { bootstrapOptions, type AppLabel } from "../data/http-source";
 import type { Store } from "../data/store";
 import type { CardRow, ItemLine, Model, Section } from "../model";
 import { linkClick } from "../router";
@@ -69,8 +69,10 @@ export function AgentMark({ id }: { id: string | null | undefined }) {
   );
 }
 
+/** Under the core's base path like every other read (`__HERMES_BASE_PATH__`), so a prefixed deployment finds the picture. */
 function agentAvatarPath(id: string): string {
-  return `${BOARD_BASE}/agents/${encodeURIComponent(id)}/avatar`;
+  const basePath = (bootstrapOptions().basePath ?? "").replace(/\/+$/, "");
+  return `${basePath}${BOARD_BASE}/agents/${encodeURIComponent(id)}/avatar`;
 }
 
 /** A running card's to-dos as a thin bar and their count (▮▮▮▯▯ 3/5); the number is the text, the bar its picture. */

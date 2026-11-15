@@ -406,10 +406,11 @@ button:disabled {
   font-weight: 600;
 }
 
+/* 36 px in the wide toolbar, near the phone bar's 38 px (lina-app#206). */
 .talk-head > .mark {
-  width: 28px;
-  height: 28px;
-  font-size: 13px;
+  width: 36px;
+  height: 36px;
+  font-size: 15px;
 }
 
 .row > a[aria-current="page"] .mark,
@@ -1168,6 +1169,11 @@ button:disabled {
 
 .usage-row .row-body {
   font-variant-numeric: tabular-nums;
+}
+
+/* The cost and the tokens stay on one line: a name too long for the row wraps before them (lina-app#206). */
+.usage-figures {
+  white-space: nowrap;
 }
 
 /* 점검: only failing, stale and unreadable checks stay open, one row each; passing ones fold into one count. These
@@ -3259,6 +3265,25 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   border-radius: 10px;
   background: var(--bg);
   overflow: hidden;
+}
+
+/* lina-app#206: the strip stays pinned under the bar while a conversation of many screens scrolls, the way the bar
+   itself stays: its room under the bar's edge is the window's grey, so no message shows between the bar and the strip.
+   The bar never moves, so the strip does not slide away and back either. */
+.stack .talk-strip {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 10px var(--inset) 8px;
+  background: var(--bg-2);
+}
+
+.stack .talk-strip:empty {
+  display: none;
+}
+
+.stack .talk-strip > .agent-card.is-folded {
+  margin: 0;
 }
 
 .agent-card-toggle {

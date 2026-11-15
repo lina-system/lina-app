@@ -445,6 +445,44 @@ export async function rowLines(page) {
   );
 }
 
+// The core's client API answering with the synthetic scene and the first agent's long conversation (tests/long-talk.ts),
+// for a page that loads /app/ without ?source=synthetic. The routes are read in Node through Vite, from the same modules
+// the specs import, so the drive and tests/layout-qa15.spec.ts serve one shape (lina-app#206).
+async function serveLongTalk(page) {
+  const { createServer } = await import("vite");
+  const server = await createServer({ root: repo, configFile: false, logLevel: "error", appType: "custom", server: { middlewareMode: true, hmr: false, ws: false }, optimizeDeps: { noDiscovery: true } });
+  const bodies = new Map();
+  let talk;
+  let api;
+  try {
+    api = await server.ssrLoadModule("/src/api/client.ts");
+    const { SyntheticSource } = await server.ssrLoadModule("/src/data/synthetic-source.ts");
+    const { longTalk, LONG_TALK_TURNS } = await server.ssrLoadModule("/tests/long-talk.ts");
+    const source = new SyntheticSource();
+    for (const name of ["board", "items", "goals", "cards", "inbox", "devices", "quota", "modelsState", "checks", "settingsModels"]) {
+      const result = await source.read(name);
+      if (result.kind === "data") bodies.set(api.routePath(name), result.data);
+    }
+    for (const range of api.USAGE_RANGES) {
+      const result = await source.read("usage", range);
+      if (result.kind === "data") bodies.set(api.routePath("usage", range), result.data);
+    }
+    talk = { history: longTalk("ag-1", Math.floor(Date.now() / 1000)), turns: LONG_TALK_TURNS };
+  } finally {
+    await server.close();
+  }
+  await page.route("**/api/**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/auth/ws-ticket") return route.fulfill({ json: { ticket: "one-use" } });
+    if (url.pathname === api.agentTalkPath("ag-1")) return route.fulfill({ json: talk.history });
+    if (url.pathname.startsWith("/api/lina/agents/") && url.pathname.endsWith("/talk")) return route.fulfill({ json: { agent: "", session_id: null, messages: [] } });
+    const body = bodies.get(url.pathname + url.search) ?? bodies.get(url.pathname);
+    return body === undefined ? route.fulfill({ status: 404, json: { detail: "not found" } }) : route.fulfill({ json: body });
+  });
+  await page.routeWebSocket((url) => url.pathname === api.EVENTS_PATH, (socket) => socket.send(JSON.stringify({ cursor: "c1", events: [] })));
+  return talk.turns;
+}
+
 // A context like the drive's, with touch, to send the touches a finger would.
 async function touchContext(page, options = {}) {
   const { width, height } = page.viewportSize();
@@ -3483,6 +3521,50 @@ const drivers = {
         const after = await title.boundingBox();
         check(before && after && Math.round(before.y) === Math.round(after.y) && (await title.isVisible()), "the head moved with the window: " + JSON.stringify([before, after]));
         return heights.join(", ") + " px; head at y " + Math.round(after.y);
+      });
+      await step("phone: a conversation three screens long keeps 에이전트 · 목표 n pinned under the bar, at the end, the middle, the top and one scroll up", async () => {
+        // Its own context with the service worker blocked: the app's worker passes reads past page.route.
+        const context = await touchContext(page, { serviceWorkers: "block" });
+        try {
+          const own = await context.newPage();
+          const turns = await serveLongTalk(own);
+          await own.goto("/app/#/talk/ag-1");
+          await own.getByTestId("talk-reply").nth(turns - 1).waitFor({ timeout: 10_000 });
+          const main = own.locator(".phone-main");
+          const size = await main.evaluate((element) => ({ scroll: element.scrollHeight, client: element.clientHeight }));
+          check(size.scroll >= 3 * size.client, "the conversation is " + size.scroll + " px in a " + size.client + " px window, under three screens");
+          const strip = () =>
+            own.evaluate(() => {
+              const bar = document.querySelector(".navbar").getBoundingClientRect();
+              const toggle = document.querySelector("[data-testid=agent-card] .agent-card-toggle");
+              const box = toggle.getBoundingClientRect();
+              const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+              return { gap: Math.round(document.querySelector("[data-testid=agent-card]").getBoundingClientRect().top - bar.bottom), onTop: Boolean(hit && toggle.contains(hit)) };
+            });
+          const seen = {};
+          await own.waitForFunction(() => {
+            const element = document.querySelector(".phone-main");
+            return element.scrollHeight - element.scrollTop - element.clientHeight < 2;
+          });
+          seen.end = await strip();
+          for (const [name, share] of [
+            ["middle", 0.5],
+            ["top", 0],
+          ]) {
+            await main.evaluate((element, at) => element.scrollTo(0, (element.scrollHeight - element.clientHeight) * at), share);
+            seen[name] = await strip();
+          }
+          await main.evaluate((element) => element.scrollTo(0, element.scrollHeight));
+          const bottom = await main.evaluate((element) => element.scrollTop);
+          await own.mouse.move(195, 500);
+          await own.mouse.wheel(0, -200);
+          await own.waitForFunction((from) => document.querySelector(".phone-main").scrollTop < from - 100, bottom);
+          seen.up = await strip();
+          for (const [name, look] of Object.entries(seen)) check(look.onTop && look.gap >= 8 && look.gap <= 12, "at the " + name + " the strip reads " + JSON.stringify(look));
+          return turns + " replies, " + size.scroll + "/" + size.client + " px; " + Object.entries(seen).map(([name, look]) => name + " " + look.gap + " px under the bar").join(", ");
+        } finally {
+          await context.close();
+        }
       });
     }
     await step("pictures: an agent with avatar: true draws its picture in the bar; a picture that fails leaves the letter circle at the same size", async () => {

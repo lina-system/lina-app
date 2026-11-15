@@ -1067,14 +1067,21 @@ function CheckRow({ check }: { check: OpenCheck }) {
   );
 }
 
-/** One line of the usage panel: a model or a machine, its estimated cost and its tokens. */
+/**
+ * One line of the usage panel: a model or a machine, its estimated cost and its tokens. A long name wraps and the
+ * figures, written as the totals line writes them, move whole to the next line; no figure is cut (lina-app#206).
+ */
 function UsageRowView({ line }: { line: UsageLine }) {
   const text = W.usageLine(line.name, W.cost(line.cost), W.tokens(line.tokens));
   return (
     <li class="row usage-row" data-testid="row">
       <div class="row-body" aria-label={text}>
         <span class="lines">
-          <span class="title one-line">{text}</span>
+          <span class="title wrap-line">
+            {line.name}
+            {SEP}
+            <span class="usage-figures">{W.usageTotal(W.cost(line.cost), W.tokens(line.tokens))}</span>
+          </span>
         </span>
       </div>
     </li>

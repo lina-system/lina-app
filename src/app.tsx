@@ -147,7 +147,10 @@ function Screen({ route }: { route: Route }) {
       if (route.goal) return <GoalScreen id={route.goal} />;
       return (
         <AgentTalk key={route.id} agent={route.id}>
-          <AgentCard agent={route.id} folded />
+          {/* Pinned under the bar while the conversation scrolls, so the strip is never out of reach (lina-app#206). */}
+          <div class="talk-strip">
+            <AgentCard agent={route.id} folded />
+          </div>
         </AgentTalk>
       );
     case "inbox":
@@ -240,7 +243,7 @@ function DeviceLine({ class: className }: { class: string }) {
   );
 }
 
-/** The sidebar of 상태: the machines line and 설정. */
+/** The sidebar of 상태: the machines line and 설정. The pressed tab is the screen's one name, so no head repeats it (lina-app#206). */
 function StatusRows({ current }: { current?: Route }) {
   const { model } = useApp();
   const is = (name: string) => Boolean(current && current.name === name);
@@ -248,15 +251,12 @@ function StatusRows({ current }: { current?: Route }) {
   const devices = W.deviceLine(all, ok, warn, down);
   const deviceParts = [devices.all, devices.ok, warn ? devices.warn : "", down ? devices.down : ""].filter(Boolean);
   return (
-    <>
-      <h2 class="nav-head">{W.status}</h2>
-      <ul class="nav-group" aria-label={W.status}>
-        <NavRow to={{ name: "status" }} icon={<DeviceIcon />} label={deviceParts.join(SEP)} current={is("status")} testid="nav-status">
-          <DeviceLine class="nav-label one-line" />
-        </NavRow>
-        <NavRow to={{ name: "settings" }} icon={<GearIcon />} label={W.settings} current={is("settings") || is("setting")} testid="nav-settings" />
-      </ul>
-    </>
+    <ul class="nav-group" aria-label={W.status}>
+      <NavRow to={{ name: "status" }} icon={<DeviceIcon />} label={deviceParts.join(SEP)} current={is("status")} testid="nav-status">
+        <DeviceLine class="nav-label one-line" />
+      </NavRow>
+      <NavRow to={{ name: "settings" }} icon={<GearIcon />} label={W.settings} current={is("settings") || is("setting")} testid="nav-settings" />
+    </ul>
   );
 }
 

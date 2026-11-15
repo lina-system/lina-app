@@ -19,15 +19,25 @@ export interface UsageRangeView {
   readonly machines: readonly UsageLine[];
 }
 
-function line(row: UsageRow, name: string | null | undefined): UsageLine | null {
-  if (!name) return null;
-  return { name, cost: row.costUsd, tokens: row.tokens.total };
+/**
+ * One line per name: the core serves a row per account (lina-app#178), so one model or machine can come back up to four
+ * times. Their costs and tokens add up; a cost OCX priced in none of the rows stays null.
+ */
+function merged(rows: readonly UsageRow[], nameOf: (row: UsageRow) => string | null | undefined): UsageLine[] {
+  const lines = new Map<string, UsageLine>();
+  for (const row of rows) {
+    const name = nameOf(row);
+    if (!name) continue;
+    const seen = lines.get(name);
+    const cost = seen?.cost == null ? row.costUsd : row.costUsd === null ? seen.cost : seen.cost + row.costUsd;
+    lines.set(name, { name, cost, tokens: (seen?.tokens ?? 0) + row.tokens.total });
+  }
+  return [...lines.values()];
 }
 
-/** The costliest rows first; a row OCX priced none of sorts last, never after one that cost something. */
+/** The costliest lines first; a line OCX priced none of sorts last, never after one that cost something. */
 function topRows(rows: readonly UsageRow[], nameOf: (row: UsageRow) => string | null | undefined): UsageLine[] {
-  const lines = rows.map((row) => line(row, nameOf(row))).filter((each): each is UsageLine => each !== null);
-  return lines.sort((a, b) => (b.cost ?? -1) - (a.cost ?? -1)).slice(0, USAGE_TOP);
+  return merged(rows, nameOf).sort((a, b) => (b.cost ?? -1) - (a.cost ?? -1)).slice(0, USAGE_TOP);
 }
 
 /** One range as the panel reads it; null until the route answered. */

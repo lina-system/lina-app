@@ -1,5 +1,5 @@
 import type { StatusCheck, StatusChecks } from "../api/client";
-import { CHECK_LINE, CHECK_OUTCOME_LINE, type CheckOutcome, glossaryKnows, glossaryToolName, SEP, STATUS_WORD, W } from "../words";
+import { CHECK_LINE, CHECK_OUTCOME_LINE, type CheckOutcome, glossaryKnows, glossaryToolName, SEP, STATUS_WORD } from "../words";
 
 /** A check that has something to say: failing, stale or an unreadable file. */
 export type OpenCheckState = Exclude<StatusCheck["state"], "ok">;
@@ -13,8 +13,6 @@ export interface OpenCheck {
    * the line names and why, when it says them (lina-app#160).
    */
   readonly title: string;
-  /** The core's own line when it is not Korean, folded behind 자세히; null when the title already says it. */
-  readonly original: string | null;
   readonly state: OpenCheckState;
   /** When the check last wrote, so the screen can say how long ago. */
   readonly at: number;
@@ -35,28 +33,6 @@ function outcomeOf(check: StatusCheck): CheckOutcome {
   return said === "ok" || said === "hold" || said === "fail" ? said : check.ok ? "ok" : "fail";
 }
 
-const count = (line: string, mark: string) => line.split(mark).length - 1;
-
-/** The length the core cuts an engine's error at (lina_board_devices: `[:200]`). */
-const CUT_AT = 200;
-
-/**
- * The core cuts an engine's error at a fixed length, which can end inside a word (`(the web Mo`, lina-app#150, #152). A
- * line left with a bracket or a quote open, or as long as the cut, was cut: the bracket or quote its cut left open goes
- * whole, so the line ends at the clause before it (lina-app#160); otherwise it keeps its whole words. Either way it ends
- * in one ellipsis.
- */
-function wholeWords(line: string): string {
-  const open = [
-    count(line, "(") > count(line, ")") ? line.lastIndexOf("(") : -1,
-    count(line, "[") > count(line, "]") ? line.lastIndexOf("[") : -1,
-    count(line, '"') % 2 === 1 ? line.lastIndexOf('"') : -1,
-  ].filter((at) => at > 0);
-  if (open.length) return W.cutShort(line.slice(0, Math.min(...open)).replace(/[\s;:,]+$/, ""));
-  const end = line.trimEnd().lastIndexOf(" ");
-  return line.length >= CUT_AT && end > 0 ? W.cutShort(line.slice(0, end)) : line;
-}
-
 /** The tool an engine's line names (`hold: <tool> on <node> …`), when the glossary knows it; and why it failed (lina-app#160). */
 function lineDetail(line: string): string[] {
   const tool = /^\s*(?:ok|hold|fail)\s*:\s*([\w.-]+)\s+on\s/i.exec(line)?.[1];
@@ -64,15 +40,17 @@ function lineDetail(line: string): string[] {
   return [tool && glossaryKnows(tool) ? glossaryToolName(tool) : null, cause ?? null].filter((part): part is string => Boolean(part));
 }
 
-/** A Korean line reads as written. Any other line (an engine's English error) reads one plain Korean line instead. */
-function plainLine(check: StatusCheck): Pick<OpenCheck, "title" | "original"> {
-  if (HANGUL.test(check.line)) return { title: [check.name, check.line].filter(Boolean).join(SEP), original: null };
+/**
+ * A Korean line reads as written. Any other line (an engine's English error) reads one plain Korean line instead, and
+ * the line itself is never shown (lina-app#178): every Korean part it yields is already in that one line.
+ */
+function plainLine(check: StatusCheck): string {
+  if (HANGUL.test(check.line)) return [check.name, check.line].filter(Boolean).join(SEP);
   const outcome = outcomeOf(check);
-  const original = check.line.trim() ? wholeWords(check.line) : null;
   const detail = lineDetail(check.line);
-  if (Object.hasOwn(CHECK_LINE, check.name)) return { title: [CHECK_LINE[check.name][outcome], ...detail].join(SEP), original };
+  if (Object.hasOwn(CHECK_LINE, check.name)) return [CHECK_LINE[check.name][outcome], ...detail].join(SEP);
   const line = CHECK_OUTCOME_LINE[outcome];
-  return { title: [...(HANGUL.test(check.name) ? [check.name] : []), line, ...detail].join(SEP), original };
+  return [...(HANGUL.test(check.name) ? [check.name] : []), line, ...detail].join(SEP);
 }
 
 /**
@@ -87,7 +65,7 @@ export function checksView(view: StatusChecks | undefined): ChecksView {
       ok += 1;
       continue;
     }
-    open.push({ key: `${check.file}:${index}`, name: check.name, line: check.line, ...plainLine(check), state: check.state, at: check.at });
+    open.push({ key: `${check.file}:${index}`, name: check.name, line: check.line, title: plainLine(check), state: check.state, at: check.at });
   }
   return { open, ok, total: (view?.checks ?? []).length };
 }

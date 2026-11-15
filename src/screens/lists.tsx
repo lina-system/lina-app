@@ -1016,12 +1016,6 @@ function CheckRow({ check }: { check: OpenCheck }) {
           <span class="time">{ago(now - check.at)}</span>
         </span>
       </div>
-      {check.original ? (
-        <details class="check-more">
-          <summary>{W.checkMore}</summary>
-          <p class="check-original">{check.original}</p>
-        </details>
-      ) : null}
     </li>
   );
 }

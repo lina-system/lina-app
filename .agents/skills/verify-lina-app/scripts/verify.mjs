@@ -951,8 +951,9 @@ const drivers = {
       check(rows.slice(0, 3).every((row) => OWNER[row.href] === row.state), "the rows waiting on the owner are not first, or read otherwise: " + rows.map((row) => row.state).join(" | "));
       check(rows.slice(3).every((row) => !Object.hasOwn(OWNER, row.href)), "an owner row is below another row");
       check(!rows.some((row) => /도윤|확인 필요$/.test(row.state.replace(OWNER["#/cards/k-108"], ""))), "a state line names a person: " + rows.map((row) => row.state).join(" | "));
-      // An abbreviation keeps a title (lina-app#156): k-112, with no goal, reads its own title, never whose stopped card it is.
-      check(rows.some((row) => row.href === "#/cards/k-112" && row.title === "CLI 배포 순서 정하기"), "k-112 is not drawn by its own title: " + rows.map((row) => row.title).join(" | "));
+      // k-112, with no goal, reads its own title, never whose stopped card it is; no row title holds a Latin word (lina-app#222).
+      check(rows.every((row) => !/[A-Za-z]/.test(row.title)), "a row title holds a Latin word: " + rows.map((row) => row.title).join(" | "));
+      check(rows.some((row) => row.href === "#/cards/k-112" && row.title === "배포 순서 정하기"), "k-112 is not drawn by its own title: " + rows.map((row) => row.title).join(" | "));
       check(!rows.some((row) => / 중단 카드$/.test(row.title)), "a stopped row says whose stopped card it is: " + rows.map((row) => row.title).join(" | "));
       check(rows.some((row) => / 검토 대기$/.test(row.state)) && rows.some((row) => row.state === "중단됨 · 예산 초과 · 다시 시도 예정") && rows.some((row) => row.state === "중단됨 · 응답 없음 · 다시 시도 안 함"), "the states read " + rows.map((row) => row.state).join(" | "));
       for (const row of rows) check(row.plain === (row.state === "중단됨 · 응답 없음") && (row.plain || row.colour === "rgb(255, 59, 48)"), row.title + " reads " + row.state + " in " + row.colour);

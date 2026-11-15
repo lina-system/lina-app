@@ -340,9 +340,9 @@ test("no row is untitled: work nothing names is not listed, no line counts it, a
   expect(model.counts.stopped).toBe(model.running.sections[0].rows.length);
 });
 
-// lina-app#156: a title with a product's name, an abbreviation or a file name keeps its words in every state; only one
-// with no Hangul, or an English sentence, is not drawn. A stopped card nothing names still is a row.
-test("a title is hidden only when it has no Hangul or runs three Latin words, in every state (lina-app#156)", () => {
+// lina-app#156, #222: a title with a product's name, an abbreviation, a file name or an English sentence is not drawn in
+// any state. A stopped card nothing names still is a row; a finished one reads by its Hangul words (lina-app#214).
+test("a title with a Latin word is not drawn in any state: a stopped card still is a row, a finished one reads by its Hangul words (lina-app#156, #222)", () => {
   const stopped = { ...summary("k-push", "푸시 키 배포와 HTTPS 주소 열기", null, "stopped"), reason: "decision", waitingOn: "owner" };
   const stoppedPath = summary("k-path", "AAS 회차 점검 notes/aas.md", null, "stopped");
   const stoppedLatin = summary("k-latin", "fake gate cleanup", null, "stopped");
@@ -352,14 +352,14 @@ test("a title is hidden only when it has no Hangul or runs three Latin words, in
   const all = [stopped, stoppedPath, stoppedLatin, done, running, sentence];
   const model = buildModel({ cards: { cards: all }, cardDetails: Object.fromEntries(all.map((card) => [card.id, detail(card)])), failed: [] }, NOW);
 
-  expect(model.cards.get("k-push")).toMatchObject({ title: "푸시 키 배포와 HTTPS 주소 열기", name: "푸시 키 배포와 HTTPS 주소 열기" });
-  expect(model.cards.get("k-path")?.name).toBe("AAS 회차 점검 notes/aas.md");
+  expect(model.cards.get("k-push")).toMatchObject({ title: W.untitled, name: W.untitled });
+  expect(model.cards.get("k-path")?.name).toBe(W.untitled);
   // No Hangul and no ask: still a row (lina-app#148), read as 제목 없음, never whose stopped card it is.
   expect(model.cards.get("k-latin")?.name).toBe(W.untitled);
   expect(model.running.sections[0].rows.map((row) => row.id).sort()).toEqual(["k-latin", "k-path", "k-push"]);
   expect(model.counts.stopped).toBe(3);
-  expect(model.cards.get("k-done")?.title).toBe("AAS 회차 점검 마무리");
-  expect(model.cards.get("k-running")?.title).toBe("qveris 일시 오류 정리");
+  expect(model.cards.get("k-done")?.title).toBe("회차 점검 마무리");
+  expect(model.cards.get("k-running")?.title).toBeNull();
   // An English sentence is not drawn; a finished card still is one of 완료's lines (lina-app#196), read by its Hangul
   // words (lina-app#214).
   expect(model.done.map((row) => row.id)).toEqual(["k-done", "k-sentence"]);
@@ -374,9 +374,11 @@ test("a stopped run with no card or goal is named by its own or its to-do's titl
   const latinTodo = homeModel({ ...scene, items: { ...scene.items, items: scene.items.items.map((item) => (item.id === "T15" ? { ...item, title: "qveris 알림 문구 고르기" } : item)) } });
   expect(latinTodo.cards.get("r20")?.name).toBe("qveris 알림 문구 고르기");
   expect(latinTodo.running.sections[0].rows.map((row) => row.id)).not.toContain("r20");
-  // A running run with a readable title is named by it on its page (lina-app#156), and still is no row.
-  const running = withR20({ state: "in_progress", title: "AAS 회차 점검", todo: null });
-  expect(running.cards.get("r20")?.title).toBe("AAS 회차 점검");
+  // A running run with a readable title is named by it on its page (lina-app#156), and still is no row; a Latin word
+  // makes a title no readable one (lina-app#222).
+  const running = withR20({ state: "in_progress", title: "가상 회차 점검", todo: null });
+  expect(running.cards.get("r20")?.title).toBe("가상 회차 점검");
+  expect(withR20({ state: "in_progress", title: "AAS 회차 점검", todo: null }).cards.get("r20")?.title).toBeNull();
   expect(running.running.rows.map((row) => row.id)).not.toContain("r20");
 });
 

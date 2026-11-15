@@ -77,8 +77,9 @@ for (const [comment, shown] of NAMED) {
 
 test("item 6: a comment keeps each sentence that still reads, a ref inside it as the kind it names (lina-app#207)", async () => {
   const { texts } = await thread(["Codex 리뷰 요청함. 남은 범위 lina#718 라 카드 완료 금지."]);
-  expect(texts).toContain("Codex 리뷰 요청함. 남은 범위 이슈라 카드 완료 금지.");
-  for (const text of texts) expect(text).not.toContain("범위 라");
+  // A sentence with a product name in it is no sentence the screens draw (lina-app#222); the next one still is.
+  expect(texts).toContain("남은 범위 이슈라 카드 완료 금지.");
+  for (const text of texts) expect(text).not.toMatch(/범위 라|Codex/);
 });
 
 test("item 6: comments with nothing left in a row are one 접힌 기록 N건 row", async () => {

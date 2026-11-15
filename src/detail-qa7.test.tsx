@@ -113,7 +113,7 @@ function sevenRoundsScene() {
   const cards = { cards: scene.cards.cards.map((card) => (card.id === id ? { ...card, reason: "decision", ask, readOnly: true } : card)) };
   const runs = Array.from({ length: 7 }, (_, index) => {
     const startedAt = scene.now - (8 - index) * DAY;
-    return { id: index + 1, startedAt, endedAt: startedAt + HOUR, lastHeartbeatAt: null, live: false, outcome: null, profile: null, status: "done", summary: `src/report-${index}.ts 경로 정리` };
+    return { id: index + 1, startedAt, endedAt: startedAt + HOUR, lastHeartbeatAt: null, live: false, outcome: null, profile: null, status: "done", summary: `src/report-${index}.ts` };
   });
   const workerRuns = runs.map((run, index) => ({ id: `w${index + 1}x`, kind: "lina-worker" as const, firstSeenAt: run.startedAt + MIN, lastSeenAt: run.endedAt }));
   const cardDetails = { ...scene.cardDetails, [id]: { ...scene.cardDetails[id], reason: "decision", readOnly: true, runs, workerRuns } };

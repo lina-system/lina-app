@@ -27,7 +27,7 @@ import { BANNED_WORDS, CRUMB, KIND_TITLE, ROUND9_WORD, SEP, SOURCE_WORD, STATE_W
 import { href } from "../router";
 import { clockAt } from "../time";
 import { checksView, type ChecksView } from "./checks";
-import { foldedText, foldReason, titleMayDraw, withoutLatin, withoutRefs } from "./fold";
+import { foldedText, foldReason, sentenceMayShow, sentencesOf, withoutLatin, withoutRefs } from "./fold";
 import { cardKind, type CardKind } from "./kind";
 import { ocxView, usageViews, type OcxView, type UsageRangeView } from "./usage";
 
@@ -330,13 +330,14 @@ function maxOf(values: (number | null | undefined)[]): number | null {
 }
 
 /**
- * The title a work card may draw: its checked title, or its own title until the checked one exists, with its card and
- * goal ids, issue references and hashes cut, but only while what is left passes the raw-text rule the app already
- * applies to comments (foldReason). Null means nothing may be drawn, so the goal's title or the kind of work stands in.
- * A stopped card has no exception to the rule (lina-app#152); the last argument is kept for the callers that pass it.
+ * The title a work card may draw: its checked title, or its own title when there is none or the one rule refuses the
+ * checked one (sentenceMayShow, lina-app#222), with its card and goal ids, issue references and hashes cut, but only
+ * while what is left passes that rule (cleanTitle). Null means nothing may be drawn, so the goal's title or the kind of
+ * work stands in. A stopped card has no exception to the rule (lina-app#152); the last argument is kept for the callers
+ * that pass it.
  */
 export function cardTitle(checked: string | null, own: string | null, _stopped = false): string | null {
-  if (checked !== null) return checked;
+  if (checked !== null && sentenceMayShow(checked)) return checked;
   return own === null ? null : cleanTitle(own);
 }
 
@@ -346,28 +347,33 @@ export function ownName(checked: string | null, own: string | null): string | nu
 }
 
 /**
- * A title with its ids, references and hashes cut (withoutRefs), when what is left may be drawn (titleMayDraw,
- * lina-app#156): one with no Hangul or an English sentence is not. A worker run's page also lets a name in Latin alone
- * through when it holds no raw text (`latin`); no row does.
+ * A title with its ids, references and hashes cut (withoutRefs), when what is left passes the one rule every drawn
+ * sentence passes (sentenceMayShow, lina-app#156, #222): one with no Hangul, a Latin word, a product name or a round
+ * label in it is not. A worker run's page also lets a name in Latin alone through when it holds no raw text (`latin`); no
+ * row does.
  */
 function cleanTitle(title: string, latin = false): string | null {
   const cut = withoutRefs(title);
-  return cut && (titleMayDraw(cut) || (latin && mayDraw(cut, true))) ? cut : null;
+  return cut && (sentenceMayShow(cut) || (latin && mayDraw(cut, true))) ? cut : null;
 }
 
 /**
- * A finished card's own title the row rule refuses (lina-app#214): its refs and Latin words cut (withoutLatin), read
- * when at least four Hangul letters are left, so 제목 없음 holds only the finished cards nothing names. Stopped, running
- * and planned rows keep the row rule.
+ * A title the row rule refuses, read by its Hangul words (lina-app#214): its refs and Latin words cut (withoutLatin),
+ * read when at least four Hangul letters are left and what is left passes the one rule (sentenceMayShow, lina-app#222).
+ * A finished card's own title and a record goal's or to-do's title read so (foldTitle), so 제목 없음 holds only what
+ * nothing names. Stopped, running and planned rows and an agent's ask keep the row rule.
  */
 function finishedTitle(title: string | null): string | null {
   const cut = title ? withoutLatin(withoutRefs(title)) : "";
-  return (cut.match(/\p{Script=Hangul}/gu) ?? []).length >= 4 ? cut : null;
+  return (cut.match(/\p{Script=Hangul}/gu) ?? []).length >= 4 && sentenceMayShow(cut) ? cut : null;
 }
 
-/** A title as a row draws it (cleanTitle), for the panes that draw a title or a line of their own (the goals). */
+/**
+ * A record goal's or to-do's title as a row draws it (cleanTitle), else by its Hangul words (finishedTitle, lina-app#222),
+ * for the panes that draw a title or a line of their own (the goals, a decision's context).
+ */
 export function foldTitle(title: string | null | undefined): string | null {
-  return title ? cleanTitle(title) : null;
+  return title ? (cleanTitle(title) ?? finishedTitle(title)) : null;
 }
 
 /**
@@ -382,7 +388,7 @@ export function itemContext(items: ReadonlyMap<string, ItemSummary>, item: Pick<
 
 /** A stopped card's ask as a row says it: the title rule, and no word the screens never use (lina-app#156). */
 function askLine(text: string | null | undefined): string | null {
-  const cut = foldTitle(text);
+  const cut = text ? cleanTitle(text) : null;
   return cut && !BANNED_WORDS.some((word) => cut.includes(word)) ? cut : null;
 }
 
@@ -399,11 +405,12 @@ function mayDraw(title: string, latin = false): boolean {
 }
 
 /**
- * A line from an agent the row draws under its title (a stopped card's ask, a card question's context): the title rule
- * with no Latin exception, and no word the screens never use (lina-app#148). Null draws no line.
+ * A line from an agent the row draws under its title (a stopped card's ask, a card question's context): the raw-text
+ * rule and the one rule every drawn sentence passes (sentenceMayShow, lina-app#222), and no word the screens never use
+ * (lina-app#148). Null draws no line.
  */
 export function plainLine(text: string | null | undefined): string | null {
-  return text && mayDraw(text) && !BANNED_WORDS.some((word) => text.includes(word)) ? text : null;
+  return text && mayDraw(text) && sentenceMayShow(text) && !BANNED_WORDS.some((word) => text.includes(word)) ? text : null;
 }
 
 /** How many letters of a stop reason a row says after its words, so its state line stays two lines at 390 (lina-app#171). */
@@ -424,17 +431,16 @@ const CUT_END = /(?:…|\.\.\.)\s*$/;
 
 /**
  * The whole reason the core keeps for a stop (the inbox's `blockReason`, lina-app#171) as the detail may show it: each
- * line through the comments' fold (foldedText), a sentence with no Hangul, an English sentence or a word the screens
- * never use left out. Null when nothing a person reads is left (an internal word such as a status name).
+ * line through the comments' fold (foldedText: only the sentences the one rule passes, lina-app#222), a sentence with a
+ * word the screens never use left out. Null when nothing a person reads is left (an internal word such as a status name).
  */
 export function stopReasonText(text: string | null | undefined): string | null {
   if (!text) return null;
   const kept = text
     .split("\n")
     .map((line) =>
-      foldedText(line)
-        .split(/(?<=[.!?。])\s+/)
-        .filter((sentence) => titleMayDraw(sentence) && !BANNED_WORDS.some((word) => sentence.includes(word)))
+      sentencesOf(foldedText(line))
+        .filter((sentence) => !BANNED_WORDS.some((word) => sentence.includes(word)))
         .join(" "),
     )
     .filter(Boolean)

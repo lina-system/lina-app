@@ -178,6 +178,16 @@ export function withoutLatin(text: string): string {
   return afterCut(text.replace(new RegExp(LATIN_WORD, "gu"), cutMark)).replace(/^→\s*|\s*→$/g, "");
 }
 
+/**
+ * The text with each word that is an identifier (isIdentifier: a path, a command, a key with its value, a short id) cut,
+ * its sentence end kept, and the debris left tidied: what a history line leaves out of a sentence (firstSentence), so a
+ * folded comment keeps the same sentence (`copy/a.json 키 12개를 바꿈` reads `키 12개를 바꿈`, lina-app#142, #222). Empty when
+ * the cut left a hole (cutLeavesHole).
+ */
+function withoutIdentifiers(text: string): string {
+  return afterCut(text.split(/\s+/).map((word) => (isIdentifier(wordCore(word)) ? cutMark(wordCore(word)) + (/[.!?。]$/.exec(word)?.[0] ?? "") : word)).join(" "));
+}
+
 /** A Korean particle standing as its own word: a ref written apart from its particle (`t_e6e0f90a 가`) leaves it alone. */
 const LONE_PARTICLE = String.raw`(?:으로|에서|까지|부터|이라|라고|가|은|는|을|를|라|로|와|과|도|의|만|에)(?=[\s.,!?。]|$)`;
 /** A particle's two forms, after a noun with a final consonant and after one without (을/를, 이/가, 은/는, 과/와, 이라/라). */
@@ -201,9 +211,6 @@ export function withParticle(noun: string, particle: string): string {
   return noun + (consonant ? pair[0] : pair[1]);
 }
 
-/** The ids a ref is made of, each alone: an issue, a card, goal or to-do id, a hash, a code-looking name. */
-const REF_NAME = String.raw`(?:${ISSUE_REF}|${CARD_ID}|${HASH}|${CODE})`;
-
 /**
  * What kind of thing a name a person does not read names (ROUND15_WORD.nameKind), said where it stood (lina-app#207); null
  * for a time of day, which has no noun to stand in.
@@ -225,15 +232,35 @@ export function nameKind(name: string): string | null {
   return kind.item;
 }
 
+/** A time of day at the start of a word (22:45, 22:45에). */
+export const CLOCK = /^\d{1,2}:\d{2}(?!\d)/;
+
+/** A word without the brackets and quotes around it and the punctuation after it: what isIdentifier and nameKind read. */
+export function wordCore(word: string): string {
+  return word.replace(/^[(\["'“‘]+|[)\]"'”’.,!?。:;…]+$/g, "");
+}
+
 /**
- * A ref inside a sentence with its particle written apart (`152번 a_b 로`), as the kind of thing it names with that
- * particle (`152번 항목으로`, lina-app#207): the sentence keeps its meaning and no particle stands alone. A ref that opens
- * the sentence has no words of its own around it: withoutRefs and leftAsDebris take that sentence whole.
+ * An identifier a person does not read: a card, run or to-do id (G73, T264, t_27363156, OT-QAX1113), a key with its
+ * value (rc=1), a time of day, and every kind of raw text the fold rule names but an English word (a path, a command, a
+ * hash, an issue number, an address).
+ */
+export function isIdentifier(core: string): boolean {
+  if (CLOCK.test(core) || /^[A-Za-z]{1,3}\d+$/.test(core) || /[A-Za-z][\w]*[-_:][\w-]*\d/.test(core) || /#\d/.test(core) || core.includes("=")) return true;
+  const reason = foldReason(core);
+  return reason !== null && reason !== "latin" && reason !== "fragment";
+}
+
+/**
+ * An identifier inside a sentence with its particle written apart (`152번 a_b 로`, `번들 \`dist/\` 를`), as the kind of thing
+ * it names with that particle (`152번 항목으로`, `번들 폴더를`, lina-app#207): the sentence keeps its meaning and no particle
+ * stands alone, so the one rule passes it (lina-app#222). One that opens the sentence has no words of its own around it:
+ * withoutRefs and leftAsDebris take that sentence whole.
  */
 function withKinds(sentence: string): string {
-  const named = new RegExp(String.raw`(?<=\S\s+)([\u0060'"]?)(${REF_NAME})\1\s+(${LONE_PARTICLE})`, "gu");
-  return sentence.replace(named, (whole: string, _quote: string, name: string, particle: string) => {
-    const noun = nameKind(name);
+  const named = new RegExp(String.raw`(?<=\S\s+)(\S+)\s+(${LONE_PARTICLE})`, "gu");
+  return sentence.replace(named, (whole: string, name: string, particle: string) => {
+    const noun = isIdentifier(wordCore(name)) ? nameKind(name) : null;
     return noun ? withParticle(noun, particle) : whole;
   });
 }
@@ -285,45 +312,84 @@ function leftAsDebris(sentence: string, cut: string): boolean {
   if (cut === tidyFoldedText(sentence)) return false;
   if (!cut) return true;
   if (new RegExp(`(?:${REF})\\s+${LONE_PARTICLE}`, "u").test(sentence)) return true;
-  return (!/\s/.test(cut) && !/[.!?。]$/.test(cut) && /\s/.test(sentence.trim())) || readsBroken(cut);
+  return !/\s/.test(cut) && !/[.!?。]$/.test(cut) && /\s/.test(sentence.trim());
 }
 
-/** A start inside another sentence: a closing quote or bracket, a separator, or a particle alone (never `만 원`). */
-const STARTS_INSIDE = new RegExp(String.raw`^(?:[.,:;·…|)\]}\-\u2013\u2014]|['"\u2019\u201d](?:\s|$)|(?!만\s)${LONE_PARTICLE})`, "u");
+/** A start inside another sentence: a closing quote or bracket, a separator, an arrow, or a particle alone (never `만 원`). */
+const STARTS_INSIDE = new RegExp(String.raw`^(?:[.,:;·…|)\]}\-\u2013\u2014→]|['"\u2019\u201d](?:\s|$)|(?!만\s)${LONE_PARTICLE})`, "u");
 /** An end outside a sentence: a separator, an opening bracket or a particle alone, with or without the hub's `…`. */
 const ENDS_OUTSIDE = new RegExp(String.raw`(?:[|·,:;/+\-\u2013\u2014([{]|\s${LONE_PARTICLE})\s*(?:…|\.\.\.)?$`, "u");
 /** Punctuation standing alone (` , `) or doubled where a cut word stood (`,.`, `:,`); an ellipsis is no double. */
 const LONE_PUNCTUATION = /[,:;][.,:;]|\.[,:;]|(?:^|\s)[.,:;|]+(?=\s|$)/;
 /** A bracket pair with nothing readable inside (`()`, `(…)`, `[ , ]`). */
 const EMPTY_BRACKET = /[([{][^\p{L}\p{N}]*[)\]}]/u;
+/** A number with at most a short unit after it and nothing else (`2.`, `5초.`, `(3)`): a list's number or a number's tail. */
+const NUMBER_ALONE = /^\(?\d+(?:[.,]\d+)*\)?\s*\p{Script=Hangul}{0,2}[.!?。…]*$/u;
+/**
+ * A particle with a space before it, its noun gone (`파일 를 고쳤다`). 이, 가, 도, 만 and 에 are words of their own too (`이
+ * 카드`, `오늘 가 볼`): they are a hole only before the end of a clause.
+ */
+const PARTICLE_APART = /\s(?:(?:으로|에서|을|를|은|는|의|로|와|과)(?=[\s.,!?。:;)…]|$)|(?:이|가|도|만|에)(?=[.,!?。:;)…]|$))/u;
+/** A modifier with no noun after it, at the end of a clause (`설정은 노출된.`, `묶음은 이.`). */
+const MODIFIER_ALONE = new RegExp(String.raw`${MODIFIER}\s*(?:[.,!?。:;)…]|$)`, "u");
+/** A Latin letter (an English word, a product name, a round label `S2`, a code `rc 0`) or a ref's `#12`. */
+const LATIN_OR_CODE = /[A-Za-z]|#\d/;
 
 const count = (text: string, mark: string) => text.split(mark).length - 1;
 
+/** Whether every bracket and quote the text opens it also closes. */
+function closes(text: string): boolean {
+  return count(text, "(") === count(text, ")") && count(text, "[") === count(text, "]") && count(text, "\u201c") === count(text, "\u201d") && count(text, "\u2018") === count(text, "\u2019") && count(text, '"') % 2 === 0 && count(text, "'") % 2 === 0;
+}
+
 /**
- * Whether a sentence no longer reads as one once cleaned (lina-app#197): an empty bracket pair or a bracket left open or
- * closed alone, punctuation standing alone or doubled, a separator or a particle alone at either end, or a start inside
- * a clause (a closing quote, a particle). Every history and comment line is drawn only from a sentence that does not
- * (firstSentence, foldedText); a lower-case English word is no word of a history line either (firstSentence).
+ * The one rule a sentence passes to be drawn (lina-app#197, #222): every history line (firstSentence), every sentence of
+ * a folded comment (foldedText) and every title (index.ts: cleanTitle, finishedTitle, plainLine). It fails a sentence
+ * that (a) starts inside another one (a separator, a closing quote, a particle alone, a bare number with its unit, a
+ * list's number), (b) ends open (`:`, `|`, a separator, a particle alone, a bracket or quote left open or closed alone),
+ * (c) has a hole (an empty bracket, punctuation alone or doubled, a particle apart from its noun, a modifier with no
+ * noun), (d) holds a Latin letter or a ref (`PR`, a product name, `S2`, `D1~D7`, `rc 0`, `#12`), or has no Hangul. A
+ * comment draws its next sentence that passes, a title the row's next name; nothing that fails is ever drawn.
  */
-export function readsBroken(sentence: string): boolean {
-  const text = sentence.trim();
-  if (!text || EMPTY_BRACKET.test(text) || LONE_PUNCTUATION.test(text) || STARTS_INSIDE.test(text) || ENDS_OUTSIDE.test(text)) return true;
-  return count(text, "(") !== count(text, ")") || count(text, "[") !== count(text, "]");
+export function sentenceMayShow(sentence: string): boolean {
+  // A list's number before the sentence is no part of it (`1) 가상 설정이 돌았다.`, `2. 빌드 통과.`).
+  const text = sentence.trim().replace(/^\(?\d{1,2}[.)]\s+/, "");
+  if (!HANGUL.test(text) || LATIN_OR_CODE.test(text) || NUMBER_ALONE.test(text)) return false;
+  if (STARTS_INSIDE.test(text) || ENDS_OUTSIDE.test(text) || EMPTY_BRACKET.test(text) || LONE_PUNCTUATION.test(text)) return false;
+  return !PARTICLE_APART.test(text) && !MODIFIER_ALONE.test(text) && closes(text);
+}
+
+/** A list's number as the last word of a piece (`순서는 1.`, `2.`): the item it numbers follows it. */
+const ENDS_ON_LIST_MARK = /(?:^|\s)\(?\d{1,2}[.)]$/;
+
+/**
+ * A line's sentences (lina-app#222): split after `.`, `!`, `?` or `。` with a space after it, never after a list's number
+ * (`순서는 1. 빌드`), so no half is a sentence alone. A dot inside a number, a version or a file name (`0.5`, `1.2.3`,
+ * `a.md`) has no space after it and never splits. The one split of every history line, folded comment and stop reason.
+ */
+export function sentencesOf(line: string): string[] {
+  const sentences: string[] = [];
+  for (const piece of line.split(/(?<=[.!?。])\s+/)) {
+    const last = sentences.at(-1);
+    if (last !== undefined && ENDS_ON_LIST_MARK.test(last)) sentences[sentences.length - 1] = `${last} ${piece}`;
+    else sentences.push(piece);
+  }
+  return sentences;
 }
 
 /**
  * A comment or history text as the screens show it (lina-app#161): each sentence through withoutRefs, and a sentence
  * left as debris (leftAsDebris) dropped whole, an empty labelled field cut alone (withoutEmptyFields), so `가 맡는다`,
  * `범위 라 …` or a bare `주소` never shows. A sentence of only fold markers goes too, and so does one whose cut left a hole
- * (withoutRefs, lina-app#218); a list's lead-in line reads with its first item (withLeadIns). Empty when nothing is
- * left. List titles keep withoutRefs alone: a row never loses its whole title to debris, only to a hole.
+ * (withoutRefs, lina-app#218); a list's lead-in line reads with its first item (withLeadIns). A sentence left that the
+ * one rule fails (sentenceMayShow, lina-app#222) goes too: the comment keeps the ones that pass. Empty when nothing is
+ * left.
  */
 export function foldedText(text: string): string {
   return withLeadIns(text)
     .split("\n")
     .map((line) =>
-      line
-        .split(/(?<=[.!?。])\s+/)
+      sentencesOf(line)
         .map((whole) => {
           if (/…|\.\.\./.test(whole) && ONLY_FOLD_MARKERS.test(whole)) return "";
           const fields = withoutEmptyFields(whole);
@@ -331,28 +397,16 @@ export function foldedText(text: string): string {
           const sentence = withKinds(fields);
           // Its ISO times read as every time on the screens once the refs go, so a cut key leaves no `=` (lina-app#207).
           const cut = timesInText(withoutRefs(sentence));
-          return leftAsDebris(timesInText(sentence), cut) ? "" : cut;
+          if (leftAsDebris(timesInText(sentence), cut)) return "";
+          if (sentenceMayShow(cut)) return cut;
+          const bare = withoutIdentifiers(cut);
+          return bare !== cut && sentenceMayShow(bare) ? bare : "";
         })
         .filter(Boolean)
         .join(" "),
     )
     .filter(Boolean)
     .join("\n");
-}
-
-/**
- * Whether a title, its refs already cut, may be drawn on a row (lina-app#156): only one with no Hangul, or with a run
- * of three Latin words (an English sentence), is hidden. Product and tool names and short abbreviations (PR, QA, gh,
- * OCX) stay.
- */
-export function titleMayDraw(title: string): boolean {
-  if (!HANGUL.test(title)) return false;
-  let run = 0;
-  for (const word of title.split(/\s+/)) {
-    run = /[A-Za-z]/.test(word) && !HANGUL.test(word) ? run + 1 : 0;
-    if (run >= 3) return false;
-  }
-  return true;
 }
 
 export function foldReason(text: string): FoldReason | null {

@@ -2,7 +2,8 @@ import { expect, test } from "vitest";
 import type { BoardSnapshot, ItemDetail, ItemList, RunCard, WorkCardList, WorkGoal } from "../api/client";
 import { generateScene, SYNTHETIC_SEED } from "../fixtures/synthetic";
 import { CRUMB, KIND_TITLE, STATE_WORD, W } from "../words";
-import { agentView, buildModel, cardTitle, doneFor, goalCards, goalState, itemContext, localDay, todoState, type CardRow, type CardSummary, type Section } from "./index";
+import { sentenceMayShow } from "./fold";
+import { agentView, buildModel, cardTitle, doneFor, foldTitle, goalCards, goalState, itemContext, localDay, todoState, type CardRow, type CardSummary, type Section } from "./index";
 
 /**
  * A scene in the shape of the hub's real `/work/cards` rows (lina-app#148): every row carries `goalTitle`, `ask`,
@@ -156,9 +157,9 @@ test("no two rows of a group read the same: line 1 is the goal's title, line 2 t
   expect(card("d6")).toMatchObject({ name: "가상 혼자인 목표", sub: "가짜 혼자 끝난 정리" });
   // The planned group's two rows of one goal read apart by their own names.
   expect(model.home.planned.rows.find((each) => each.id === "p1")).toMatchObject({ name: PUSH, sub: "가짜 푸시 구독 저장" });
-  // The stopped rows of one goal name their own cards too, whatever their asks (lina-app#152); a bracket with no ref in
-  // it keeps its words (lina-app#156).
-  expect(model.home.stopped.rows.filter((each) => each.name === ORDER).map((each) => each.sub ?? null)).toEqual(["가짜 관문: 주문 여러 건 묶기", "가짜 관문: 장 밖 주문 채우기", "가짜 매매 관문(fake-gate·fake-board)을 허브로"]);
+  // The stopped rows of one goal name their own cards too, whatever their asks (lina-app#152); an own name with a Latin
+  // word in it is no second line (lina-app#222).
+  expect(model.home.stopped.rows.filter((each) => each.name === ORDER).map((each) => each.sub ?? null)).toEqual(["가짜 관문: 주문 여러 건 묶기", "가짜 관문: 장 밖 주문 채우기", null]);
 });
 
 // lina-app#168: the hub's finished cards whose titles differ only by a hash the screen cuts.
@@ -245,6 +246,26 @@ test("a finished card the title rule refuses for its Latin words or refs reads b
   expect(model.cards.get("a1")?.title).toBeNull();
   expect(model.cards.get("p1")?.title).toBeNull();
   expect([...model.home.active.rows, ...model.home.planned.rows].map((each) => each.id)).toEqual([]);
+});
+
+// lina-app#222: the round 18 titles, words made up: a goal title, a checked title, an own title and an ask with a Latin
+// word, a product name or a round label in it. Each title the rule refuses gives way to the next name the row has: the
+// card's own title, then the Hangul words of a finished card's own title, else 제목 없음.
+test("a title with a Latin word is never drawn: the row reads by its next name (lina-app#222)", () => {
+  const plain = (title: string) => ({ title, now: null, result: null });
+  const model = realModel([
+    row("g1", "가짜 배경 견적 회신", "in_progress", { goalTitle: "가짜 MV 네 곡 납품" }),
+    row("c1", "가짜 허브 앱 반영", "in_progress", { plain: plain("가짜 허브 앱 반영 (QA 18회차 앞)") }),
+    row("f1", "가짜 PR 검사 정리 마치기", "done", { endedAt: NOW - 600 }),
+    row("k1", "fake gate S2 정리", "stopped", { ask: "가짜 PR 검사 대기", lastHeartbeatAt: NOW - 100 }),
+  ]);
+  expect(model.cards.get("g1")?.title).toBe("가짜 배경 견적 회신");
+  expect(model.cards.get("c1")?.title).toBe("가짜 허브 앱 반영");
+  expect(model.cards.get("f1")?.title).toBe("가짜 검사 정리 마치기");
+  expect(model.cards.get("k1")?.name).toBe(W.untitled);
+  // A record goal's title reads by its Hangul words instead (lina-app#214), never with its Latin word.
+  expect(foldTitle("가짜 MV 네 곡 납품")).toBe("가짜 네 곡 납품");
+  for (const card of model.cards.values()) expect(card.name === W.untitled || sentenceMayShow(card.name), card.name).toBe(true);
 });
 
 test("running, stopped and planned cards never collapse, whatever their titles (lina-app#168)", () => {
@@ -354,11 +375,10 @@ test("a stopped row says its ask after why it stopped, by the title rule; a deci
   const model = realModel();
   const words = (id: string) => model.cards.get(id)?.stop?.words ?? null;
   expect(words("s1")).toBe("결정 대기 · 가짜 묶음 주문서 폰 시험");
-  // A number and a lone Latin word are words of the title rule; a banned word is not said at all.
-  expect(words("s6")).toBe("결정 대기 · 가짜 봇이 lina 235 실사에서 알릴 때까지 기다림");
+  // An ask with a Latin word in it is no reason a row says (lina-app#222); a banned word is not said at all.
+  expect(words("s6")).toBe("결정 대기 · 이유 기록 없음");
   expect(words("s7")).toBe("결정 대기 · 이유 기록 없음");
-  // A goal-less card whose title is kept says its ask after the reason too.
-  expect(words("s8")).toBe("결정 대기 · 원인은 가짜 fakeproxy의 구독 경로(이력이…");
+  expect(words("s8")).toBe("결정 대기 · 이유 기록 없음");
   // The ask is never a line of its own on a row.
   expect([...model.cards.values()].filter((each) => each.ask)).toEqual([]);
 
@@ -368,14 +388,10 @@ test("a stopped row says its ask after why it stopped, by the title rule; a deci
   expect(context("T3")).toMatchObject({ context: `가상 견적 목표${CRUMB}가상 배경 견적 회신` });
 });
 
-test("a decision row names its goal and to-do by the title rule, a Latin word in a name included (lina-app#170 item 3)", () => {
+test("a decision row names its goal and to-do by the title rule, a name with a Latin word in it by its Hangul words (lina-app#170 item 3, #222)", () => {
   const model = realModel();
   const decision = model.inbox.rows.find((each) => each.type === "decide" && each.key === "decide:T1");
-  expect(decision).toMatchObject({ context: `가상 견적 목표${CRUMB}fakecorp·가상 회신 대기` });
-  // The same to-do as a 내 할 일 row reads the same name.
-  const mineBoard = { ...board, inbox: { decide: [], mine: [{ id: "T1", title: "fakecorp·가상 회신 대기", agent: "ag-a", due: null }] } } as unknown as BoardSnapshot;
-  const mine = buildModel({ board: mineBoard, items, cards: { cards: [] } as unknown as WorkCardList, cardsAt: NOW, cardDetails: {}, failed: [] }, NOW).inbox.rows.find((each) => each.type === "mine");
-  expect(decision?.type === "decide" && mine?.type === "mine" && decision.context.endsWith(`${CRUMB}${mine.title}`)).toBe(true);
+  expect(decision).toMatchObject({ context: `가상 견적 목표${CRUMB}가상 회신 대기` });
   // A name in Latin alone is an internal one and stays out; its goal still says where the decision sits.
   expect(itemContext(model.items, { title: "fake reply wait list", parent: "G1" })).toBe("가상 견적 목표");
 });
@@ -423,7 +439,7 @@ const idCards: RealRow[] = [
   row("i6", "가짜 묶음 lina#49 정리", "done", { endedAt: NOW - 3 * DAY }),
 ];
 
-test("no row or detail title shows a card or goal id; Latin words alone do not hide a title (lina-app#152, #156)", () => {
+test("no row or detail title shows a card or goal id or a Latin word (lina-app#152, #156, #222)", () => {
   const model = realModel(idCards);
   const ids = /(?<![0-9A-Za-z])(?:t\d+|[GT]\d+|OT-\d+|t_[0-9a-f]+)(?![0-9A-Za-z])|#\d+/;
   const rows = [...model.home.stopped.rows, ...model.home.planned.rows, ...model.done];
@@ -434,12 +450,13 @@ test("no row or detail title shows a card or goal id; Latin words alone do not h
   expect(card("i2")).toMatchObject({ name: "가상 이름표 목표", sub: "가짜 화면 고치기" });
   expect(card("i3")?.name).toBe("가짜 키 배포");
   expect(card("i4")?.name).toBe("가짜 보고서");
-  // An abbreviation keeps a title (lina-app#156): the card's own title is its second line.
-  expect(card("i5")).toMatchObject({ name: "가상 배포 목표", sub: "CLI 배포 순서 정하기" });
+  // An abbreviation is a Latin word too (lina-app#222): the card's own title is no second line.
+  expect(card("i5")).toMatchObject({ name: "가상 배포 목표" });
+  expect(card("i5")?.sub ?? null).toBeNull();
   expect(card("i6")?.name).toBe("가짜 묶음 정리");
   // The detail head reads the same title rule (cardTitle).
   expect(cardTitle(null, "t93 가짜 목록 정리")).toBe("가짜 목록 정리");
-  expect(cardTitle(null, "CLI 배포 순서 정하기", true)).toBe("CLI 배포 순서 정하기");
+  expect(cardTitle(null, "CLI 배포 순서 정하기", true)).toBeNull();
   expect(cardTitle(null, "fake deploy order")).toBeNull();
 });
 

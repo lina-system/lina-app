@@ -50,16 +50,17 @@ function realShapeScene(options: { noRunning?: boolean } = {}) {
 const rowOf = (root: HTMLElement, id: string) => root.querySelector(`a[href$="/cards/${id}"]`)?.closest("[data-testid=row]") as HTMLElement | null;
 
 describe("work rows keep the readable part of a title (lina-app#156 items 1, 2)", () => {
-  test("rows of one goal read apart by the card's own cleaned title; only a Latin-only title or an English sentence is hidden", async () => {
+  test("rows of one goal read apart by the card's own cleaned title; a title with a Latin word is hidden (lina-app#222)", async () => {
     const view = await open("#/done", new SyntheticSource({ scene: realShapeScene() }));
     const screen = view.getByTestId("screen-done");
     const sub = (id: string) => rowOf(screen, id)?.querySelector("[data-testid=row-sub]")?.textContent ?? null;
     expect(rowOf(screen, "k-swap-1")?.querySelector(".title")?.textContent).toBe("가상 교체 시험");
     expect(sub("k-swap-1")).toBe("가짜 교체 1단계 정리");
-    expect(sub("k-swap-2")).toBe("가짜 OCX 교체 2단계");
+    // An abbreviation is a Latin word too (lina-app#222).
+    expect(sub("k-swap-2")).toBeNull();
     // The ref and the particle glued to it go together; the sentence still reads.
     expect(sub("k-swap-4")).toBe("가짜 교체 판을 올리기");
-    // No Hangul, or a run of three Latin words: hidden, the goal's title alone.
+    // No Hangul, or Latin words: hidden, the goal's title alone.
     expect(sub("k-swap-3")).toBeNull();
     expect(sub("k-swap-5")).toBeNull();
     // The group head still counts its rows.

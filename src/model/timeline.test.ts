@@ -54,7 +54,8 @@ test.each([
   ["완료 조건이 모두 체크됨(가상 일지 두 번, 가상 주간 한 장, 나눠야 할 곳은 나누고 나누면 안 될 곳은 안 나눔)", "완료 조건이 모두 체크됨…"],
   // Sentences that read stay as they are.
   ["22:45 기준으로 문구를 다시 확인함.", "기준으로 문구를 다시 확인함."],
-  ["iPhone에서 다시 확인함.", "iPhone에서 다시 확인함."],
+  // A product name is a Latin word too (lina-app#222): no line.
+  ["iPhone에서 다시 확인함.", null],
   ["가상 화면 (두 번째 판) 정리를 마침.", "가상 화면 (두 번째 판) 정리를 마침."],
 ])("a history line %j reads %j: only a sentence that still reads as one after cleaning (lina-app#197)", (text, shown) => {
   expect(firstSentence(text)).toBe(shown);
@@ -87,6 +88,43 @@ test.each([
 ])("a history line %j reads %j: no lead-in alone and no cut hole (lina-app#218)", (text, shown) => {
   expect(firstSentence(text)).toBe(shown);
   expect(firstSentence(foldedText(plainText(text)))).toBe(shown);
+});
+
+// lina-app#222: the round 18 shapes of the real hub's long cards, words made up. A history line is one sentence the
+// fold's rule passes (sentenceMayShow): the next clean sentence of the comment when the first is not, else none.
+test.each([
+  // The split never cuts after a list's number, and a dot inside a number or a version is no sentence end.
+  ["가짜 순서는 1. 가짜 빌드를 마친다. 다음 문장.", "가짜 순서는 1. 가짜 빌드를 마친다."],
+  ["가짜 지연이 0.5초 늘었다. 가짜 시험을 마침.", "가짜 지연이 0.5초 늘었다."],
+  ["가짜 판 1.2.3을 깔았다. 가짜 시험을 마침.", "가짜 판 1.2.3을 깔았다."],
+  // A Latin word, a short code, a round label or a product name left in the sentence: the next one.
+  ["가짜 PR 검사를 마쳤다. 가짜 시험을 마침.", "가짜 시험을 마침."],
+  ["가짜 S2는 뒤에 얹는다. 가짜 시험을 마침.", "가짜 시험을 마침."],
+  ["가짜 묶음 N1·N2를 닫았다. 가짜 시험을 마침.", "가짜 시험을 마침."],
+  ["가짜 검사가 rc 0으로 끝남. 가짜 시험을 마침.", "가짜 시험을 마침."],
+  ["Codex가 남긴 가짜 지적을 고쳤다. 가짜 시험을 마침.", "가짜 시험을 마침."],
+  // A particle left after a removed number-like token, a quote left open.
+  ["가짜 판을 v2.97 로 올렸다. 가짜 시험을 마침.", "가짜 시험을 마침."],
+  ['가짜 댓글의 세 번 끊겼다"는 틀렸다. 가짜 시험을 마침.', "가짜 시험을 마침."],
+  // No clean sentence: no line.
+  ["가짜 PR (닫음). 가짜 결함 D1~D7을 모았다.", null],
+  // The 60-letter cut never leaves a quote open: it cuts before it.
+  ['가짜 요청은 "가짜 화면을 열 때마다 목록을 통째로 다시 받아 기다리게 하지 말고 지난번 화면을 바로 보여 주기"였다.', "가짜 요청은…"],
+])("a history line %j reads %j: one sentence the rule passes, else the next, else none (lina-app#222)", (text, shown) => {
+  expect(firstSentence(text)).toBe(shown);
+  expect(firstSentence(foldedText(plainText(text)))).toBe(shown);
+});
+
+test("a comment with no clean sentence draws no line of its own: it is one of the folded run (lina-app#222)", () => {
+  const lines = commentHistory([
+    { id: 1, at: 300, author: "worker-a", body: "가짜 정리를 마침." },
+    { id: 2, at: 200, author: "worker-a", body: "가짜 PR 검사를 마쳤다. 가짜 결함 D1~D7을 모았다." },
+    { id: 3, at: 100, author: "worker-a", body: "가짜 판을 v2.97 로 올렸다." },
+  ]);
+  expect(lines.map((line) => [line.at, line.text, line.folded])).toEqual([
+    [300, "가짜 정리를 마침.", 0],
+    [200, null, 2],
+  ]);
 });
 
 /**

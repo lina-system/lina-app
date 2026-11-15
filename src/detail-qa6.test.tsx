@@ -124,6 +124,82 @@ test("item 3: an owner decision newer than the stop is said in one line while th
   expect(within(old.head).queryByTestId("decided-since-stop")).toBeNull();
 });
 
+/**
+ * k-103 as the core serves a work card its failure breaker gave up on (lina-app#211, a disposable core): failed, waiting
+ * on the owner, not tried again, no beat on the row, stopped ten minutes ago; `comments` are the owner's, oldest first,
+ * each `ago` seconds before now. The owner's comment on a card is by `owner`, as the core's answer route writes it.
+ */
+function gaveUp(comments: { body: string; ago: number }[]) {
+  const scene = base(true);
+  const stop = { state: "stopped", reason: "failed", waitingOn: "owner", retry: "none", ask: null, lastHeartbeatAt: null, endedAt: null, readOnly: false } as const;
+  const cards = { cards: scene.cards.cards.map((card) => (card.id === "k-103" ? { ...card, ...stop, elapsedSeconds: 600 } : card)) };
+  const run = { id: 1, profile: scene.cardDetails["k-103"].agent, status: "gave_up", outcome: "gave_up", startedAt: scene.now - 600, endedAt: scene.now - 599, lastHeartbeatAt: null, summary: null, live: false };
+  const owned = comments.map((comment, index) => ({ id: 950 + index, author: "owner", body: comment.body, createdAt: scene.now - comment.ago }));
+  const cardDetails = { ...scene.cardDetails, "k-103": { ...scene.cardDetails["k-103"], ...stop, elapsedSeconds: 600, runs: [run], comments: owned } };
+  return new SyntheticSource({ now: scene.now, scene: { ...scene, cards, cardDetails } });
+}
+
+const RETRY = "다시 시도해 주세요.";
+const DECISION = "오류 문구는 그대로 둠.";
+
+/** The 중단됨 row of k-103 on 진행 중인 작업, then its detail opened from that row: what each says of the owner's last word. */
+async function rowThenDetail(source: SyntheticSource, wide: boolean) {
+  const view = await open("#/running", source, wide);
+  const list = within(view.getByTestId("screen-running"));
+  const link = await waitFor(() => list.getAllByRole("link").find((each) => each.getAttribute("href")?.endsWith("/cards/k-103"))!);
+  const row = link.closest("li") as HTMLElement;
+  // The row has read the card's comments once it reads 요청함 or offers a 다시 시도 that can be pressed.
+  await waitFor(() => expect(within(row).queryByTestId("retry-requested") !== null || (within(row).queryByTestId("retry") as HTMLButtonElement | null)?.disabled === false).toBe(true), { timeout: 5000 });
+  const rowSays = within(row).queryByTestId("retry-requested")?.textContent ?? null;
+  fireEvent.click(link);
+  const head = (await frame(view)).querySelector(".detail-head") as HTMLElement;
+  await waitFor(() => within(head).getByTestId("state"));
+  return { view, row, head, rowSays, requested: within(head).queryByTestId("requested-since-stop")?.textContent ?? null, decided: within(head).queryByTestId("decided-since-stop")?.textContent ?? null };
+}
+
+test("lina-app#211: a retry request newer than the stop reads as the row does, <agent>에게 요청함, never as a decision", async () => {
+  for (const wide of [true, false]) {
+    const { view, rowSays, requested, decided } = await rowThenDetail(gaveUp([{ body: RETRY, ago: 120 }]), wide);
+    expect(rowSays).toMatch(/^\S+에게 요청함$/);
+    expect(requested).toBe(rowSays);
+    expect(decided).toBeNull();
+    view.unmount();
+  }
+});
+
+test("lina-app#211: a retry request older than the stop is neither a request nor a decision", async () => {
+  const { view, row, rowSays, requested, decided } = await rowThenDetail(gaveUp([{ body: RETRY, ago: 20 * MIN }]), true);
+  expect(rowSays).toBeNull();
+  expect(within(row).getByTestId("retry")).toBeTruthy();
+  expect(requested).toBeNull();
+  expect(decided).toBeNull();
+  view.unmount();
+});
+
+test("lina-app#211: a card with a decision and a retry request after the stop says both, whichever came last", async () => {
+  for (const comments of [
+    [{ body: DECISION, ago: 240 }, { body: RETRY, ago: 120 }],
+    [{ body: RETRY, ago: 240 }, { body: DECISION, ago: 120 }],
+  ]) {
+    const { view, rowSays, requested, decided } = await rowThenDetail(gaveUp(comments), true);
+    expect(rowSays).toMatch(/^\S+에게 요청함$/);
+    expect(requested).toBe(rowSays);
+    expect(decided).toBe("결정 기록 있음 · 상태는 아직 중단됨");
+    view.unmount();
+  }
+});
+
+test("lina-app#211: 다시 시도 pressed on the row reads 요청함 in the open detail at once, not 결정 기록 있음", async () => {
+  const { view, row, head, requested } = await rowThenDetail(gaveUp([]), true);
+  expect(requested).toBeNull();
+  fireEvent.click(within(row).getByTestId("retry"));
+  const rowSays = await waitFor(() => within(row).getByTestId("retry-requested").textContent);
+  expect(rowSays).toMatch(/^\S+에게 요청함$/);
+  await waitFor(() => expect(within(head).getByTestId("requested-since-stop").textContent).toBe(rowSays));
+  expect(within(head).queryByTestId("decided-since-stop")).toBeNull();
+  view.unmount();
+});
+
 test("item 4: the head reads the state of the row that was pressed when the detail was fetched later and moved on", async () => {
   const scene = base();
   const running = scene.cards.cards.find((card) => card.state === "in_progress")!;

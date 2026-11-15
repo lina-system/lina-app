@@ -2,7 +2,7 @@ import { Fragment, type ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, RecordRow, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
-import { cardTitle, goalCards, goalState, itemContext, itemLine, runRow, todoState, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
+import { cardTitle, goalCards, goalState, isRetryRequest, itemContext, itemLine, runRow, todoState, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
 import { foldedText, foldReason } from "../model/fold";
 import { plainText } from "../model/plain";
 import { holds } from "../model/rounds";
@@ -757,13 +757,17 @@ function HeadState({ state, reason, row, time, readOnly = false }: { state: Work
  * (결정 대기, 피드백 대기, else the reason's own word) and its ask; 이유 없음 when the card gives neither. A reason longer
  * than its row says (`whole`) is said once, all of it, wrapped, under the words before it (lina-app#171). When the newest
  * of its comments is the owner's, made after the stop, a second line says the owner decided and the state has not
- * moved yet.
+ * moved yet. The owner's 다시 시도 is no decision (lina-app#211): while its row reads `<agent>에게 요청함`, the head
+ * says the same words; a decision as well still has its own line.
  */
-function StopWhy({ reason, words, whole = null, carried, stoppedAt, comments = [] }: { reason: string | null; words: string | null | undefined; whole?: StopReasonText | null; carried: boolean; stoppedAt: number | null; comments?: WorkCardDetail["comments"] }) {
-  const { store } = useApp();
+function StopWhy({ reason, words, whole = null, carried, stoppedAt, comments = [], card }: { reason: string | null; words: string | null | undefined; whole?: StopReasonText | null; carried: boolean; stoppedAt: number | null; comments?: WorkCardDetail["comments"]; card?: CardRow }) {
+  const { model, store } = useApp();
+  const actions = useActions();
   const owner = store.get("items")?.owner?.id ?? "owner";
   const word = waitWord(reason) ?? reasonWord(reason);
-  const newest = comments.filter((comment) => !isMachineNotice(comment.body, comment.author)).sort((a, b) => b.createdAt - a.createdAt)[0];
+  // The row's own rule (RetryControl in lists.tsx): a card it offers 다시 시도 on, asked in its comments or from this page.
+  const requested = Boolean(card?.stop?.retry && (card.asked || actions.requested(card.key)));
+  const newest = comments.filter((comment) => !isMachineNotice(comment.body, comment.author) && !isRetryRequest(comment, owner)).sort((a, b) => b.createdAt - a.createdAt)[0];
   const decided = stoppedAt !== null && newest !== undefined && (newest.author === owner || newest.author === "owner") && newest.createdAt > stoppedAt;
   return (
     <>
@@ -779,6 +783,11 @@ function StopWhy({ reason, words, whole = null, carried, stoppedAt, comments = [
               {line}
             </span>
           ))}
+        </span>
+      ) : null}
+      {requested && card ? (
+        <span class="sub" data-testid="requested-since-stop">
+          {W.requestedTo(agentName(model, card.agent))}
         </span>
       ) : null}
       {decided ? (
@@ -858,7 +867,7 @@ export function CardScreen({ id }: { id: string }) {
       <article class="detail" data-testid="screen-card">
         <CardHead work={row.work} title={row.title}>
           <HeadState state={row.state} reason={row.reason} row={row} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} readOnly={row.readOnly} />
-          {row.state === "stopped" ? <StopWhy reason={row.reason} words={row.stop?.words} whole={row.stop?.reason} carried={stateSaysWhy(row.state, row.reason, row, Boolean(row.readOnly))} stoppedAt={row.stateAt} /> : null}
+          {row.state === "stopped" ? <StopWhy reason={row.reason} words={row.stop?.words} whole={row.stop?.reason} carried={stateSaysWhy(row.state, row.reason, row, Boolean(row.readOnly))} stoppedAt={row.stateAt} card={row} /> : null}
           <OwnTitleLine own={row.own} title={row.title} />
           {row.readOnly ? <ReadOnlyLine agent={row.agent} waits={waitsOnOwner(row.state, row.reason, row)} /> : null}
         </CardHead>
@@ -923,7 +932,7 @@ export function CardScreen({ id }: { id: string }) {
     <article class="detail" data-testid="screen-card">
       <CardHead work={row?.work ?? "code"} title={title}>
         <HeadState state={state} reason={reason} row={row} time={row ? [cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP) : ""} readOnly={readOnly} />
-        {state === "stopped" ? <StopWhy reason={reason} words={row?.stop?.words} whole={row?.stop?.reason} carried={stateSaysWhy(state, reason, row, readOnly)} stoppedAt={row?.stateAt ?? detail.lastHeartbeatAt ?? null} comments={detail.comments} /> : null}
+        {state === "stopped" ? <StopWhy reason={reason} words={row?.stop?.words} whole={row?.stop?.reason} carried={stateSaysWhy(state, reason, row, readOnly)} stoppedAt={row?.stateAt ?? detail.lastHeartbeatAt ?? null} comments={detail.comments} card={row} /> : null}
         <OwnTitleLine own={own} title={title} />
         {goalLine && goalLine !== title ? (
           <span class="sub" data-testid="card-goal">

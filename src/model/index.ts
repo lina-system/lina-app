@@ -546,6 +546,14 @@ const newestFirst = (pick: (row: CardRow) => number | null) => (a: CardRow, b: C
 /** The stopped group's order: rows that wait on the owner first, then the newest stop. */
 const stoppedOrder = (a: CardRow, b: CardRow) => Number(Boolean(b.stop?.owner)) - Number(Boolean(a.stop?.owner)) || newestFirst((card) => card.stateAt)(a, b);
 
+/**
+ * Whether a card's comment is the owner's 다시 시도 (lina-app#208): the request's one trace in the core's record, read
+ * by its row and by its detail, which never counts it as a decision (lina-app#211).
+ */
+export function isRetryRequest(comment: Pick<WorkCardDetail["comments"][number], "author" | "body">, ownerId: string | undefined): boolean {
+  return (comment.author === "owner" || comment.author === ownerId) && comment.body === W.retryText;
+}
+
 export function buildModel(input: ModelInput, now: number): Model {
   const { board, items, cards, inbox: workInbox } = input;
   const today = localDay(now);
@@ -636,7 +644,7 @@ export function buildModel(input: ModelInput, now: number): Model {
   };
   // The owner's 다시 시도 on a card is a comment on it (the core keeps no other trace): one newer than the stop still stands.
   const retryAsked = (detail: WorkCardDetail | undefined, stoppedAt: number | null): boolean | null =>
-    detail ? detail.comments.some((comment) => (comment.author === "owner" || comment.author === items?.owner?.id) && comment.body === W.retryText && (stoppedAt === null || comment.createdAt > stoppedAt)) : null;
+    detail ? detail.comments.some((comment) => isRetryRequest(comment, items?.owner?.id) && (stoppedAt === null || comment.createdAt > stoppedAt)) : null;
   // The title of a to-do in the work record (never a goal: a goal names a row last), when it may be drawn.
   const todoName = (ids: readonly (string | null)[]) => ids.map((id) => (id ? itemMap.get(id) : undefined)).map((item) => (item && item.kind !== "goal" ? plainName(item.title) : null)).find(Boolean) ?? null;
   const runListRow = (run: RunCard): CardRow => {

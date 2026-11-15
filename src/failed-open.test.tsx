@@ -1,4 +1,4 @@
-import { act, render } from "@testing-library/preact";
+import { act, fireEvent, render } from "@testing-library/preact";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "./app";
 import { Live, type LiveHost } from "./data/live";
@@ -6,7 +6,8 @@ import { nowSeconds, type Source } from "./data/source";
 import { Store } from "./data/store";
 import { SyntheticSource } from "./data/synthetic-source";
 
-// lina-app#199: an open whose reads all failed heals by itself once the core answers.
+// lina-app#199: an open whose reads all failed heals by itself once the core answers, and a screen whose reads all
+// failed says one thing and draws no list as empty.
 const TIMERS: Parameters<typeof vi.useFakeTimers>[0] = { toFake: ["Date", "setInterval", "clearInterval", "setTimeout", "clearTimeout"] };
 
 beforeEach(() => {
@@ -142,4 +143,32 @@ for (const wide of [false, true]) {
     expect(view.queryByTestId("read-failed")).toBeNull();
   });
 
+  test(`at ${wide ? 1280 : 390} a screen whose reads all failed says 읽기 실패 with 다시 시도 alone, and draws no list as empty`, async () => {
+    setWide(wide);
+    window.history.replaceState(null, "", "/app/#/");
+    const core = flakyCore();
+    const view = render(<App store={new Store(core.source)} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    const head = view.getByTestId("freshness");
+    expect(head.textContent).not.toContain("불러오는 중");
+    expect(head.textContent).not.toContain("연결 중");
+    expect(head.textContent?.match(/읽기 실패/g)).toHaveLength(1);
+    const page = document.body.textContent ?? "";
+    expect(page).not.toContain("없음");
+    expect(page).not.toContain("불러오는 중");
+    expect(view.queryByTestId("home-mine")).toBeNull();
+    expect(view.queryByText("할 일 추가")).toBeNull();
+    expect(view.queryByTestId("count")).toBeNull();
+
+    // 다시 시도 reads again at once.
+    core.failing = false;
+    await act(async () => {
+      fireEvent.click(view.getByRole("button", { name: "다시 시도" }));
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(view.getAllByTestId("row").length).toBeGreaterThan(0);
+    expect(view.queryByTestId("read-failed")).toBeNull();
+  });
 }

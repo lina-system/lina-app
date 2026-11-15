@@ -394,6 +394,17 @@ export class Store {
   }
 
   /**
+   * A list whose every read failed (lina-app#199): what it holds is not known, so no screen counts it 0 or calls it
+   * empty. With no name, any of the lists.
+   */
+  unread(name?: RouteName): boolean {
+    return (name === undefined ? LIST_ROUTES : [name]).some((list) => {
+      const entry = this.entries.get(list);
+      return entry?.status === "failed" && entry.data === undefined;
+    });
+  }
+
+  /**
    * Reads again every route whose last read failed (lina-app#199). A read that fails again keeps what the route held,
    * and the kept copy is written only once nothing failed, so a failed read never overwrites it.
    */

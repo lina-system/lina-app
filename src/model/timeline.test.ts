@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import type { RecordRound, RunRecord } from "../api/client";
 import type { ItemDetail } from "../api/client";
+import { foldedText } from "./fold";
 import { commentHistory, firstSentence, goalHistory, historyLines, isMachineNotice, outcomeOf, timelineBlocks } from "./timeline";
 
 const round = (fields: Partial<RecordRound>): RecordRound => ({ run: 1, startedAt: 100, endedAt: null, endKnown: false, startUnknown: false, result: null, verdict: null, stopped: false, rows: [], ...fields });
@@ -27,6 +28,36 @@ test("a history sentence is the first sentence with ids, paths and commands take
   // Nothing a person can read is left: no sentence, the row says so in its own words.
   expect(firstSentence("https://example.com/a/b deploy.sh --force")).toBeNull();
   expect(firstSentence(null)).toBeNull();
+});
+
+// lina-app#197: the shapes the hub's history and comment lines took after cleaning (round 13, input/ of the brief), the
+// words made up. Each is drawn only as a sentence that still reads as one; else the next one, else none (the row keeps
+// its own word). The card's comments go through the fold first (historyText), a record row straight to firstSentence.
+test.each([
+  // A leading clause fragment: the quoted name before it was code, or the line opens on a particle.
+  ["fake_option' 값은 꺼져 있고 이유 문구가 붙어 있다. 다음 판에서 다시 확인함.", "다음 판에서 다시 확인함."],
+  ["는 꺼져 있고 이유가 붙어 있다. 가상 정리를 마침.", "가상 정리를 마침."],
+  // A dangling bracket and lone punctuation where a link and a hash were.
+  ["실행: [정리 기록](https://fake.example.test/a) (정리 커밋 포함), a1b2c3d4. 남은 일은 없음.", "남은 일은 없음."],
+  ["실행: [정리 기록](https://fake.example.test/a) (정리 커밋 포함), a1b2c3d4.", null],
+  // A subject that was only a link and a hash.
+  ["PR: [링크](https://fake.example.test/pull/1) (a1b2c3d4),.", null],
+  // A value cut by the hub inside its bracket.
+  ["주소: https://fake.example.test:1 (허브는 가상 호스트·포트 다…", null],
+  // Only a fragment, with the hub's `…` or a table's `|` after it.
+  ["범위 라 …", null],
+  ["가상 문서 정리 |", null],
+  // A list number opens the sentence: the sentence stays, the number goes.
+  ["1) 가상 설정이 긴 답에서 돌았다. 둘째 문장.", "가상 설정이 긴 답에서 돌았다."],
+  // The 60-letter cut never leaves a bracket open: it cuts before it.
+  ["완료 조건이 모두 체크됨(가상 일지 두 번, 가상 주간 한 장, 나눠야 할 곳은 나누고 나누면 안 될 곳은 안 나눔)", "완료 조건이 모두 체크됨…"],
+  // Sentences that read stay as they are.
+  ["22:45 기준으로 문구를 다시 확인함.", "기준으로 문구를 다시 확인함."],
+  ["iPhone에서 다시 확인함.", "iPhone에서 다시 확인함."],
+  ["가상 화면 (두 번째 판) 정리를 마침.", "가상 화면 (두 번째 판) 정리를 마침."],
+])("a history line %j reads %j: only a sentence that still reads as one after cleaning (lina-app#197)", (text, shown) => {
+  expect(firstSentence(text)).toBe(shown);
+  expect(firstSentence(foldedText(text))).toBe(shown);
 });
 
 /**

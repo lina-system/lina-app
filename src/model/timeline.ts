@@ -1,6 +1,6 @@
 import type { ItemDetail, RecordRound, RecordRow, RunRecord } from "../api/client";
 import { STATE_WORD, STATE_WORDS, stateLabel, W } from "../words";
-import { foldReason } from "./fold";
+import { foldReason, readsBroken } from "./fold";
 import { holds } from "./rounds";
 
 /** How long a history row's sentence may be, in characters, before it is cut with `…` (lina-app#142). */
@@ -43,13 +43,17 @@ function isIdentifier(core: string): boolean {
   return reason !== null && reason !== "latin" && reason !== "fragment";
 }
 
+/** A list's number before a sentence (`1)`, `(2)`): no part of it. */
+const LIST_MARK = /^\(?\d{1,2}\)\s+/;
+
 /**
  * One sentence as a person reads it, or null: its identifiers are left out, and it is dropped whole when it holds an
- * English word, starts inside a word or a number (.5초), or is mostly not Korean, so no word is ever cut or spliced.
+ * English word, starts inside a word or a number (.5초), a quote or a bracket, is a table's cell, is mostly not
+ * Korean, or what is left no longer reads as a sentence (readsBroken, lina-app#197), so no word is ever cut or spliced.
  */
 function readable(sentence: string): string | null {
-  const words = sentence.split(/\s+/).filter(Boolean);
-  if (!words.length || /^[.,:;·…—-]/.test(words[0])) return null;
+  const words = sentence.replace(LIST_MARK, "").split(/\s+/).filter(Boolean);
+  if (!words.length || /^[.,:;·…—|)\]}-]|^['"’”]$/.test(words[0]) || /\|\s*$/.test(sentence)) return null;
   const kept: string[] = [];
   let removed = false;
   for (const word of words) {
@@ -67,7 +71,17 @@ function readable(sentence: string): string | null {
   let shown = kept.join(" ");
   const end = /[.!?。]$/.exec(sentence)?.[0];
   if (end && !shown.endsWith(end)) shown = `${shown.replace(/[,.:;]$/, "")}${end}`;
-  return shown;
+  return readsBroken(shown) ? null : shown;
+}
+
+/** Where the first bracket the text leaves open starts, or -1. */
+function openBracket(text: string): number {
+  const open: number[] = [];
+  for (const [index, mark] of [...text].entries()) {
+    if (mark === "(" || mark === "[") open.push(index);
+    else if ((mark === ")" || mark === "]") && open.length) open.pop();
+  }
+  return open[0] ?? -1;
 }
 
 /**
@@ -83,9 +97,12 @@ export function firstSentence(text: string | null | undefined, max = SENTENCE_MA
   if (!shown) return null;
   const letters = [...shown];
   if (letters.length <= max) return shown;
-  const head = letters.slice(0, max - 1).join("");
+  const head = letters.slice(0, max - 1);
+  // A cut inside a bracket cuts before it, so no bracket is left open (lina-app#197); else at the last word end.
+  const open = openBracket(head.join(""));
   const space = head.lastIndexOf(" ");
-  return `${(space > 0 ? head.slice(0, space) : head).replace(/[,.:;]$/, "")}…`;
+  const kept = open > 0 ? head.slice(0, open) : space > 0 ? head.slice(0, space) : head;
+  return `${kept.join("").replace(/[\s,.:;]+$/, "")}…`;
 }
 
 /** A line that is a state word and nothing else (완료, 진행 중, 검토 통과). */

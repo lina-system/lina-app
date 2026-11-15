@@ -141,6 +141,10 @@ test.each([
   ["결과: ✅, 커밋: a1b2c3d.", "결과: ✅."],
   ["결과: 배포 성공, 커밋: a1b2c3d. 정리함.", "결과: 배포 성공. 정리함."],
   ["결과: 배포 성공, 커밋: a1b2c3d! 확인함.", "결과: 배포 성공! 확인함."],
+  // lina-app#197: a cut that leaves lone punctuation or opens on a closing quote is no sentence; one that reads stays.
+  ["실행: [정리 기록](https://fake.example.test/a) (정리 커밋 포함), a1b2c3d4. 남은 일은 없음.", "남은 일은 없음."],
+  ["fake_option' 값은 꺼져 있다. 다음 판에서 다시 확인함.", "다음 판에서 다시 확인함."],
+  ["가상 화면 a1b2c3d4 정리를 마침.", "가상 화면 정리를 마침."],
 ])("foldedText(%j) keeps only what still reads: %j (lina-app#161)", (comment, shown) => {
   expect(foldedText(comment)).toBe(shown);
 });

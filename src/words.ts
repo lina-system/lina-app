@@ -630,3 +630,11 @@ export const ROUND9_WORD = {
   /** That agent's conversation, as its link reads. */
   talkWith: (name: string) => `${name} 대화`,
 };
+
+/** lina-app#179: the words added in UI QA round 11. */
+export const ROUND11_WORD = {
+  /** A pending decision's one state word: 수신함's row, its record's head and its goal's 할 일 say it (STOP_WAIT.decision). */
+  decisionWait: STOP_WAIT.decision,
+  /** A card's detail with nothing of its own to show yet (no to-do, run, line or comment), one line under its head. */
+  nothingYet: "아직 기록 없음",
+};

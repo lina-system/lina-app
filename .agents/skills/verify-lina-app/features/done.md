@@ -13,7 +13,7 @@
 - Only cards in state 완료; failed or review-needed cards never show here.
 - Newest first.
 - Each card reads `완료 · <when it ended>` (`완료 · 30분 전`, `완료 · 2일 전`), with the kind icon, agent mark and name. How long it took (`소요 20분`) is in its detail head, never on the row.
-- The sidebar count equals the rows.
+- The sidebar count equals the rows, and the rows are the lines the work tab lists under `최근 완료` and `완료`: cards whose lines read the same are one line `<title> ×N` opening the newest, counted once (lina-app#168, #179). Each filter choice counts the lines it lists.
 - An agent filter sits above the list: `전체` and each agent with its count. Choosing one keeps it in the address (`#/done?agent=<id>`), so a reload or a live update keeps it; each count equals the list it shows, and the filtered list shows the agent's `최근 활동` (work-cards.md).
 
 ## Sub-features
@@ -39,6 +39,7 @@ Preconditions:
 - **Total in the detail.** Choose the first row: its detail head reads `완료 · <n> 전 · 소요 <n>분`.
 - **Filter.** Driven in work-cards.md: the address keeps the agent, a reload keeps it pressed, counts equal lists.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/done/done-1280.{png,aria.yml,json}` and `done-390.{png,aria.yml,json}`.
+- **Hub shape, lines (lina-app#179).** Load `/app/?source=synthetic&hub=round11#/done`: three finished cards titled alike but for a hash are one `허브 앱 빌드 올리기 ×3` line; the list's rows, the `전체` choice's count, the sidebar's `완료` (at 1280) and the work tab's `최근 완료` plus `완료` rows are the same number.
 
 ## Gotchas
 

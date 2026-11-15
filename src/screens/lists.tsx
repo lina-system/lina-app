@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { USAGE_RANGES, type Machine, type PersonDevice, type PowerStation, type PowerView, type QuotaAccount, type QuotaService, type RunnerCell, type UsageRange } from "../api/client";
 import type { CardRow, DueRow, GoalRow, InboxRow, Section } from "../model";
-import { agentView, doneFor, foldTitle, localDay } from "../model";
+import { agentView, doneFor, foldTitle, itemLineOf, localDay } from "../model";
 import type { OpenCheck } from "../model/checks";
 import { stopReason } from "../model/stop-reason";
 import type { UsageLine } from "../model/usage";
@@ -11,7 +11,7 @@ import { useEffect, useState } from "preact/hooks";
 import { useActions } from "../ui/actions";
 import { QuickAddButton, QuickAddForm } from "../ui/quick-add";
 import { AgentMark, agentName, CardRowView, CountPair, Dial, Disclosure, DoneCheck, Empty, ErrorLine, Link, ListSection, SectionHead, useApp } from "../ui/parts";
-import { glossaryToolName, machineWhy, metricsReason, serviceName, SEP, STATUS_WORD, toolCommand, versionOf, W } from "../words";
+import { glossaryToolName, machineWhy, metricsReason, ROUND11_WORD, serviceName, SEP, stateLabel, STATUS_WORD, toolCommand, versionOf, W } from "../words";
 import { writeError } from "./write-error";
 
 type DecideRow = Extract<InboxRow, { type: "decide" }>;
@@ -19,12 +19,14 @@ type DecideRow = Extract<InboxRow, { type: "decide" }>;
 /**
  * A decision is one row that opens its record in the one detail frame at once (lina-app#142): the full sentence, `진행
  * 대기:` when to-dos wait on it, and the answer buttons (the recommended one marked) or a field stand there. Answering
- * hides the row and holds the answer back for the toast (see Actions.answer).
+ * hides the row and holds the answer back for the toast (see Actions.answer). Its word is its record's state line, the
+ * one its head and its goal's 할 일 read (itemLine); a card's question waits on a decision (lina-app#179).
  */
 function DecisionRow({ row }: { row: DecideRow }) {
   const { model, now, selected } = useApp();
   const name = agentName(model, row.agent);
-  const kind = row.ask ? W.ask : W.act;
+  const line = row.target.kind === "item" ? itemLineOf(model, row.target.id) : null;
+  const kind = line ? stateLabel(line.state, line.reason) : ROUND11_WORD.decisionWait;
   return (
     <li class="row inbox-row decision-row" data-testid="row">
       <Link href={row.href} label={[name, row.text, kind].filter(Boolean).join(SEP)} current={selected === row.href}>
@@ -236,7 +238,7 @@ export function RunningScreen() {
       <ListSection section={home.waiting} render={(card) => <CardRowView key={card.key} card={card} />} />
       {[home.recent, home.older].map((section) => (
         // A line standing for cards whose lines read the same says how many (lina-app#168).
-        <ListSection key={section.id} section={section} render={(card) => <CardRowView key={card.key} card={card.repeat ? { ...card, name: `${card.name} ${W.repeated(card.repeat)}` } : card} />} />
+        <ListSection key={section.id} section={section} render={(card) => <CardRowView key={card.key} card={repeatedLine(card)} />} />
       ))}
     </div>
   );
@@ -281,9 +283,14 @@ function LatestLine({ agentId, testid }: { agentId: string; testid: string }) {
   );
 }
 
+/** A finished line that stands for cards whose lines read the same says how many (lina-app#168). */
+function repeatedLine(card: CardRow): CardRow {
+  return card.repeat ? { ...card, name: `${card.name} ${W.repeated(card.repeat)}` } : card;
+}
+
 /**
  * 완료, for every agent or one. The filter is the address (`#/done?agent=<id>`), so it survives a reload and every
- * live update; each choice's count is the length of the list it shows.
+ * live update; each choice's count is the length of the list it shows: the lines the work tab lists (lina-app#179).
  */
 export function DoneScreen({ agent }: { agent?: string }) {
   const { model } = useApp();
@@ -308,7 +315,7 @@ export function DoneScreen({ agent }: { agent?: string }) {
       {shown.length ? (
         <ul class="rows" aria-label={W.done}>
           {shown.map((card) => (
-            <CardRowView key={card.key} card={card} />
+            <CardRowView key={card.key} card={repeatedLine(card)} />
           ))}
         </ul>
       ) : (

@@ -56,7 +56,7 @@ function round8Scene() {
 }
 
 describe("finished lines collapse (lina-app#168 item 1)", () => {
-  test("five cards that differ only by a hash are one 완료 line ×5 opening the newest; the head counts lines, the sidebar cards", async () => {
+  test("five cards that differ only by a hash are one 완료 line ×5 opening the newest; the head and the sidebar count lines", async () => {
     const view = await open("#/running", new SyntheticSource({ scene: round8Scene() }));
     const older = view.getByTestId("section-older");
     const rows = within(older).getAllByTestId("row").filter((row) => row.textContent?.includes(DEPLOY));
@@ -64,8 +64,9 @@ describe("finished lines collapse (lina-app#168 item 1)", () => {
     expect(rows[0].querySelector(".title")?.textContent).toBe(`${DEPLOY} ${W.repeated(5)}`);
     expect(rows[0].querySelector("a")?.getAttribute("href")).toMatch(/\/cards\/k-deploy-1$/);
     expect(Number(older.querySelector("[data-testid=count]")?.textContent)).toBe(within(older).getAllByTestId("row").length);
-    const doneCards = round8Scene().cards.cards.filter((card) => card.state === "done").length;
-    expect(Number(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")?.textContent)).toBe(doneCards);
+    // The sidebar's 완료 is the lines the work tab lists (lina-app#179), never the cards behind them.
+    const lines = ["section-recent", "section-older"].map((id) => view.queryByTestId(id)?.querySelectorAll("[data-testid=row]").length ?? 0).reduce((a, b) => a + b, 0);
+    expect(Number(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")?.textContent)).toBe(lines);
   });
 });
 

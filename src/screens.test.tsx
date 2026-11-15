@@ -2698,9 +2698,9 @@ describe("the run's own timeline", () => {
     const view = await open("#/cards/k-101", { wide: true, source: new FailingSource((name) => (name === "record" ? "failed" : null)) });
     await waitFor(() => expect(view.getByTestId("timeline-error").textContent).toBe("읽기 실패: 기록"));
     expect(view.queryAllByTestId("timeline-block")).toHaveLength(0);
-    // The worker links never disappear: 실행 stands under the error line.
+    // The worker links never disappear: they stand under the error line, in the one 기록 with no second head (lina-app#179).
     const boxes = [...view.getByTestId("screen-card").querySelectorAll(":scope > .box > .box-head")].map((head) => head.textContent);
-    expect(boxes).toEqual(["지금", "할 일", "기록", "실행", "댓글"]);
+    expect(boxes).toEqual(["지금", "할 일", "기록", "댓글"]);
     expect([...view.getByTestId("worker-runs").querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual(["#/runs/r1", "#/runs/r10", "#/runs/r9"]);
     expect(view.getByTestId("card-now").textContent).toContain("변경마다 한 줄 요약을 붙이는 중");
     expect(within(view.getByTestId("card-comments")).getAllByTestId("history-row")).toHaveLength(4);

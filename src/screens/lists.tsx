@@ -151,12 +151,16 @@ function StoppedSection({ section }: { section: Section<CardRow> }) {
 /**
  * The owner's to-dos on the home (lina-app#152): their head with every to-do counted, the first three rows, then one
  * fold for the rest. 할 일 추가 beside the head opens the one-line form (lina-app#95), so the head is drawn with no rows
- * too.
+ * too. A to-do just added stands first, where the form was, above the fold: the core lists it last (lina-app#175).
  */
 function MineSection({ section }: { section: Section<InboxRow> }) {
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
-  const shown = open ? section.rows : section.rows.slice(0, MINE_SHOWN);
+  // The rows listed before the add was taken: any row the record brings beyond them is one just added.
+  const [before, setBefore] = useState<ReadonlySet<string> | null>(null);
+  const added = before ? section.rows.filter((row) => !before.has(row.key)) : [];
+  const rest = section.rows.filter((row) => !added.includes(row));
+  const shown = open ? section.rows : [...added, ...rest.slice(0, MINE_SHOWN)];
   return (
     <section class="list-section" data-testid="home-mine">
       <div class="mine-head">
@@ -166,7 +170,13 @@ function MineSection({ section }: { section: Section<InboxRow> }) {
       <ul class="rows" aria-label={section.title}>
         {adding ? (
           <li class="row quick-add-row">
-            <QuickAddForm onClose={() => setAdding(false)} onAdded={() => setAdding(false)} />
+            <QuickAddForm
+              onClose={() => setAdding(false)}
+              onAdded={() => {
+                setAdding(false);
+                setBefore(new Set(rest.map((row) => row.key)));
+              }}
+            />
           </li>
         ) : null}
         {shown.map((row) => (
@@ -313,7 +323,8 @@ export function goalProgress(goal: Pick<GoalRow, "todosDone" | "todosTotal">): s
   return goal.todosTotal > 0 ? W.progress(goal.todosDone, goal.todosTotal) : "";
 }
 
-export function GoalLine({ goal, showAgent }: { goal: GoalRow; showAgent: boolean }) {
+/** `count` writes the progress beside the dial as text too, at every width (the 대화 card's goals, lina-app#175). */
+export function GoalLine({ goal, showAgent, count = false }: { goal: GoalRow; showAgent: boolean; count?: boolean }) {
   const { model, selected } = useApp();
   const actions = useActions();
   const closed = goal.allDone;
@@ -337,7 +348,12 @@ export function GoalLine({ goal, showAgent }: { goal: GoalRow; showAgent: boolea
           <span class="title wrap-line">{title}</span>
           {condition ? <span class="sub wrap-line">{condition}</span> : null}
         </span>
-        {goal.runningCount ? <span class="trail">{W.runningCount(goal.runningCount)}</span> : null}
+        {(count && progress) || goal.runningCount ? (
+          <span class="trail">
+            {count && progress ? <span data-testid="goal-progress">{progress}</span> : null}
+            {goal.runningCount ? <span>{W.runningCount(goal.runningCount)}</span> : null}
+          </span>
+        ) : null}
       </Link>
       {closed ? <ErrorLine line={actions.error(`done:${goal.id}`)?.line} /> : null}
     </li>

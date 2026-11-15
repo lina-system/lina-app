@@ -2726,17 +2726,19 @@ describe("#13 audit, round 7", () => {
     expect(view.getByRole("button", { name: `알림 ${SCENE_COUNTS.unread}` })).toBeTruthy();
   });
 
-  test("an all-agent goal counts all agents' to-dos; an agent's view counts only its own, another agent's goal included", async () => {
+  // lina-app#175: an agent's view lists the goals holding its to-dos, another agent's included, each with the goal's own
+  // number (the to-dos its page lists), as every goal list does.
+  test("a goal counts all agents' to-dos on every list; an agent's view lists another agent's goal holding its to-dos", async () => {
     const all = await open("#/goals", { wide: true });
     const allLabel = all.container.querySelector('.list-pane a[href="#/goals/G5"]')?.getAttribute("aria-label");
     expect(allLabel).toMatch(/검색 속도 개선 · 0\/2$/);
     all.unmount();
     const owner = await open("#/agents/ag-2", { wide: true });
-    expect(owner.getByTestId("section-goals").querySelector('a[href="#/goals/G5"]')?.getAttribute("aria-label")).toBe("검색 속도 개선 · 0/1");
+    expect(owner.getByTestId("section-goals").querySelector('a[href="#/goals/G5"]')?.getAttribute("aria-label")).toBe("검색 속도 개선 · 0/2");
     owner.unmount();
     const other = await open("#/agents/ag-3", { wide: true });
     const goals = other.getByTestId("section-goals");
-    expect(goals.querySelector('a[href="#/goals/G5"]')?.getAttribute("aria-label")).toBe("검색 속도 개선 · 0/1");
+    expect(goals.querySelector('a[href="#/goals/G5"]')?.getAttribute("aria-label")).toBe("검색 속도 개선 · 0/2");
     expect(rowsIn(goals)).toBe(count(other.getByTestId("agent-count-goals").querySelector(".count")));
   });
 

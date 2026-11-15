@@ -173,8 +173,13 @@ export class Store {
   private keep(): void {
     if (!this.stored || this.refused || this.denied || this.cursor === null) return;
     if (this.keptAt?.cursor === this.cursor && this.keptAt.version === this.version) return;
+    // A route whose last read failed still holds older data: a copy written now would carry it as current under a
+    // cursor past the change it missed. The earlier copy stays; it is consistent at its own cursor.
+    for (const entry of this.entries.values()) if (entry.status === "failed" && entry.data !== undefined) return;
     const routes: Record<string, StoredRoute> = {};
     for (const [name, id] of [...LIST_ROUTES.map((list) => [list] as const), ...SLOW_ROUTES, ...this.wanted]) {
+      // The settings' writes need the ETag of the read that is on screen, which a kept copy does not hold.
+      if (name === "settings" || name === "settingsHistory") continue;
       const key = this.key(name, id);
       const entry = this.entries.get(key);
       if (entry?.data === undefined) continue;

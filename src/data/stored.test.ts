@@ -317,3 +317,41 @@ test("a copy of another owner is dropped once a read of the items names who is s
   expect(kept(storage).owner).toBe(page.store.get("items")?.owner?.id);
   page.stop();
 });
+
+test("a route the stream asked for that fails to read leaves the earlier copy, so the next page still reads that change", async () => {
+  const storage = memory();
+  const first = await firstVisit(storage);
+  const cursor = kept(storage).cursor;
+  const before = storage.items.get(KEY);
+  await new SyntheticSource({ scene: first.scene }).comment("T4", { text: "다른 기기에서" });
+  const source = new SyntheticSource({ scene: first.scene });
+  const read = source.read.bind(source);
+  source.read = ((name, id) => (name === "items" ? Promise.resolve({ kind: "failed", offline: false, at: Math.floor(Date.now() / 1000) }) : read(name, id))) as Source["read"];
+  const page = await open(source, copyIn(storage));
+  expect(page.store.status("items")).toBe("failed");
+  expect(storage.items.get(KEY)).toBe(before);
+  expect(kept(storage).cursor).toBe(cursor);
+  page.stop();
+
+  // The next page resumes from the old cursor and reads the change the failed read missed.
+  const next = new SyntheticSource({ scene: first.scene });
+  const { names } = asked(next);
+  const again = await open(next, copyIn(storage));
+  expect(names).toContain("items");
+  expect(kept(storage).cursor).not.toBe(cursor);
+  again.stop();
+});
+
+test("the settings are not kept: a page opened again reads them, so its edits carry the ETag of that read", async () => {
+  const storage = memory();
+  const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
+  const store = new Store(source, { stored: copyIn(storage) });
+  const stop = new Live(store, host).start();
+  store.want([["settings"], ["settingsHistory", "5"]]);
+  await settle();
+  expect(store.get("settings")).toBeDefined();
+  store.refresh();
+  await settle();
+  expect(Object.keys(kept(storage).routes).filter((key) => key.startsWith("settings") && key !== "settingsModels")).toEqual([]);
+  stop();
+});

@@ -13,7 +13,7 @@ async function talk(page: Page, message: string): Promise<void> {
 }
 
 // `clock`: the page's timers run only when the capture says, so a streaming reply is caught between two frames.
-// `line`: the freshness line the screen is ready at (실시간 once the change stream is open).
+// `line`: the freshness line the screen is ready at (empty once the change stream is open, lina-app#187).
 const SCREENS: readonly { id: string; hash: string; query?: string; line?: string; wideOnly?: boolean; phoneOnly?: boolean; clock?: boolean; open?: (page: Page) => Promise<void> }[] = [
   { id: "menu", hash: "#/", phoneOnly: true },
   // The three tabs: 대화 with its agents, one agent's window with its card, and 오늘 under 작업.
@@ -217,7 +217,7 @@ for (const screen of SCREENS) {
     test.skip(Boolean(screen.wideOnly && phone) || Boolean(screen.phoneOnly && !phone), "not drawn at this width");
     if (screen.clock) await page.clock.install();
     await page.goto(`${APP}${screen.query ?? ""}${screen.hash}`);
-    await expect(page.getByTestId("freshness-line")).toHaveText(screen.line ?? "실시간");
+    await expect(page.getByTestId("freshness-line")).toHaveText(screen.line ?? "");
     // A card with no checked title has a detail head without a title (lina#151).
     await expect(page.locator("[data-testid=screen-title], .detail-head").first()).toBeVisible();
     if (screen.open) await screen.open(page);
@@ -257,7 +257,7 @@ test.describe("install label", () => {
           (window as unknown as { __LINA_APP_LABEL__: unknown }).__LINA_APP_LABEL__ = value;
         }, label);
         await page.goto(`${APP}${screen.hash}`);
-        await expect(page.getByTestId("freshness-line")).toHaveText("실시간");
+        await expect(page.getByTestId("freshness-line")).toHaveText("");
         const chip = page.getByTestId("install-label");
         await expect(chip).toHaveText(label.text);
         await expect(chip).toBeVisible();
@@ -296,7 +296,7 @@ test.describe("push row", () => {
       const context = await browser.newContext({ viewport, colorScheme, hasTouch, isMobile, locale, baseURL, deviceScaleFactor: 1, ...(row.userAgent ? { userAgent: row.userAgent } : {}), ...(row.granted ? { permissions: ["notifications"] } : {}) });
       const page = await context.newPage();
       await page.goto(`${APP}${row.query ?? ""}#/inbox`);
-      await expect(page.getByTestId("freshness-line")).toHaveText("실시간");
+      await expect(page.getByTestId("freshness-line")).toHaveText("");
       await page.getByTestId("bell").click();
       const shown = page.getByTestId("notices").getByTestId("push-row");
       if (row.turnOn) {

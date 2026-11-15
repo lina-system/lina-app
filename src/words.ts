@@ -213,7 +213,6 @@ export const W = {
   checkState: { failing: "실패", stale: "갱신 지연", error: "읽기 오류" } as Record<string, string>,
 
   fresh: (seconds: number) => `갱신 ${seconds}초 전`,
-  live: "실시간",
   connecting: "연결 중",
   stale: "갱신 지연",
   offline: "연결 끊김",
@@ -224,7 +223,7 @@ export const W = {
 
   commentField: "댓글 달기",
   send: "보내기",
-  /** Why 보내기 cannot send yet, one line beside it (lina-app#142): the field is empty, or the last one is on its way. */
+  /** Why 보내기 under 댓글 and 답 cannot send yet, one line beside it (lina-app#142, #158): an empty field, or the last one on its way. */
   sendWhyEmpty: "글 입력 대기",
   sendWhyBusy: "보내는 중",
   sentTo: (agent: string) => `${agent}에게 보냄`,
@@ -269,7 +268,12 @@ export const W = {
 
   talk: "대화",
   talkField: "메시지",
+  /** The typing dots' name for a screen reader; nothing shows it as text (lina-app#187). */
   replying: "답하는 중",
+  /** 맨 아래로, with how many messages came in while the owner read up (lina-app#187). */
+  toLatest: (unseen: number) => (unseen ? `맨 아래로 ${unseen}` : "맨 아래로"),
+  /** The date between days in 대화 that are neither 오늘 nor 어제, with its year when it is not this year. */
+  talkDate: (month: number, date: number, year: number | null) => (year ? `${year}년 ${month}월 ${date}일` : `${month}월 ${date}일`),
   carried: (agent: string) => (agent ? `${agent} 대화에 남음` : "대화에 남음"),
   talkBusy: "에이전트가 바쁨",
   talkDown: "에이전트 연결 안 됨",
@@ -278,8 +282,6 @@ export const W = {
   talkFailed: "답을 받지 못함",
   talkUnknownAgent: "없는 에이전트",
   talkRefusedKey: "에이전트가 연결을 거절함",
-  /** The owner's own window on an agent is not its messenger chat (lina#482). */
-  appWindow: "앱 대화 · 메신저 대화와 따로 남음",
   noTurns: "아직 나눈 대화 없음",
   historyFailed: "지난 대화를 읽지 못함",
   pickAgent: "에이전트를 고르면 대화가 열림",
@@ -304,7 +306,7 @@ export const W = {
   quickAddField: "할 일",
   save: "저장",
   todoAdded: "할 일 추가함",
-  /** lina-app#154: the to-do field's own limit, a refusal that names the core's number, any other refusal, the window's states. */
+  /** lina-app#154: the to-do field's own limit, a refusal that names the core's number, any other refusal, the window's state. */
   quickAddLeft: (n: number) => `${n}자 남음`,
   errTextMax: (n: number) => `글은 ${n}자까지`,
   saveFailed: "저장하지 못함 · 다시 시도",
@@ -322,7 +324,6 @@ export const W = {
     tag: "앞의 '이름: ' 꼬리표",
     device: "기기 이름",
   },
-  talkSending: "보내는 중",
   talkMissing: "찾을 수 없는 대화",
   markDone: (title: string) => `${title} 완료로 표시`,
   progress: (done: number, total: number) => `${done}/${total}`,

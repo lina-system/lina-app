@@ -20,7 +20,7 @@ async function open(hash: string, options: { wide: boolean; source?: SyntheticSo
   window.history.replaceState(null, "", `/app/${hash}`);
   const source = options.source ?? new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
   const view = render(<App store={new Store(source)} />);
-  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("실시간"));
+  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe(""));
   return view;
 }
 

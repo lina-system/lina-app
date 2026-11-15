@@ -95,7 +95,7 @@ async function cutText(page: Page): Promise<string[]> {
 }
 
 async function settled(page: Page): Promise<void> {
-  await expect(page.getByTestId("freshness-line")).not.toHaveText("");
+  await expect(page.getByTestId("freshness-line")).toHaveText("");
   await expect(page.getByTestId("detail-loading")).toHaveCount(0);
 }
 
@@ -151,20 +151,22 @@ test.describe("at 390", () => {
     await page.goto("/app/#/talk/ag-1");
     await expect(page.getByTestId("talk-mine").first()).toBeVisible();
     await page.getByTestId("agent-card").getByRole("button").first().click();
-    const why = page.getByTestId("agent-talk").locator(".send-why");
-    await expect(why).toHaveText("글 입력 대기");
+    // No line under the field any more (lina-app#187): the field itself is what a turn scrolled under must not cover.
+    const why = page.getByTestId("agent-talk").getByRole("textbox", { name: "메시지" });
+    await expect(why).toBeVisible();
     await page.screenshot({ path: info.outputPath("talk-composer-390.png") });
     const form = page.locator(".agent-talk-form");
     expect(await form.evaluate((bar) => getComputedStyle(bar).backgroundColor)).not.toMatch(/rgba\(.*, 0(\.\d+)?\)|transparent/);
-    // Whatever scroll the turns are at, the label's middle and corners are the label.
+    // Whatever scroll the turns are at, the field's middle and both ends of its line are the field.
     for (const at of ["start", "end"] as const) {
       await page.locator(".phone-main").evaluate((main, end) => (main.scrollTop = end === "end" ? main.scrollHeight : 0), at);
       const hit = await why.evaluate((line) => {
         const rect = line.getBoundingClientRect();
+        const middle = rect.top + rect.height / 2;
         return [
-          [rect.left + rect.width / 2, rect.top + rect.height / 2],
-          [rect.left + 2, rect.top + 2],
-          [rect.right - 2, rect.bottom - 2],
+          [rect.left + rect.width / 2, middle],
+          [rect.left + rect.height / 2, middle],
+          [rect.right - rect.height / 2, middle],
         ].every(([x, y]) => {
           const element = document.elementFromPoint(x, y);
           return element !== null && line.contains(element);

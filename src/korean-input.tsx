@@ -9,14 +9,25 @@ type Props = {
   /** Enter sends, outside a form: an Enter that ends a Hangul composition only commits the syllable. */
   onEnter?: () => void;
   disabled?: boolean;
+  /** A field that grows with its lines up to its CSS max-height, then scrolls: Enter sends, Shift+Enter breaks a line. */
+  multiline?: boolean;
 };
 
 function isImeEvent(event: KeyboardEvent): boolean {
   return event.isComposing || event.keyCode === 229;
 }
 
-export function KoreanInput({ label, value, onValue, inline = false, onEnter, disabled = false }: Props) {
-  const ref = useRef<HTMLInputElement>(null);
+type Field = HTMLInputElement | HTMLTextAreaElement;
+
+/** Sets a multi-line field's height to its lines and its border; its CSS max-height stops it and it scrolls from there. */
+function grow(element: Field) {
+  if (!(element instanceof HTMLTextAreaElement)) return;
+  element.style.height = "auto";
+  element.style.height = `${element.scrollHeight + element.offsetHeight - element.clientHeight}px`;
+}
+
+export function KoreanInput({ label, value, onValue, inline = false, onEnter, disabled = false, multiline = false }: Props) {
+  const ref = useRef<Field>(null);
   const composing = useRef(false);
 
   // Sync before paint: a passive effect can run a frame late and overwrite keys
@@ -25,19 +36,23 @@ export function KoreanInput({ label, value, onValue, inline = false, onEnter, di
     const element = ref.current;
     if (!element || composing.current) return;
     if (element.value !== value) element.value = value;
+    grow(element);
   }, [value]);
 
-  const commit = (element: HTMLInputElement) => {
+  const commit = (element: Field) => {
+    grow(element);
     if (element.value !== value) onValue(element.value);
   };
 
+  const Tag = multiline ? "textarea" : "input";
   return (
     <label class={inline ? "note is-inline" : "note"}>
       {inline ? <span class="visually-hidden">{label}</span> : label}
-      <input
+      <Tag
         placeholder={inline ? label : undefined}
-        ref={ref}
-        type="text"
+        ref={ref as never}
+        type={multiline ? undefined : "text"}
+        rows={multiline ? 1 : undefined}
         lang="ko"
         name="lina-note"
         inputMode="text"
@@ -51,23 +66,23 @@ export function KoreanInput({ label, value, onValue, inline = false, onEnter, di
         onCompositionStart={() => {
           composing.current = true;
         }}
-        onCompositionEnd={(event) => {
+        onCompositionEnd={(event: CompositionEvent) => {
           composing.current = false;
-          commit(event.currentTarget);
+          commit(event.currentTarget as Field);
         }}
-        onInput={(event) => {
+        onInput={(event: InputEvent) => {
           if (composing.current || event.isComposing) return;
-          commit(event.currentTarget);
+          commit(event.currentTarget as Field);
         }}
-        onKeyDown={(event) => {
+        onKeyDown={(event: KeyboardEvent) => {
           if (isImeEvent(event) || composing.current) return;
-          if (event.key !== "Enter" || !onEnter) return;
+          if (event.key !== "Enter" || !onEnter || (multiline && event.shiftKey)) return;
           event.preventDefault();
-          commit(event.currentTarget);
+          commit(event.currentTarget as Field);
           onEnter();
         }}
-        onFocus={(event) => {
-          const element = event.currentTarget;
+        onFocus={(event: FocusEvent) => {
+          const element = event.currentTarget as Field;
           requestAnimationFrame(() => element.scrollIntoView({ block: "center" }));
         }}
       />

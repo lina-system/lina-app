@@ -42,7 +42,7 @@ async function openBell(source: SyntheticSource, host: PushHost, hash = "#/inbox
   setWide();
   window.history.replaceState(null, "", `/app/${hash}`);
   const view = render(<App store={new Store(source)} pushHost={host} />);
-  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("실시간"));
+  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe(""));
   fireEvent.click(view.getByTestId("bell"));
   const notices = view.getByTestId("notices");
   await waitFor(() => expect(within(notices).getByTestId("push-row")).toBeTruthy());
@@ -221,7 +221,7 @@ describe("notifications on this device", () => {
 
       window.history.replaceState(null, "", "/app/?open=ask%3AT2%3A1#/inbox");
       const ask = render(<App store={new Store(new SyntheticSource())} pushHost={browser().host} />);
-      await waitFor(() => expect(ask.getByTestId("freshness-line").textContent).toBe("실시간"));
+      await waitFor(() => expect(ask.getByTestId("freshness-line").textContent).toBe(""));
       expect(readNotices).toHaveBeenCalledTimes(1);
       expect(new URL(window.location.href).searchParams.get("open")).toBeNull();
       ask.unmount();

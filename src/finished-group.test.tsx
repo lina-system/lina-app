@@ -18,7 +18,8 @@ async function open(hash: string, source: SyntheticSource) {
   setWide(true);
   window.history.replaceState(null, "", `/app/${hash}`);
   const view = render(<App store={new Store(source)} />);
-  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("실시간"));
+  // A current screen draws no freshness word since lina-app#187: the quiet head is the loaded screen.
+  await waitFor(() => expect(view.getByTestId("freshness").hasAttribute("data-quiet")).toBe(true));
   return view;
 }
 

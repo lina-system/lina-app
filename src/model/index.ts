@@ -73,6 +73,8 @@ export interface Agent {
   readonly id: string;
   readonly name: string;
   readonly letter: string;
+  /** The people list says the agent has a picture (`avatar: true`, lina#738); its mark draws it over the letter. */
+  readonly avatar: boolean;
   readonly index: number;
   readonly href: string;
 }
@@ -547,6 +549,8 @@ export function buildModel(input: ModelInput, now: number): Model {
     id: person.id,
     name: person.name,
     letter: Array.from(person.name)[0]?.toUpperCase() ?? "",
+    // Optional in the core's contract and not in the copied schema until lina#738 lands: read only when present.
+    avatar: "avatar" in person && person.avatar === true,
     index,
     href: href({ name: "agent", id: person.id }),
   }));

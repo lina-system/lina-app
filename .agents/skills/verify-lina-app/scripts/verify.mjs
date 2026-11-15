@@ -247,12 +247,18 @@ async function text(locator) {
 
 // The app lives under /app/ on the core's origin; the drive always draws the synthetic scene.
 // Always a fresh load: going to the address the page already shows only moves the hash and keeps the scene.
-// Ready means the data is drawn and the change stream is open (실시간); a page whose stream cannot open
-// (&live=down) is ready at 연결 중, since nothing is late before the stream was ever open (lina-app#172).
-async function openApp(page, hash, query = "", line = "실시간") {
+// Ready means the data is drawn and the change stream is open: the head's line is then empty (lina-app#187); a page
+// whose stream cannot open (&live=down) is ready at 연결 중, since nothing is late before the stream was ever open
+// (lina-app#172).
+async function openApp(page, hash, query = "", line = "") {
   if (page.url() !== "about:blank") await page.goto("about:blank");
   await page.goto(APP_PATH + query + hash);
-  await page.getByTestId("freshness-line").filter({ hasText: new RegExp("^" + line + "$") }).waitFor({ timeout: 10_000 });
+  await freshnessReads(page, line);
+}
+
+// An empty line draws nothing, so it is waited for attached, not visible.
+async function freshnessReads(page, line) {
+  await page.getByTestId("freshness-line").filter({ hasText: new RegExp("^" + line + "$") }).waitFor({ state: "attached", timeout: 10_000 });
 }
 
 // On a phone the 작업 tab's first screen is the home; the sidebar's rows open from 메뉴 in its header as a sheet
@@ -353,6 +359,16 @@ async function buttonLook(page, locator) {
   else check(look.colour === ACCENT, look.text + " is enabled but drawn " + look.colour);
   if (page.viewportSize().width < 900) check(look.height >= 44, look.text + " is " + look.height + " px tall on a phone");
   return look.text + "=" + look.colour + (look.disabled ? " (disabled)" : "") + ", " + Math.round(look.height) + " px";
+}
+
+// 대화's 보내기 is a round icon (lina-app#187): its fill is the accent while it can send and not while it is dim.
+async function sendLook(page, locator) {
+  const look = await locator.evaluate((button) => ({ name: button.getAttribute("aria-label"), text: button.textContent.trim(), fill: getComputedStyle(button).backgroundColor, disabled: button.disabled, height: button.getBoundingClientRect().height }));
+  check(look.text === "", look.name + " shows the text " + look.text);
+  if (look.disabled) check(look.fill !== ACCENT, look.name + " is disabled but filled with the accent colour");
+  else check(look.fill === ACCENT, look.name + " is enabled but filled " + look.fill);
+  if (page.viewportSize().width < 900) check(look.height >= 44, look.name + " is " + look.height + " px tall on a phone");
+  return look.name + " icon=" + look.fill + (look.disabled ? " (disabled)" : "") + ", " + Math.round(look.height) + " px";
 }
 
 async function sidebarCount(page, testid) {
@@ -1167,11 +1183,11 @@ const drivers = {
       check((await box.getByTestId("talk-mine").count()) === 0, "the conversation shows turns before any was sent on this page");
       comments = await page.evaluate(() => window.__linaScene.itemDetails.T4.comments.length);
       check(await send.isDisabled(), "보내기 is enabled on an empty field");
-      return heads.join(", ") + "; " + (await buttonLook(page, send));
+      return heads.join(", ") + "; " + (await sendLook(page, send));
     });
     await step("type and press Enter: the message sits on the right and the reply streams on the left with a live mark", async () => {
       await field.fill("입력 폼 간격 봐 주세요");
-      const ready = await buttonLook(page, send);
+      const ready = await sendLook(page, send);
       if (page.viewportSize().width < 900) {
         const height = (await field.boundingBox()).height;
         check(height >= 44, "the field is " + height + " px tall on a phone");
@@ -1185,7 +1201,8 @@ const drivers = {
       const theirs = await reply.locator(".talk-bubble").boundingBox();
       const area = await box.boundingBox();
       check(mine.x + mine.width > area.x + area.width - 24 && mine.x > theirs.x, "the owner's message is not on the right");
-      check((await reply.locator(".mark").count()) === 1, "the reply has no agent mark");
+      check((await box.getByTestId("talk-group").filter({ has: page.getByTestId("talk-reply") }).locator(".mark").count()) === 1, "the reply's group has no agent mark");
+      for (const word of ["글 입력 대기", "보내는 중", "답하는 중"]) check(!(await box.innerText()).includes(word), "the window reads " + word);
       check((await field.inputValue()) === "", "the field still holds the sent text");
       check(await send.isDisabled(), "보내기 is enabled while the reply streams");
       return "mid-stream: " + partial + " (" + ready + ")";
@@ -1218,8 +1235,8 @@ const drivers = {
       await field.press("Enter");
       const live = box.getByTestId("talk-live");
       await live.waitFor({ state: "attached", timeout: 3_000 });
-      const animation = await live.evaluate((node) => getComputedStyle(node).animationName);
-      check(animation === "none", "the live mark animates (" + animation + ") under prefers-reduced-motion");
+      const animation = await live.evaluate((node) => [...node.children].map((dot) => getComputedStyle(dot).animationName).join(","));
+      check(animation === "none,none,none", "the typing dots animate (" + animation + ") under prefers-reduced-motion");
       await page.emulateMedia({ reducedMotion: null });
       return "animation " + animation;
     });
@@ -2304,13 +2321,15 @@ const drivers = {
     await step("read the freshness line", async () => {
       await openApp(page, "#/inbox");
       const line = await freshnessLine(page);
-      check(line === "실시간", "freshness reads " + line);
-      return line;
+      check(line === "", "with the stream open the head reads " + JSON.stringify(line) + ", not nothing");
+      const width = await page.getByTestId("freshness-line").evaluate((element) => element.getBoundingClientRect().width);
+      check(width === 0, "the empty head word takes " + width + " px");
+      return "no word, 0 px";
     });
     await step("a failed source reads 읽기 실패 and the rest still draws", async () => {
       await openApp(page, "#/inbox", "&error=quota");
       const failed = (await page.getByTestId("read-failed").innerText()).trim();
-      check(failed === "· 읽기 실패: 쿼터", "failure reads " + failed);
+      check(failed === "읽기 실패: 쿼터", "failure reads " + failed);
       const rows = (await decisionNames(page.getByRole("list", { name: "결정 필요" }))).length;
       check(rows === 4, "the inbox drew " + rows + " decisions");
       return failed;
@@ -2442,7 +2461,8 @@ const drivers = {
       await page.setViewportSize({ width: 390, height: 480 });
       await openApp(page, "#/items/T4");
       await page.getByTestId("talk").waitFor();
-      const before = await page.evaluate(() => ({ bar: document.querySelector(".navbar").getBoundingClientRect().top, bottom: document.querySelector(".bottombar").getBoundingClientRect().bottom }));
+      // A quiet strip draws nothing (lina-app#187): the screen's bottom edge is then the window's.
+      const before = await page.evaluate(() => ({ bar: document.querySelector(".navbar").getBoundingClientRect().top, bottom: ((strip) => (getComputedStyle(strip).display === "none" ? innerHeight : strip.getBoundingClientRect().bottom))(document.querySelector(".bottombar")) }));
       const after = await page.evaluate(() => {
         const main = document.querySelector(".phone-main");
         main.scrollTo(0, main.scrollHeight);
@@ -2450,7 +2470,7 @@ const drivers = {
           scrolled: main.scrollTop,
           page: document.scrollingElement.scrollTop,
           bar: document.querySelector(".navbar").getBoundingClientRect().top,
-          bottom: document.querySelector(".bottombar").getBoundingClientRect().bottom,
+          bottom: ((strip) => (getComputedStyle(strip).display === "none" ? innerHeight : strip.getBoundingClientRect().bottom))(document.querySelector(".bottombar")),
           height: innerHeight,
           pane: getComputedStyle(main).overscrollBehaviorY,
           root: getComputedStyle(document.documentElement).overscrollBehaviorY,
@@ -2655,22 +2675,30 @@ const drivers = {
         await app.close();
       }
     });
-    await step("the bars keep clear of the status bar and the home indicator", async () => {
+    await step("the bars keep clear of the status bar and the home indicator; a quiet strip draws nothing and the screen still clears the indicator", async () => {
       // Headless Chromium has no notch, so the driver sets the safe-area tokens the page reads from env().
-      await openApp(page, "#/running");
-      await page.evaluate(() => {
-        document.documentElement.style.setProperty("--safe-top", "47px");
-        document.documentElement.style.setProperty("--safe-bottom", "34px");
-      });
+      const notch = () =>
+        page.evaluate(() => {
+          document.documentElement.style.setProperty("--safe-top", "47px");
+          document.documentElement.style.setProperty("--safe-bottom", "34px");
+        });
+      // A stream that cannot open says 연결 중: the strip shows that word above the home indicator.
+      await openApp(page, "#/running", "&live=down", "연결 중");
+      await notch();
       const back = await page.getByTestId("back").evaluate((element) => element.getBoundingClientRect().top);
       const bar = await page.locator(".bottombar").evaluate((element) => {
-        const box = element.getBoundingClientRect();
         const line = element.querySelector("[data-testid=freshness]").getBoundingClientRect();
-        return { bottom: box.bottom, viewport: innerHeight, lineBottom: line.bottom };
+        return { viewport: innerHeight, lineBottom: line.bottom };
       });
       check(back >= 47, "the back control starts at " + back + " px, under a 47 px status bar");
       check(bar.lineBottom <= bar.viewport - 34, "the freshness line ends at " + bar.lineBottom + " px, under the home indicator");
-      return "back at " + back + " px, bar text ends " + (bar.viewport - bar.lineBottom) + " px above the bottom";
+      // All well: no strip at all (lina-app#187); the screen's own bottom padding keeps its end above the indicator.
+      await openApp(page, "#/running");
+      await notch();
+      const quiet = await page.evaluate(() => ({ strip: getComputedStyle(document.querySelector(".bottombar")).display, padding: parseFloat(getComputedStyle(document.querySelector(".phone-main")).paddingBottom) }));
+      check(quiet.strip === "none", "a quiet strip is drawn: " + quiet.strip);
+      check(quiet.padding >= 34 + 20, "the screen's bottom padding is " + quiet.padding + " px with a 34 px home indicator");
+      return "back at " + back + " px, 연결 중 ends " + (bar.viewport - bar.lineBottom) + " px above the bottom; quiet: no strip, padding " + quiet.padding + " px";
     });
   },
 
@@ -2740,7 +2768,7 @@ const drivers = {
       check((await page.getByTestId("bell").getAttribute("aria-label")) === "알림 5", "the bell does not read 알림 5 before the drop");
       await page.getByRole("button", { name: "알림 4" }).waitFor({ timeout: 10_000 });
       const words = await page.evaluate(() => window.__linaWords);
-      check(words.every((word) => word === "실시간"), "the line left 실시간 during the drop: " + JSON.stringify(words));
+      check(words.every((word) => word === ""), "the line showed a word during the drop: " + JSON.stringify(words));
       const { connections } = await stream(page);
       check(connections.length === 2, "the stream had " + connections.length + " connections");
       check(connections[1].since !== null && connections[1].first === "missed" && connections[1].missed === 1, "the reconnect was " + JSON.stringify(connections[1]));
@@ -2749,7 +2777,7 @@ const drivers = {
       check(JSON.stringify(after) === JSON.stringify(before), "the screen moved: " + JSON.stringify(before) + " -> " + JSON.stringify(after));
       check(await notReloaded(page), "the page reloaded");
       await page.setViewportSize(size);
-      return "실시간 throughout " + JSON.stringify(words) + ", reconnect " + JSON.stringify(connections[1]) + ", 알림 5 → 알림 4, row open, kept " + JSON.stringify(after);
+      return "no word throughout " + JSON.stringify(words) + ", reconnect " + JSON.stringify(connections[1]) + ", 알림 5 → 알림 4, row open, kept " + JSON.stringify(after);
     });
     await step("a resync reads the snapshot once", async () => {
       await openApp(page, "#/inbox", "&live=resync");
@@ -2767,14 +2795,14 @@ const drivers = {
       check(await notReloaded(page), "the page reloaded");
       return (after - before) + " reads (one refresh), still 1 connection";
     });
-    await step("a core restarted with a new session token: the page reads the token once, resumes from its cursor and draws what it missed, without a reload or a stored token, and the line never leaves 실시간", async () => {
+    await step("a core restarted with a new session token: the page reads the token once, resumes from its cursor and draws what it missed, without a reload or a stored token, and the line never shows a word", async () => {
       await openApp(page, "#/inbox", "&live=token");
       await recordFreshness(page);
       await markPage(page);
       check((await page.getByTestId("bell").getAttribute("aria-label")) === "알림 5", "the bell does not read 알림 5 before the restart");
       await page.getByRole("button", { name: "알림 4" }).waitFor({ timeout: 10_000 });
       const words = await page.evaluate(() => window.__linaWords);
-      check(words.every((word) => word === "실시간"), "the line left 실시간 during the restart: " + JSON.stringify(words));
+      check(words.every((word) => word === ""), "the line showed a word during the restart: " + JSON.stringify(words));
       const { connections, renewals } = await stream(page);
       const last = connections.at(-1);
       check(renewals === 1, "the page renewed its token " + renewals + " times");
@@ -2783,7 +2811,7 @@ const drivers = {
       const stored = await page.evaluate(() => Object.keys(localStorage).length + Object.keys(sessionStorage).length);
       check(stored === 0, "the page keeps " + stored + " keys in web storage");
       check(await notReloaded(page), "the page reloaded");
-      return "실시간 throughout, 1 renewal, connections " + connections.map((connection) => connection.first).join(" → ") + ", 알림 5 → 알림 4";
+      return "no word throughout, 1 renewal, connections " + connections.map((connection) => connection.first).join(" → ") + ", 알림 5 → 알림 4";
     });
     await step("a stream that cannot open says 연결 중, never 갱신 지연, and retries with growing waits; the screens still draw", async () => {
       await openApp(page, "#/inbox", "&live=down", "연결 중");
@@ -2980,7 +3008,7 @@ const drivers = {
       await page.waitForFunction(() => location.hash.startsWith("#/done?agent="));
       const hash = new URL(page.url()).hash;
       await page.reload();
-      await page.getByTestId("freshness-line").filter({ hasText: /^실시간$/ }).waitFor({ timeout: 10_000 });
+      await freshnessReads(page, "");
       check(new URL(page.url()).hash === hash, "the reload lost the filter: " + new URL(page.url()).hash);
       const pressed = (await page.getByTestId("done-filter").locator('[aria-pressed="true"]').getAttribute("aria-label")) ?? "";
       check(pressed === name, "after the reload the filter is " + pressed + ", not " + name);
@@ -3298,13 +3326,19 @@ const drivers = {
       check(previews[0] === "변경 목록을 모으는 중이에요. 배포 순서는 답을 기다려요." && previews[1] === "아직 나눈 대화 없음", "the rows read " + JSON.stringify(previews));
       return agents + " agents; " + previews.join(" / ");
     });
-    await step("choose the first agent: its earlier turns, the window says it is not the messenger chat, its card holds its goals", async () => {
+    await step("choose the first agent: its earlier turns, its mark and name once in the bar, no help line, its card holds its goals", async () => {
       await page.locator(wide ? "[data-testid=nav-talk-0] a" : "[data-testid=talk-agent-0] a").click();
       await settled(page);
       await box().getByTestId("talk-mine").first().waitFor({ timeout: 10_000 });
       const mine = await box().getByTestId("talk-mine").allInnerTexts();
       check(JSON.stringify(mine) === JSON.stringify(["어디까지 왔어요?"]), "the earlier turns read " + JSON.stringify(mine));
-      check((await box().innerText()).includes("앱 대화 · 메신저 대화와 따로 남음"), "the window does not say it is apart from the messenger chat");
+      // lina-app#191: the agent's mark and name are the screen's one title, in the bar, and the window repeats neither.
+      const titles = page.getByTestId("screen-title");
+      check((await titles.count()) === 1, "screen titles: " + (await titles.count()));
+      const name = await text(titles);
+      check((await page.locator(wide ? ".toolbar" : ".navbar").locator(".talk-head > .mark").count()) === 1, "the bar's title has no agent mark");
+      check((await box().getByTestId("agent-talk-name").count()) === 0 && (await page.getByTestId("agent-talk-name").count()) === 1, "the name " + name + " is not once, in the bar");
+      check(!(await page.locator("body").innerText()).includes("메신저 대화와 따로 남음"), "the help line still shows");
       const card = page.getByTestId("agent-card");
       if (!wide) await card.getByRole("button").first().click();
       const goals = await card.locator("[data-testid=section-goals] [data-testid=row] .title").allInnerTexts();
@@ -3321,6 +3355,64 @@ const drivers = {
       check((await field.inputValue()) === "", "the field kept " + (await field.inputValue()));
       return "reply: " + (await box().getByTestId("talk-reply").last().locator(".talk-bubble").innerText());
     });
+    await step("a chat's look: a date between days, one mark and name per group of the agent's, no state word under the field", async () => {
+      const days = await box().getByTestId("talk-day").allInnerTexts();
+      check(JSON.stringify(days) === JSON.stringify(["어제", "오늘"]), "the dates read " + JSON.stringify(days));
+      const groups = await box()
+        .getByTestId("talk-group")
+        .evaluateAll((all) => all.map((group) => ({ agent: group.classList.contains("is-agent"), marks: group.querySelectorAll(".mark").length, names: group.querySelectorAll("[data-testid=talk-name]").length, times: group.querySelectorAll("[data-testid=talk-time]").length })));
+      check(groups.every((group) => group.times === 1 && group.marks === (group.agent ? 1 : 0) && group.names === (group.agent ? 1 : 0)), "the groups read " + JSON.stringify(groups));
+      for (const word of ["글 입력 대기", "보내는 중", "답하는 중"]) check(!(await box().innerText()).includes(word), "the window reads " + word);
+      const send = box().getByRole("button", { name: "보내기", exact: true });
+      check((await send.innerText()).trim() === "" && (await send.isDisabled()), "보내기 is not a dim icon on an empty field");
+      return groups.length + " groups under " + days.join(", ");
+    });
+    await step("Shift+Enter breaks a line and the field grows up to about 5 lines, then scrolls; Enter sends", async () => {
+      const field = box().getByRole("textbox", { name: "메시지" });
+      const one = (await field.boundingBox()).height;
+      await field.fill("첫 줄");
+      for (const line of ["둘째 줄", "셋째 줄"]) {
+        await field.press("Shift+Enter");
+        await field.pressSequentially(line);
+      }
+      const three = (await field.boundingBox()).height;
+      check((await field.inputValue()) === "첫 줄\n둘째 줄\n셋째 줄", "the field holds " + JSON.stringify(await field.inputValue()));
+      check(three > one + 20, "the field did not grow: " + one + " -> " + three + " px");
+      for (const line of ["넷째 줄", "다섯째 줄", "여섯째 줄", "일곱째 줄", "여덟째 줄"]) {
+        await field.press("Shift+Enter");
+        await field.pressSequentially(line);
+      }
+      const eight = await field.evaluate((element) => ({ height: element.getBoundingClientRect().height, scroll: element.scrollHeight, client: element.clientHeight }));
+      check(eight.height < (three / 3) * 6.5 && eight.scroll > eight.client, "8 lines: " + JSON.stringify(eight));
+      await field.press("Enter");
+      await box().getByTestId("talk-reply").nth(2).filter({ hasText: "알려 드릴게요." }).waitFor({ timeout: 10_000 });
+      const after = (await field.boundingBox()).height;
+      check(Math.abs(after - one) < 2, "the empty field is " + after + " px, not " + one);
+      return Math.round(one) + " -> " + Math.round(three) + " -> " + Math.round(eight.height) + " px; sent, back to " + Math.round(after);
+    });
+    await step("read up while a reply streams: the window stays put, 맨 아래로 shows and returns to the bottom", async () => {
+      const size = page.viewportSize();
+      await page.setViewportSize({ width: size.width, height: 480 });
+      const scroller = wide ? box().locator(".agent-talk-turns") : page.locator(".phone-main");
+      const field = box().getByRole("textbox", { name: "메시지" });
+      await field.fill("하나 더 알려 주세요");
+      await field.press("Enter");
+      await box().getByTestId("talk-live").waitFor({ timeout: 5_000 });
+      const gap = () => scroller.evaluate((element) => Math.round(element.scrollHeight - element.scrollTop - element.clientHeight));
+      check((await gap()) <= 48, "the sent message did not go to the bottom: " + (await gap()) + " px from it");
+      await scroller.evaluate((element) => element.scrollTo(0, 0));
+      const jump = box().getByTestId("talk-jump");
+      await jump.waitFor({ timeout: 3_000 });
+      await box().getByTestId("talk-reply").last().filter({ hasText: "알려 드릴게요." }).waitFor({ timeout: 10_000 });
+      const top = await scroller.evaluate((element) => element.scrollTop);
+      check(top === 0, "the reply pulled the window to " + top);
+      const label = await jump.getAttribute("aria-label");
+      await jump.click();
+      await jump.waitFor({ state: "detached", timeout: 3_000 });
+      check((await gap()) <= 48, "맨 아래로 left the window " + (await gap()) + " px from the bottom");
+      await page.setViewportSize(size);
+      return label + " -> at the bottom";
+    });
     await step("a goal on the card opens under 대화, and back returns to the window", async () => {
       const talk = new URL(page.url()).hash;
       await page.getByTestId("agent-card").getByRole("link", { name: /릴리스 노트 정리/ }).click();
@@ -3335,13 +3427,53 @@ const drivers = {
       return hash + " -> " + talk;
     });
     if (!wide) {
-      await step("phone: the field and 보내기 are 44 px tall and back reads 대화", async () => {
-        const heights = await box().locator(".agent-talk-form input, .agent-talk-form button").evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().height)));
+      await step("phone: the field and 보내기 are 44 px tall, back is an icon named 대화, and the head stays in the bar while the window scrolls", async () => {
+        const heights = await box().locator(".agent-talk-form textarea, .agent-talk-form button").evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().height)));
         check(heights.every((height) => height >= 44), "heights " + heights.join(", "));
-        check((await text(page.getByTestId("back"))) === "대화", "back reads " + (await text(page.getByTestId("back"))));
-        return heights.join(", ") + " px";
+        const back = page.getByTestId("back");
+        check((await text(back)) === "" && (await back.getAttribute("aria-label")) === "대화", "back reads " + JSON.stringify(await text(back)) + " named " + (await back.getAttribute("aria-label")));
+        const edge = await page.locator(".navbar").evaluate((bar) => getComputedStyle(bar).borderBottomStyle);
+        check(edge === "solid", "the bar has no edge over the window: " + edge);
+        const title = page.locator(".navbar").getByTestId("screen-title");
+        const before = await title.boundingBox();
+        // A scroll moves layout at once; the box read after it is the scrolled one.
+        await page.locator(".phone-main").evaluate((main) => (main.scrollTop = 0));
+        const after = await title.boundingBox();
+        check(before && after && Math.round(before.y) === Math.round(after.y) && (await title.isVisible()), "the head moved with the window: " + JSON.stringify([before, after]));
+        return heights.join(", ") + " px; head at y " + Math.round(after.y);
       });
     }
+    await step("pictures: an agent with avatar: true draws its picture in the bar; a picture that fails leaves the letter circle at the same size", async () => {
+      // The synthetic scene's first agent has avatar: true; the core's route (lina#738) is served here, then made to fail.
+      // Its own context with the service worker blocked: the app's worker passes reads past page.route.
+      const context = await touchContext(page, { serviceWorkers: "block" });
+      try {
+        const own = await context.newPage();
+        let answer = "picture";
+        const picture = '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#7c4dff"/></svg>';
+        await own.route("**/api/lina/agents/*/avatar", (route) =>
+          answer === "picture" && route.request().url().includes("/agents/ag-1/") ? route.fulfill({ status: 200, contentType: "image/svg+xml", body: picture }) : route.fulfill({ status: 404, contentType: "application/json", body: '{"error":"not_found"}' }),
+        );
+        const mark = own.locator(wide ? ".toolbar" : ".navbar").locator(".talk-head > .mark");
+        await openApp(own, "#/talk/ag-1");
+        await own.waitForFunction(() => document.querySelector(".talk-head > .mark img")?.naturalWidth > 0, null, { timeout: 5_000 });
+        const shown = await mark.boundingBox();
+        answer = "missing";
+        await openApp(own, "#/talk/ag-1");
+        await mark.waitFor();
+        await own.waitForFunction(() => !document.querySelector(".talk-head > .mark img"), null, { timeout: 5_000 });
+        const fallback = await mark.boundingBox();
+        const letter = await text(mark);
+        check(letter.length === 1, "the fallback circle reads " + JSON.stringify(letter));
+        check(Math.round(shown.width) === Math.round(fallback.width) && Math.round(shown.height) === Math.round(fallback.height), "the mark changed size: " + JSON.stringify([shown, fallback]));
+        await openApp(own, "#/talk/ag-2");
+        await mark.waitFor();
+        check((await mark.locator("img").count()) === 0, "an agent with no picture asked for one");
+        return "picture " + Math.round(shown.width) + " px, fallback " + JSON.stringify(letter) + " " + Math.round(fallback.width) + " px";
+      } finally {
+        await context.close();
+      }
+    });
   },
 
   async install(page, step) {

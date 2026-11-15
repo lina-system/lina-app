@@ -21,7 +21,7 @@ async function open(hash: string, source: SyntheticSource, wide = true) {
   setWide(wide);
   window.history.replaceState(null, "", `/app/${hash}`);
   const view = render(<App store={new Store(source)} />);
-  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("실시간"));
+  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe(""));
   return view;
 }
 

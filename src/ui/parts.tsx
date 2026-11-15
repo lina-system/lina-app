@@ -1,7 +1,7 @@
 import { createContext, type ComponentChildren, type JSX } from "preact";
-import { useContext } from "preact/hooks";
-import type { WorkState } from "../api/client";
-import type { AppLabel } from "../data/http-source";
+import { useContext, useState } from "preact/hooks";
+import { BOARD_BASE, type WorkState } from "../api/client";
+import { bootstrapOptions, type AppLabel } from "../data/http-source";
 import type { Store } from "../data/store";
 import type { CardRow, ItemLine, Model, Section } from "../model";
 import { linkClick } from "../router";
@@ -36,15 +36,43 @@ export function agentName(model: Model, id: string | null | undefined): string {
   return (id && model.names.get(id)) || "";
 }
 
+/** Agents whose picture failed to load in this page: their marks stay the letter circle and do not ask again. */
+const failedPictures = new Set<string>();
+
+/**
+ * An agent's mark: the coloured circle with its first letter, and its picture over it when the people list says it has
+ * one (lina-app#191, lina#738). The letter is drawn first, so the circle holds its place while the picture loads and
+ * stays when it fails (404, offline): no broken image, no jump.
+ */
 export function AgentMark({ id }: { id: string | null | undefined }) {
   const { model } = useApp();
+  const [, failed] = useState(0);
   const agent = model.agents.find((candidate) => candidate.id === id);
   if (!agent) return <span class="mark mark-none" aria-hidden="true" />;
+  const picture = agent.avatar && !failedPictures.has(agent.id);
   return (
     <span class="mark" style={{ "--dot": `var(--agent-${agent.index % 6})` }} aria-hidden="true">
       {agent.letter}
+      {picture ? (
+        <img
+          class="mark-picture"
+          src={agentAvatarPath(agent.id)}
+          alt=""
+          decoding="async"
+          onError={() => {
+            failedPictures.add(agent.id);
+            failed((count) => count + 1);
+          }}
+        />
+      ) : null}
     </span>
   );
+}
+
+/** Under the core's base path like every other read (`__HERMES_BASE_PATH__`), so a prefixed deployment finds the picture. */
+function agentAvatarPath(id: string): string {
+  const basePath = (bootstrapOptions().basePath ?? "").replace(/\/+$/, "");
+  return `${basePath}${BOARD_BASE}/agents/${encodeURIComponent(id)}/avatar`;
 }
 
 /** A running card's to-dos as a thin bar and their count (▮▮▮▯▯ 3/5); the number is the text, the bar its picture. */

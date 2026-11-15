@@ -8,7 +8,7 @@ test("opening and closing the detail pane never changes the list's scroll, even 
   test.skip(info.project.name === "phone", "the pane beside the list is the wide layout");
   await page.setViewportSize({ width: 1280, height: 360 });
   await page.goto(`${APP}#/running`);
-  await expect(page.getByTestId("freshness-line")).toHaveText("실시간");
+  await expect(page.getByTestId("freshness-line")).toHaveText("");
   const list = page.locator(".list-pane");
   // Stands for the hub's long rows above the view: text whose height depends on the list's width.
   await list.evaluate((element) => {
@@ -40,7 +40,7 @@ test("opening and closing the detail pane never changes the list's scroll, even 
 
 test("a goal opened in 대화 has one talk box, and the reply button beside 답 달기 fits the screen", async ({ page }, info) => {
   await page.goto(`${APP}#/talk/ag-3?goal=G3`);
-  await expect(page.getByTestId("freshness-line")).toHaveText("실시간");
+  await expect(page.getByTestId("freshness-line")).toHaveText("");
   const answer = page.getByTestId("decision-answer");
   await expect(answer.getByRole("textbox", { name: "답 달기" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "메시지" })).toHaveCount(1);

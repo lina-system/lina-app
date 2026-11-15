@@ -216,7 +216,8 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
   const rng = mulberry32(seed);
   const names = shuffle(rng, AGENT_NAMES).slice(0, 3);
   const machines = shuffle(rng, MACHINE_NAMES).slice(0, 3);
-  const agents = names.map((name, index) => ({ id: `ag-${index + 1}`, name }));
+  // The first agent has a picture (`avatar: true`, lina#738); the others are drawn as their letter circle.
+  const agents = names.map((name, index) => ({ id: `ag-${index + 1}`, name, ...(index === 0 ? { avatar: true } : {}) }));
   const agentId = (index: number) => agents[index].id;
   const weekOffset = Math.min(2, daysToNextWeek(now) - 1);
 

@@ -17,7 +17,7 @@ async function open(source: SyntheticSource) {
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} }));
   window.history.replaceState(null, "", "/app/#/status");
   const view = render(<App store={new Store(source)} />);
-  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("실시간"));
+  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe(""));
   return view;
 }
 
@@ -242,8 +242,8 @@ describe("status tab, QA round 4 (lina-app#150)", () => {
     vi.stubGlobal("matchMedia", (query: string) => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} }));
     window.history.replaceState(null, "", "/app/#/status");
     const view = render(<App store={new Store(new SyntheticSource({ writerStopped: true }))} />);
-    await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("실시간"));
-    expect(view.getByTestId("freshness").textContent).toBe("실시간");
+    await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe(""));
+    expect(view.getByTestId("freshness").textContent).toBe("");
     expect(view.queryByTestId("summaries-stopped")).toBeNull();
     const row = view.getByTestId("summaries-check");
     expect(view.getByRole("list", { name: "점검" }).contains(row)).toBe(true);
@@ -270,7 +270,7 @@ describe("status tab, QA round 5 (lina-app#152)", () => {
     vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {} }));
     window.history.replaceState(null, "", "/app/#/status");
     const view = render(<App store={new Store(fresh())} />);
-    await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("실시간"));
+    await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe(""));
     await waitFor(() => expect(view.getByTestId("section-machines").querySelector(".section-head")?.textContent).toBe("작업 기기 4 · 정상 2 · 경고 1 · 꺼짐 1"));
     const lines = [...view.container.querySelectorAll("*")].filter((element) => element.children.length === 0 || element.matches("[data-testid=device-line]")).map((element) => element.textContent ?? "");
     expect(lines.filter((text) => /^(작업 )?기기 \d+/.test(text))).toEqual(["작업 기기 4 · 정상 2 · 경고 1 · 꺼짐 1"]);

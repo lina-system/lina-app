@@ -33,7 +33,7 @@ test("at 390 the 상태 tab opens the same 메뉴 from its header, with 설정 i
   setWide(false);
   window.history.replaceState(null, "", "/app/#/status");
   const view = render(<App store={new Store(new SyntheticSource({ now: Math.floor(Date.now() / 1000) }))} />);
-  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("실시간"));
+  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe(""));
   fireEvent.click(view.getByRole("button", { name: "메뉴" }));
   const menu = view.getByRole("dialog", { name: "메뉴" });
   for (const id of ["nav-today", "nav-inbox", "nav-goals", "nav-settings"]) expect(menu.querySelector(`[data-testid=${id}]`), id).toBeTruthy();
@@ -62,8 +62,8 @@ test("a stream that connects 3 s after the first read reads 연결 중 until the
   await act(async () => {
     await vi.advanceTimersByTimeAsync(LIVE_SETTLE_MS * 4);
   });
-  expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
-  expect(words.filter((word) => word !== "불러오는 중")).toEqual(["연결 중", "실시간"]);
+  expect(view.getByTestId("freshness-line").textContent).toBe("");
+  expect(words.filter((word) => word !== "불러오는 중")).toEqual(["연결 중", ""]);
 });
 
 test("a connected stream that goes silent reads 갱신 지연 only after the settle time", async () => {
@@ -75,13 +75,13 @@ test("a connected stream that goes silent reads 갱신 지연 only after the set
   await act(async () => {
     await vi.advanceTimersByTimeAsync(100);
   });
-  expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
+  expect(view.getByTestId("freshness-line").textContent).toBe("");
   source.setStreamDown(true);
   await act(async () => source.dropStreams());
   await act(async () => {
     await vi.advanceTimersByTimeAsync(LIVE_SETTLE_MS - 1);
   });
-  expect(view.getByTestId("freshness-line").textContent).toBe("실시간");
+  expect(view.getByTestId("freshness-line").textContent).toBe("");
   await act(async () => {
     await vi.advanceTimersByTimeAsync(1);
   });

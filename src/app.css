@@ -378,6 +378,40 @@ button:disabled {
   background: var(--fill);
 }
 
+/* The agent's picture over its letter circle (lina-app#191): the circle keeps its size, and shows when it fails. */
+.mark:has(> .mark-picture) {
+  position: relative;
+  overflow: hidden;
+}
+
+.mark-picture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The 대화 window's head in the bar: the agent's mark and name, the screen's one title (lina-app#191). */
+.talk-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.talk-head > h1 {
+  min-width: 0;
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+.talk-head > .mark {
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+}
+
 .row > a[aria-current="page"] .mark,
 .nav-row.is-current .mark {
   box-shadow: 0 0 0 1.5px var(--on-accent);
@@ -1330,8 +1364,7 @@ button:disabled {
 
 /* A hidden label is placed inside its own field's box (or the live dot's), never against the page, so it can
    never make the page taller than the window. */
-.note,
-.talk-live {
+.note {
   position: relative;
 }
 
@@ -1400,78 +1433,367 @@ button:disabled {
   padding: 0 10px;
 }
 
-/* 대화: the owner's words on the right, the agent's reply on the left under its mark. */
+/* 대화 (lina-app#187): a chat app's thread. The owner's bubbles on the right in the accent, the agent's on the left
+   under its mark and name, a date between days; one sender's run of messages is one group with its time once at the
+   end, and the last bubble of a group has a tighter corner. */
 
 .talk {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.talk-turn {
+.talk-day {
+  justify-self: center;
+  padding: 2px 10px;
+  border-radius: 10px;
+  background: var(--fill);
+  color: var(--label-2);
+  font-size: var(--text-small);
+}
+
+.talk-group {
   display: flex;
   align-items: flex-start;
   gap: 8px;
+  min-width: 0;
 }
 
-.talk-turn.is-mine {
+.talk-group.is-mine {
   justify-content: flex-end;
 }
 
-.talk-turn > .mark {
-  margin-top: 4px;
+.talk-group > .mark {
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
 }
 
 .talk-lines {
-  display: grid;
-  gap: 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
-  max-width: 85%;
+  max-width: min(75%, 640px);
+}
+
+.is-mine > .talk-lines {
+  align-items: flex-end;
+}
+
+.is-agent > .talk-lines {
+  align-items: flex-start;
+}
+
+.talk-name {
+  margin: 0 0 2px 4px;
+  color: var(--label-2);
+  font-size: var(--text-small);
+}
+
+.talk-turn {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .talk-bubble {
-  padding: 6px 11px;
-  border-radius: 14px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 8px 12px;
+  border-radius: 18px;
   background: var(--fill);
   color: var(--label);
   font-size: var(--text-body);
-  white-space: pre-wrap;
+  line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
-.is-mine > .talk-bubble {
-  max-width: 85%;
-  background: color-mix(in srgb, var(--accent) 16%, var(--bg));
+.is-mine .talk-bubble {
+  background: var(--accent);
+  color: var(--on-accent);
+  white-space: pre-wrap;
 }
 
-/* A reply still streaming ends in one quiet dot; it holds still when motion is reduced. */
-.talk-live {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-left: 6px;
+.is-mine > .talk-lines > .talk-turn:last-of-type > .talk-bubble {
+  border-bottom-right-radius: 6px;
+}
+
+.is-agent > .talk-lines > .talk-turn:last-of-type > .talk-bubble {
+  border-bottom-left-radius: 6px;
+}
+
+/* A message the core has not answered yet: drawn fainter, with no word under it. */
+.talk-turn[data-state="sending"] > .talk-bubble {
+  opacity: 0.6;
+}
+
+.talk-time {
+  margin: 2px 4px 0;
+  color: var(--label-2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Nothing a phone shows is under 13 px (iOS Footnote). */
+.stack .talk-time {
+  font-size: 13px;
+}
+
+.talk-carried {
+  margin: 0 4px;
+}
+
+/* While the agent writes, three dots in its bubble; they hold still when motion is reduced. */
+.talk-typing {
+  display: flex;
+  gap: 4px;
+  padding: 6px 2px;
+}
+
+.md + .talk-typing {
+  padding-bottom: 0;
+}
+
+.talk-typing > span {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--label-2);
-  vertical-align: middle;
-  animation: talk-live 1.2s ease-in-out infinite;
+  animation: talk-typing 1.2s ease-in-out infinite;
 }
 
-@keyframes talk-live {
-  50% {
-    opacity: 0.25;
+.talk-typing > span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.talk-typing > span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes talk-typing {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: none;
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .talk-live {
+  .talk-typing > span {
     animation: none;
+    opacity: 0.6;
   }
 }
 
-.stack .talk-form .note.is-inline input {
+/* The reply's markdown (src/markdown.tsx). A code block and a table scroll sideways inside the bubble, never the page. */
+.md > * + * {
+  margin-top: 6px;
+}
+
+.md p,
+.md ul,
+.md ol,
+.md blockquote,
+.md pre {
+  margin: 0;
+}
+
+.md ul,
+.md ol {
+  padding-left: 1.3em;
+}
+
+/* The app's lists have no marks; a reply's lists keep theirs. */
+.md ul {
+  list-style: disc;
+}
+
+.md ol {
+  list-style: decimal;
+}
+
+.md li + li {
+  margin-top: 2px;
+}
+
+.md code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--label) 8%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88em;
+}
+
+.md-code {
+  overflow-x: auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--label) 7%, transparent);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.md-code code {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+  white-space: pre;
+}
+
+.md blockquote {
+  padding-left: 10px;
+  border-left: 3px solid var(--separator);
+  color: var(--label-2);
+}
+
+.md a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.md hr {
+  border: 0;
+  border-top: var(--line) solid var(--separator);
+}
+
+.md-table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.md-table table {
+  border-collapse: collapse;
+  font-size: var(--text-small);
+}
+
+.md-table th,
+.md-table td {
+  padding: 4px 8px;
+  border: var(--line) solid var(--separator);
+  text-align: left;
+  word-break: keep-all;
+}
+
+/* The field: a rounded box that grows with its lines up to 5, then scrolls; 보내기 a round icon, dim while off. */
+.talk-form {
+  align-items: flex-end;
+}
+
+.talk-form .note.is-inline textarea {
+  display: block;
+  width: 100%;
+  min-height: 36px;
+  max-height: calc(5 * 20px + 16px);
+  padding: 7px 14px;
+  border: var(--line) solid var(--separator);
+  border-radius: 18px;
+  background: var(--bg);
+  color: var(--label);
+  font: inherit;
+  font-size: var(--text-body);
+  line-height: 20px;
+  resize: none;
+  overflow-y: auto;
+}
+
+.talk-form .note.is-inline textarea::placeholder {
+  color: var(--label-2);
+}
+
+.talk-send {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.talk-send svg {
+  width: 20px;
+  height: 20px;
+}
+
+.talk-send:disabled {
+  background: var(--fill);
+  color: var(--label-2);
+}
+
+/* Whole-pixel lines: one line, its padding and its border stay within the 44 px a phone's field is. */
+.stack .talk-form .note.is-inline textarea {
+  min-height: 44px;
+  max-height: calc(5 * 22px + 22px);
+  padding: 10px 16px;
+  border-radius: 22px;
+  line-height: 22px;
+}
+
+.stack .talk-send {
+  width: 44px;
   height: 44px;
+}
+
+/* 맨 아래로: a round button over the bottom of the thread while the owner reads up, with the count of new messages. */
+.talk-jump-bar {
+  position: sticky;
+  bottom: 12px;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  height: 0;
+  pointer-events: none;
+}
+
+.talk-jump {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-top: -52px;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--label);
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.18),
+    0 0 0 var(--line) var(--separator);
+  pointer-events: auto;
+}
+
+.talk-jump svg {
+  width: 20px;
+  height: 20px;
+}
+
+.talk-jump-count {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.stack .talk-jump {
+  width: 44px;
+  height: 44px;
+  margin-top: -56px;
 }
 
 .write-error {
@@ -1632,7 +1954,7 @@ button.check:hover:not([aria-disabled="true"]):not(.is-done) {
 }
 
 .stack ~ .toast-slot {
-  bottom: calc(56px + var(--safe-bottom) + var(--keyboard-inset, 0px));
+  bottom: calc(var(--phone-end) + 12px);
 }
 
 .toast {
@@ -1820,6 +2142,33 @@ html:has(.stack) body {
   background: var(--bg-2);
 }
 
+/* An agent's 대화 window: back is an icon, the head takes the room up to the chip and the bell, and a hairline marks
+   the bar's edge over the conversation scrolling under it (lina-app#191). */
+.navbar.is-talk {
+  gap: 4px;
+  border-bottom: var(--line) solid var(--separator);
+}
+
+.navbar.is-talk > .talk-head {
+  flex: 1;
+}
+
+.navbar.is-talk .talk-head > h1 {
+  font-size: 17px;
+}
+
+.stack .navbar.is-talk .talk-head > .mark {
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+}
+
+.back.is-icon {
+  justify-content: center;
+  width: var(--hit);
+  padding-right: 0;
+}
+
 .back {
   display: flex;
   align-items: center;
@@ -1837,9 +2186,9 @@ html:has(.stack) body {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-bottom: calc(64px + var(--safe-bottom) + var(--keyboard-inset, 0px));
+  padding-bottom: calc(var(--phone-end) + 20px);
   /* A row brought into view (a tap, a focus move, a find) stops above the bottom bar, never under it (lina-app#142). */
-  scroll-padding-bottom: calc(44px + 8px + var(--safe-bottom) + var(--keyboard-inset, 0px));
+  scroll-padding-bottom: calc(var(--phone-end) + 8px);
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
   background: var(--bg-2);
@@ -1945,6 +2294,23 @@ html:has(.stack) body {
   padding: 0 calc(var(--inset) + 12px) 12px;
 }
 
+/* lina-app#187: the bottom strip holds only the head's word. Its height is one value, --bottom-strip: 44 px while the
+   word says something is wrong, 0 while all is well, when the strip draws nothing. --phone-end is what covers the
+   bottom of a phone screen (the strip, the home indicator and the keyboard); every screen, field and button that must
+   stay clear of it reads that one value. */
+:root {
+  --bottom-strip: 44px;
+  --phone-end: calc(var(--bottom-strip) + var(--safe-bottom) + var(--keyboard-inset, 0px));
+}
+
+:root:has(.stack .bottombar .freshness[data-quiet]) {
+  --bottom-strip: 0px;
+}
+
+.stack .bottombar:has(.freshness[data-quiet]) {
+  display: none;
+}
+
 .bottombar {
   position: fixed;
   left: 0;
@@ -1954,7 +2320,7 @@ html:has(.stack) body {
   grid-template-columns: var(--hit) 1fr var(--hit);
   align-items: center;
   gap: 8px;
-  height: calc(44px + var(--safe-bottom));
+  height: calc(var(--bottom-strip) + var(--safe-bottom));
   padding: 0 calc(8px + var(--safe-right)) var(--safe-bottom) calc(8px + var(--safe-left));
   background: var(--bar);
   backdrop-filter: saturate(180%) blur(20px);
@@ -2262,7 +2628,12 @@ html:has(.stack) body {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0 var(--safe-right) calc(24px + var(--safe-bottom) + var(--keyboard-inset, 0px)) var(--safe-left);
+  padding: 0 var(--safe-right) calc(24px + var(--bottom-strip) + var(--safe-bottom) + var(--keyboard-inset, 0px)) var(--safe-left);
+}
+
+/* A word in the strip (연결 중 …) shows over the sheet's foot, and the sheet's last line ends above it (lina-app#187). */
+.stack:has(> .detail-sheet) .bottombar {
+  z-index: 20;
 }
 
 @keyframes fade-in {
@@ -2811,32 +3182,11 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   height: 100%;
 }
 
-.agent-talk-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px var(--inset);
-  border-bottom: var(--line) solid var(--separator);
-}
-
-.agent-talk-head .title {
-  font-weight: 600;
-}
-
-.agent-talk-title {
-  font-size: inherit;
-  font-weight: inherit;
-}
-
 .agent-talk-turns {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding: 16px var(--inset);
-}
-
-.agent-talk-turns .talk-end {
-  height: 0;
 }
 
 .agent-talk-form {
@@ -2869,25 +3219,17 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   background: var(--bg-2);
 }
 
-.stack .agent-talk-head {
-  border-bottom: 0;
-}
-
 .stack .agent-talk-turns {
   overflow: visible;
   padding: 8px var(--inset);
 }
 
-/* The field and the strip cover the bottom of the screen: a row brought into view stops above both (lina-app#143). */
-.stack .phone-main:has(> .agent-talk) {
-  scroll-padding-bottom: calc(var(--hit) + 96px + var(--safe-bottom) + var(--keyboard-inset, 0px));
-}
-
 .stack .agent-talk-form {
   position: sticky;
-  bottom: calc(-64px - var(--safe-bottom) - var(--keyboard-inset, 0px));
-  margin-bottom: calc(-64px - var(--safe-bottom) - var(--keyboard-inset, 0px));
-  padding-bottom: calc(10px + 64px + var(--safe-bottom) + var(--keyboard-inset, 0px));
+  /* Over the screen's own bottom padding to the edge, the field 10 px above whatever covers the bottom. */
+  bottom: calc(-20px - var(--phone-end));
+  margin-bottom: calc(-20px - var(--phone-end));
+  padding-bottom: calc(10px + var(--phone-end));
   background: var(--bar);
 }
 
@@ -2938,17 +3280,6 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   font-variant-numeric: tabular-nums;
 }
 
-.talk-turn.is-mine:has(> .talk-sending) {
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-}
-
-.talk-sending {
-  font-size: var(--text-small);
-  color: var(--label-2);
-}
-
 /* lina-app#158: a refused send is one line inside the agent window's field bar, above the field. On a phone the bar is
    sticky over the bottom of the screen; a line drawn after it sat under it. */
 .agent-talk-form > .write-error {
@@ -2957,14 +3288,15 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   margin: 0 0 6px;
 }
 
-/* The reason beside an off 보내기 (one small line and the row gap) and a refused send's line (and its margin) make the
-   bar taller; a row brought into view still stops above it (lina-app#143). */
+/* The field bar's top above the bottom of the screen: the field, its padding, a refused send's line and what covers the
+   bottom. A row brought into view stops above it, and 맨 아래로 sits over it (lina-app#143, #187). */
 .stack .phone-main:has(> .agent-talk) {
-  scroll-padding-bottom: calc(var(--hit) + 96px + var(--talk-why-line, 0px) + var(--talk-error-line, 0px) + var(--safe-bottom) + var(--keyboard-inset, 0px));
+  --talk-bar: calc(var(--hit) + 20px + var(--talk-error-line, 0px) + var(--phone-end));
+  scroll-padding-bottom: calc(var(--talk-bar) + 12px);
 }
 
-.stack .phone-main:has(> .agent-talk .agent-talk-form > .send-why) {
-  --talk-why-line: 26px;
+.stack .agent-talk .talk-jump-bar {
+  bottom: var(--talk-bar);
 }
 
 .stack .phone-main:has(> .agent-talk .agent-talk-form > .write-error) {
@@ -2972,14 +3304,14 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 }
 
 /* lina-app#162: on a phone the open card's goals scroll in their own region, sized to end above the field bar and the
-   strip with the window's head and the card's toggle in view: the screen's content box (the strip, the safe area and
-   the keyboard already out of it), less the head and toggle above and the field bar's own height below. */
+   strip with the card's toggle in view: the screen's content box (the strip, the safe area and the keyboard already out
+   of it), less the toggle above and the field bar's own height below. The window's head is in the bar (lina-app#191). */
 .stack .phone-main:has(> .agent-talk) {
   container-type: size;
 }
 
 .stack .agent-card.is-open > .agent-card-body {
-  max-height: max(88px, calc(100cqh - 128px - var(--hit) - 32px - var(--talk-why-line, 0px) - var(--talk-error-line, 0px)));
+  max-height: max(88px, calc(100cqh - 66px - var(--hit) - 12px - var(--talk-error-line, 0px)));
   overflow-y: auto;
 }
 
@@ -3032,9 +3364,13 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   overflow-wrap: anywhere;
 }
 
-/* lina-app#167: on a phone the 대화 field bar is opaque, so a message scrolled under it never shows through the reason
-   beside 보내기. */
+/* lina-app#167: on a phone the 대화 field bar is opaque, so a message scrolled under it never shows through it. */
 .stack .agent-talk-form {
+  background: var(--bg);
+}
+
+/* On the phone window's grey the agent's bubbles are the page colour, as in a phone's messages app (lina-app#187). */
+.stack .agent-talk .is-agent .talk-bubble {
   background: var(--bg);
 }
 

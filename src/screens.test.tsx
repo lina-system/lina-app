@@ -2,7 +2,7 @@ import { act, fireEvent, render, waitFor, within } from "@testing-library/preact
 import { render as renderPreact } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import type { RouteName, RunnerCell, WorkCardSummary } from "./api/client";
+import type { AgentTalkEvent, RouteName, RunnerCell, WorkCardSummary } from "./api/client";
 import { App } from "./app";
 import { AGENT_REPLY_DELTAS, STREAM_TICK_MS, SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS } from "./data/synthetic-source";
 import type { ReadResult, Source } from "./data/source";
@@ -1775,6 +1775,55 @@ describe("agent talk", () => {
     }
   });
 
+  test("a turn whose reply broke off before the core kept it stays whole, message and reply, when another device's turn makes the window read again (lina-app#209)", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      class Breaks extends SyntheticSource {
+        // The reply starts, then the stream is cut: the core keeps nothing of this turn.
+        override async agentTalk(_agent: string, _body: { message: string }, _signal?: AbortSignal) {
+          async function* events(): AsyncGenerator<AgentTalkEvent> {
+            yield { event: "assistant.delta", data: { delta: "반쯤 쓴 답" } } as AgentTalkEvent;
+            throw new Error("stream cut");
+          }
+          return { ok: true as const, events: events() };
+        }
+      }
+      const source = new Breaks();
+      const view = await open("#/talk/ag-1", { wide: true, source });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const { field } = parts(view);
+      field.value = "끊길 말";
+      fireEvent.input(field);
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 10);
+      });
+      const bubbles = () => parts(view).box.getAllByTestId("talk-reply").map((line) => line.querySelector(".talk-bubble")?.textContent);
+      expect(parts(view).box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "끊길 말"]);
+      expect(bubbles().at(-1)).toBe("반쯤 쓴 답");
+      // Another device adds a turn; the window reads the history again, which holds none of the cut turn.
+      const otherDevice = new SyntheticSource({ scene: source.scene });
+      const turn = await otherDevice.agentTalk("ag-1", { message: "다른 기기에서 보낸 말" });
+      if (!turn.ok) throw new Error("the turn was refused");
+      const frames = (async () => {
+        for await (const _ of turn.events);
+      })();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      await frames;
+      const { box } = parts(view);
+      const mine = box.getAllByTestId("talk-mine").map((line) => line.textContent);
+      expect(mine).toContain("다른 기기에서 보낸 말");
+      expect(mine.filter((line) => line === "끊길 말")).toHaveLength(1);
+      expect(bubbles()).toContain("반쯤 쓴 답");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("a message sent just before choosing another agent stays in its window, and the reply joins it there", async () => {
     vi.useFakeTimers(TIMERS);
     try {
@@ -1819,10 +1868,15 @@ describe("agent talk", () => {
         let release: () => void = () => undefined;
         const gate = new Promise<void>((resolve) => (release = resolve));
         class Overlap extends SyntheticSource {
-          reads = 0;
+          sent = false;
+          override async agentTalk(...args: Parameters<SyntheticSource["agentTalk"]>) {
+            if (args[0] === "ag-1") this.sent = true;
+            return await super.agentTalk(...args);
+          }
           override async agentTalkHistory(agent: string) {
             const result = await super.agentTalkHistory(agent);
-            if (agent !== "ag-1" || ++this.reads < 2 || result.kind !== "data") return result;
+            // A read that began before the turn went out cannot hold it: only the reads after are held back or hold it.
+            if (agent !== "ag-1" || !this.sent || result.kind !== "data") return result;
             if (order === "history after the completion") {
               await gate;
               return await super.agentTalkHistory(agent);

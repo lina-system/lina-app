@@ -150,3 +150,25 @@ test("what waits on the first paint starts once the lists are drawn, while a slo
   void store.painted.then(() => (started = true));
   await vi.waitFor(() => expect(started).toBe(true));
 });
+
+test("a slow route the open screen draws keeps its once-a-minute pace, and is read once when it is due", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  try {
+    const source = new SyntheticSource({ now: NOW });
+    const names = asked(source);
+    const store = new Store(source, { afterPaint: async () => {} });
+    await store.refresh();
+    store.want([["checks"], ["devices"]]);
+    names.length = 0;
+
+    await store.refresh();
+    expect(names.filter((name) => name === "checks" || name === "devices")).toEqual([]);
+
+    vi.setSystemTime(Date.now() + 61_000);
+    await store.refresh();
+    expect(names.filter((name) => name === "checks")).toHaveLength(1);
+    expect(names.filter((name) => name === "devices")).toHaveLength(1);
+  } finally {
+    vi.useRealTimers();
+  }
+});

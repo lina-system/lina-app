@@ -307,7 +307,9 @@ export class Store {
     if (later.length) await this.afterPaint();
     // The lists are on screen: what waits on them (the change stream, the push key) starts without waiting for the rest.
     this.firstPaint();
-    const reread = this.wanted.filter((route) => !reading(route));
+    // A slow route the screen draws was read in the first wave when it was due; it keeps its once-a-minute pace.
+    const slowRoute = ([name, id]: Want[number]) => SLOW_ROUTES.some(([slowName, slowId]) => slowName === name && slowId === id);
+    const reread = this.wanted.filter((route) => !reading(route) && !slowRoute(route));
     const secondWave = await Promise.all([...later, ...reread].map(([name, id]) => this.load(name, id)));
     this.refreshes += 1;
     if (secondWave.some(Boolean)) this.changed();

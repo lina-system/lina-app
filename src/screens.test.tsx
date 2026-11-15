@@ -661,16 +661,16 @@ describe("freshness", () => {
     }
   });
 
-  test("a stream that never opens reads 갱신 지연 after the settle time, never 실시간", async () => {
+  test("a stream that never opens reads 연결 중 past the settle time, never 갱신 지연 or 실시간 (lina-app#172)", async () => {
     vi.useFakeTimers(TIMERS);
     try {
       setWide(true);
       window.history.replaceState(null, "", "/app/#/inbox");
       const view = render(<App store={new Store(new SyntheticSource({ live: "down" }))} />);
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(LIVE_SETTLE_MS);
+        await vi.advanceTimersByTimeAsync(LIVE_SETTLE_MS * 10);
       });
-      expect(view.getByTestId("freshness-line").textContent).toBe("갱신 지연");
+      expect(view.getByTestId("freshness-line").textContent).toBe("연결 중");
       expect(rowsIn(view.getByTestId("screen-inbox"))).toBe(SCENE_COUNTS.inbox);
     } finally {
       vi.useRealTimers();

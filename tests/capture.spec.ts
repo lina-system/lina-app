@@ -21,7 +21,7 @@ const SCREENS: readonly { id: string; hash: string; query?: string; line?: strin
   { id: "talk-agent", hash: "#/talk/ag-1", open: async (page) => void (await page.getByTestId("talk-mine").first().waitFor()) },
   { id: "today", hash: "#/today" },
   { id: "inbox", hash: "#/inbox" },
-  { id: "live-stale", hash: "#/inbox", query: "&live=down", line: "갱신 지연" },
+  { id: "live-connecting", hash: "#/inbox", query: "&live=down", line: "연결 중" },
   { id: "running", hash: "#/running" },
   { id: "due", hash: "#/due" },
   { id: "done", hash: "#/done" },

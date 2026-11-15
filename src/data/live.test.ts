@@ -130,7 +130,7 @@ describe("the change stream", () => {
     stop();
   });
 
-  test("a failed connection waits longer each time, with jitter, and nothing polls meanwhile", async () => {
+  test("a failed connection waits longer each time, with jitter, and nothing polls meanwhile; a stream never open stays connecting", async () => {
     const source = new SyntheticSource({ live: "down" });
     const store = new Store(source);
     const stop = new Live(store, tab(() => 0).host).start();
@@ -148,7 +148,8 @@ describe("the change stream", () => {
     await step(60_000);
     expect(source.stream.length).toBeLessThan(10);
     expect(source.reads).toBe(reads);
-    expect(store.live).toBe("down");
+    // Nothing is late before the stream was ever open (lina-app#172).
+    expect(store.live).toBe("connecting");
     source.setStreamDown(false);
     await step(BACKOFF_MAX_MS);
     expect(store.live).toBe("open");

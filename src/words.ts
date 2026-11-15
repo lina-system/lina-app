@@ -205,6 +205,7 @@ export const W = {
 
   fresh: (seconds: number) => `갱신 ${seconds}초 전`,
   live: "실시간",
+  connecting: "연결 중",
   stale: "갱신 지연",
   offline: "연결 끊김",
   readFailed: (source: string) => `읽기 실패: ${source}`,

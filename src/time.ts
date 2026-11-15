@@ -37,13 +37,33 @@ export function clock(epochSeconds: number): string {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
+/** A date and its time of day: 11월 2일 09:10. */
+export function dateClock(epochSeconds: number): string {
+  const date = new Date(epochSeconds * 1000);
+  return `${date.getMonth() + 1}월 ${date.getDate()}일 ${clock(epochSeconds)}`;
+}
+
 /** A time of day with its day when that is not `now`'s: 14:05 today, 어제 23:41, then 11월 2일 09:10. */
 export function clockAt(epochSeconds: number, now: number): string {
   const key = (seconds: number) => new Date(seconds * 1000).toDateString();
   if (key(epochSeconds) === key(now)) return clock(epochSeconds);
   if (key(epochSeconds) === key(now - 86_400)) return `${W.yesterday} ${clock(epochSeconds)}`;
-  const date = new Date(epochSeconds * 1000);
-  return `${date.getMonth() + 1}월 ${date.getDate()}일 ${clock(epochSeconds)}`;
+  return dateClock(epochSeconds);
+}
+
+/** An ISO date and time a machine wrote into a text (`2026-11-16T03:30+09:00`), with the `=` before it when no key is. */
+const ISO_TIME = /(?<![\w-])=?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)(Z|[+-]\d{2}:?\d{2})?(?![\w:+-])/g;
+
+/**
+ * A text with every ISO time in it written as the screens write a time (dateClock, lina-app#207): an offset or `Z` is
+ * that instant on this device's clock, none is the device's own time. A `=` whose key the fold cut goes with it; one
+ * whose key is still there stays.
+ */
+export function timesInText(text: string): string {
+  return text.replace(ISO_TIME, (whole, time: string, zone: string | undefined) => {
+    const at = Date.parse(zone ? `${time}${zone === "Z" ? zone : zone.replace(/^([+-]\d{2}):?(\d{2})$/, "$1:$2")}` : time);
+    return Number.isNaN(at) ? whole : dateClock(Math.floor(at / 1000));
+  });
 }
 
 export function dayLabel(day: string): string {

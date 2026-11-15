@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import { dateClock } from "../time";
 import { foldedText, foldReason, tidyFoldedText, titleMayDraw, withoutRefs } from "./fold";
 
 test("a comment shows as it is unless it would show a path, a command, a hash, an issue number, an address or a fragment", () => {
@@ -114,14 +115,15 @@ test("a title is hidden only when it has no Hangul or runs three Latin words; na
 });
 
 // lina-app#161 item 6: comment sentences in the hub's real shapes. withoutRefs cuts the ref and leaves the words around
-// it; a sentence left as debris (a lone particle, a bare label, a label whose value was the ref) goes whole. The address
+// it; a sentence left as debris (a lone particle, a bare label, a label whose value was the ref) goes whole. A ref inside
+// a sentence with its particle written apart reads as the kind of thing it names instead (lina-app#207). The address
 // host is an example name in place of the real one.
 test.each([
-  ["백업 대체는 t_e6e0f90a 가 맡는다.", ""],
-  ["남은 범위 lina#718 라 카드 완료 금지.", ""],
+  ["백업 대체는 t_e6e0f90a 가 맡는다.", "백업 대체는 카드가 맡는다."],
+  ["남은 범위 lina#718 라 카드 완료 금지.", "남은 범위 이슈라 카드 완료 금지."],
   ["주소: (lina-system/lina#12), (hermes-ops#277)", ""],
   ["주소: http://hub.example.com:8080/ 되돌릴 커밋: e37e43f", ""],
-  ["Codex 리뷰 요청함. 남은 범위 lina#718 라 카드 완료 금지.", "Codex 리뷰 요청함."],
+  ["Codex 리뷰 요청함. 남은 범위 lina#718 라 카드 완료 금지.", "Codex 리뷰 요청함. 남은 범위 이슈라 카드 완료 금지."],
   ["t_e6e0f90a 카드에서 이어서 확인함.", "카드에서 이어서 확인함."],
   ["그 일은 오늘 가 볼 예정.", "그 일은 오늘 가 볼 예정."],
   ["#196은 이 경로를 건드리지 않는다.", "이 경로를 건드리지 않는다."],
@@ -145,6 +147,17 @@ test.each([
   ["실행: [정리 기록](https://fake.example.test/a) (정리 커밋 포함), a1b2c3d4. 남은 일은 없음.", "남은 일은 없음."],
   ["fake_option' 값은 꺼져 있다. 다음 판에서 다시 확인함.", "다음 판에서 다시 확인함."],
   ["가상 화면 a1b2c3d4 정리를 마침.", "가상 화면 정리를 마침."],
+  // lina-app#207: a name in backticks cut inside a sentence, its particle apart; one that opens the sentence goes whole.
+  ["그 뒤 디스패처가 152번 `fake_field` 로 막았다.", "그 뒤 디스패처가 152번 항목으로 막았다."],
+  ["`fake_field` 로 막았다.", ""],
 ])("foldedText(%j) keeps only what still reads: %j (lina-app#161)", (comment, shown) => {
   expect(foldedText(comment)).toBe(shown);
+});
+
+// lina-app#207: the hub's comments wrote machine times (`안전망 =2026-11-16T03:30+09:00`, `백업 =2026-11-16T00:30+09:00`); a
+// comment reads them as every time on the screens, with the `=` its cut key left gone.
+test("an ISO time inside a comment reads as a date and a time of day, with no = left (lina-app#207)", () => {
+  expect(foldedText("안전망 =2026-11-16T03:30+09:00")).toBe(`안전망 ${dateClock(Date.UTC(2026, 10, 15, 18, 30) / 1000)}`);
+  expect(foldedText("백업 =2026-11-16T00:30+09:00")).toBe(`백업 ${dateClock(Date.UTC(2026, 10, 15, 15, 30) / 1000)}`);
+  expect(foldedText("안전망 fake_until=2026-11-16T03:30 이후 확인.")).toBe("안전망 11월 16일 03:30 이후 확인.");
 });

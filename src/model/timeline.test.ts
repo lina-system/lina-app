@@ -60,6 +60,21 @@ test.each([
   expect(firstSentence(foldedText(text))).toBe(shown);
 });
 
+// lina-app#207: a name cut inside a sentence left its particle standing alone. The hub's card comments read
+// `그 뒤 디스패처가 152번 로 막았다.` and `허브가 앱 번들 를 서빙.` (round 15); the names here are made up. The kind of thing
+// the name was stands in, with the particle in the form that noun takes. A sentence that opens on the name goes whole.
+test.each([
+  ["그 뒤 디스패처가 152번 `fake_field` 로 막았다.", "그 뒤 디스패처가 152번 항목으로 막았다."],
+  ["허브가 앱 번들 `dist/` 를 서빙.", "허브가 앱 번들 폴더를 서빙."],
+  ["허브가 앱 번들 a1b2c3d4e5 를 서빙.", "허브가 앱 번들 커밋을 서빙."],
+  ["허브가 앱 번들 fake/index.html 을 서빙.", "허브가 앱 번들 파일을 서빙."],
+  ["그 뒤 디스패처가 152번 r3 로 막았다.", "그 뒤 디스패처가 152번 항목으로 막았다."],
+  ["`fake_field` 로 막았다.", null],
+])("a history line %j reads %j: a name cut inside it leaves no particle alone (lina-app#207)", (text, shown) => {
+  expect(firstSentence(text)).toBe(shown);
+  expect(firstSentence(foldedText(text))).toBe(shown);
+});
+
 /**
  * History lines the real hub's comments produced (lina-app#149, ids in their shape, none real): each one cut inside a
  * word or a number, or a machine notice, or an identifier with nothing around it. Machine notices are no line; every

@@ -174,7 +174,8 @@ async function checkInstance(state) {
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
     await page.goto(state.url + APP_PATH + "#/inbox");
-    const version = (await page.getByTestId("version").textContent({ timeout: 10_000 }))?.trim();
+    // The build string is no screen text (lina-app#207): the sidebar carries it as data-version.
+    const version = await page.getByTestId("sidebar").first().getAttribute("data-version", { timeout: 10_000 });
     if (version !== packageVersion()) problems.push(`page shows version ${version}, package.json has ${packageVersion()}`);
     const count = async (id) => (await page.getByTestId(id).getByTestId("nav-count").textContent())?.trim();
     const counts = {
@@ -3398,7 +3399,22 @@ const drivers = {
       await row(1).waitFor({ timeout: 5_000 });
       const previews = [await text(row(0)), await text(row(1))];
       check(previews[0] === "변경 목록을 모으는 중이에요. 배포 순서는 답을 기다려요." && previews[1] === "아직 나눈 대화 없음", "the rows read " + JSON.stringify(previews));
-      return agents + " agents; " + previews.join(" / ");
+      // A row's stopped work reads in words, never a lone red number by its last message, and its name says the same (lina-app#207).
+      const rows = page.locator(wide ? "[data-testid^=nav-talk-]" : "[data-testid^=talk-agent-]");
+      const marks = [];
+      for (let index = 0; index < agents; index += 1) {
+        const one = rows.nth(index);
+        check((await one.locator(".count.is-stopped-count").count()) === 0, "row " + index + " shows a bare red number");
+        for (const mark of await one.getByTestId("talk-stopped").allInnerTexts()) {
+          const name = await one.locator("a").getAttribute("aria-label");
+          check(/^중단됨 \d+$/.test(mark.trim()) && name.includes(mark.trim()), "row " + index + " reads " + mark + " named " + name);
+          marks.push(mark.trim());
+        }
+      }
+      check(marks.length > 0, "no row reads its stopped work");
+      // The sidebar carries no build string (lina-app#207).
+      if (wide) check(!(await page.getByTestId("sidebar").innerText()).includes(packageVersion()), "the sidebar shows the build string");
+      return agents + " agents; " + previews.join(" / ") + "; " + marks.join(", ");
     });
     await step("choose the first agent: its earlier turns, its mark and name once in the bar, no help line, its card holds its goals", async () => {
       await page.locator(wide ? "[data-testid=nav-talk-0] a" : "[data-testid=talk-agent-0] a").click();

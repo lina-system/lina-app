@@ -172,7 +172,8 @@ test("item 6: comments with nothing left once folded are one 접힌 기록 N건 
   const T4 = scene.itemDetails.T4;
   const at = scene.now - 30 * MIN;
   // The hub's real comment shapes, each left as debris by withoutRefs (lina-app#161 item 6); the host is an example name.
-  const markers = ["(…)", "(…), (…)", "…", "백업 대체는 t_e6e0f90a 가 맡는다.", "주소: (lina-system/lina#12), (hermes-ops#277)", "주소: http://hub.example.com:8080/ 되돌릴 커밋: e37e43f"].map((text, index) => ({ cid: `m${index}`, by: "ag-2", at: at + index * MIN, text, status: "open" as const, kind: "comment" as const, replies: [] }));
+  // A ref that opens its sentence leaves nothing of it (inside one it reads as its kind, lina-app#207).
+  const markers = ["(…)", "(…), (…)", "…", "t_e6e0f90a 가 맡는다.", "주소: (lina-system/lina#12), (hermes-ops#277)", "주소: http://hub.example.com:8080/ 되돌릴 커밋: e37e43f"].map((text, index) => ({ cid: `m${index}`, by: "ag-2", at: at + index * MIN, text, status: "open" as const, kind: "comment" as const, replies: [] }));
   const view = await open("#/items/T4", new SyntheticSource({ now: scene.now, scene: { ...scene, itemDetails: { ...scene.itemDetails, T4: { ...T4, comments: [...T4.comments, ...markers] } } } }));
   const item = await frame(view);
   const thread = within(item).getByTestId("comments");

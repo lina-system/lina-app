@@ -340,6 +340,23 @@ button:disabled {
   padding: 0 5px;
 }
 
+/* An agent row's stopped work in words after its count, never a lone red number by its last message (lina-app#207). */
+.talk-stopped {
+  flex: none;
+  margin-left: 6px;
+  color: var(--red);
+  font-size: var(--text-small);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.split .nav-row.is-current .talk-stopped {
+  color: #ffffff;
+  background: var(--red);
+  border-radius: 8px;
+  padding: 0 5px;
+}
+
 .split .nav-row.is-current a {
   background: var(--accent);
   color: var(--on-accent);
@@ -350,12 +367,6 @@ button:disabled {
 .split .nav-row.is-current .is-red,
 .split .nav-row.is-current .is-orange {
   color: var(--on-accent);
-}
-
-.version {
-  padding: 8px 10px 0;
-  font-size: var(--text-small);
-  color: var(--label-2);
 }
 
 /* Agent mark: a colour dot with the first letter. */
@@ -2280,10 +2291,6 @@ html:has(.stack) body {
   height: var(--row);
   padding: 0 12px;
   border-radius: 0;
-}
-
-.stack .version {
-  padding: 0 calc(var(--inset) + 12px);
 }
 
 .stack .detail {

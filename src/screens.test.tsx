@@ -12,6 +12,7 @@ import { SCENE_COUNTS, SYNTHETIC_OWNER } from "./fixtures/synthetic";
 import { buildModel } from "./model";
 import { containsText } from "./text-match";
 import { TOAST_MS } from "./ui/actions";
+import { APP_VERSION } from "./version";
 import { BANNED_WORDS } from "./words";
 
 /**
@@ -1441,14 +1442,30 @@ describe("agent talk", () => {
     }
   });
 
-  test("on a phone each agent row shows its stopped count with the same red marker as the wide sidebar (lina-app#143)", async () => {
+  test("each agent row says its stopped count in words, the same on a phone as in the wide sidebar, and its name says what is seen (lina-app#143, #207)", async () => {
+    // A lone red number beside `아직 나눈 대화 없음` read as unread messages (lina-app#207): the row writes `중단됨 n`.
+    const marker = (root: Element) => [...root.querySelectorAll("[data-testid=talk-stopped]")].map((mark) => mark.textContent);
+    const named = (root: Element) => {
+      expect(root.querySelectorAll(".count.is-stopped-count")).toHaveLength(0);
+      for (const mark of marker(root)) expect(root.querySelector("a")?.getAttribute("aria-label")).toContain(mark);
+    };
     const wide = await open("#/talk", { wide: true });
-    const marker = (root: Element) => [...root.querySelectorAll(".count.is-stopped-count")].map((count) => [count.textContent, count.getAttribute("aria-label")]);
     const sidebar = [0, 1, 2].map((index) => marker(wide.getByTestId(`nav-talk-${index}`)));
-    expect(sidebar.flat()).toContainEqual(["1", "중단됨 1"]);
+    expect(sidebar.flat()).toContain("중단됨 1");
+    for (const index of [0, 1, 2]) named(wide.getByTestId(`nav-talk-${index}`));
     wide.unmount();
     const phone = await open("#/talk", { wide: false });
     expect([0, 1, 2].map((index) => marker(phone.getByTestId(`talk-agent-${index}`)))).toEqual(sidebar);
+    for (const index of [0, 1, 2]) named(phone.getByTestId(`talk-agent-${index}`));
+  });
+
+  test("no sidebar shows the build string, under any tab (lina-app#207)", async () => {
+    for (const hash of ["#/inbox", "#/talk", "#/status"]) {
+      const view = await open(hash, { wide: true });
+      expect(view.getByTestId("sidebar").textContent).not.toContain(APP_VERSION);
+      expect(view.container.textContent).not.toContain(APP_VERSION);
+      view.unmount();
+    }
   });
 
   test("every number on the agent's card has its word, and red marks only 중단됨 (lina-app#143)", async () => {

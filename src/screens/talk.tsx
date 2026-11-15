@@ -460,6 +460,18 @@ function queuePreviewRead(source: Source, read: () => Promise<unknown>): () => v
 }
 
 /**
+ * An agent row's stopped work in words at its right edge (`중단됨 6`), as its name reads it: beside `아직 나눈 대화 없음` a
+ * lone red number read as unread messages (lina-app#207). Nothing when none stopped.
+ */
+export function TalkStopped({ stopped }: { stopped: number }) {
+  return stopped ? (
+    <span class="talk-stopped" data-testid="talk-stopped">
+      {W.stoppedCount(stopped)}
+    </span>
+  ) : null;
+}
+
+/**
  * An agent row's second line: the first line of its last message, or `아직 나눈 대화 없음`; nothing until read. While a turn
  * goes it reads `답하는 중` (lina-app#190): neither the owner's own message nor what the core holds mid-turn.
  */
@@ -910,7 +922,8 @@ export function TalkAgents() {
                 <span class="title one-line">{agent.name}</span>
                 <TalkPreview agent={agent.id} />
               </span>
-              <CountPair count={running} stopped={stopped} />
+              <CountPair count={running} />
+              <TalkStopped stopped={stopped} />
               <Disclosure />
             </Link>
           </li>

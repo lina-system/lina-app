@@ -1,6 +1,7 @@
 import type { ItemDetail, RecordRound, RecordRow, RunRecord } from "../api/client";
 import { STATE_WORD, STATE_WORDS, stateLabel, W } from "../words";
-import { foldReason, readsBroken } from "./fold";
+import { timesInText } from "../time";
+import { foldReason, nameKind, readsBroken, withParticle } from "./fold";
 import { holds } from "./rounds";
 
 /** How long a history row's sentence may be, in characters, before it is cut with `…` (lina-app#142). */
@@ -43,6 +44,9 @@ function isIdentifier(core: string): boolean {
   return reason !== null && reason !== "latin" && reason !== "fragment";
 }
 
+/** A word that is a particle alone, with the sentence's end after it (`로`, `를.`). */
+const PARTICLE_ALONE = /^(으로|에서|까지|부터|이라고|라고|이라|가|은|는|을|를|라|로|와|과|도|의|만|에)([.,!?。]*)$/;
+
 /** A list's number before a sentence (`1)`, `(2)`): no part of it. */
 const LIST_MARK = /^\(?\d{1,2}\)\s+/;
 
@@ -56,11 +60,25 @@ function readable(sentence: string): string | null {
   if (!words.length || /^[.,:;·…—|)\]}-]|^['"’”]$/.test(words[0]) || /\|\s*$/.test(sentence)) return null;
   const kept: string[] = [];
   let removed = false;
-  for (const word of words) {
+  for (let index = 0; index < words.length; index += 1) {
+    const word = words[index];
     const core = word.replace(/^[(\["'“‘]+|[)\]"'”’.,!?。:;…]+$/g, "");
     if (!/[\p{L}\p{N}]/u.test(core)) continue;
+    // A time of day after its date (`11월 16일 03:30`, an ISO time as timesInText writes it) is part of that date.
+    if (CLOCK.test(core) && /^\d{1,2}일$/.test(kept.at(-1) ?? "")) {
+      kept.push(word);
+      continue;
+    }
     if (isIdentifier(core)) {
       removed = true;
+      // A particle written apart after the name (`번들 dist/ 를`) joins the kind of thing it named, so it never stands
+      // alone (lina-app#207); a sentence that opens on the name has nothing of its own around it and goes.
+      const particle = PARTICLE_ALONE.exec(words[index + 1] ?? "");
+      const noun = particle && kept.length ? nameKind(core) : null;
+      if (particle && noun) {
+        kept.push(withParticle(noun, particle[1]) + particle[2]);
+        index += 1;
+      }
       continue;
     }
     if (foldReason(core) === "latin") return null;
@@ -89,7 +107,7 @@ function openBracket(text: string): number {
  * word end with `…` when it runs past SENTENCE_MAX characters. Null when nothing a person reads is left.
  */
 export function firstSentence(text: string | null | undefined, max = SENTENCE_MAX): string | null {
-  const sentences = (text ?? "")
+  const sentences = timesInText(text ?? "")
     .split("\n")
     .flatMap((line) => line.replace(LEADING_TAGS, "").trim().split(/(?<=[.!?。])\s+/))
     .filter(Boolean);

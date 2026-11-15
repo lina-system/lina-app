@@ -235,6 +235,49 @@ for (const screen of SCREENS) {
   });
 }
 
+// lina-app#181: the head with the install's label the core sets on /app/ (lina#730), on the three tab roots and one
+// detail; the synthetic scene has none unless the page sets it.
+const LABELS = [
+  { id: "test", label: { text: "시험 사본", kind: "test" } },
+  { id: "real", label: { text: "실제 · 읽기 전용", kind: "real" } },
+] as const;
+const LABEL_SCREENS = [
+  { id: "talk-agents", hash: "#/talk" },
+  { id: "today", hash: "#/today" },
+  { id: "status", hash: "#/status" },
+  { id: "card-detail", hash: "#/cards/k-101" },
+] as const;
+
+test.describe("install label", () => {
+  for (const { id, label } of LABELS) {
+    for (const screen of LABEL_SCREENS) {
+      test(`capture label-${id}-${screen.id}`, async ({ page }, testInfo) => {
+        test.skip(testInfo.project.name === "wide-dark", "1280 and 390 only");
+        await page.addInitScript((value) => {
+          (window as unknown as { __LINA_APP_LABEL__: unknown }).__LINA_APP_LABEL__ = value;
+        }, label);
+        await page.goto(`${APP}${screen.hash}`);
+        await expect(page.getByTestId("freshness-line")).toHaveText("실시간");
+        const chip = page.getByTestId("install-label");
+        await expect(chip).toHaveText(label.text);
+        await expect(chip).toBeVisible();
+        // The chip keeps its full text and never covers the title or the back control.
+        expect(await chip.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+        const box = (await chip.boundingBox())!;
+        for (const other of [page.locator("[data-testid=screen-title], .detail-head").first(), page.locator(".navbar > .back, .navbar > .menu")]) {
+          if (!(await other.count()) || !(await other.isVisible())) continue;
+          const near = (await other.boundingBox())!;
+          const apart = near.x + near.width <= box.x || box.x + box.width <= near.x || near.y + near.height <= box.y || box.y + box.height <= near.y;
+          expect(apart).toBe(true);
+        }
+        const fits = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
+        expect(fits).toBe(true);
+        await page.screenshot({ path: `captures/label-${id}-${screen.id}-${suffix(testInfo.project.name)}.png`, animations: "disabled" });
+      });
+    }
+  }
+});
+
 // The bell's 알림 받기 row in each state. A full Chromium: the headless shell denies notifications, so its row would
 // always read 브라우저에서 알림 막힘.
 const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";

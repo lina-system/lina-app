@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { bootstrapOptions, HttpSource } from "./http-source";
+import { bootstrapLabel, bootstrapOptions, HttpSource } from "./http-source";
 import { chooseSource } from "./select";
 import { Store } from "./store";
 import type { ChangeMessage, TalkEvent } from "../api/client";
@@ -49,6 +49,19 @@ test("tells an unreachable core from a failed route and a missing record", async
 test("takes the token and base path from the core's bootstrap globals, and no token when the gate is on", () => {
   expect(bootstrapOptions({ __HERMES_SESSION_TOKEN__: "token-b", __HERMES_BASE_PATH__: "/x" })).toEqual({ token: "token-b", basePath: "/x" });
   expect(bootstrapOptions({ __HERMES_AUTH_REQUIRED__: true })).toEqual({ token: null, basePath: "" });
+});
+
+// lina-app#181: the install's label in the head, as the core sets it on /app/ (lina#730).
+test("reads the install label only in its agreed shape, trimmed, with an unknown kind as none", () => {
+  expect(bootstrapLabel({ __LINA_APP_LABEL__: { text: "  시험 사본 ", kind: "test" } })).toEqual({ text: "시험 사본", kind: "test" });
+  expect(bootstrapLabel({ __LINA_APP_LABEL__: { text: "실제 · 읽기 전용", kind: "real" } })).toEqual({ text: "실제 · 읽기 전용", kind: "real" });
+  expect(bootstrapLabel({ __LINA_APP_LABEL__: { text: "사본" } })).toEqual({ text: "사본", kind: null });
+  expect(bootstrapLabel({ __LINA_APP_LABEL__: { text: "사본", kind: "prod" } })).toEqual({ text: "사본", kind: null });
+  expect(bootstrapLabel({ __LINA_APP_LABEL__: { text: "가".repeat(20) } })?.text).toBe("가".repeat(20));
+  for (const value of [undefined, null, "시험 사본", [], {}, { text: 3 }, { text: "   " }, { text: "가".repeat(21) }]) {
+    expect(bootstrapLabel({ __LINA_APP_LABEL__: value }), JSON.stringify(value)).toBeNull();
+  }
+  expect(bootstrapLabel({})).toBeNull();
 });
 
 test("picks the synthetic scene only when asked", () => {

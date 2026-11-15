@@ -53,7 +53,7 @@ Preconditions:
 
 - **Wide.** At 1280, run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive phone`. The page draws the split view and no phone stack.
 - **Dividers.** At 1280 and 390, on home, `#/inbox` (수신함), `#/due` (마감일), `#/running` (진행 중인 작업), `#/goals/G2` and the bell's notices, the driver finds every horizontal line on the page: an element's top or bottom border, a line-like box-shadow, or a `::before`/`::after` with a border. Every such line inside a list is a divider, and it must lie within 1 px of a row's top edge and start within 1 px of that row's text. A miss names the row by role and name and says what draws the line (`link "마감일 5": divider (element border-top) starts at x 16, the row's text at x 56`). A pseudo-element line the driver cannot place is a miss too.
-- **Still page.** At 390x480 and 390x844, every phone screen (home, the lists, 에이전트, goals, to-dos, cards, a run, 기기·쿼터) is exactly as tall as the window. On `#/items/T4` and `#/goals/G2`, each text field (`댓글 달기`, `메시지`) is focused in turn by `focus()`, by a click and by Tab: `window.scrollY` stays 0, the nav bar's top stays where it was, and the page stays as tall as the window. The bell sheet open, the same holds.
+- **Still page.** At 390x480 and 390x844, every phone screen (home, the lists, 에이전트, goals, to-dos, cards, a run, 상태) is exactly as tall as the window. On `#/items/T4` and `#/goals/G2`, each text field (`댓글 달기`, `메시지`) is focused in turn by `focus()`, by a click and by Tab: `window.scrollY` stays 0, the nav bar's top stays where it was, and the page stays as tall as the window. The bell sheet open, the same holds.
 - **Measure.** At 390, then 430, open `#/`, `#/running` (진행 중인 작업), `#/goals/G2` (a goal), `#/items/T4` (a to-do), `#/cards/k-101` (a card) and `#/talk/ag-1` (the 대화 window, whose times are 13 px too). On each, every tappable element measures at least 44x44 with `getBoundingClientRect`, every visible text node's computed `font-size` is at least 13 px, and no row shows more than its title (two lines at most, or as many as a line drawn to wrap needs), one ask line on a stopped row, one own-name line on a row whose group repeats its title (lina-app#148) and one status line, which on a goal is its done condition and may wrap (lina-app#167, #172); a line drawn to wrap that is clipped or ends in `…` is a miss. A miss names the element by role and name (`button "빠른 추가" 32x28`).
 - **Reduced motion.** At 390 under `prefers-reduced-motion: reduce`, open `#/inbox` and press `알림 5`: in its first frame the sheet already ends at the bottom of the window and runs no animation.
 - **Stale line.** At 390, load `#/inbox` with `&live=down`: with the line `연결 중` (the stream never opens, live.md) the same hit-area and text measurements hold.
@@ -69,7 +69,7 @@ Preconditions:
 - `touch-action` is not inherited: it is set on every control and on each scroller.
 - Headless Chromium has hover, so a stuck hover after a tap cannot be seen there; the phone's `(hover: none)` rule clears it on a device.
 - `:active` fires on iOS Safari only when a touch listener is on the page; the edge swipe's listeners on the document provide it.
-- On 기기·쿼터 a machine row shows three lines (name, state, meters); see Not goals.
+- On 상태 a machine row shows three lines (name, state, meters); see Not goals.
 - A divider is a `::before` line, which `getBoundingClientRect` cannot see; the driver places it from its computed `top` and `left` against its containing block, and reports any pseudo line it cannot place. Because the driver measures every drawn line rather than one row shape, a new row kind cannot slip through.
 - An absolutely positioned element with no positioned ancestor is placed against the page, not the screen; a hidden label placed that way made the page taller than the window, and focusing its field scrolled the page. Wheel and touch did not show it; focus did.
 
@@ -77,4 +77,4 @@ Preconditions:
 
 - No interactive edge swipe that follows the finger; the swipe goes back when the finger lifts.
 - No new rules for the wide split view.
-- 기기·쿼터 machine rows keep their meters on a third line: on a 390 px phone the meters beside the name cut the machine's name short.
+- 상태 machine rows keep their meters on a third line: on a 390 px phone the meters beside the name cut the machine's name short.

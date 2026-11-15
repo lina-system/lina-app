@@ -10,7 +10,7 @@
 
 ## Intended behavior
 
-- `설정` is one line in `상태`'s sidebar right under the `기기` line of `기기·쿼터`, and on a phone's `상태` the last row under the machines and quota.
+- `설정` is one line in `상태`'s sidebar right under the `기기` line under `상태`, and on a phone's `상태` the last row under the machines and quota.
 - Top to bottom: the warnings, one orange line each, at most 3 then `외 n개`, naming a model the way the rows and the pickers do (`model-b`, not `anthropic/model-b`); `기본값` (`기본 실행기`, `대체 모델`); `실행기`, one row per runner titled `실행기 n` by its place in the runner list (its key, `omo` or `codex`, is never drawn) reading `<모델> · <생각 깊이>` with a `켜기` switch; `배정 규칙`, the rules in order as `<라벨> → 실행기 n` (with the size when set), then `그 외 → <기본 실행기>`; `기기` with `작업 기기` rows `입찰 n · 지정 n` and a `켜기` switch, `파일 기기` rows `지정 n` and a switch, and `내 기기` rows reading `상태만 봅니다` with no control; `모델` with `켜진 모델 n개` and the line `앱에서는 모델을 켜고 끌 수 없음`; `기록` with the last 5 changes as `<MM-DD HH:mm> · <앱|CLI|바깥 편집|되돌리기> · <what changed>`, `모든 기록` and a red `한 단계 되돌리기`; then `설정 <rev>` small and grey.
 - `<what changed>` names the first thing a revision changed, then `외 n개` for the rest: a device or runner added or removed whole (`build-a 추가`, `실행기 4 추가`, and `실행기 삭제` for a runner the list no longer holds), a field with its new value (`모래톱 입찰 2`, `실행기 2 모델 model-c`), a rule added, removed or changed, named by its label (`검토 · M 규칙 추가`, `문서 → 실행기 3`) or `배정 규칙 순서`. A revision that writes a whole section (the first one writes `기기` and `실행기` at once) names the first device in it, never a bare section word.
 - A picker pushes a list and saves on the choice. `기본 실행기` lists only runners that are on. A model picker lists only the models OCX serves, grouped by service (`Claude`, `ChatGPT`, `Gemini`, `Grok`, others as the core names them), each with `남은 양 n% · n시간 후` (`n일 후` from a day on), a red `다 씀`, or a grey `확인 못 함`. `생각 깊이` lists only the chosen model's efforts. `접근 권한` reads `읽기만`, `작업 폴더 쓰기`, `전체`. A runner's own `대체 모델` adds `기본값 따름`. A runner's page shows no command line: the runner's program is an internal name. A history row's second line is the device the change came from, never the owner's id or the CLI's `local`; the screen draws no revision (`설정 r3` is never shown).
@@ -26,7 +26,7 @@
 
 ## Sub-features
 
-- `settings-line` puts `설정` under `기기·쿼터` in `상태`'s sidebar and under the machines on a phone's `상태`
+- `settings-line` puts `설정` under the `기기` line in `상태`'s sidebar and under the machines on a phone's `상태`
 - `settings-warnings` lists what does not run now, in orange, at most 3 then `외 n개`
 - `settings-defaults` picks the default runner and the fallback model
 - `settings-runners` turns runners on and off and picks each one's model, thinking depth, access and fallback

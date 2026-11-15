@@ -1376,7 +1376,7 @@ const drivers = {
   },
 
   async status(page, step) {
-    await step("open 기기·쿼터 from the 상태 tab and read its machines line", async () => {
+    await step("open 상태 from its tab and read its machines line", async () => {
       await openApp(page, "#/");
       await page.getByTestId("tab-status").click();
       await settled(page);
@@ -1766,7 +1766,7 @@ const drivers = {
       await page.getByTestId("screen-settings").waitFor();
     };
 
-    await step("open 설정 from its line right under 기기·쿼터", async () => {
+    await step("open 설정 from its line right under the machines line", async () => {
       // 상태's sidebar on a wide window; on a phone 상태 opens on the machines with 설정 under them.
       await openApp(page, "#/status");
       if (wide) {

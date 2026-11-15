@@ -88,7 +88,7 @@ export const W = {
   done: "완료",
   agents: "에이전트",
   goals: "목표",
-  status: "기기·쿼터",
+  status: "상태",
   back: "뒤로",
   sidebar: "메뉴",
 

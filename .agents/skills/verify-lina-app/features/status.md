@@ -1,6 +1,6 @@
-# 기기·쿼터
+# 상태
 
-기기·쿼터 shows each node with its state, reason, usage and load, and under it the runners it can run now: the version and a signed-in mark, or one reason. A runner that needs sign-in has one button. A node row can restart its worker or OCX. The owner's own Macs follow in `내 기기`, with status and tool versions only. When the core serves the hub's power equipment, one `전원` card follows, read only. Then the quota per service with its burn rate, reset time and each account's state, what the models cost in tokens and dollars for today, 7 days and 30 days, OCX's own row, and the hub's own checks in a `점검` panel. The screen reads the core (`/api/lina/devices`, `/api/lina/quota`, `/api/lina/usage?range=…`, `/api/lina/models/state` and `/api/lina/status/checks`) on the same refresh trigger as the rest, at most once a minute while the page is visible, and reads devices again right after a restart or a sign-in, so the screen matches the core within one minute. A sign-in that is still running stays `로그인 중` until a later devices read.
+상태 shows each node with its state, reason, usage and load, and under it the runners it can run now: the version and a signed-in mark, or one reason. A runner that needs sign-in has one button. A node row can restart its worker or OCX. The owner's own Macs follow in `내 기기`, with status and tool versions only. When the core serves the hub's power equipment, one `전원` card follows, read only. Then the quota per service with its burn rate, reset time and each account's state, what the models cost in tokens and dollars for today, 7 days and 30 days, OCX's own row, and the hub's own checks in a `점검` panel. The screen reads the core (`/api/lina/devices`, `/api/lina/quota`, `/api/lina/usage?range=…`, `/api/lina/models/state` and `/api/lina/status/checks`) on the same refresh trigger as the rest, at most once a minute while the page is visible, and reads devices again right after a restart or a sign-in, so the screen matches the core within one minute. A sign-in that is still running stays `로그인 중` until a later devices read.
 
 ## Platforms
 
@@ -43,7 +43,7 @@
 
 ## How to get to it (user POV)
 
-- Choose `상태` in the tabs: a phone opens on this screen, a wide window on its `기기` line under `기기·쿼터`.
+- Choose `상태` in the tabs: a phone opens on this screen, a wide window on its `기기` line under `상태`. The screen's head reads `상태` at every width, the tab's word, in the wide sidebar too (lina-app#200; `src/screens/status.test.tsx`).
 - On a phone the header has the same `메뉴` as 작업 and 대화: its sheet holds the 작업 rows and ends with `설정` (lina-app#172); `설정` is also the screen's last line.
 - Address `/app/#/status`.
 

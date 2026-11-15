@@ -389,3 +389,22 @@ describe("status tab, QA round 8 (lina-app#167)", () => {
     expect(title.classList.contains("one-line")).toBe(false);
   });
 });
+
+// lina-app#200 item 3: at 1280 the sidebar's head over the machines line read 기기·쿼터 while the tab and the phone's
+// head read 상태. The screen has one name at every width.
+describe("the status head (lina-app#200)", () => {
+  test("reads 상태 at every width, and 기기·쿼터 nowhere", async () => {
+    for (const wide of [true, false]) {
+      vi.stubGlobal("matchMedia", (query: string) => ({ matches: wide, media: query, addEventListener() {}, removeEventListener() {} }));
+      window.history.replaceState(null, "", "/app/#/status");
+      const view = render(<App store={new Store(fresh())} />);
+      await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe(""));
+      if (wide) {
+        expect(view.getByTestId("sidebar").querySelector(".nav-head")?.textContent).toBe("상태");
+        expect(view.getByRole("list", { name: "상태" })).toBeTruthy();
+      } else expect(view.getAllByText("상태").length).toBeGreaterThan(0);
+      expect(document.body.textContent, wide ? "1280" : "390").not.toContain("기기·쿼터");
+      view.unmount();
+    }
+  });
+});

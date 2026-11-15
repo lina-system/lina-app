@@ -1,6 +1,6 @@
 import { Fragment, type ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import type { ItemDetail, ItemSummary, WorkCardDetail, WorkState } from "../api/client";
+import type { ItemDetail, ItemSummary, RecordRow, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
 import { cardTitle, goalCards, goalState, itemContext, runRow, todoState, type CardRow, type Model, type StopReasonText } from "../model";
 import { foldedText, foldReason } from "../model/fold";
@@ -14,7 +14,7 @@ import { back, baseOf, href, isFrame, navigate, parse, tabOf } from "../router";
 import { ago, clockAt, dayLabel } from "../time";
 import { useActions } from "../ui/actions";
 import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, stateWords, useApp } from "../ui/parts";
-import { BANNED_WORDS, DETAIL_WORD, reasonWord, ROUND9_WORD, RUN_LINE_WORD, SEP, STATE_WORD, stateLabel, W } from "../words";
+import { BANNED_WORDS, DETAIL_WORD, reasonWord, ROUND9_WORD, RUN_LINE_WORD, SEP, STATE_WORD, stateLabel, W, waitWord } from "../words";
 import { PastEvents, RunModelLine, Timeline, type PastEvent } from "./timeline";
 import { Comments, SendButton } from "./comments";
 import { Talk } from "./talk";
@@ -635,11 +635,14 @@ function roundGroups(rounds: readonly Round[]): (Round | Round[])[] {
  * A work card's comments, one history line each, newest first: its time and its first sentence a person may read,
  * with any id, hash, path or command taken out (lina-app#142, historyText #157); its author is the line's tooltip. A
  * machine notice is no line, and each run of comments with no sentence left is one 접힌 댓글 line with their count
- * (lina-app#149). A comment that was only markdown markers and spaces is no line at all (lina-app#166).
+ * (lina-app#149). A comment that was only markdown markers and spaces is no line at all (lina-app#166). `recorded` are
+ * the comments only its worker runs' record holds, with no author: they read in this box too (lina-app#174).
  */
-function CardComments({ comments }: { comments: WorkCardDetail["comments"] }) {
+function CardComments({ comments, recorded }: { comments: WorkCardDetail["comments"]; recorded: readonly RecordRow[] }) {
   const { model } = useApp();
-  const lines = commentHistory(comments.filter((comment) => plainText(comment.body)).map((comment) => ({ id: comment.id, at: comment.createdAt, author: comment.author, body: historyComment(comment.body, comment.author) })));
+  const own = comments.map((comment) => ({ id: String(comment.id), at: comment.createdAt, author: comment.author, body: comment.body }));
+  const fromRecord = recorded.map((row, index) => ({ id: `record:${row.at}:${index}`, at: row.at, author: null, body: row.text ?? "" }));
+  const lines = commentHistory([...own, ...fromRecord].filter((comment) => plainText(comment.body)).map((comment) => ({ ...comment, body: historyComment(comment.body, comment.author) })));
   if (!lines.length) return null;
   return (
     <Box title={W.comments} testid="card-comments">
@@ -666,7 +669,7 @@ function ReadOnlyLine({ agent = null, waits = false }: { agent?: string | null; 
         {W.readOnlyHere}
       </span>
       {owner ? (
-        <span class="sub" data-testid="answer-where">
+        <span class="sub answer-where" data-testid="answer-where">
           {`${ROUND9_WORD.answerWhere}${SEP}`}
           <Link href={href({ name: "talk", id: owner.id })}>{ROUND9_WORD.talkWith(owner.name)}</Link>
         </span>
@@ -747,7 +750,7 @@ function HeadState({ state, reason, row, time, readOnly = false }: { state: Work
 function StopWhy({ reason, words, whole = null, carried, stoppedAt, comments = [] }: { reason: string | null; words: string | null | undefined; whole?: StopReasonText | null; carried: boolean; stoppedAt: number | null; comments?: WorkCardDetail["comments"] }) {
   const { store } = useApp();
   const owner = store.get("items")?.owner?.id ?? "owner";
-  const word = reason ? (DETAIL_WORD.waitFor[reason] ?? reasonWord(reason)) : null;
+  const word = waitWord(reason) ?? reasonWord(reason);
   const newest = comments.filter((comment) => !isMachineNotice(comment.body, comment.author)).sort((a, b) => b.createdAt - a.createdAt)[0];
   const decided = stoppedAt !== null && newest !== undefined && (newest.author === owner || newest.author === "owner") && newest.createdAt > stoppedAt;
   return (
@@ -890,10 +893,12 @@ export function CardScreen({ id }: { id: string }) {
   // detail read later may already say another (lina-app#157). A card with no row reads its detail's.
   const state = row?.state ?? detail.state;
   const reason = row ? row.reason : detail.reason;
-  // The card's comments box holds its comments under the one 댓글 heading; the record then heads no block 댓글 of its own
-  // with the same comments (lina-app#171).
-  const boxed = detail.comments.filter((comment) => plainText(comment.body) && !isMachineNotice(comment.body, comment.author));
-  const shown = new Set(boxed.map((comment) => plainText(comment.body).trim()));
+  // One 댓글 section (lina-app#174): the card's comments box also holds the comments between rounds that only its worker
+  // runs' record has, once each; one the card holds (a machine notice it leaves out too) is never drawn again.
+  const held = new Set(detail.comments.map((comment) => plainText(comment.body).trim()));
+  const recorded = workerRuns
+    .flatMap((worker) => store.get("record", worker.id)?.comments ?? [])
+    .filter((row, index, all) => row.kind === "comment" && !held.has(plainText(row.text ?? "").trim()) && all.findIndex((other) => other.at === row.at && other.text === row.text) === index);
   return (
     <article class="detail" data-testid="screen-card">
       <CardHead work={row?.work ?? "code"} title={title}>
@@ -956,7 +961,7 @@ export function CardScreen({ id }: { id: string }) {
           record is not shown, and under its error line when the read failed, so the worker links never disappear. */}
       <Timeline
         runs={workerRuns.map((worker) => worker.id)}
-        shown={shown}
+        boxed
         live={(runId) => runLive(model, runId)}
         link={(runId, n) => href({ name: "run", id: roundRun(runId, n) })}
         modelRun={roundRun}
@@ -982,7 +987,7 @@ export function CardScreen({ id }: { id: string }) {
           ) : null
         }
       />
-      <CardComments comments={detail.comments} />
+      <CardComments comments={detail.comments} recorded={recorded} />
     </article>
   );
 }

@@ -132,7 +132,7 @@ test("a card's comments read newest first, one whole sentence each; machine noti
   expect(text).not.toMatch(/\[|\]|G73|T264|t_\d|rc=|OT-|vs 20|\.5초/);
 });
 
-test("comments made between rounds one after another are one 댓글 block, newest first", async () => {
+test("comments made between rounds one after another are one 댓글 block, newest first; on a card they read in its 댓글 box", async () => {
   const base = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
   const { scene } = base;
   const now = scene.now;
@@ -145,14 +145,23 @@ test("comments made between rounds one after another are one 댓글 block, newes
     { at: now - 15 * 60, kind: "comment" as const, text: "요약은 한 줄로 해 주세요.", count: 1 },
   ];
   const records = { ...scene.records, r1: { ...r1, comments: [r1.comments[0], ...between] } };
-  const view = await open("#/cards/k-101", new SyntheticSource({ now, scene: { ...scene, records } }));
-  await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
-  const heads = view.getAllByTestId("timeline-block").map((block) => block.querySelector(".timeline-head")?.textContent ?? "");
+  const source = () => new SyntheticSource({ now, scene: { ...scene, records } });
+  // The worker run's own page has no 댓글 box: the record's comments are its blocks.
+  const run = await open("#/runs/r1", source());
+  await waitFor(() => expect(run.getByTestId("timeline")).toBeTruthy());
+  const heads = run.getAllByTestId("timeline-block").map((block) => block.querySelector(".timeline-head")?.textContent ?? "");
   for (let index = 1; index < heads.length; index += 1) expect(heads[index] === "댓글" && heads[index - 1] === "댓글", heads.join(" | ")).toBe(false);
-  const block = view.getAllByTestId("timeline-block")[1];
+  const block = run.getAllByTestId("timeline-block")[1];
   const lines = [...block.querySelectorAll(".timeline-row")].map((row) => (row.textContent ?? "").replace(LINE, ""));
-  // A comment the card's 댓글 box already holds is not said again in the record (lina-app#171).
-  expect(lines).toEqual(["요약은 한 줄로 해 주세요.", "표 머리는 짧게 해 주세요."]);
+  expect(lines).toEqual(["요약은 한 줄로 해 주세요.", "표 머리는 짧게 해 주세요.", "변경 목록은 표로 보여 주세요"]);
+  run.unmount();
+  // On the card the same comments read in its one 댓글 box, newest first, each once (lina-app#174).
+  const view = await open("#/cards/k-101", source());
+  await waitFor(() => expect(view.getByTestId("card-comments").textContent).toContain("요약은 한 줄로 해 주세요."));
+  expect(view.getAllByTestId("timeline-block").map((each) => each.querySelector(".timeline-head")?.textContent)).not.toContain("댓글");
+  const boxed = [...view.getByTestId("card-comments").querySelectorAll("li")].map((row) => (row.textContent ?? "").replace(LINE, ""));
+  expect(boxed.slice(0, 3)).toEqual(["요약은 한 줄로 해 주세요.", "표 머리는 짧게 해 주세요.", "변경 목록은 표로 보여 주세요"]);
+  expect(boxed.filter((line) => line === "변경 목록은 표로 보여 주세요")).toHaveLength(1);
 });
 
 test("a decision's row in 수신함 and its record's head read the same time", async () => {

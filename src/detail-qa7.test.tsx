@@ -53,7 +53,7 @@ for (const wide of [true, false]) {
     expect(count(article.textContent ?? "", question)).toBe(1);
     within(item).getByTestId("decision-answer");
     // The status word once: the state line, never again as a box head.
-    expect(item.querySelector(".detail-head .sub")?.textContent).toMatch(/^대기 · 결정 필요 · \d+일 전$/);
+    expect(item.querySelector(".detail-head .sub")?.textContent).toMatch(/^결정 대기 · \d+일 전$/);
     expect([...article.querySelectorAll(".box-head")].map((head) => head.textContent)).not.toContain("결정 필요");
     // Its age is the state line's: the box under it names the agent and the kind word only.
     expect(within(item).getByTestId("decision").textContent).not.toMatch(/\d+일 전/);

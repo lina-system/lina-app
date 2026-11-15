@@ -762,6 +762,7 @@ export function buildModel(input: ModelInput, now: number): Model {
     .filter((item) => item.kind === "goal")
     .map((goal) => {
       const runningTodos = (items?.items ?? []).filter((item) => item.kind === "todo" && item.parent === goal.id && todoState(parts, item).state === "in_progress");
+      const todos = goalTodos(goal);
       // The goal list reads the work tab's fold of its cards, as its page head does (lina-app#168).
       const fold = goalFold(parts, goal, []);
       return {
@@ -773,12 +774,12 @@ export function buildModel(input: ModelInput, now: number): Model {
         reason: fold.reason,
         stateSince: fold.stateSince,
         doneCondition: goal.doneCondition,
-        todosDone: goal.todos?.done ?? 0,
-        todosTotal: goal.todos?.total ?? 0,
+        todosDone: todos.done,
+        todosTotal: todos.total,
         runningTodos,
         runningCards: fold.running,
         runningCount: Math.max(runningTodos.length, fold.running.length),
-        allDone: (goal.todos?.total ?? 0) > 0 && goal.todos?.done === goal.todos?.total,
+        allDone: todos.total > 0 && todos.done === todos.total,
       };
     });
 
@@ -868,6 +869,15 @@ export function buildModel(input: ModelInput, now: number): Model {
   };
 }
 
+/**
+ * A goal's to-dos, done and all: the core's count of the to-dos its page lists, every agent's and the ones closed long
+ * ago that the item list no longer serves. The one count its rows, the 대화 card's band and every goal list read
+ * (lina-app#175).
+ */
+export function goalTodos(goal: Pick<ItemSummary, "todos">): { readonly done: number; readonly total: number } {
+  return { done: goal.todos?.done ?? 0, total: goal.todos?.total ?? 0 };
+}
+
 /** The latest moment one of these cards moved: started, changed state or ended. The one definition every view uses. */
 export function latestActivity(cards: Iterable<CardRow>): number | null {
   return maxOf([...cards].flatMap((card) => [card.startedAt, card.stateAt, card.endedAt]));
@@ -886,16 +896,17 @@ export function agentView(model: Model, agentId: string): AgentView | null {
   const running = [...stoppedCards, ...mine.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt))];
   const review = mine.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt));
   const planned = mine.filter((card) => card.state === "planned").sort(newestFirst((card) => card.stateAt));
-  // An agent's goals: the ones it owns and the ones holding its to-dos, another agent's included; the dial, the count
-  // and the running number all count only this agent's to-dos.
+  // An agent's goals: the ones it owns and the ones holding its to-dos, another agent's included. The dial and its
+  // number are the goal's own (goalTodos), the to-dos its page lists (lina-app#175); the running number counts only
+  // this agent's.
   const goals = model.goals
     .map((goal) => {
       const todos = [...model.items.values()].filter((item) => item.kind === "todo" && item.parent === goal.id && item.agent === agentId);
       const runningTodos = todos.filter((todo) => todoState(model, todo).state === "in_progress");
       const runningCards = goal.runningCards.filter((card) => card.agent === agentId);
-      return { goal, row: { ...goal, todosDone: todos.filter((todo) => todo.state === "done").length, todosTotal: todos.length, runningTodos, runningCards, runningCount: Math.max(runningTodos.length, runningCards.length) } };
+      return { goal, holds: todos.length > 0, row: { ...goal, runningTodos, runningCards, runningCount: Math.max(runningTodos.length, runningCards.length) } };
     })
-    .filter(({ goal, row }) => goal.agent === agentId || row.todosTotal > 0)
+    .filter(({ goal, holds }) => goal.agent === agentId || holds)
     .map(({ row }) => row);
   const doneToday = model.done.filter((card) => card.agent === agentId && card.endedAt !== null && localDay(card.endedAt) === model.today);
   return {

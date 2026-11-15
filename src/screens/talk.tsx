@@ -657,7 +657,7 @@ export function AgentCard({ agent, folded = false }: { agent: string; folded?: b
   // A goal opens under 대화, beside the window on a wide one and one step deeper on a phone (lina-app#143).
   const body = (
     <>
-      <ListSection section={view.goals} render={(goal) => <GoalLine key={goal.id} goal={{ ...goal, href: href({ name: "talk", id: agent, goal: goal.id }) }} showAgent={false} />} />
+      <ListSection section={view.goals} render={(goal) => <GoalLine key={goal.id} goal={{ ...goal, href: href({ name: "talk", id: agent, goal: goal.id }) }} showAgent={false} count />} />
       <ul class="rows" aria-label={W.done}>
         <li class="row" data-testid="card-done-today">
           <Link href={href({ name: "done", agent })} label={W.doneToday(view.doneToday.count)}>

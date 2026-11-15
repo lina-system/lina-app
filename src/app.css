@@ -3041,3 +3041,9 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 .stack .agent-talk-form {
   background: var(--bg);
 }
+
+/* lina-app#174: where a read-only card is answered is a link, drawn in accent like every link, not the grey of the
+   line it sits in. */
+.answer-where a {
+  color: var(--accent);
+}

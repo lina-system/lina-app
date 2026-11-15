@@ -1691,7 +1691,7 @@ describe("agent talk", () => {
   });
 
   // lina-app#200 item 1: a disabled 보내기 says why in the words 댓글 and 답 use, one line in the field's bar.
-  test("보내기 in the agent's window is a dim icon while it is off, and a word beside it says why: an empty field, the turn going out, the reply coming in (lina-app#187, #200)", async () => {
+  test("보내기 in the agent's window is a dim icon while it is off; a word beside it says why while the turn goes out and the reply comes in, and none on an empty field (lina-app#187, #200)", async () => {
     let answer: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => (answer = resolve));
     class Held extends SyntheticSource {

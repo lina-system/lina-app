@@ -2,7 +2,7 @@ import { Fragment, type ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
-import { cardTitle, goalCards, goalState, runRow, type CardRow, type Model } from "../model";
+import { cardTitle, goalCards, goalState, itemContext, runRow, todoState, type CardRow, type Model } from "../model";
 import { foldedText, foldReason } from "../model/fold";
 import { plainText } from "../model/plain";
 import { holds } from "../model/rounds";
@@ -105,17 +105,25 @@ function FrameClose() {
 }
 
 /**
- * The 결정 필요 row an item's open decision is listed as in 수신함, when it reads a line 1 of its own: the item's head reads
- * that row's two lines, so the detail opens with the name of the row that was pressed (lina-app#157).
+ * An item's head title: its goal's name, then its own (itemContext), in every state, the line 1 its 결정 필요 row reads
+ * (lina-app#157, #170); the record's title when neither may be drawn. The head never changes as a decision is answered.
  */
-function useDecisionRow(id: string): { context: string; text: string } | null {
+function itemHead(model: Model, detail: ItemDetail): string {
+  return itemContext(model.items, detail) || detail.title;
+}
+
+/**
+ * The 결정 필요 row an item's open decision is listed as in 수신함: the item's head reads that row's question as its second
+ * line, under the name the row reads (itemHead), so the detail opens with the row that was pressed (lina-app#157).
+ */
+function useDecisionRow(id: string): { text: string } | null {
   const { model } = useApp();
   const answering = useAnswering();
-  const pressed = useRef<{ id: string; row: { context: string; text: string } } | null>(null);
+  const pressed = useRef<{ id: string; row: { text: string } } | null>(null);
   const row = model.inbox.rows.find((each) => each.type === "decide" && each.target.kind === "item" && each.target.id === id);
-  const shown = row?.type === "decide" && row.context ? { context: row.context, text: row.text } : null;
+  const shown = row?.type === "decide" ? { text: row.text } : null;
   if (shown) pressed.current = { id, row: shown };
-  // The row leaves 수신함 as its answer is sent; the head keeps the two lines that were pressed (lina-app#166).
+  // The row leaves 수신함 as its answer is sent; the head keeps the line that was pressed (lina-app#166).
   return shown ?? (answering(`decide:${id}`) && pressed.current?.id === id ? pressed.current.row : null);
 }
 
@@ -301,8 +309,9 @@ function DoneHead({ detail }: { detail: ItemDetail }) {
   const answering = useAnswering();
   const { model, store, now } = useApp();
   const [asking, setAsking] = useState(false);
-  // A goal reads the same fold of its cards as the work tab: a stopped card makes it 중단됨 (lina-app#148).
-  const head = detail.kind === "goal" ? goalState(model, detail, store.get("goals")) : detail;
+  // A goal reads the same fold of its cards as the work tab: a stopped card makes it 중단됨 (lina-app#148); so does a
+  // to-do, of the cards its runs take it on in (lina-app#170).
+  const head = detail.kind === "goal" ? goalState(model, detail, store.get("goals")) : todoState(model, detail);
   const open = detail.kind === "goal" ? detail.children.filter((child) => !actions.isDone(child.id, child.state === "done")).map((child) => child.id) : [];
   const withIds = detail.ownerDone?.with ?? [];
   const shown = actions.isDone(detail.id, detail.state === "done");
@@ -366,17 +375,19 @@ function DoneHead({ detail }: { detail: ItemDetail }) {
   );
 }
 
+/** A goal's to-do line, in its goal page from 작업 and from 대화: its state is the work tab's fold (todoState, lina-app#170). */
 function TodoLine({ todo }: { todo: ItemSummary }) {
   const actions = useActions();
-  const { now } = useApp();
+  const { model, now } = useApp();
   const shown = actions.isDone(todo.id, todo.state === "done");
+  const fold = todoState(model, todo);
   return (
     <li class={`row check-row${shown ? " is-checked" : ""}`} data-testid="row">
       <DoneCheck id={todo.id} title={todo.title} done={todo.state === "done"} />
-      <Link href={href({ name: "item", id: todo.id })} label={[todo.title, stateLabel(todo.state, todo.reason)].join(SEP)}>
+      <Link href={href({ name: "item", id: todo.id })} label={[todo.title, stateLabel(fold.state, fold.reason)].join(SEP)}>
         <span class="lines">
           <span class="title one-line">{todo.title}</span>
-          <StateTime state={todo.state} reason={todo.reason} time={sinceText(todo.state, todo.stateSince, now)} />
+          <StateTime state={fold.state} reason={fold.reason} time={sinceText(fold.state, fold.stateSince, now)} />
         </span>
       </Link>
       <ErrorLine line={actions.error(`done:${todo.id}`)?.line} />
@@ -401,7 +412,7 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
   const decisionRow = useDecisionRow(detail.id);
   return (
     <article class="detail" data-testid="screen-goal">
-      <Header title={decisionRow?.context ?? detail.title} line={decisionRow?.text}>
+      <Header title={itemHead(model, detail)} line={decisionRow?.text}>
         <DoneHead detail={detail} />
       </Header>
       <ItemDecision key={detail.id} detail={detail} headLine={decisionRow?.text} />
@@ -429,7 +440,8 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
           </ul>
         </Box>
       ) : null}
-      {cards.count ? (
+      {/* Every linked card, a stopped one too (`count` leaves those out): the rows the work tab shows (lina-app#170). */}
+      {cards.rows.length ? (
         <Box title={W.cards}>
           <ul class="rows" aria-label={W.cards}>
             {cards.rows.map((card) => (
@@ -472,7 +484,7 @@ function TodoBody({ detail }: { detail: ItemDetail }) {
   const decisionRow = useDecisionRow(detail.id);
   return (
     <article class="detail" data-testid="screen-item">
-      <Header title={decisionRow?.context ?? detail.title} line={decisionRow?.text}>
+      <Header title={itemHead(model, detail)} line={decisionRow?.text}>
         <DoneHead detail={detail} />
       </Header>
       <ItemDecision key={detail.id} detail={detail} headLine={decisionRow?.text} />

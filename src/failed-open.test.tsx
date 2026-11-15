@@ -21,13 +21,13 @@ afterEach(() => {
 });
 
 /** A core whose reads answer 500 while `failing` holds (the stream still opens), counting every read it is asked. */
-function flakyCore(options: { denied?: boolean } = {}) {
+function flakyCore(options: { denied?: boolean; only?: string[] } = {}) {
   const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
   const core = { source, failing: true, reads: 0 };
   const read = source.read.bind(source);
   source.read = ((name, id) => {
     core.reads += 1;
-    if (core.failing) return Promise.resolve({ kind: "failed", offline: false, at: nowSeconds(), denied: options.denied });
+    if (core.failing && (!options.only || options.only.includes(name))) return Promise.resolve({ kind: "failed", offline: false, at: nowSeconds(), denied: options.denied });
     return read(name, id);
   }) as Source["read"];
   if (options.denied) source.renewCredential = () => Promise.resolve("none");
@@ -198,3 +198,22 @@ for (const wide of [false, true]) {
     expect(view.queryByTestId("read-failed")).toBeNull();
   });
 }
+
+test("the to-dos follow the board's read: a failed items read still shows them, a failed board read hides them (lina-app#199)", async () => {
+  setWide(true);
+  window.history.replaceState(null, "", "/app/#/");
+  const items = flakyCore({ only: ["items"] });
+  const first = render(<App store={new Store(items.source)} />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1_000);
+  });
+  expect(first.queryByTestId("home-mine")).not.toBeNull();
+  first.unmount();
+
+  const board = flakyCore({ only: ["board"] });
+  const second = render(<App store={new Store(board.source)} />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1_000);
+  });
+  expect(second.queryByTestId("home-mine")).toBeNull();
+});

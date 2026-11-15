@@ -168,8 +168,9 @@ function MineSection({ section }: { section: Section<InboxRow> }) {
   const added = before ? section.rows.filter((row) => !before.has(row.key)) : [];
   const rest = section.rows.filter((row) => !added.includes(row));
   const shown = open ? section.rows : [...added, ...rest.slice(0, MINE_SHOWN)];
-  // The to-dos were never read: no count and no 할 일 추가 over a list that is not known (lina-app#199).
-  if (store.unread("items")) return null;
+  // The to-dos were never read: no count and no 할 일 추가 over a list that is not known (lina-app#199). The rows come
+  // from the board's inbox, so the board's read gates them; the items only date them.
+  if (store.unread("board")) return null;
   return (
     <section class="list-section" data-testid="home-mine">
       <div class="mine-head">

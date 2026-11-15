@@ -305,10 +305,11 @@ export class Store {
     if (listed) this.changed();
     const later = slow.filter((route) => !drawn(route) && !reading(route));
     if (later.length) await this.afterPaint();
+    // The lists are on screen: what waits on them (the change stream, the push key) starts without waiting for the rest.
+    this.firstPaint();
     const reread = this.wanted.filter((route) => !reading(route));
     const secondWave = await Promise.all([...later, ...reread].map(([name, id]) => this.load(name, id)));
     this.refreshes += 1;
-    this.firstPaint();
     if (secondWave.some(Boolean)) this.changed();
     else if (!listed) this.notify();
   }

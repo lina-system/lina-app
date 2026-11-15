@@ -138,3 +138,15 @@ test("a screen's own ask after a failed read of the finished cards reads nothing
   await store.showFinished();
   expect(store.finished().all).toBe(true);
 });
+
+test("what waits on the first paint starts once the lists are drawn, while a slow route is still unanswered", async () => {
+  const source = new SyntheticSource({ now: NOW });
+  const read = source.read.bind(source);
+  const [stalled] = SLOW_ROUTES;
+  source.read = ((name, id) => (name === stalled[0] && id === stalled[1] ? new Promise(() => {}) : read(name, id))) as Source["read"];
+  const store = new Store(source, { afterPaint: async () => {} });
+  void store.refresh();
+  let started = false;
+  void store.painted.then(() => (started = true));
+  await vi.waitFor(() => expect(started).toBe(true));
+});

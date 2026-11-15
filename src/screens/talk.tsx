@@ -513,7 +513,7 @@ function keptLines(history: AgentTalkHistory): ThreadLine[] {
 }
 
 /** One turn sent from an agent's window. It lives outside the window, so leaving the window neither cancels nor drops it (lina-app#127). */
-interface Sent {
+export interface Sent {
   readonly key: string;
   readonly message: string;
   reply: string;
@@ -526,9 +526,9 @@ interface Sent {
    */
   readonly base: number | null;
   /**
-   * The number of the first history read that began after the core took the turn (null: not taken yet). With no `base`,
-   * only a read from here on can hold the turn: an earlier read cannot, so an earlier exchange that reads the same is
-   * never taken for it, whatever the two clocks say.
+   * The number of the first history read that began after the core took the turn (null: not taken yet). Only a read from
+   * here on can hold the turn, with a `base` or without: an earlier read cannot, so an earlier or another device's
+   * exchange that reads the same is never taken for it, whatever the two clocks say.
    */
   from: number | null;
   /** When the message went out and when its reply last moved, in seconds. */
@@ -586,12 +586,13 @@ function sentLines(turn: Sent): ThreadLine[] {
 
 /**
  * Where the history holds the turn: the owner's message and, when the core has one, its reply (indexes into `kept`),
- * or null. It looks from the newest line back to `base`; before any read there is no base, and the history `read` (the
- * number of the read it came from) must then have begun after the core took the turn. The reply is not compared: the
- * core may keep it in other marks than it streamed.
+ * or null. The history `read` (the number of the read it came from) must have begun after the core took the turn,
+ * whether or not a `base` is known: an older read cannot hold it, and a same-worded message another device added since
+ * is not it. It looks from the newest line back to `base`. The reply is not compared: the core may keep it in other
+ * marks than it streamed.
  */
 function holdOf(kept: readonly ThreadLine[], read: number, turn: Sent, used: ReadonlySet<number>): readonly number[] | null {
-  if (turn.base === null && (turn.from === null || read < turn.from)) return null;
+  if (turn.from === null || read < turn.from) return null;
   for (let own = kept.length - 1; own >= (turn.base ?? 0); own -= 1) {
     const line = kept[own];
     if (used.has(own) || !line.mine || line.text !== turn.message) continue;
@@ -616,7 +617,7 @@ function unsure(kept: readonly ThreadLine[], read: number, turn: Sent): boolean 
  * the core has for it are left out. A turn the core holds whole and that is done or failed is drawn from the history
  * and `confirmed`: the outbox drops it.
  */
-function withTurns(kept: readonly ThreadLine[], read: number, turns: readonly Sent[]): { readonly lines: ThreadLine[]; readonly confirmed: Sent[] } {
+export function withTurns(kept: readonly ThreadLine[], read: number, turns: readonly Sent[]): { readonly lines: ThreadLine[]; readonly confirmed: Sent[] } {
   const used = new Set<number>();
   const left = new Set<number>();
   const confirmed: Sent[] = [];

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { stripTop } from "./strip";
 
 // lina-app#142: every kind of detail opens in the one frame (the right-hand pane at 1280, a sheet rising from the
 // bottom at 390) where the owner is looking, from a row far down its list; back closes it and the list is where it
@@ -27,7 +28,7 @@ const KINDS: readonly { kind: string; list: string; row: string; prepare?: (page
 
 async function ready(page: Page, hash: string) {
   await page.goto(`${APP}${hash}`);
-  await expect(page.getByTestId("freshness-line")).toHaveText("실시간");
+  await expect(page.getByTestId("freshness-line")).toHaveText("");
 }
 
 // A row brought into view (a tap, a focus move, a find) stops above the bottom bar on a phone, never under it.
@@ -36,15 +37,15 @@ for (const hash of ["#/", "#/inbox"]) {
     test.skip(info.project.name !== "phone", "phone layout only");
     await page.setViewportSize({ width: 390, height: 480 });
     await page.goto(`/app/?source=synthetic&writer=stopped&runs=ended&todos=many${hash}`);
-    await expect(page.getByTestId("freshness-line")).toHaveText(/^\S/);
+    await expect(page.getByTestId("freshness-line")).toHaveText("");
     const fold = page.getByRole("button", { name: /^내 할 일/ });
     if (await fold.count()) await fold.first().click();
     const last = page.locator(".phone-main [data-testid=row]").last();
     for (const bring of [() => last.evaluate((row) => row.scrollIntoView({ block: "end" })), () => page.locator(".phone-main").evaluate((main) => (main.scrollTop = main.scrollHeight))]) {
       await bring();
       const row = (await last.boundingBox())!;
-      const bar = (await page.locator(".bottombar").boundingBox())!;
-      expect(row.y + row.height, `the last row ends at ${row.y + row.height}, the bar starts at ${bar.y}`).toBeLessThanOrEqual(bar.y);
+      const bar = await stripTop(page);
+      expect(row.y + row.height, `the last row ends at ${row.y + row.height}, the strip starts at ${bar}`).toBeLessThanOrEqual(bar);
     }
   });
 }

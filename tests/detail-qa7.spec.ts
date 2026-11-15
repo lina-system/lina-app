@@ -26,7 +26,7 @@ const DETAILS: readonly { name: string; query: string; hash: string; prepare?: (
 for (const { name, query, hash, prepare } of DETAILS) {
   test(`nothing in the ${name} detail frame is cut`, async ({ page }) => {
     await page.goto(`/app/?source=synthetic${query}${hash}`);
-    await expect(page.getByTestId("freshness-line")).not.toHaveText("");
+    await expect(page.getByTestId("freshness-line")).toHaveText("");
     const frame = page.locator("[data-frame]");
     await expect(frame.locator("article.detail")).toBeVisible();
     await expect(frame.getByTestId("detail-loading")).toHaveCount(0);

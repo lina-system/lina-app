@@ -3,8 +3,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { AgentTalkHistory, ItemDetail } from "../api/client";
 import type { Source, TalkResult } from "../data/source";
 import { KoreanInput } from "../korean-input";
+import { Markdown, plainLine } from "../markdown";
 import { agentView, foldTitle } from "../model";
 import { href } from "../router";
+import { clock } from "../time";
 import { AgentMark, agentName, Box, CountPair, Disclosure, ErrorLine, Link, ListSection, useApp } from "../ui/parts";
 import { SEP, W } from "../words";
 import { GoalLine, goalProgress } from "./lists";
@@ -15,6 +17,9 @@ interface Turn {
   readonly reply: string;
   readonly agent: string | null;
   readonly state: "streaming" | "done" | "failed";
+  /** When the message went out and when its reply last moved, in seconds. */
+  readonly at: number;
+  readonly replyAt: number;
 }
 
 /**
@@ -44,14 +49,204 @@ export function talkError(result: Extract<TalkResult, { ok: false }>): string {
   }
 }
 
-/** Why 보내기 is off, in the words 댓글 and 답 use (lina-app#158): the turn going out, its reply coming in, or an empty field. */
-function SendWhy({ going, replying, empty }: { going: boolean; replying: boolean; empty: boolean }) {
-  const why = going ? W.sendWhyBusy : replying ? W.replying : empty ? W.sendWhyEmpty : null;
-  if (!why) return null;
+/** One message as a 대화 window draws it. `at`: when it was written, in seconds; null when the core gave no time. */
+export interface ThreadLine {
+  readonly key: string;
+  readonly mine: boolean;
+  readonly text: string;
+  readonly at: number | null;
+  readonly state: "kept" | "sending" | "streaming" | "done" | "failed";
+  /** Who wrote an agent line, when one window holds lines of more than one agent; else the window's agent. */
+  readonly agent?: string;
+}
+
+/** A date between days, or a run of one sender's messages: its time is the last message's. */
+export type ThreadPart =
+  | { readonly kind: "day"; readonly key: string; readonly label: string }
+  | { readonly kind: "group"; readonly key: string; readonly mine: boolean; readonly agent: string | undefined; readonly lines: readonly ThreadLine[]; readonly at: number | null };
+
+/** A pause longer than this starts a new group, as a chat app does. */
+const GROUP_GAP_S = 5 * 60;
+
+function dayOf(seconds: number): string {
+  return new Date(seconds * 1000).toDateString();
+}
+
+function dayWord(at: number, now: number): string {
+  if (dayOf(at) === dayOf(now)) return W.today;
+  if (dayOf(at) === dayOf(now - 86_400)) return W.yesterday;
+  const date = new Date(at * 1000);
+  return W.talkDate(date.getMonth() + 1, date.getDate(), date.getFullYear() === new Date(now * 1000).getFullYear() ? null : date.getFullYear());
+}
+
+/**
+ * The window's messages as a chat app lays them out (lina-app#187): a date before each day's first message, and the
+ * consecutive messages of one sender (of one agent, for the agent's) in one group unless more than GROUP_GAP_S passed. A message with no time joins
+ * the group before it.
+ */
+export function threadOf(lines: readonly ThreadLine[], now: number): ThreadPart[] {
+  const parts: ThreadPart[] = [];
+  let day: string | null = null;
+  let group: { kind: "group"; key: string; mine: boolean; agent: string | undefined; lines: ThreadLine[]; at: number | null } | null = null;
+  for (const line of lines) {
+    if (line.at !== null && dayOf(line.at) !== day) {
+      day = dayOf(line.at);
+      parts.push({ kind: "day", key: `day-${line.key}`, label: dayWord(line.at, now) });
+      group = null;
+    }
+    const joins = group && group.mine === line.mine && group.agent === line.agent && (line.at === null || group.at === null || line.at - group.at <= GROUP_GAP_S);
+    if (!group || !joins) {
+      group = { kind: "group", key: `group-${line.key}`, mine: line.mine, agent: line.agent, lines: [], at: null };
+      parts.push(group);
+    }
+    group.lines.push(line);
+    group.at = line.at ?? group.at;
+  }
+  return parts;
+}
+
+/** Further from the end than this, the window is being read up: a new message does not pull it down. */
+const END_PX = 48;
+
+/** The box a window's messages scroll in: the nearest scrolling ancestor, else the page. */
+function scrollerOf(element: Element): HTMLElement {
+  for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+    const overflow = getComputedStyle(parent).overflowY;
+    if (overflow === "auto" || overflow === "scroll") return parent;
+  }
+  return (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
+}
+
+function DownIcon() {
   return (
-    <span class="send-why" data-testid="send-why">
-      {why}
-    </span>
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 5v14M5 12l7 7 7-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  );
+}
+
+function UpIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  );
+}
+
+/** 보내기 as a round icon, dim while there is nothing to send or a turn is going (lina-app#187). */
+function SendButton({ disabled, onSend }: { disabled: boolean; onSend: () => void }) {
+  return (
+    <button type="button" class="talk-send" aria-label={W.send} disabled={disabled} onClick={onSend}>
+      <UpIcon />
+    </button>
+  );
+}
+
+/**
+ * A window's messages: the owner's on the right, plain text; the agent's on the left under its mark and name, its
+ * markdown drawn; a date between days. A new message keeps the window at the bottom, and the owner's own always goes
+ * there; read up, the window stays put and 맨 아래로 counts what came in (lina-app#187). `after` draws one line under
+ * the group that holds the message it names.
+ */
+function Thread({ lines, agent, after }: { lines: readonly ThreadLine[]; agent: string | null; after?: { readonly key: string; readonly line: ComponentChildren } }) {
+  const { model, now } = useApp();
+  const list = useRef<HTMLOListElement>(null);
+  const atEnd = useRef(true);
+  const seen = useRef<{ count: number; lastMine: string | null }>({ count: 0, lastMine: null });
+  const [away, setAway] = useState(false);
+  const [unseen, setUnseen] = useState(0);
+  const name = agentName(model, agent) || agent || "";
+
+  const toEnd = () => {
+    const scroller = list.current && scrollerOf(list.current);
+    if (scroller) scroller.scrollTop = scroller.scrollHeight;
+    atEnd.current = true;
+    setAway(false);
+    setUnseen(0);
+  };
+
+  useEffect(() => {
+    const scrolled = (event: Event) => {
+      const scroller = list.current && scrollerOf(list.current);
+      if (!scroller || (event.target === document ? document.scrollingElement : event.target) !== scroller) return;
+      const end = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= END_PX;
+      atEnd.current = end;
+      setAway(!end);
+      if (end) setUnseen(0);
+    };
+    document.addEventListener("scroll", scrolled, true);
+    return () => document.removeEventListener("scroll", scrolled, true);
+  }, []);
+
+  const last = lines.at(-1);
+  // The owner's newest message wherever it stands: a send adds it together with the agent's empty reply after it.
+  let lastMine: string | null = null;
+  for (const line of lines) if (line.mine) lastMine = line.key;
+  useLayoutEffect(() => {
+    const before = seen.current;
+    seen.current = { count: lines.length, lastMine };
+    if (!lines.length) return;
+    if (atEnd.current || before.count === 0 || (lastMine !== null && lastMine !== before.lastMine)) toEnd();
+    else if (lines.length > before.count) setUnseen((count) => count + lines.length - before.count);
+  }, [lines.length, last?.key, last?.text, lastMine]);
+
+  return (
+    <>
+      <ol class="talk" aria-label={W.talk} ref={list}>
+        {threadOf(lines, now).map((part) =>
+          part.kind === "day" ? (
+            <li key={part.key} class="talk-day" data-testid="talk-day">
+              <span>{part.label}</span>
+            </li>
+          ) : (
+            <li key={part.key} class={`talk-group ${part.mine ? "is-mine" : "is-agent"}`} data-testid="talk-group">
+              {part.mine ? null : <AgentMark id={part.agent ?? agent} />}
+              <div class="talk-lines">
+                {part.mine ? null : (
+                  <span class="talk-name" data-testid="talk-name">
+                    {part.agent ? agentName(model, part.agent) || part.agent : name}
+                  </span>
+                )}
+                {part.lines.map((line) =>
+                  line.mine ? (
+                    <div key={line.key} class="talk-turn is-mine" data-testid="talk-mine" data-state={line.state === "sending" ? "sending" : undefined}>
+                      <div class="talk-bubble">{line.text}</div>
+                    </div>
+                  ) : (
+                    <div key={line.key} class="talk-turn is-agent" data-testid="talk-reply" aria-busy={line.state === "streaming" ? "true" : undefined}>
+                      <div class="talk-bubble">
+                        {line.text ? <Markdown text={line.text} /> : null}
+                        {line.state === "streaming" ? (
+                          <span class="talk-typing" role="img" aria-label={W.replying} data-testid="talk-live">
+                            <span />
+                            <span />
+                            <span />
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ),
+                )}
+                {part.at === null ? null : (
+                  <time class="talk-time" data-testid="talk-time" dateTime={new Date(part.at * 1000).toISOString()}>
+                    {clock(part.at)}
+                  </time>
+                )}
+                {after && part.lines.some((line) => line.key === after.key) ? after.line : null}
+              </div>
+            </li>
+          ),
+        )}
+      </ol>
+      {away ? (
+        <div class="talk-jump-bar">
+          <button type="button" class="talk-jump" data-testid="talk-jump" aria-label={W.toLatest(unseen)} onClick={toEnd}>
+            <DownIcon />
+            {unseen ? <span class="talk-jump-count">{unseen}</span> : null}
+          </button>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -89,9 +284,10 @@ export function Talk({ detail }: { detail: ItemDetail }) {
       return;
     }
     const key = nextKey.current++;
+    const sentAt = Date.now() / 1000;
     const update = (patch: (turn: Turn) => Partial<Turn>) => setTurns((all) => all.map((turn) => (turn.key === key ? { ...turn, ...patch(turn) } : turn)));
     setText("");
-    setTurns((all) => [...all, { key, mine: message, reply: "", agent: detail.agent, state: "streaming" }]);
+    setTurns((all) => [...all, { key, mine: message, reply: "", agent: detail.agent, state: "streaming", at: sentAt, replyAt: sentAt }]);
     let completed = false;
     let failed = false;
     try {
@@ -105,7 +301,7 @@ export function Talk({ detail }: { detail: ItemDetail }) {
             break;
           case "assistant.completed":
             completed = true;
-            update(() => ({ reply: event.data.content, state: "done" }));
+            update(() => ({ reply: event.data.content, state: "done", replyAt: Date.now() / 1000 }));
             break;
           case "talk.carried":
             setCarried(key);
@@ -129,59 +325,39 @@ export function Talk({ detail }: { detail: ItemDetail }) {
     setBusy(false);
   };
 
-  const last = turns.at(-1)?.key;
+  const last = turns.at(-1);
+  const lines = turns.flatMap((turn): ThreadLine[] => [
+    { key: `${turn.key}-mine`, mine: true, text: turn.mine, at: turn.at, state: "done" },
+    ...(turn.reply || turn.state === "streaming" ? [{ key: `${turn.key}-reply`, mine: false, text: turn.reply, at: turn.replyAt, state: turn.state, agent: turn.agent ?? undefined }] : []),
+  ]);
+  const name = agentName(model, last?.agent ?? null) || last?.agent || "";
   return (
     <Box title={W.talk} testid="talk">
-      {turns.length ? (
-        <ol class="talk" aria-label={W.talk}>
-          {turns.map((turn) => {
-            const name = agentName(model, turn.agent) || turn.agent || "";
-            return [
-              <li key={`${turn.key}-mine`} class="talk-turn is-mine" data-testid="talk-mine">
-                <p class="talk-bubble">{turn.mine}</p>
-              </li>,
-              turn.reply || turn.state === "streaming" ? (
-                <li key={`${turn.key}-reply`} class="talk-turn is-agent" data-testid="talk-reply" aria-busy={turn.state === "streaming" ? "true" : undefined}>
-                  <AgentMark id={turn.agent} />
-                  <div class="talk-lines">
-                    <p class="talk-bubble">
-                      {turn.reply}
-                      {turn.state === "streaming" ? (
-                        <span class="talk-live" data-testid="talk-live">
-                          <span class="visually-hidden">{W.replying}</span>
-                        </span>
-                      ) : null}
-                    </p>
-                    {carried === turn.key && turn.key === last ? (
-                      <span class="sub" role="status" data-testid="talk-carried">
-                        {W.carried(name)}
-                      </span>
-                    ) : null}
-                  </div>
-                </li>
-              ) : null,
-            ];
-          })}
-        </ol>
+      {lines.length ? (
+        <Thread
+          lines={lines}
+          agent={last?.agent ?? detail.agent}
+          after={
+            last && carried === last.key
+              ? {
+                  key: `${last.key}-reply`,
+                  line: (
+                    <span class="sub talk-carried" role="status" data-testid="talk-carried">
+                      {W.carried(name)}
+                    </span>
+                  ),
+                }
+              : undefined
+          }
+        />
       ) : null}
       <div class="comment-form talk-form">
-        <KoreanInput label={W.talkField} value={text} onValue={setText} onEnter={() => void send()} inline />
-        <button type="button" class="text-button" disabled={busy || !text.trim()} onClick={() => void send()}>
-          {W.send}
-        </button>
-        <SendWhy going={busy && turns.at(-1)?.state !== "streaming"} replying={busy} empty={!text.trim()} />
+        <KoreanInput label={W.talkField} value={text} onValue={setText} onEnter={() => void send()} inline multiline />
+        <SendButton disabled={busy || !text.trim()} onSend={() => void send()} />
       </div>
       <ErrorLine line={error ?? undefined} />
     </Box>
   );
-}
-
-/** One line in the owner's window on an agent: a kept message, or this page's turn while its reply streams. */
-interface Line {
-  readonly key: string;
-  readonly mine: boolean;
-  readonly text: string;
-  readonly state: "kept" | "sending" | "streaming" | "done" | "failed";
 }
 
 /**
@@ -227,7 +403,8 @@ function keepLastLine(source: Source, agent: string, line: string | undefined) {
 
 function lastLineOf(history: AgentTalkHistory): string {
   const last = history.messages.at(-1);
-  return last ? firstLine(last.role === "user" ? ownText(last.content) : last.content) : "";
+  // The owner's words as typed; the agent's without their markdown marks (lina-app#187).
+  return last ? (last.role === "user" ? firstLine(ownText(last.content)) : plainLine(last.content)) : "";
 }
 
 /**
@@ -306,8 +483,8 @@ interface Carried {
  * The earlier turns. From the tail of the history backwards it leaves out the carried turns this window shows
  * already, so a chat opened while its reply completes shows each exchange once, in either order.
  */
-function keptLines(history: AgentTalkHistory, carried: Carried = { going: [], whole: [], settled: [] }): Line[] {
-  const lines: Line[] = history.messages.map((message, index) => ({ key: `h${index}`, mine: message.role === "user", text: message.role === "user" ? ownText(message.content) : message.content, state: "kept" }));
+function keptLines(history: AgentTalkHistory, carried: Carried = { going: [], whole: [], settled: [] }): ThreadLine[] {
+  const lines: ThreadLine[] = history.messages.map((message, index) => ({ key: `h${index}`, mine: message.role === "user", text: message.role === "user" ? ownText(message.content) : message.content, at: message.timestamp, state: "kept" }));
   let end = lines.length;
   const pair = (message: (text: string) => boolean, reply: (text: string) => boolean) => {
     const own = lines[end - 2];
@@ -344,6 +521,9 @@ interface Sent {
    * window opened later reads after the turn went out, so it clears this.
    */
   late: boolean;
+  /** When the message went out and when its reply last moved, in seconds. */
+  readonly at: number;
+  replyAt: number;
 }
 
 /** The window open on an agent now: it takes in a settled turn, redraws a streaming one, and shows a reply that broke off. */
@@ -377,11 +557,11 @@ function outbox(source: Source, agent: string): Outbox {
   return box;
 }
 
-function sentLines(turn: Sent): Line[] {
-  if (turn.state === "sending") return [{ key: `${turn.key}-mine`, mine: true, text: turn.message, state: "sending" }];
+function sentLines(turn: Sent): ThreadLine[] {
+  if (turn.state === "sending") return [{ key: `${turn.key}-mine`, mine: true, text: turn.message, at: turn.at, state: "sending" }];
   return [
-    { key: `${turn.key}-mine`, mine: true, text: turn.message, state: "done" },
-    { key: turn.key, mine: false, text: turn.reply, state: turn.state },
+    { key: `${turn.key}-mine`, mine: true, text: turn.message, at: turn.at, state: "done" },
+    { key: turn.key, mine: false, text: turn.reply, at: turn.replyAt, state: turn.state },
   ];
 }
 
@@ -398,12 +578,11 @@ function settle(box: Outbox, turn: Sent) {
  */
 export function AgentTalk({ agent, titled = false, children }: { agent: string; titled?: boolean; children?: ComponentChildren }) {
   const { model, store } = useApp();
-  const [lines, setLines] = useState<readonly Line[] | null>(null);
+  const [lines, setLines] = useState<readonly ThreadLine[] | null>(null);
   const [historyError, setHistoryError] = useState(false);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [drawn, redraw] = useState(0);
-  const end = useRef<HTMLLIElement>(null);
+  const [, redraw] = useState(0);
   /** The earlier turns are still being read: a turn sent meanwhile may come back in them, so it is matched like a carried one. */
   const historyPending = useRef(true);
   const name = agentName(model, agent) || agent;
@@ -468,10 +647,6 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
     };
   }, [agent, store]);
 
-  useLayoutEffect(() => {
-    end.current?.scrollIntoView?.({ block: "end" });
-  }, [lines, drawn]);
-
   const send = async () => {
     const message = text.trim();
     if (!message || sending) return;
@@ -481,7 +656,8 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
     // offer a second send. It goes out at once, not behind the history read (a gateway that does not answer holds
     // that read for 30 s, lina-app#154); a read still out may then hold it, so it is matched as a carried turn.
     const box = outbox(store.source, agent);
-    const turn: Sent = { key: `t${++sentKeys}`, message, reply: "", state: "sending", carried: historyPending.current, late: historyPending.current };
+    const sentAt = Date.now() / 1000;
+    const turn: Sent = { key: `t${++sentKeys}`, message, reply: "", state: "sending", carried: historyPending.current, late: historyPending.current, at: sentAt, replyAt: sentAt };
     box.turns.push(turn);
     box.window?.redraw();
     const before = lastLinesOf(store.source).get(agent);
@@ -510,8 +686,9 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
           case "assistant.completed":
             turn.reply = event.data.content;
             turn.state = "done";
+            turn.replyAt = Date.now() / 1000;
             settle(box, turn);
-            keepLastLine(store.source, agent, firstLine(turn.reply));
+            keepLastLine(store.source, agent, plainLine(turn.reply));
             break;
           case "error":
           case "run.failed":
@@ -530,7 +707,8 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
     } else if (failed) box.window?.failed();
   };
 
-  const shown = [...(lines ?? []), ...box.turns.flatMap(sentLines)];
+  // A reply that broke off before its first word leaves no bubble.
+  const shown = [...(lines ?? []), ...box.turns.flatMap(sentLines)].filter((line) => line.mine || line.text || line.state === "streaming");
 
   if (missing) {
     return (
@@ -582,35 +760,7 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
           </p>
         ) : null}
         {shown.length ? (
-          <ol class="talk" aria-label={W.talk}>
-            {shown.map((line) =>
-              line.mine ? (
-                <li key={line.key} class="talk-turn is-mine" data-testid="talk-mine">
-                  <p class="talk-bubble">{line.text}</p>
-                  {line.state === "sending" ? (
-                    <span class="sub talk-sending" role="status" data-testid="talk-sending">
-                      {W.talkSending}
-                    </span>
-                  ) : null}
-                </li>
-              ) : line.text || line.state === "streaming" ? (
-                <li key={line.key} class="talk-turn is-agent" data-testid="talk-reply" aria-busy={line.state === "streaming" ? "true" : undefined}>
-                  <AgentMark id={agent} />
-                  <div class="talk-lines">
-                    <p class="talk-bubble">
-                      {line.text}
-                      {line.state === "streaming" ? (
-                        <span class="talk-live" data-testid="talk-live">
-                          <span class="visually-hidden">{W.replying}</span>
-                        </span>
-                      ) : null}
-                    </p>
-                  </div>
-                </li>
-              ) : null,
-            )}
-            <li ref={end} class="talk-end" aria-hidden="true" />
-          </ol>
+          <Thread lines={shown} agent={agent} />
         ) : lines === null ? null : (
           <p class="empty" data-testid="no-turns">
             {historyError ? W.historyFailed : W.noTurns}
@@ -618,11 +768,8 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
         )}
       </div>
       <div class="comment-form talk-form agent-talk-form">
-        <KoreanInput label={W.talkField} value={text} onValue={setText} onEnter={() => void send()} inline />
-        <button type="button" class="text-button" disabled={sending || !text.trim()} onClick={() => void send()}>
-          {W.send}
-        </button>
-        <SendWhy going={box.turns.some((turn) => turn.state === "sending")} replying={sending} empty={!text.trim()} />
+        <KoreanInput label={W.talkField} value={text} onValue={setText} onEnter={() => void send()} inline multiline />
+        <SendButton disabled={sending || !text.trim()} onSend={() => void send()} />
         {/* Inside the field's bar: on a phone the bar is sticky and would cover a line drawn after it (lina-app#158). */}
         <ErrorLine line={error ?? undefined} />
       </div>

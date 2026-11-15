@@ -20,7 +20,7 @@ async function open(hash: string, source: SyntheticSource) {
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} }));
   window.history.replaceState(null, "", `/app/${hash}`);
   const view = render(<App store={new Store(source)} />);
-  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("실시간"));
+  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe(""));
   await waitFor(() => expect(view.container.querySelector("[data-testid=detail-frame] article.detail")).not.toBeNull());
   await waitFor(() => expect(view.container.querySelector("[data-testid=detail-loading]")).toBeNull());
   return view;

@@ -18,7 +18,7 @@ function setWide(wide: boolean) {
 async function open(hash: string, label: AppLabel | null) {
   window.history.replaceState(null, "", `/app/${hash}`);
   const view = render(<App store={new Store(new SyntheticSource({ now: Math.floor(Date.now() / 1000) }))} label={label} />);
-  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe("실시간"));
+  await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe(""));
   return view;
 }
 

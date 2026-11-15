@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { stripTop } from "./strip";
 
 // lina-app#143: a goal chosen in 대화 stays in 대화, the phone's last goal row clears the field and the strip, and the
 // selected top tab shows the same way at every width in dark.
@@ -61,11 +62,11 @@ test("on a phone the last goal row is fully visible above the field and the stri
   const clear = async () => {
     const row = await last.boundingBox();
     const form = await page.locator(".agent-talk-form").boundingBox();
-    const strip = await page.locator(".bottombar").boundingBox();
-    expect(row && form && strip).toBeTruthy();
+    const strip = await stripTop(page);
+    expect(row && form).toBeTruthy();
     expect(row!.y).toBeGreaterThanOrEqual(0);
     expect(row!.y + row!.height).toBeLessThanOrEqual(form!.y);
-    expect(row!.y + row!.height).toBeLessThanOrEqual(strip!.y);
+    expect(row!.y + row!.height).toBeLessThanOrEqual(strip);
   };
   // Scrolled down just far enough to bring the row in (as a focus move or a find does), then to the end.
   await last.evaluate((row) => row.scrollIntoView({ block: "end" }));

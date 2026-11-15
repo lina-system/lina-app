@@ -14,7 +14,29 @@ declare global {
     __HERMES_SESSION_TOKEN__?: string;
     __HERMES_AUTH_REQUIRED__?: boolean;
     __HERMES_BASE_PATH__?: string;
+    /** Which install the app is open on, written by its operator; the core sets it on /app/ when configured (lina#730). */
+    __LINA_APP_LABEL__?: unknown;
   }
+}
+
+/** The install's label in the head: the operator's words, and whether it is a test copy or the real one. */
+export interface AppLabel {
+  readonly text: string;
+  readonly kind: "real" | "test" | null;
+}
+
+const LABEL_MAX = 20;
+
+/** The page's `__LINA_APP_LABEL__` when it has the agreed shape (text 1..20 characters after trim), else none. */
+export function bootstrapLabel(host: Partial<Window> = window): AppLabel | null {
+  const value = host.__LINA_APP_LABEL__;
+  if (typeof value !== "object" || value === null) return null;
+  const { text, kind } = value as { text?: unknown; kind?: unknown };
+  if (typeof text !== "string") return null;
+  const trimmed = text.trim();
+  const length = [...trimmed].length;
+  if (length < 1 || length > LABEL_MAX) return null;
+  return { text: trimmed, kind: kind === "real" || kind === "test" ? kind : null };
 }
 
 export interface HttpOptions {

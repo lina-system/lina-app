@@ -1,6 +1,7 @@
 import { createContext, type ComponentChildren, type JSX } from "preact";
 import { useContext } from "preact/hooks";
 import type { WorkState } from "../api/client";
+import type { AppLabel } from "../data/http-source";
 import type { Store } from "../data/store";
 import type { CardRow, ItemLine, Model, Section } from "../model";
 import { linkClick } from "../router";
@@ -19,6 +20,8 @@ export interface AppContext {
   readonly wide: boolean;
   /** The hash of the detail open beside the list, for the selected row. */
   readonly selected: string | null;
+  /** Which install the app is open on, from the page (lina-app#181); none draws no chip. */
+  readonly label: AppLabel | null;
 }
 
 export const Ctx = createContext<AppContext | null>(null);

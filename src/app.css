@@ -132,6 +132,28 @@ button:disabled {
   gap: 4px;
 }
 
+/*
+ * lina-app#181: which install the app is open on, the operator's words beside the bell. It keeps its full text (up
+ * to 20 characters) and never shrinks: on a phone the back control's title gives way first.
+ */
+.install-label {
+  flex: none;
+  max-width: calc(20em + 16px);
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label-2);
+  font-size: var(--text-small);
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.install-label.is-test {
+  background: color-mix(in srgb, var(--orange) 22%, transparent);
+  color: var(--label);
+}
+
 .tool {
   position: relative;
   display: inline-grid;

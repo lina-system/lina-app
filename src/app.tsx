@@ -1,5 +1,6 @@
 import type { ComponentChildren, RefObject } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
+import type { AppLabel } from "./data/http-source";
 import { startLive } from "./data/live";
 import { nowSeconds } from "./data/source";
 import { useClock, useStore, type Store, type Want } from "./data/store";
@@ -363,6 +364,17 @@ export function pushHref(model: Model, request: OpenRequest): string {
   return request.hash;
 }
 
+/** Which install the app is open on, in the operator's words; `test` has its own tint. No label, no element. */
+export function InstallLabel() {
+  const { label } = useApp();
+  if (!label) return null;
+  return (
+    <span class={label.kind === "test" ? "install-label is-test" : "install-label"} data-kind={label.kind ?? undefined} data-testid="install-label">
+      {label.text}
+    </span>
+  );
+}
+
 /**
  * The bell: the badge is the core's unread count, the dialog lists the notices with read ones dimmed. Choosing a
  * notice opens its item and marks it read on the core; 모두 읽음 marks them all. Read marks live on the core only,
@@ -597,6 +609,7 @@ function TalkShell({ route, frame, stack }: { route: Route; frame: Route | null;
           </div>
           <Tabs current="talk" />
           <div class="toolbar-tools">
+            <InstallLabel />
             <Bell />
           </div>
         </header>
@@ -649,6 +662,7 @@ function WideShell({ route, stack, scroll }: { route: Route; stack: readonly str
           </div>
           <Tabs current={tab} />
           <div class="toolbar-tools">
+            <InstallLabel />
             <Bell />
           </div>
         </header>
@@ -718,6 +732,7 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
           </button>
         )}
         <div class="toolbar-tools">
+          <InstallLabel />
           <Bell />
         </div>
       </header>
@@ -757,7 +772,7 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
   );
 }
 
-export function App({ store, pushHost }: { store: Store; pushHost?: PushHost }) {
+export function App({ store, pushHost, label = null }: { store: Store; pushHost?: PushHost; label?: AppLabel | null }) {
   const host = useMemo(() => pushHost ?? browserPushHost(), []);
   const version = useStore(store);
   const tick = useClock();
@@ -800,7 +815,7 @@ export function App({ store, pushHost }: { store: Store; pushHost?: PushHost }) 
   if (isFrame(nav.route)) kept.current = { base: href(base), hash: nav.hash };
   else if (kept.current && kept.current.base !== nav.hash) kept.current = null;
   const selected = isFrame(nav.route) ? nav.hash : (kept.current?.hash ?? (isList(nav.route) ? null : nav.hash));
-  const context: AppContext = { model, store, now, wide, selected };
+  const context: AppContext = { model, store, now, wide, selected, label };
   return (
     <Ctx.Provider value={context}>
       <ActionsCtx.Provider value={actions}>

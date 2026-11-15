@@ -845,8 +845,9 @@ export function AgentCard({ agent, folded = false }: { agent: string; folded?: b
           <span class="lines">
             <span class="title">{W.cardGoals(view.goals.rows.length)}</span>
             {/* One line by design: the goals' names and progress at a glance, every row a tap away. A goal with no to-dos
-                reads its name alone, as on its row (lina-app#167). */}
-            <span class="sub one-line">{view.goals.rows.map((goal) => [foldTitle(goal.title) ?? W.untitled, goalProgress(goal)].filter(Boolean).join(" ")).join(SEP)}</span>
+                reads its name alone, as on its row (lina-app#167). Open, the rows under it say the same, so it goes
+                (lina-app#190). */}
+            {open ? null : <span class="sub one-line">{view.goals.rows.map((goal) => [foldTitle(goal.title) ?? W.untitled, goalProgress(goal)].filter(Boolean).join(" ")).join(SEP)}</span>}
           </span>
         </button>
         {open ? (

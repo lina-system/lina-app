@@ -30,6 +30,21 @@ test("the folded card shows no 0/0 for a goal with no to-dos, and keeps the othe
   expect(row.querySelector("a")!.getAttribute("aria-label")).not.toMatch(/0\/0/);
 });
 
+// lina-app#190: at 390 the opened card kept its one-line summary of the goals and their n/n over the goal rows that
+// show the same goals and numbers. The summary shows while the card is folded only.
+test("at 390 the card's summary line shows while folded and goes while the goals are open", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {} }));
+  window.history.replaceState(null, "", "/app/#/talk/ag-1");
+  const view = render(<App store={new Store(new SyntheticSource({ now: Math.floor(Date.now() / 1000) }))} />);
+  const toggle = await waitFor(() => view.getByTestId("agent-card").querySelector(".agent-card-toggle") as HTMLElement);
+  expect(toggle.querySelector(".sub")?.textContent).toMatch(/\d+\/\d+/);
+  fireEvent.click(toggle);
+  expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  expect(toggle.querySelector(".sub")).toBeNull();
+  fireEvent.click(toggle);
+  expect(toggle.querySelector(".sub")?.textContent).toMatch(/\d+\/\d+/);
+});
+
 // lina-app#167 item 6: at 390 the 대화 list had no 메뉴; it has the one 작업 has.
 test("at 390 the 대화 list opens the 작업 menu from its header", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {} }));

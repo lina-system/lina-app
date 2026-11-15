@@ -2,6 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import { USAGE_RANGES, type RouteName, type Routes, type UsageRange, type UsageView } from "../api/client";
 import type { ModelInput } from "../model";
 import { nowSeconds, type Source, type WriteResult } from "./source";
+import type { StoredCopy, StoredRoute, StoredSnapshot } from "./stored";
 
 type Status = "pending" | "ok" | "missing" | "failed";
 
@@ -69,6 +70,15 @@ export interface StoreOptions {
    * The page passes nextPaint; without it they follow the lists at once.
    */
   readonly afterPaint?: () => Promise<void>;
+  /** The copy of the store kept on this device (lina-app#194); none for the synthetic scene and tests. */
+  readonly stored?: StoredCopy | null;
+}
+
+/** The cards a kept copy holds: every unfinished card and the first FINISHED_SHOWN finished ones, with the core's total. */
+function firstPage(view: Routes["cards"]): Routes["cards"] {
+  let finished = 0;
+  const cards = view.cards.filter((card) => card.state !== "done" || ++finished <= FINISHED_SHOWN);
+  return { ...view, cards, finishedTotal: view.finishedTotal ?? view.cards.filter((card) => card.state === "done").length };
 }
 
 /** The frame after the next one, or a tenth of a second when no frame comes (a hidden tab draws none). */
@@ -114,15 +124,89 @@ export class Store {
   private cardsReading = 0;
   private readonly afterPaint: () => Promise<void>;
   private firstPaint: () => void = () => {};
-  /** The first refresh has landed, its lists on screen: what no screen draws (the change stream, the push key) may start. */
+  /**
+   * The first refresh has landed, its lists on screen: what no screen draws (the change stream, the push key) may start.
+   * A store opened from its kept copy says so once the stream has caught up instead, so nothing is read before it.
+   */
   readonly painted: Promise<void> = new Promise((resolve) => (this.firstPaint = resolve));
+  /**
+   * The cursor of the kept copy the store opened from (lina-app#194): the stream resumes there and the routes it names
+   * are read, instead of every list. Null: no copy, the first refresh reads them all.
+   */
+  readonly restored: string | null;
+  /** The screens show the kept copy and the stream has not caught up since: the freshness line says how old it is. */
+  catchingUp = false;
+  private readonly stored: StoredCopy | null;
+  /** The owner the kept copy belonged to, until a read of the items says who is signed in. */
+  private keptOwner: string | null | undefined;
+  /** The last stream cursor whose reads have landed, and what the kept copy was last written with. */
+  private cursor: string | null = null;
+  private keptAt: { readonly cursor: string; readonly version: number } | null = null;
+  /** The core refused the credential since a read last answered: nothing is kept (an open socket may still send). */
+  private refused = false;
 
   constructor(
     readonly source: Source,
     options: StoreOptions = {},
   ) {
     this.afterPaint = options.afterPaint ?? (() => Promise.resolve());
+    this.stored = options.stored ?? null;
+    const kept = this.stored?.load() ?? null;
+    this.restored = kept?.cursor ?? null;
+    if (kept) this.restore(kept);
     this.shown = this.read();
+  }
+
+  /** The kept copy on screen at once, before anything is read; the stream says what changed since. */
+  private restore(kept: StoredSnapshot): void {
+    for (const [key, route] of Object.entries(kept.routes)) this.entries.set(key, { data: route.data, receivedAt: route.receivedAt, status: "ok" });
+    this.keptOwner = kept.owner;
+    this.lastOk = this.entries.get("board")?.receivedAt ?? null;
+    this.catchingUp = true;
+    this.version = 1;
+  }
+
+  /**
+   * Writes the kept copy at the stream's cursor: the lists, the slow routes and the open screen's routes as last read,
+   * the finished cards cut to the first page. Not while the credential is refused, and not again for the same state.
+   */
+  private keep(): void {
+    if (!this.stored || this.refused || this.denied || this.cursor === null) return;
+    if (this.keptAt?.cursor === this.cursor && this.keptAt.version === this.version) return;
+    // A route whose last read failed still holds older data: a copy written now would carry it as current under a
+    // cursor past the change it missed. The earlier copy stays; it is consistent at its own cursor.
+    for (const entry of this.entries.values()) if (entry.status === "failed" && entry.data !== undefined) return;
+    // A list that never answered would be missing from the copy while the cursor says nothing changed: a page opened from
+    // it would not read that list until some event named it. Without every list there is no copy.
+    for (const list of LIST_ROUTES) if (this.entries.get(list)?.data === undefined) return;
+    const routes: Record<string, StoredRoute> = {};
+    for (const [name, id] of [...LIST_ROUTES.map((list) => [list] as const), ...SLOW_ROUTES, ...this.wanted]) {
+      // The settings' writes need the ETag of the read that is on screen, which a kept copy does not hold.
+      if (name === "settings" || name === "settingsHistory") continue;
+      const key = this.key(name, id);
+      const entry = this.entries.get(key);
+      if (entry?.data === undefined) continue;
+      routes[key] = { data: name === "cards" ? firstPage(entry.data as Routes["cards"]) : entry.data, receivedAt: entry.receivedAt };
+    }
+    this.stored.save({ cursor: this.cursor, owner: this.get("items")?.owner?.id ?? null, routes });
+    this.keptAt = { cursor: this.cursor, version: this.version };
+  }
+
+  /** The core refused the credential: the kept copy goes, and nothing is written until a read answers again. */
+  private forget(): void {
+    this.stored?.clear();
+    this.keptAt = null;
+    this.refused = true;
+  }
+
+  /** A read of the items names another owner than the kept copy's: the copy goes and every list is read again. */
+  private checkOwner(owner: string | null): void {
+    if (this.keptOwner === undefined) return;
+    const same = owner === this.keptOwner;
+    this.keptOwner = undefined;
+    if (same) return;
+    this.forget();
+    void this.refresh();
   }
 
   private key(name: RouteName, id?: string): string {
@@ -150,8 +234,14 @@ export class Store {
     if (cards) this.cardsReading -= 1;
     // What the store holds when the answer lands: another read of the route may have landed meanwhile.
     const before = this.entries.get(key);
-    if (result.kind === "data" || result.kind === "unchanged") this.setDenied(false);
-    else if (result.kind === "failed" && result.denied) void this.credentialRefused();
+    if (result.kind === "data" || result.kind === "unchanged") {
+      this.refused = false;
+      this.setDenied(false);
+    } else if (result.kind === "failed" && result.denied) {
+      // A 401 or 403 is the core's own answer: signed out, or a credential it no longer takes.
+      this.forget();
+      void this.credentialRefused();
+    }
     if (name === "board") {
       this.offline = result.kind === "failed" && result.offline;
       this.boardFailed = result.kind === "failed";
@@ -160,6 +250,7 @@ export class Store {
     switch (result.kind) {
       case "data":
         this.entries.set(key, { data: result.data, receivedAt: result.at, status: "ok" });
+        if (name === "items") this.checkOwner((result.data as Routes["items"]).owner?.id ?? null);
         return true;
       case "unchanged":
         if (before?.status === "ok") return false;
@@ -202,6 +293,9 @@ export class Store {
       .renewCredential()
       .then((renewal) => {
         if (renewal === "gated" || renewal === "unreachable") return false;
+        // The core served the page again: a new credential, or none. A stream that never opened only says the core
+        // was not reached, which keeps the copy.
+        if (renewal !== "same") this.forget();
         this.renewedInStreak = true;
         if (renewal === "none") {
           this.setDenied(true);
@@ -228,6 +322,7 @@ export class Store {
 
   private setDenied(denied: boolean): void {
     if (this.denied === denied) return;
+    if (denied) this.forget();
     this.denied = denied;
     this.notify();
   }
@@ -269,6 +364,34 @@ export class Store {
     return this.queue(run);
   }
 
+  /**
+   * The stream's message at `cursor` and every read it asked for have landed (lina-app#194): the kept copy is written
+   * with that cursor, and what waits on the first paint may start. Queued behind those reads, so the kept cursor is
+   * never ahead of the kept routes. The first after opening from the kept copy also reads the slow routes, which no
+   * event names, once, as a first refresh does.
+   */
+  caughtUp(cursor: string): Promise<void> {
+    return this.queue(async () => {
+      this.cursor = cursor;
+      this.keep();
+      this.firstPaint();
+      if (!this.catchingUp) return;
+      this.catchingUp = false;
+      const slow = this.slowDue();
+      const changes = await Promise.all(slow.map(([name, id]) => this.load(name, id)));
+      if (changes.some(Boolean)) this.changed();
+      else this.notify();
+    });
+  }
+
+  /** The slow routes when they are due (at most once a minute), marking them read now. */
+  private slowDue(): Want {
+    const now = nowSeconds();
+    if (this.slowReadAt !== null && now - this.slowReadAt < SLOW_REFRESH_S - 1) return [];
+    this.slowReadAt = now;
+    return SLOW_ROUTES;
+  }
+
   /** Loaded card details that list a worker run, for a worker event about it. */
   cardsWithRun(runId: string): string[] {
     const ids: string[] = [];
@@ -295,9 +418,7 @@ export class Store {
    * screen asked for and is still reading for the first time is not asked again.
    */
   private async readAll(): Promise<void> {
-    const now = nowSeconds();
-    const slow: Want = this.slowReadAt === null || now - this.slowReadAt >= SLOW_REFRESH_S - 1 ? SLOW_ROUTES : [];
-    if (slow.length) this.slowReadAt = now;
+    const slow = this.slowDue();
     const reading = ([name, id]: Want[number]) => this.entries.get(this.key(name, id))?.status === "pending";
     const drawn = ([name, id]: Want[number]) => this.wanted.some(([wanted, wantedId]) => wanted === name && wantedId === id);
     const firstWave = await Promise.all([...LIST_ROUTES.map((name) => this.load(name)), ...slow.filter((route) => drawn(route) && !reading(route)).map(([name, id]) => this.load(name, id))]);
@@ -314,6 +435,8 @@ export class Store {
     this.refreshes += 1;
     if (secondWave.some(Boolean)) this.changed();
     else if (!listed) this.notify();
+    // Read after the last cursor whose reads landed, so the copy stays at least as new as its cursor.
+    this.keep();
   }
 
   /**

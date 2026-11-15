@@ -357,14 +357,16 @@ export function Freshness() {
   // While the stream is open nothing is read until something changes, so the last read can be minutes old while the
   // screens are current. The last moment the stream vouched for them is when they were last known current
   // (lina-app#152): one failed read counts from there, not from the last change.
-  const current = store.live === "open" && !store.boardFailed && store.lastOk !== null && store.version > 0;
+  // A kept copy is not current until the stream has caught up from its cursor (lina-app#194).
+  const current = store.live === "open" && !store.catchingUp && !store.boardFailed && store.lastOk !== null && store.version > 0;
   if (current) vouchedAt.set(store, now);
   const since = Math.max(store.lastOk ?? 0, store.live === "open" ? (vouchedAt.get(store) ?? 0) : 0);
   let line: { text: string; tone: string };
   if (store.offline || store.denied) line = { text: W.offline, tone: "is-red" };
   else if (store.lastOk === null || store.version === 0) line = { text: W.loading, tone: "" };
   // A stream that was never open has nothing late yet: its first connection is still being made (lina-app#172).
-  else if (store.live === "connecting") line = { text: W.connecting, tone: "" };
+  // A kept copy on screen says how old it is instead: it may be old, not merely waiting.
+  else if (store.live === "connecting" && !store.catchingUp) line = { text: W.connecting, tone: "" };
   // A current screen needs no word: the head speaks only when something is wrong (lina-app#187).
   else if (current) line = { text: "", tone: "" };
   else if (store.live === "down" || now - since > STALE_AFTER_S) line = { text: W.stale, tone: "" };

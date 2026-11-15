@@ -2518,9 +2518,14 @@ const drivers = {
       });
       return;
     }
-    await step("the first screen is the lines under a large title, the menu one header button away", async () => {
+    await step("the first screen is the lines under the pressed tab 작업, the menu one icon away in the bar", async () => {
       await openApp(page, "#/");
-      check((await title(page)) === "작업", "large title is not 작업");
+      check((await title(page)) === "작업", "the screen's heading is not 작업");
+      // The pressed tab is the one title: no large title repeats it, and the bar leads with the menu's icon (lina-app#193).
+      check((await page.locator(".large-title").count()) === 0, "a large title repeats the pressed tab");
+      check((await page.getByTestId("tabs").locator("[aria-current=page]").innerText()).trim() === "작업", "the pressed tab is not 작업");
+      const menu = page.locator(".navbar").getByRole("button", { name: "메뉴" });
+      check((await menu.innerText()).trim() === "" && (await menu.locator("svg").count()) === 1, "메뉴 is not an icon");
       const first = page.getByRole("list", { name: "진행 중인 작업" }).getByRole("link").first();
       check(await first.isVisible(), "the first running row is not on the first screen");
       check((await page.getByTestId("sidebar").count()) === 0, "the menu is drawn on the first screen");
@@ -3326,6 +3331,8 @@ const drivers = {
       const agents = await page.locator(wide ? "[data-testid^=nav-talk-]" : "[data-testid^=talk-agent-]").count();
       check(agents === 3, "the agents listed: " + agents);
       if (wide) check((await text(page.getByTestId("pick-agent"))) === "에이전트를 고르면 대화가 열림", "the middle does not ask to choose an agent");
+      // The pressed tab names the screen: no title beside it in the toolbar, no large title over it (lina-app#193).
+      check((await page.locator(".toolbar-name, .large-title").count()) === 0, "a title repeats the pressed tab 대화");
       // Each row: the first line of its last message, or one plain line when it has none (lina-app#143).
       const row = (index) => page.getByTestId((wide ? "nav-talk-" : "talk-agent-") + index).getByTestId("talk-preview");
       await row(1).waitFor({ timeout: 5_000 });

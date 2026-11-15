@@ -2171,6 +2171,11 @@ html:has(.stack) body {
   font-size: 14px;
 }
 
+/* A tab's first screen leads its bar with the menu's icon, tinted like back (lina-app#193). */
+.menu-button {
+  color: var(--accent);
+}
+
 .back.is-icon {
   justify-content: center;
   width: var(--hit);

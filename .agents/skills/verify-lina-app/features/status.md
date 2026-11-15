@@ -44,7 +44,7 @@
 ## How to get to it (user POV)
 
 - Choose `상태` in the tabs: a phone opens on this screen, a wide window on its `기기` line under `상태`. The screen's head reads `상태` at every width, the tab's word, in the wide sidebar too (lina-app#200; `src/screens/status.test.tsx`).
-- On a phone the header has the same `메뉴` as 작업 and 대화: its sheet holds the 작업 rows and ends with `설정` (lina-app#172); `설정` is also the screen's last line.
+- On a phone the bar has the same menu icon (`메뉴`) as 작업 and 대화, and no large title repeats the pressed tab `상태` (lina-app#193): its sheet holds the 작업 rows and ends with `설정` (lina-app#172); `설정` is also the screen's last line.
 - Address `/app/#/status`.
 
 ## Driving it with verify.mjs

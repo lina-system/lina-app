@@ -13,7 +13,7 @@ import { AgentCard, AgentTalk, TalkAgents, TalkHead, TalkPreview } from "./scree
 import { CardScreen, GoalScreen, ItemScreen, RunScreen, workerTitle } from "./screens/details";
 import { RollbackSheet, SettingPage, settingParent, SettingsScreen, settingTitle } from "./screens/settings";
 import { SETTINGS_HISTORY } from "./api/client";
-import { BackIcon, BellIcon, CalendarIcon, DeviceIcon, DoneIcon, GearIcon, GoalIcon, InboxIcon, RunningIcon } from "./ui/icons";
+import { BackIcon, BellIcon, CalendarIcon, DeviceIcon, DoneIcon, GearIcon, GoalIcon, InboxIcon, MenuIcon, RunningIcon } from "./ui/icons";
 import { AgentMark, CountPair, Ctx, Disclosure, useApp, type AppContext } from "./ui/parts";
 import { ActionsCtx, useActions, useActionsFor } from "./ui/actions";
 import { SettingsCtx, useSettingsEditsFor } from "./ui/settings-edits";
@@ -528,7 +528,7 @@ export function Toast() {
 /**
  * 작업's menu on a phone (오늘, the lists, the agents, 목표): the first screen is the lines, and the menu opens from the
  * header as a sheet; choosing a row goes there and closes it (lina-app#124). The 대화 list has the same entry (lina-app#167),
- * and so has 상태, whose sheet ends with 설정 (lina-app#172).
+ * and so has 상태, whose sheet ends with 설정 (lina-app#172). It is an icon, as in a chat app's list head (lina-app#193).
  */
 function MenuButton({ tab }: { tab: Tab }) {
   const [open, setOpen] = useState(false);
@@ -547,8 +547,8 @@ function MenuButton({ tab }: { tab: Tab }) {
   }, [open]);
   return (
     <div class="menu" ref={ref}>
-      <button type="button" class="text-button menu-button" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(!open)} data-testid="menu">
-        {W.sidebar}
+      <button type="button" class="tool menu-button" aria-label={W.sidebar} aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(!open)} data-testid="menu">
+        <MenuIcon />
       </button>
       {open ? <div class="sheet-scrim" aria-hidden="true" onClick={() => setOpen(false)} /> : null}
       {open ? (
@@ -565,6 +565,18 @@ function MenuButton({ tab }: { tab: Tab }) {
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The wide toolbar's title. A screen named like the pressed tab beside it (대화, 작업, 상태) is named by that tab: its
+ * heading is for a screen reader only, so the toolbar never reads the tab's name twice (lina-app#193).
+ */
+function ToolbarName({ title, tab }: { title: string; tab: Tab }) {
+  return (
+    <h1 class={title === TAB_WORD[tab] ? "visually-hidden" : "toolbar-name"} data-testid="screen-title">
+      {title}
+    </h1>
   );
 }
 
@@ -655,9 +667,7 @@ function TalkShell({ route, frame, stack }: { route: Route; frame: Route | null;
             {agent ? (
               <TalkHead agent={agent} />
             ) : (
-              <h1 class="toolbar-name" data-testid="screen-title">
-                {titleOf(windowRoute, model, store)}
-              </h1>
+              <ToolbarName title={titleOf(windowRoute, model, store)} tab="talk" />
             )}
             <Freshness />
           </div>
@@ -709,9 +719,7 @@ function WideShell({ route, stack, scroll }: { route: Route; stack: readonly str
       <div class="content">
         <header class="toolbar">
           <div class="toolbar-title">
-            <h1 class="toolbar-name" data-testid="screen-title">
-              {titleOf(listRoute, model, store)}
-            </h1>
+            <ToolbarName title={titleOf(listRoute, model, store)} tab={tab} />
             <Freshness />
           </div>
           <Tabs current={tab} />
@@ -800,8 +808,9 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
         </div>
       </header>
       <main class="phone-main" ref={mainRef}>
+        {/* A tab's first screen is named by its pressed tab; its heading is for a screen reader only (lina-app#193). */}
         {large ? (
-          <h1 class="large-title" data-testid="screen-title">
+          <h1 class={isRoot ? "visually-hidden" : "large-title"} data-testid="screen-title">
             {isRoot ? TAB_WORD[tabOf(screen)] : titleOf(screen, model, store)}
           </h1>
         ) : null}

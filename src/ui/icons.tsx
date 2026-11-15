@@ -78,6 +78,12 @@ export const PlusIcon = () => (
   </Icon>
 );
 
+export const MenuIcon = () => (
+  <Icon size={22}>
+    <path d="M4.5 7h15M4.5 12h15M4.5 17h15" />
+  </Icon>
+);
+
 export const BackIcon = () => (
   <Icon size={22}>
     <path d="M14.5 5.5 8 12l6.5 6.5" />

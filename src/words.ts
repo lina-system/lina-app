@@ -112,7 +112,6 @@ export const W = {
   ownerWords: "내 말",
   todos: "할 일",
   cards: "작업",
-  workerRuns: "실행",
   runs: "실행",
   comments: "댓글",
   evidence: "완료 근거",
@@ -151,9 +150,6 @@ export const W = {
   personHead: (all: number, connected: number, offline: number) => [`내 기기 ${all}`, connected ? `연결됨 ${connected}` : "", offline ? `연결 끊김 ${offline}` : ""].filter(Boolean).join(SEP),
   /** A runner's update: the version the node has, then the fleet's. */
   versionGap: (installed: string, fleet: string) => `${installed} → ${fleet}`,
-  checkMore: "자세히",
-  /** A line the core cut short, ended at its last whole word. */
-  cutShort: (text: string) => `${text}…`,
   restartWorker: "작업 실행기",
   restartOcx: "모델 연결",
   restartWorkerConfirm: "작업 실행기를 다시 시작합니다.",

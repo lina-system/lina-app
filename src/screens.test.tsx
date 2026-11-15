@@ -4,7 +4,7 @@ import { useEffect, useState } from "preact/hooks";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { AgentTalkEvent, RouteName, RunnerCell, WorkCardSummary } from "./api/client";
 import { App } from "./app";
-import { AGENT_REPLY_DELTAS, STREAM_TICK_MS, SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS } from "./data/synthetic-source";
+import { AGENT_REPLY_DELTAS, APP_FIRST_LINE, STREAM_TICK_MS, SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS } from "./data/synthetic-source";
 import type { ReadResult, Source } from "./data/source";
 import { BACKOFF_MAX_MS, LIVE_SETTLE_MS } from "./data/live";
 import { FINISHED_SHOWN, Store } from "./data/store";
@@ -2236,6 +2236,56 @@ describe("agent talk", () => {
       });
       expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?"]);
       expect(box.getAllByTestId("talk-reply")).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a message equal to a recent earlier one, sent before the first history lands, is not taken for it, whatever its time says (lina-app#209)", async () => {
+    vi.useFakeTimers(TIMERS);
+    try {
+      class SnapshotThenSlow extends SyntheticSource {
+        private took: string | null = null;
+        constructor() {
+          super();
+          // No `talk` event after the turn: only the reads decide what the window holds.
+          (this as unknown as { talked: () => void }).talked = () => undefined;
+        }
+        // The core keeps the owner's message when it takes the turn, and answers from the moment the read began; the
+        // gateway holds the answer back (lina-app#154). The earlier exchange is a minute old, within any clock skew of the send.
+        override async agentTalk(agent: string, body: { message: string }, signal?: AbortSignal) {
+          const result = await super.agentTalk(agent, body, signal);
+          if (result.ok) this.took = body.message;
+          return result;
+        }
+        override async agentTalkHistory(agent: string) {
+          const result = await super.agentTalkHistory(agent);
+          if (result.kind === "data") {
+            const now = Date.now() / 1000;
+            result.data.messages.forEach((message, index) => (message.timestamp = now - 60 + index));
+            if (this.took) result.data.messages.push({ role: "user", content: `${APP_FIRST_LINE}\n${this.took}`, timestamp: now });
+          }
+          await new Promise((resolve) => setTimeout(resolve, 30_000));
+          return result;
+        }
+      }
+      const view = await open("#/talk/ag-1", { wide: true, source: new SnapshotThenSlow() });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const { box, field } = parts(view);
+      field.value = "어디까지 왔어요?";
+      fireEvent.input(field);
+      fireEvent.keyDown(field, { key: "Enter" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TALK_FRAME_MS * 20);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      // The earlier exchange and this one, each with its reply: the history that began before the send held only the earlier.
+      expect(box.getAllByTestId("talk-mine").map((line) => line.textContent)).toEqual(["어디까지 왔어요?", "어디까지 왔어요?"]);
+      expect(box.getAllByTestId("talk-reply")).toHaveLength(2);
     } finally {
       vi.useRealTimers();
     }

@@ -525,6 +525,12 @@ interface Sent {
    * never taken for it.
    */
   readonly base: number | null;
+  /**
+   * The number of the first history read that began after the core took the turn (null: not taken yet). With no `base`,
+   * only a read from here on can hold the turn: an earlier read cannot, so an earlier exchange that reads the same is
+   * never taken for it, whatever the two clocks say.
+   */
+  from: number | null;
   /** When the message went out and when its reply last moved, in seconds. */
   readonly at: number;
   replyAt: number;
@@ -536,6 +542,8 @@ interface Sent {
 interface TalkWindow {
   redraw(): void;
   failed(): void;
+  /** Reads the history again, from now. */
+  reread(): void;
   /** The core refused the turn: its words, shown in the window, and the message back in an empty field. */
   refused(error: string, message: string): void;
 }
@@ -550,6 +558,9 @@ interface Outbox {
   window: TalkWindow | null;
   /** The size of the newest history this page applied, which a turn sent next is read from (`Sent.base`). */
   known: number | null;
+  /** How many history reads began, and the number of the newest one applied (`Sent.from`). */
+  started: number;
+  applied: number;
   /** A refusal that came while no window was open, shown by the next one. */
   refusal: { readonly line: string; readonly message: string } | null;
 }
@@ -561,7 +572,7 @@ function outbox(source: Source, agent: string): Outbox {
   let agents = outboxes.get(source);
   if (!agents) outboxes.set(source, (agents = new Map()));
   let box = agents.get(agent);
-  if (!box) agents.set(agent, (box = { turns: [], window: null, known: null, refusal: null }));
+  if (!box) agents.set(agent, (box = { turns: [], window: null, known: null, started: 0, applied: 0, refusal: null }));
   return box;
 }
 
@@ -573,26 +584,30 @@ function sentLines(turn: Sent): ThreadLine[] {
   ];
 }
 
-/** How far a device's clock may differ from the core's, in seconds, when a turn is placed in a history by its time. */
-const CLOCK_SKEW = 120;
-
 /**
  * Where the history holds the turn: the owner's message and, when the core has one, its reply (indexes into `kept`),
- * or null. It looks from the newest line back to `base`; before any read there is no base, and a whole exchange must
- * then carry a time near the turn's, when the core says one. The reply is not compared: the core may keep it in other marks than it streamed.
+ * or null. It looks from the newest line back to `base`; before any read there is no base, and the history `read` (the
+ * number of the read it came from) must then have begun after the core took the turn. The reply is not compared: the
+ * core may keep it in other marks than it streamed.
  */
-function holdOf(kept: readonly ThreadLine[], turn: Sent, used: ReadonlySet<number>): readonly number[] | null {
+function holdOf(kept: readonly ThreadLine[], read: number, turn: Sent, used: ReadonlySet<number>): readonly number[] | null {
+  if (turn.base === null && (turn.from === null || read < turn.from)) return null;
   for (let own = kept.length - 1; own >= (turn.base ?? 0); own -= 1) {
     const line = kept[own];
     if (used.has(own) || !line.mine || line.text !== turn.message) continue;
     const answer = kept[own + 1];
     if (answer && !answer.mine && !used.has(own + 1)) {
-      if (turn.base === null && line.at !== null && line.at < turn.at - CLOCK_SKEW) continue;
       return [own, own + 1];
     }
     if (!answer || answer.mine) return [own];
   }
   return null;
+}
+
+/** Whether a history read could hold `turn`, yet began before the core took it, with no base to tell it by. */
+function unsure(kept: readonly ThreadLine[], read: number, turn: Sent): boolean {
+  if (turn.base !== null || turn.from === null || read >= turn.from) return false;
+  return kept.some((line) => line.mine && line.text === turn.message);
 }
 
 /**
@@ -601,13 +616,13 @@ function holdOf(kept: readonly ThreadLine[], turn: Sent, used: ReadonlySet<numbe
  * the core has for it are left out. A turn the core holds whole and that is done or failed is drawn from the history
  * and `confirmed`: the outbox drops it.
  */
-function withTurns(kept: readonly ThreadLine[], turns: readonly Sent[]): { readonly lines: ThreadLine[]; readonly confirmed: Sent[] } {
+function withTurns(kept: readonly ThreadLine[], read: number, turns: readonly Sent[]): { readonly lines: ThreadLine[]; readonly confirmed: Sent[] } {
   const used = new Set<number>();
   const left = new Set<number>();
   const confirmed: Sent[] = [];
   for (let at = turns.length - 1; at >= 0; at -= 1) {
     const turn = turns[at];
-    const held = holdOf(kept, turn, used);
+    const held = holdOf(kept, read, turn, used);
     if (!held) continue;
     for (const index of held) used.add(index);
     if (held.length === 2 && turn.state !== "sending" && turn.state !== "streaming") confirmed.push(turn);
@@ -678,6 +693,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
   const read = (first: boolean) => {
     const box = outbox(store.source, agent);
     const token = ++readSeq.current;
+    const number = ++box.started;
     const gen = opened.current;
     readAt.current = store.talkWindowChanges(agent);
     void store.source.agentTalkHistory(agent).then((result) => {
@@ -690,10 +706,15 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
         }
         return;
       }
-      readApplied.current = token;
       const kept = keptLines(result.data);
-      for (const turn of withTurns(kept, box.turns).confirmed) box.turns.splice(box.turns.indexOf(turn), 1);
+      // A history that began before the core took a turn this page sent, with no earlier history to tell by, may hold
+      // the turn or an earlier exchange that reads the same, and nothing says which: it is not applied, the read the
+      // turn started when the core took it is (`Sent.from`).
+      if (box.turns.some((turn) => unsure(kept, number, turn))) return;
+      readApplied.current = token;
+      for (const turn of withTurns(kept, number, box.turns).confirmed) box.turns.splice(box.turns.indexOf(turn), 1);
       box.known = kept.length;
+      box.applied = number;
       setLines(kept);
       if (!box.turns.length) keepLastLine(store.source, agent, lastLineOf(result.data));
     });
@@ -704,6 +725,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
     const open: TalkWindow = {
       redraw: () => redraw((count) => count + 1),
       failed: () => setError(W.talkFailed),
+      reread: () => read(box.applied === 0),
       refused(line, message) {
         setError(line);
         setText((typed) => (typed.trim() ? typed : message));
@@ -744,7 +766,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
     // that read for 30 s, lina-app#154); a read still out may then hold it, which `withTurns` finds.
     const box = outbox(store.source, agent);
     const sentAt = Date.now() / 1000;
-    const turn: Sent = { key: `t${++sentKeys}`, message, reply: "", state: "sending", base: box.known, at: sentAt, replyAt: sentAt, told: false };
+    const turn: Sent = { key: `t${++sentKeys}`, message, reply: "", state: "sending", base: box.known, from: null, at: sentAt, replyAt: sentAt, told: false };
     box.turns.push(turn);
     box.window?.redraw();
     const before = lastLinesOf(store.source).get(agent);
@@ -761,6 +783,9 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
       return;
     }
     turn.state = "streaming";
+    // The core holds the message from here: the next read to begin can show it.
+    turn.from = box.started + 1;
+    box.window?.reread();
     box.window?.redraw();
     let failed = false;
     try {
@@ -797,7 +822,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
   };
 
   // A reply that broke off before its first word leaves no bubble.
-  const shown = withTurns(lines ?? [], box.turns).lines.filter((line) => line.mine || line.text || line.state === "streaming");
+  const shown = withTurns(lines ?? [], box.applied, box.turns).lines.filter((line) => line.mine || line.text || line.state === "streaming");
 
   if (missing) {
     return (

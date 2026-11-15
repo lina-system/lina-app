@@ -34,7 +34,20 @@ export function reasonWord(reason: string | null | undefined): string | null {
   return Object.hasOwn(REASON_WORD, reason) ? REASON_WORD[reason] : null;
 }
 
+/**
+ * What a wait waits for, by the core's reason, the one word a record's line and a stopped card's row read for it
+ * (lina-app#174): 결정 대기, 피드백 대기 (STOP_WAIT), 다른 일 대기 (STOP_WORD.why); null for any other reason.
+ */
+export function waitWord(reason: string | null | undefined): string | null {
+  if (!reason) return null;
+  if (Object.hasOwn(STOP_WAIT, reason)) return STOP_WAIT[reason];
+  return reason === "blocked_by_item" ? STOP_WORD.why.blocked_by_item : null;
+}
+
+/** A record's state with its reason's word; a wait word stands for 대기, so no line says 대기 twice (lina-app#174). */
 export function stateLabel(state: WorkState, reason?: string | null): string {
+  const wait = waitWord(reason);
+  if (wait) return state === "waiting" ? wait : `${STATE_WORD[state]} · ${wait}`;
   const word = reasonWord(reason);
   return word ? `${STATE_WORD[state]} · ${word}` : STATE_WORD[state];
 }
@@ -550,9 +563,7 @@ export const toolCommand = (name: string) => `${name} 명령`;
 
 /** The detail frame's words added for lina-app#157: why a stopped card stopped, and a folded block of history that is no comment. */
 export const DETAIL_WORD = {
-  /** A stopped card's line under its head, by the reason the core gives (decision, feedback), before its ask. */
-  waitFor: { decision: "결정 대기", feedback: "피드백 대기" } as Readonly<Record<string, string>>,
-  /** That line when the card gives neither a reason nor an ask. */
+  /** A stopped card's line under its head when the card gives neither a reason nor an ask (else waitWord, lina-app#174). */
   noReason: "이유 없음",
   /** The owner decided after the card stopped, and the card has not moved since. */
   decidedSinceStop: "결정 기록 있음 · 상태는 아직 중단됨",

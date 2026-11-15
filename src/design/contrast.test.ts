@@ -65,3 +65,12 @@ test("the selected top tab stands out from its neighbours in dark (3:1)", () => 
     expect(contrast(parse(token(dark, "label")), selected), surfaceName).toBeGreaterThanOrEqual(4.5);
   }
 });
+
+// lina-app#174: a link inside a detail (답할 곳 · <agent> 대화) is drawn in accent. In dark it needs the secondary text's
+// 4.5:1 against what a detail sits on: the page at 390 (bg) and the panel at 1280 (bg-2).
+test("a detail's link in accent reaches 4.5:1 in dark", () => {
+  for (const surfaceName of ["bg", "bg-2"]) {
+    const surface = over(parse(token(dark, surfaceName)), parse("#000000"));
+    expect(contrast(parse(token(dark, "accent")), surface), surfaceName).toBeGreaterThanOrEqual(4.5);
+  }
+});

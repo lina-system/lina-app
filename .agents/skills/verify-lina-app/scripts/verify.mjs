@@ -699,7 +699,7 @@ const drivers = {
           const article = (await page.locator(".detail").first().innerText()).replace(/\s+/g, " ");
           check(article.split(row.text).length - 1 === 1, row.href + " says its question " + (article.split(row.text).length - 1) + " times");
           const state = (await page.locator(".detail-head .sub").first().innerText()).trim();
-          check(/^대기 · .+ · \d+(분|시간|일) 전$/.test(state), row.href + " state line " + state);
+          check(/^(?:결정|피드백|다른 일) 대기 · \d+(분|시간|일) 전$/.test(state), row.href + " state line " + state);
           check(boxText.includes(row.kind) && !(await box.locator(".box-head").count()), row.href + " decision box reads " + boxText);
         }
         // A work card's head reads its row's name; its own title, the name the question gives it, is the line under the
@@ -1111,7 +1111,7 @@ const drivers = {
       const box = (await page.getByTestId("decision").innerText()).replace(/\s+/g, " ");
       check(!box.includes("배포를 금요일 오후에 할지 결정 필요") && box.includes("질문") && !/\d+일 전/.test(box), "the decision box reads " + box);
       const state = (await page.locator(".detail-head .sub").first().innerText()).trim();
-      check(/^대기 · 결정 필요 · \d+일 전$/.test(state), "the state line reads " + state);
+      check(/^결정 대기 · \d+일 전$/.test(state), "the state line reads " + state);
       return "#/items/T2 " + title + ": " + box;
     });
   },

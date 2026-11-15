@@ -151,11 +151,10 @@ export function PastEvents({ events }: { events: readonly PastEvent[] }) {
  * run a round was, whose model the round shows. It defaults to null, so a run's own page draws no model line on
  * its rounds: that page names the model once, under its head. A card passes the worker run each round was.
  * `fallback` is what stands when the record is not shown: under the one error line when its read failed, or
- * alone while there is no record. `shown` is the text of the comments a card's own comments box holds: a block of
- * comments between rounds leaves them out, and one left with none is no block, so the card heads no second 댓글 with the
- * same comments (lina-app#171).
+ * alone while there is no record. `boxed` says the page draws the record's comments between rounds in its own 댓글 box
+ * (a card, lina-app#174): the timeline then has no comment block, so the page has one 댓글 section.
  */
-export function Timeline({ runs, live, link = () => null, modelRun = () => null, fallback = null, shown = new Set<string>() }: { runs: readonly string[]; live: (runId: string) => boolean; link?: (runId: string, n: number) => string | null; modelRun?: (runId: string, n: number) => string | null; fallback?: ComponentChildren; shown?: ReadonlySet<string> }) {
+export function Timeline({ runs, live, link = () => null, modelRun = () => null, fallback = null, boxed = false }: { runs: readonly string[]; live: (runId: string) => boolean; link?: (runId: string, n: number) => string | null; modelRun?: (runId: string, n: number) => string | null; fallback?: ComponentChildren; boxed?: boolean }) {
   const { model, store, now } = useApp();
   if (runs.some((id) => store.status("record", id) === "failed"))
     return (
@@ -173,7 +172,7 @@ export function Timeline({ runs, live, link = () => null, modelRun = () => null,
     return record ? [{ id, record }] : [];
   });
   const blocks = timelineBlocks(records, live, now)
-    .map((block) => (block.type === "comment" ? { ...block, rows: block.rows.filter((row) => !(row.kind === "comment" && shown.has(plainText(row.text ?? "").trim()))) } : block))
+    .filter((block) => !(boxed && block.type === "comment"))
     .flatMap((block) => plainBlock(block) ?? []);
   if (!blocks.length) return <>{fallback}</>;
   const owner = agentName(model, store.get("items")?.owner?.id);

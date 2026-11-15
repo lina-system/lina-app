@@ -82,9 +82,11 @@ afterEach(() => {
 // The shared term table, written out here so a change to src/words.ts cannot widen it unnoticed.
 const STATES = ["예정", "진행 중", "대기", "중단됨", "완료"];
 const REASONS = ["결정 필요", "피드백", "검토 필요", "보류", "진행 대기", "응답 없음", "실패", "결과 누락"];
+// A wait's word stands for 대기 on a waiting record, and follows another state's word (lina-app#174).
+const WAITS = ["결정 대기", "피드백 대기", "다른 일 대기"];
 // Latin words the term table allows on screen: the app name, CPU and the services' display names.
 const LATIN_WORDS = ["LINA", "CPU", "Claude", "ChatGPT", "Gemini", "Grok", "Cursor"];
-const STATE_LINE = new RegExp(`^(?:${STATES.join("|")})(?: · (?:${REASONS.join("|")}))?$`);
+const STATE_LINE = new RegExp(`^(?:${WAITS.join("|")}|(?:${STATES.join("|")})(?: · (?:${[...REASONS, ...WAITS].join("|")}))?)$`);
 
 describe.each([
   ["1280", true],

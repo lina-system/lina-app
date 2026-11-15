@@ -53,7 +53,7 @@ test("item 1: a decision row opens a detail whose head is the row's line 1 and w
   // The question is said once, on that line: the decision box below holds the place to answer it (lina-app#161).
   expect(within(item).getByTestId("decision").textContent).not.toContain(line2);
   // The state line is still the head's first grey line (the drivers read it there).
-  expect(item.querySelector(".detail-head .sub")?.querySelector("[data-testid=state]")?.textContent).toMatch(/^대기/);
+  expect(item.querySelector(".detail-head .sub")?.querySelector("[data-testid=state]")?.textContent).toBe("결정 대기");
 });
 
 test("item 2: a card's worker runs and rounds read newest first, and a folded round line is 이전 기록, never 댓글", async () => {

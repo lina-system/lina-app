@@ -9,7 +9,7 @@ import { back, baseOf, defaultListFor, href, isFrame, isList, linkClick, navigat
 import { slideMotion } from "./stack-motion";
 import { bindSwipeBack, isStandalone } from "./swipe-back";
 import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RestartSheet, RunningScreen, StatusScreen, TodayScreen } from "./screens/lists";
-import { AgentCard, AgentTalk, TalkAgents, TalkHead, TalkPreview, TalkStopped } from "./screens/talk";
+import { AgentCard, AgentTalk, TalkAgents, TalkHead, TalkNameLine, TalkPreview, talkRowName } from "./screens/talk";
 import { CardScreen, GoalScreen, ItemScreen, RunScreen, workerTitle } from "./screens/details";
 import { RollbackSheet, SettingPage, settingParent, SettingsScreen, settingTitle } from "./screens/settings";
 import { SETTINGS_HISTORY } from "./api/client";
@@ -185,15 +185,15 @@ function Screen({ route }: { route: Route }) {
 /**
  * One sidebar row. `stoppedMark` draws the stopped cards as their own words (`중단됨 13`) under the label, and the
  * number at the right edge counts running work only, so a lone red number never reads as running work (lina-app#156);
- * `stoppedWords` writes them as the same words after that number, keeping the row's own lines (an agent's in 대화,
- * TalkStopped, lina-app#207); without either they are the small red number.
+ * without it they are the small red number. A row whose own lines carry its counts (an agent's in 대화, TalkNameLine,
+ * lina-app#219) passes none and gives its `name`.
  */
-function NavRow({ to, icon, label, count, stopped, stoppedMark = false, stoppedWords = false, current, testid, children }: { to: Route; icon?: ComponentChildren; label: string; count?: number; stopped?: number; stoppedMark?: boolean; stoppedWords?: boolean; current: boolean; testid: string; children?: ComponentChildren }) {
+function NavRow({ to, icon, label, name, count, stopped, stoppedMark = false, current, testid, children }: { to: Route; icon?: ComponentChildren; label: string; name?: string; count?: number; stopped?: number; stoppedMark?: boolean; current: boolean; testid: string; children?: ComponentChildren }) {
   const { wide } = useApp();
   const target = href(to);
   return (
     <li class={`nav-row${current ? " is-current" : ""}`} data-testid={testid}>
-      <a href={target} onClick={linkClick} aria-current={current ? "page" : undefined} aria-label={[count ? `${label} ${count}` : label, stopped ? W.stoppedCount(stopped) : ""].filter(Boolean).join(SEP)}>
+      <a href={target} onClick={linkClick} aria-current={current ? "page" : undefined} aria-label={name ?? [count ? `${label} ${count}` : label, stopped ? W.stoppedCount(stopped) : ""].filter(Boolean).join(SEP)}>
         {icon ? <span class="nav-icon">{icon}</span> : null}
         {stoppedMark && stopped ? (
           <span class="lines nav-lines">
@@ -206,8 +206,7 @@ function NavRow({ to, icon, label, count, stopped, stoppedMark = false, stoppedW
         ) : (
           (children ?? <span class="nav-label one-line">{label}</span>)
         )}
-        <CountPair count={count ?? 0} stopped={stoppedMark || stoppedWords ? 0 : stopped} countId="nav-count" stoppedId="nav-stopped" />
-        {stoppedWords ? <TalkStopped stopped={stopped ?? 0} /> : null}
+        <CountPair count={count ?? 0} stopped={stoppedMark ? 0 : stopped} countId="nav-count" stoppedId="nav-stopped" />
         {wide ? null : <Disclosure />}
       </a>
     </li>
@@ -280,14 +279,17 @@ function TalkRows({ current }: { current?: Route }) {
     <nav class="sidebar-list" aria-label={W.sidebar} data-testid="sidebar" data-version={APP_VERSION}>
       <h2 class="nav-head">{W.agents}</h2>
       <ul class="nav-group" aria-label={W.agents}>
-        {model.agents.map((agent) => (
-          <NavRow key={agent.id} to={{ name: "talk", id: agent.id }} icon={<AgentMark id={agent.id} />} label={agent.name} count={model.counts.agents[agent.id]?.running} stopped={model.counts.agents[agent.id]?.stopped} stoppedWords current={Boolean(current && current.name === "talk" && current.id === agent.id)} testid={`nav-talk-${agent.index}`}>
-            <span class="lines nav-lines">
-              <span class="nav-label one-line">{agent.name}</span>
-              <TalkPreview agent={agent.id} />
-            </span>
-          </NavRow>
-        ))}
+        {model.agents.map((agent) => {
+          const { running = 0, stopped = 0 } = model.counts.agents[agent.id] ?? {};
+          return (
+            <NavRow key={agent.id} to={{ name: "talk", id: agent.id }} icon={<AgentMark id={agent.id} />} label={agent.name} name={talkRowName(agent.name, running, stopped)} current={Boolean(current && current.name === "talk" && current.id === agent.id)} testid={`nav-talk-${agent.index}`}>
+              <span class="lines nav-lines">
+                <TalkNameLine name={agent.name} nameClass="nav-label" running={running} stopped={stopped} />
+                <TalkPreview agent={agent.id} />
+              </span>
+            </NavRow>
+          );
+        })}
       </ul>
     </nav>
   );

@@ -19,3 +19,14 @@ test("ids with underscores and words with no markers are left as they are", () =
   expect(plainText("t_27363156 확인함")).toBe("t_27363156 확인함");
   expect(plainText("첫 화면 문구를 짧게 고쳤어요.")).toBe("첫 화면 문구를 짧게 고쳤어요.");
 });
+
+// lina-app#218: a list's lead-in line (it ends in `:`) is no line of its own: it reads with its first item, or goes.
+test.each([
+  ["가짜 결과:", ""],
+  ["가짜 결과:\n\n- 가짜 빌드 통과.", "가짜 결과: 가짜 빌드 통과."],
+  ["가짜 결과:\n- 가짜 빌드 통과.\n- 가짜 시험 통과.\n- 가짜 화면 확인.", "가짜 결과: 가짜 빌드 통과.\n- 가짜 시험 통과.\n- 가짜 화면 확인."],
+  ["가짜 순서:\n가짜 바닥:\n1) 가짜 스키마.", "가짜 순서: 가짜 바닥: 가짜 스키마."],
+  ["가짜 주소는 http://fake.example.test 이다", "가짜 주소는 http://fake.example.test 이다"],
+])("plainText(%j) reads a lead-in with its first item: %j (lina-app#218)", (text, shown) => {
+  expect(plainText(text)).toBe(shown);
+});

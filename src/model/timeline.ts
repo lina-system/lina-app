@@ -1,7 +1,8 @@
 import type { ItemDetail, RecordRound, RecordRow, RunRecord } from "../api/client";
 import { STATE_WORD, STATE_WORDS, stateLabel, W } from "../words";
 import { timesInText } from "../time";
-import { foldReason, nameKind, readsBroken, withParticle } from "./fold";
+import { cutLeavesHole, cutMark, foldReason, nameKind, readsBroken, withParticle } from "./fold";
+import { withLeadIns } from "./plain";
 import { holds } from "./rounds";
 
 /** How long a history row's sentence may be, in characters, before it is cut with `…` (lina-app#142). */
@@ -53,12 +54,15 @@ const LIST_MARK = /^\(?\d{1,2}\)\s+/;
 /**
  * One sentence as a person reads it, or null: its identifiers are left out, and it is dropped whole when it holds an
  * English word, starts inside a word or a number (.5초), a quote or a bracket, is a table's cell, is mostly not
- * Korean, or what is left no longer reads as a sentence (readsBroken, lina-app#197), so no word is ever cut or spliced.
+ * Korean, or what is left no longer reads as a sentence (readsBroken, lina-app#197) or has a hole where an identifier
+ * was (cutLeavesHole, the fold's one rule for every cut, lina-app#218), so no word is ever cut or spliced.
  */
 function readable(sentence: string): string | null {
   const words = sentence.replace(LIST_MARK, "").split(/\s+/).filter(Boolean);
   if (!words.length || /^[.,:;·…—|)\]}-]|^['"’”]$/.test(words[0]) || /\|\s*$/.test(sentence)) return null;
   const kept: string[] = [];
+  // The sentence as kept, with a mark where each identifier was cut, for the hole rule.
+  const marked: string[] = [];
   let removed = false;
   for (let index = 0; index < words.length; index += 1) {
     const word = words[index];
@@ -67,6 +71,7 @@ function readable(sentence: string): string | null {
     // A time of day after its date (`11월 16일 03:30`, an ISO time as timesInText writes it) is part of that date.
     if (CLOCK.test(core) && /^\d{1,2}일$/.test(kept.at(-1) ?? "")) {
       kept.push(word);
+      marked.push(word);
       continue;
     }
     if (isIdentifier(core)) {
@@ -77,13 +82,16 @@ function readable(sentence: string): string | null {
       const noun = particle && kept.length ? nameKind(core) : null;
       if (particle && noun) {
         kept.push(withParticle(noun, particle[1]) + particle[2]);
+        marked.push(kept.at(-1) ?? "");
         index += 1;
-      }
+      } else marked.push(cutMark(core) + (/[.!?。)\]]$/.exec(word)?.[0] ?? ""));
       continue;
     }
     if (foldReason(core) === "latin") return null;
     kept.push(word);
+    marked.push(word);
   }
+  if (cutLeavesHole(marked.join(" "))) return null;
   const korean = kept.filter((word) => HANGUL.test(word)).length;
   if (!korean || korean * 2 < kept.length || (removed && kept.length < 2)) return null;
   let shown = kept.join(" ");
@@ -107,7 +115,7 @@ function openBracket(text: string): number {
  * word end with `…` when it runs past SENTENCE_MAX characters. Null when nothing a person reads is left.
  */
 export function firstSentence(text: string | null | undefined, max = SENTENCE_MAX): string | null {
-  const sentences = timesInText(text ?? "")
+  const sentences = withLeadIns(timesInText(text ?? ""))
     .split("\n")
     .flatMap((line) => line.replace(LEADING_TAGS, "").trim().split(/(?<=[.!?。])\s+/))
     .filter(Boolean);

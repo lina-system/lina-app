@@ -74,11 +74,11 @@ export interface StoreOptions {
   readonly stored?: StoredCopy | null;
 }
 
-/** The cards a kept copy holds: every unfinished card and the first FINISHED_SHOWN finished ones, with the core's total. */
-function firstPage(view: Routes["cards"]): Routes["cards"] {
+/** The cards a kept copy holds: every unfinished card and the first FINISHED_SHOWN finished ones, with the page's total. */
+function firstPage(view: Routes["cards"], total: number): Routes["cards"] {
   let finished = 0;
   const cards = view.cards.filter((card) => card.state !== "done" || ++finished <= FINISHED_SHOWN);
-  return { ...view, cards, finishedTotal: view.finishedTotal ?? view.cards.filter((card) => card.state === "done").length };
+  return { ...view, cards, finishedTotal: total };
 }
 
 /** The frame after the next one, or a tenth of a second when no frame comes (a hidden tab draws none). */
@@ -123,6 +123,11 @@ export class Store {
   private finishing: Promise<void> | null = null;
   /** The last read of every finished card left the page short: a screen's own asks stop until the user asks again. */
   private finishFailed = false;
+  /**
+   * The cards last read were read without a limit: they are every finished card, and the core's total, counted apart from
+   * its list at another moment, is not theirs (lina-app#217).
+   */
+  private cardsWhole = false;
   private cardsReading = 0;
   private readonly afterPaint: () => Promise<void>;
   private firstPaint: () => void = () => {};
@@ -198,7 +203,7 @@ export class Store {
       const key = this.key(name, id);
       const entry = this.entries.get(key);
       if (entry?.data === undefined) continue;
-      routes[key] = { data: name === "cards" ? firstPage(entry.data as Routes["cards"]) : entry.data, receivedAt: entry.receivedAt };
+      routes[key] = { data: name === "cards" ? firstPage(entry.data as Routes["cards"], this.finished().total) : entry.data, receivedAt: entry.receivedAt };
     }
     this.stored.save({ cursor: this.cursor, owner: this.get("items")?.owner?.id ?? null, routes });
     this.keptAt = { cursor: this.cursor, version: this.version };
@@ -242,8 +247,10 @@ export class Store {
     const key = this.key(name, id);
     const cards = name === "cards";
     if (cards) this.cardsReading += 1;
-    const result = await this.source.read(name, cards && !this.finishedAll ? String(FINISHED_SHOWN) : id);
+    const limit = cards && !this.finishedAll ? String(FINISHED_SHOWN) : id;
+    const result = await this.source.read(name, limit);
     if (cards) this.cardsReading -= 1;
+    if (cards && result.kind === "data") this.cardsWhole = limit === undefined;
     // What the store holds when the answer lands: another read of the route may have landed meanwhile.
     const before = this.entries.get(key);
     if (result.kind === "data" || result.kind === "unchanged") {
@@ -533,10 +540,13 @@ export class Store {
     return result;
   }
 
-  /** What the page holds of the finished cards, from the last cards read. A core that sends no total sent every one. */
+  /**
+   * What the page holds of the finished cards, from the last cards read. A core that sends no total sent every one, and so
+   * did a read without a limit: the 완료 head, its fold and its lines count the same cards at every moment (lina-app#217).
+   */
   finished(): FinishedCards {
     const loaded = (this.get("cards")?.cards ?? []).filter((card) => card.state === "done").length;
-    const total = this.get("cards")?.finishedTotal ?? loaded;
+    const total = this.cardsWhole ? loaded : (this.get("cards")?.finishedTotal ?? loaded);
     return { total, loaded, all: loaded >= total, loading: this.finishing !== null };
   }
 

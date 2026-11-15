@@ -857,6 +857,8 @@ function runLive(model: Model, runId: string): boolean {
 export function CardScreen({ id }: { id: string }) {
   const { model, store, now } = useApp();
   const answering = useAnswering();
+  // The card whose history and comments stand on screen: a record read after that adds to them in place.
+  const drawn = useRef<string | null>(null);
   const detail = store.get("card", id);
   const row = model.cards.get(id);
   if (!detail) {
@@ -887,6 +889,10 @@ export function CardScreen({ id }: { id: string }) {
   // read or drawn; a run listed twice is one run (lina-app#128).
   const workerRuns = detail.workerRuns.filter((worker, index, all) => isRunId(worker.id) && all.findIndex((other) => other.id === worker.id) === index);
   const { rounds, outside } = workerRounds({ runs: detail.runs, workerRuns });
+  // The history and comments wait for the records of the card's worker runs, read only once its detail named them
+  // (lina-app#217): drawn from the detail alone they read `이전 기록 N건` and then grow when the records land.
+  const reading = drawn.current !== id && workerRuns.some((worker) => store.status("record", worker.id) === "pending");
+  if (!reading) drawn.current = id;
   // The state word of a worker run the board does not list: going while it beats, else how its round ended.
   const workerState = (runId: string) => {
     if (runLive(model, runId)) return STATE_WORD.in_progress;
@@ -994,35 +1000,41 @@ export function CardScreen({ id }: { id: string }) {
       {/* One round list, one name (기록, lina-app#179): the record's blocks, each head the link to its worker run. The worker
           runs' box stands only while the record is not shown, and under the 기록 box's error line, with no head of its own,
           when the read failed, so the worker links never disappear. */}
-      <Timeline
-        runs={workerRuns.map((worker) => worker.id)}
-        boxed
-        live={(runId) => runLive(model, runId)}
-        link={(runId, n) => href({ name: "run", id: roundRun(runId, n) })}
-        modelRun={roundRun}
-        fallback={
-          workerRuns.length ? (
-            <Box title={recordFailed ? undefined : W.record} testid="worker-runs">
-              {/* A round's own line is its content, its ids cut; rounds whose line would show a path or a command are no
-                  comment: each run of them is one folded 이전 기록 N건 row, their worker runs inside (lina-app#157, #161). */}
-              {roundGroups(rounds).map((group) =>
-                Array.isArray(group) ? (
-                  <details key={`fold:${group[0].n}`} class="round-fold" data-testid="round-fold">
-                    <summary class="round-head">{DETAIL_WORD.earlierRecords(group.length)}</summary>
-                    {group.map((round) => (
-                      <RoundSection key={round.n} round={round} line={null} workers={round.workers.length ? <WorkerRows ids={round.workers} model={model} seen={seen} state={workerState} /> : null} />
-                    ))}
-                  </details>
-                ) : (
-                  <RoundSection key={group.n} round={group} line={group.line} workers={group.workers.length ? <WorkerRows ids={group.workers} model={model} seen={seen} state={workerState} /> : null} />
-                ),
-              )}
-              {outside.length ? <WorkerRows ids={outside} model={model} seen={seen} state={workerState} /> : null}
-            </Box>
-          ) : null
-        }
-      />
-      <CardComments lines={commentLines} />
+      {reading ? (
+        <Loading />
+      ) : (
+        <>
+          <Timeline
+            runs={workerRuns.map((worker) => worker.id)}
+            boxed
+            live={(runId) => runLive(model, runId)}
+            link={(runId, n) => href({ name: "run", id: roundRun(runId, n) })}
+            modelRun={roundRun}
+            fallback={
+              workerRuns.length ? (
+                <Box title={recordFailed ? undefined : W.record} testid="worker-runs">
+                  {/* A round's own line is its content, its ids cut; rounds whose line would show a path or a command are no
+                      comment: each run of them is one folded 이전 기록 N건 row, their worker runs inside (lina-app#157, #161). */}
+                  {roundGroups(rounds).map((group) =>
+                    Array.isArray(group) ? (
+                      <details key={`fold:${group[0].n}`} class="round-fold" data-testid="round-fold">
+                        <summary class="round-head">{DETAIL_WORD.earlierRecords(group.length)}</summary>
+                        {group.map((round) => (
+                          <RoundSection key={round.n} round={round} line={null} workers={round.workers.length ? <WorkerRows ids={round.workers} model={model} seen={seen} state={workerState} /> : null} />
+                        ))}
+                      </details>
+                    ) : (
+                      <RoundSection key={group.n} round={group} line={group.line} workers={group.workers.length ? <WorkerRows ids={group.workers} model={model} seen={seen} state={workerState} /> : null} />
+                    ),
+                  )}
+                  {outside.length ? <WorkerRows ids={outside} model={model} seen={seen} state={workerState} /> : null}
+                </Box>
+              ) : null
+            }
+          />
+          <CardComments lines={commentLines} />
+        </>
+      )}
     </article>
   );
 }

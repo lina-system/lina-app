@@ -67,6 +67,54 @@ test("opened: the fold loads the rest with a loading line in its place, and no n
   expect(rowCards(group)).toEqual({ lines: total, fold: 0, cards: total });
 });
 
+// lina-app#217: the finished count moves while the fold reads the rest. The read of every finished card counts its total
+// apart from its list, at another moment: `lags` counted before four more cards finished, `leads` after the list was
+// cut. The head is the lines and the fold at every moment, and once the rest is in, the cards that read sent.
+for (const wide of [true, false]) {
+  test.each([
+    ["lags", 4, 0],
+    ["leads", 0, 4],
+  ] as const)(`a count that %s the cards the read sends: the ${W.done} head, the fold and the lines are one number at every moment (${wide ? "1280" : "390"})`, async (_case, finishing, ahead) => {
+    const source = new SyntheticSource({ now: now(), manyFinished: true });
+    const counted = source.scene.cards.cards.filter((card) => card.state === "done").length;
+    const template = source.scene.cards.cards.find((card) => card.state === "done");
+    // Every read without a limit waits for release: a refresh already queued reads them all too once the fold is open.
+    const held: (() => void)[] = [];
+    let holding = true;
+    const release = () => {
+      holding = false;
+      for (let index = 0; index < finishing && template; index++) source.scene.cards.cards.push({ ...template, id: `k-${900 + index}`, endedAt: now(), lastHeartbeatAt: now() });
+      for (const go of held.splice(0)) go();
+    };
+    const read = source.read.bind(source);
+    source.read = (async (name, id) => {
+      if (name !== "cards" || id !== undefined) return read(name, id);
+      if (holding) await new Promise<void>((go) => held.push(go));
+      const result = await read(name, id);
+      return result.kind === "data" ? { ...result, data: { ...result.data, finishedTotal: counted + ahead } } : result;
+    }) as SyntheticSource["read"];
+    setWide(wide);
+    window.history.replaceState(null, "", "/app/#/");
+    const view = render(<App store={new Store(source)} />);
+    await waitFor(() => expect(view.getByTestId("freshness").hasAttribute("data-quiet")).toBe(true));
+    const group = view.getByTestId("section-finished");
+    const before = { head: headDone(view), ...rowCards(group) };
+    expect(before.cards).toBe(before.head);
+    const states: { head: number; loading: boolean; lines: number; cards: number }[] = [];
+    new MutationObserver(() => states.push({ head: headDone(view), loading: group.querySelector(".more-row")?.textContent === W.loading, ...rowCards(group) })).observe(group, { subtree: true, childList: true, characterData: true });
+    fireEvent.click(group.querySelector(".more-row button") as HTMLElement);
+    await waitFor(() => expect(group.querySelector(".more-row")?.textContent).toBe(W.loading));
+    release();
+    await waitFor(() => expect(group.querySelector(".more-row")).toBeNull());
+    const sent = before.head + finishing;
+    // While the rest is read nothing moves; every other moment the head is the cards its lines and fold stand for.
+    for (const state of states) expect(state.loading ? { head: state.head, lines: state.lines } : state.head).toEqual(state.loading ? { head: before.head, lines: before.lines } : state.cards);
+    expect(rowCards(group)).toEqual({ lines: expect.any(Number), fold: 0, cards: sent });
+    expect(headDone(view)).toBe(sent);
+    if (wide) expect(sidebarDone(view)).toBe(sent);
+  });
+}
+
 test("empty: with no finished card there is no 완료 group, and the sidebar's 완료 has no number", async () => {
   const source = new SyntheticSource({ now: now() });
   source.scene.cards.cards.splice(0, source.scene.cards.cards.length, ...source.scene.cards.cards.filter((card) => card.state !== "done"));

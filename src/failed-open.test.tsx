@@ -1,0 +1,219 @@
+import { act, fireEvent, render } from "@testing-library/preact";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { App } from "./app";
+import { Live, type LiveHost } from "./data/live";
+import { nowSeconds, type Source } from "./data/source";
+import { Store } from "./data/store";
+import { SyntheticSource } from "./data/synthetic-source";
+
+// lina-app#199: an open whose reads all failed heals by itself once the core answers, and a screen whose reads all
+// failed says one thing and draws no list as empty.
+const TIMERS: Parameters<typeof vi.useFakeTimers>[0] = { toFake: ["Date", "setInterval", "clearInterval", "setTimeout", "clearTimeout"] };
+
+beforeEach(() => {
+  vi.useFakeTimers(TIMERS);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+  document.body.innerHTML = "";
+});
+
+/** A core whose reads answer 500 while `failing` holds (the stream still opens), counting every read it is asked. */
+function flakyCore(options: { denied?: boolean; only?: string[] } = {}) {
+  const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
+  const core = { source, failing: true, reads: 0 };
+  const read = source.read.bind(source);
+  source.read = ((name, id) => {
+    core.reads += 1;
+    if (core.failing && (!options.only || options.only.includes(name))) return Promise.resolve({ kind: "failed", offline: false, at: nowSeconds(), denied: options.denied });
+    return read(name, id);
+  }) as Source["read"];
+  if (options.denied) source.renewCredential = () => Promise.resolve("none");
+  return core;
+}
+
+/** A tab whose visibility the test sets; timers are vitest's fake ones. */
+function tab() {
+  let visibility: DocumentVisibilityState = "visible";
+  const listeners = new Map<string, Set<() => void>>();
+  const on = (type: string, listener: () => void) => {
+    if (!listeners.has(type)) listeners.set(type, new Set());
+    listeners.get(type)?.add(listener);
+  };
+  const off = (type: string, listener: () => void) => listeners.get(type)?.delete(listener);
+  const host: LiveHost = {
+    document: {
+      get visibilityState() {
+        return visibility;
+      },
+      addEventListener: on,
+      removeEventListener: off,
+    } as unknown as LiveHost["document"],
+    addEventListener: on,
+    removeEventListener: off,
+    setTimeout: (handler, ms) => setTimeout(handler, ms) as unknown as number,
+    clearTimeout: (handle) => clearTimeout(handle),
+    random: () => 1,
+  };
+  return {
+    host,
+    show(state: DocumentVisibilityState) {
+      visibility = state;
+      for (const listener of listeners.get("visibilitychange") ?? []) listener();
+    },
+  };
+}
+
+function setWide(wide: boolean) {
+  vi.stubGlobal("matchMedia", (query: string) => ({ matches: wide, media: query, addEventListener() {}, removeEventListener() {} }));
+}
+
+test("an open whose reads all failed fills by itself once the core answers, then reads nothing on the healthy screen", async () => {
+  const core = flakyCore();
+  const store = new Store(core.source);
+  const stop = new Live(store, tab().host).start();
+  await vi.advanceTimersByTimeAsync(100);
+  expect(store.status("items")).toBe("failed");
+  expect(store.live).toBe("open");
+
+  // The core answers 500 for the first 15 s, then answers again; nobody touches the page.
+  await vi.advanceTimersByTimeAsync(15_000);
+  core.failing = false;
+  await vi.advanceTimersByTimeAsync(60_000);
+  for (const list of ["board", "items", "goals", "cards", "inbox"] as const) expect(store.status(list), list).toBe("ok");
+  expect(store.get("items")?.items.length).toBeGreaterThan(0);
+
+  // Healthy now: a still page reads nothing.
+  const reads = core.reads;
+  await vi.advanceTimersByTimeAsync(10 * 60_000);
+  expect(core.reads).toBe(reads);
+  stop();
+});
+
+test("a core that keeps failing is asked again on a bounded backoff, not forever, and never while the tab is hidden", async () => {
+  const core = flakyCore();
+  const store = new Store(core.source);
+  const page = tab();
+  const stop = new Live(store, page.host).start();
+  await vi.advanceTimersByTimeAsync(10 * 60_000);
+  const tried = core.reads;
+  await vi.advanceTimersByTimeAsync(10 * 60_000);
+  expect(core.reads).toBe(tried);
+
+  // Shown again, the page tries once more at once, then backs off as before; hidden, it asks nothing.
+  page.show("hidden");
+  page.show("visible");
+  await vi.advanceTimersByTimeAsync(100);
+  expect(core.reads).toBeGreaterThan(tried);
+  page.show("hidden");
+  const hidden = core.reads;
+  await vi.advanceTimersByTimeAsync(10 * 60_000);
+  expect(core.reads).toBe(hidden);
+  stop();
+});
+
+test("after the core refused the credential for good nothing is read again", async () => {
+  const core = flakyCore({ denied: true });
+  const store = new Store(core.source);
+  const stop = new Live(store, tab().host).start();
+  await vi.advanceTimersByTimeAsync(1_000);
+  expect(store.denied).toBe(true);
+  const reads = core.reads;
+  await vi.advanceTimersByTimeAsync(10 * 60_000);
+  expect(core.reads).toBe(reads);
+  stop();
+});
+
+test("at 390 a stream that opens 2 s after the first read draws no band over the rows; one still not open after the settle time reads 연결 중", async () => {
+  setWide(false);
+  window.history.replaceState(null, "", "/app/#/");
+  const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000), live: "down" });
+  const view = render(<App store={new Store(source)} />);
+  const band = () => (view.getByTestId("freshness").hasAttribute("data-quiet") ? "" : view.getByTestId("freshness").textContent);
+  const bands: (string | null)[] = [];
+  for (let ms = 0; ms < 2_000; ms += 100) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    if (view.queryAllByTestId("row").length) bands.push(band());
+  }
+  expect(bands.length).toBeGreaterThan(0);
+  expect(bands.filter(Boolean)).toEqual([]);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(3_000);
+  });
+  expect(band()).toBe("연결 중");
+  source.setStreamDown(false);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(30_000);
+  });
+  expect(band()).toBe("");
+});
+
+for (const wide of [false, true]) {
+  test(`at ${wide ? 1280 : 390} a failed open fills the home without input once the core answers`, async () => {
+    setWide(wide);
+    window.history.replaceState(null, "", "/app/#/");
+    const core = flakyCore();
+    const view = render(<App store={new Store(core.source)} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000);
+    });
+    core.failing = false;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(view.getAllByTestId("row").length).toBeGreaterThan(0);
+    expect(view.queryByTestId("read-failed")).toBeNull();
+  });
+
+  test(`at ${wide ? 1280 : 390} a screen whose reads all failed says 읽기 실패 with 다시 시도 alone, and draws no list as empty`, async () => {
+    setWide(wide);
+    window.history.replaceState(null, "", "/app/#/");
+    const core = flakyCore();
+    const view = render(<App store={new Store(core.source)} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    const head = view.getByTestId("freshness");
+    expect(head.textContent).not.toContain("불러오는 중");
+    expect(head.textContent).not.toContain("연결 중");
+    expect(head.textContent?.match(/읽기 실패/g)).toHaveLength(1);
+    const page = document.body.textContent ?? "";
+    expect(page).not.toContain("없음");
+    expect(page).not.toContain("불러오는 중");
+    expect(view.queryByTestId("home-mine")).toBeNull();
+    expect(view.queryByText("할 일 추가")).toBeNull();
+    expect(view.queryByTestId("count")).toBeNull();
+
+    // 다시 시도 reads again at once.
+    core.failing = false;
+    await act(async () => {
+      fireEvent.click(view.getByRole("button", { name: "다시 시도" }));
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(view.getAllByTestId("row").length).toBeGreaterThan(0);
+    expect(view.queryByTestId("read-failed")).toBeNull();
+  });
+}
+
+test("the to-dos follow the board's read: a failed items read still shows them, a failed board read hides them (lina-app#199)", async () => {
+  setWide(true);
+  window.history.replaceState(null, "", "/app/#/");
+  const items = flakyCore({ only: ["items"] });
+  const first = render(<App store={new Store(items.source)} />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1_000);
+  });
+  expect(first.queryByTestId("home-mine")).not.toBeNull();
+  first.unmount();
+
+  const board = flakyCore({ only: ["board"] });
+  const second = render(<App store={new Store(board.source)} />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1_000);
+  });
+  expect(second.queryByTestId("home-mine")).toBeNull();
+});

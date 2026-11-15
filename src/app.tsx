@@ -1,7 +1,7 @@
 import type { ComponentChildren, RefObject } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { AppLabel } from "./data/http-source";
-import { startLive } from "./data/live";
+import { LIVE_SETTLE_MS, startLive } from "./data/live";
 import { nowSeconds } from "./data/source";
 import { SLOW_ROUTES, useClock, useStore, type Store, type Want } from "./data/store";
 import { buildModel, runRow, type Model } from "./model";
@@ -353,7 +353,7 @@ const STALE_AFTER_S = 30;
 const vouchedAt = new WeakMap<Store, number>();
 
 export function Freshness() {
-  const { model, store, now } = useApp();
+  const { model, store, now, wide } = useApp();
   // While the stream is open nothing is read until something changes, so the last read can be minutes old while the
   // screens are current. The last moment the stream vouched for them is when they were last known current
   // (lina-app#152): one failed read counts from there, not from the last change.
@@ -362,26 +362,38 @@ export function Freshness() {
   if (current) vouchedAt.set(store, now);
   const since = Math.max(store.lastOk ?? 0, store.live === "open" ? (vouchedAt.get(store) ?? 0) : 0);
   let line: { text: string; tone: string };
+  // A list whose reads all failed is not loading: the failure alone speaks, with the way to read again (lina-app#199).
+  const unread = store.version > 0 && store.unread();
   if (store.offline || store.denied) line = { text: W.offline, tone: "is-red" };
+  else if (unread) line = { text: "", tone: "" };
   else if (store.lastOk === null || store.version === 0) line = { text: W.loading, tone: "" };
   // A stream that was never open has nothing late yet: its first connection is still being made (lina-app#172).
   // A kept copy on screen says how old it is instead: it may be old, not merely waiting.
-  else if (store.live === "connecting" && !store.catchingUp) line = { text: W.connecting, tone: "" };
+  // On a phone the word is a band over the screen's last rows: a first connection that opens within the settle time of
+  // the first lists raises none (lina-app#199); one that takes longer reads 연결 중 from then on.
+  else if (store.live === "connecting" && !store.catchingUp) line = { text: !wide && now - store.lastOk < LIVE_SETTLE_MS / 1000 ? "" : W.connecting, tone: "" };
   // A current screen needs no word: the head speaks only when something is wrong (lina-app#187).
   else if (current) line = { text: "", tone: "" };
   else if (store.live === "down" || now - since > STALE_AFTER_S) line = { text: W.stale, tone: "" };
   else line = { text: W.fresh(Math.max(0, Math.floor(now - since))), tone: "" };
   const failed = !store.offline && model.errors.length > 0;
+  // With 다시 시도 the sources' words alone give way at a narrow width; the button is never cut off (lina-app#199).
+  const again = failed && unread;
   // Nothing to say: the phone's strip that holds this line draws nothing and takes no height (lina-app#187).
   return (
-    <span class="freshness" data-testid="freshness" data-quiet={line.text || failed ? undefined : ""}>
+    <span class="freshness" data-testid="freshness" data-quiet={line.text || failed ? undefined : ""} style={again ? { display: "flex", alignItems: "baseline", justifyContent: wide ? "flex-start" : "center", minWidth: 0 } : undefined}>
       <span class={line.tone} data-testid="freshness-line">
         {line.text}
       </span>
       {failed ? (
-        <span class="is-orange" data-testid="read-failed">
+        <span class="is-orange" data-testid="read-failed" style={again ? { overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 } : undefined}>
           {`${line.text ? SEP : ""}${W.readFailed(model.errors.join(", "))}`}
         </span>
+      ) : null}
+      {again ? (
+        <button type="button" class="text-button" style={{ flex: "none" }} onClick={() => void store.readFailed()} data-testid="read-again">
+          {W.retry}
+        </button>
       ) : null}
     </span>
   );

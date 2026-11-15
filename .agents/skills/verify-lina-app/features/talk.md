@@ -16,7 +16,7 @@ On a goal or to-do page the owner talks with the agent that owns it. The message
 - After sending: the field empties, the owner's message shows on the right in an accent bubble, and the agent's reply streams in on the left under the agent's mark and name, three typing dots in its bubble while it streams, its markdown drawn as in talk-tab.md. Messages group, carry their time and scroll as talk-tab.md says (lina-app#187). `보내기` stays disabled until the reply ends. With `prefers-reduced-motion` the dots hold still.
 - When the reply ends the dots go and one line under it reads `<agent> 대화에 남음`: the core carries the exchange into the agent's next direct-message turn. The line shows under the latest reply only and goes when the next message is sent.
 - In the record nothing changes: a talk is not a comment, and the item's comments stay as they were (`POST /api/lina/work/items/<id>/talk` answers `text/event-stream`).
-- No line under the field says why `보내기` is off: the dim icon says it (lina-app#187). `댓글` keeps its own `글 입력 대기` line (lina-app#158).
+- While a turn is going `보내기` is off and a short grey word beside it on the field's row says why, in the words `댓글` and `답` use (lina-app#158, #200): `보내는 중` while the message goes out, `답하는 중` while the reply streams. An empty field says nothing: the owner took `글 입력 대기` out of the chat (11-15). It is in the field's bar, never among the turns, and the bar keeps its height.
 - A refused turn shows one red line under the field and the message stays in it. The line reads the body's error code first (lina-app#158): `맡은 에이전트 없음` (409 `no_owning_agent`), `에이전트가 바쁨` (429, and any other 409), `에이전트 연결 안 됨` (503). A reply that breaks off reads `답을 받지 못함`.
 
 ## Sub-features
@@ -40,7 +40,7 @@ Preconditions:
 - The page is `/app/?source=synthetic`; the synthetic agent answers every message with the same reply in four pieces, one frame every 400 ms. `&talk=busy`, `&talk=down` and `&talk=none` make every turn answer 429, 503 and 409.
 
 - **Open it.** On `결제 화면 개편`, choose `카드 입력 폼 다듬기`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive talk`. The last two boxes are `댓글`, `대화`; no turns; `보내기` grey.
-- **Send.** Type `입력 폼 간격 봐 주세요` into `메시지` and press Enter. The field empties, the message sits on the right, the typing dots show, and `네, 확인했어요.` shows on the left in a group with the agent's mark before the reply ends; no `글 입력 대기`, `보내는 중` or `답하는 중` in the window; `보내기` is disabled.
+- **Send.** Type `입력 폼 간격 봐 주세요` into `메시지` and press Enter. The field empties, the message sits on the right, the typing dots show, and `네, 확인했어요.` shows on the left in a group with the agent's mark before the reply ends; no `글 입력 대기`, `보내는 중` or `답하는 중` among the turns, and the field's bar reads `답하는 중`; `보내기` is disabled.
 - **Reply.** Within 10 s the reply reads `네, 확인했어요. 입력 폼 간격부터 맞추고 오늘 안에 다시 알려 드릴게요.`, the dots are gone and `<agent> 대화에 남음` shows under it. The synthetic record's comments on `T4` are as many as before.
 - **Next message.** Type `고마워요`, choose `보내기`: the carried line goes at once and comes back under the new reply only.
 - **Reduced motion.** With `prefers-reduced-motion: reduce` each typing dot's animation is `none`.

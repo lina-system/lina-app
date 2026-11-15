@@ -132,7 +132,30 @@ function leftAsDebris(sentence: string, cut: string): boolean {
   if (cut === tidyFoldedText(sentence)) return false;
   if (!cut) return true;
   if (new RegExp(`(?:${REF})\\s+${LONE_PARTICLE}`, "u").test(sentence)) return true;
-  return !/\s/.test(cut) && !/[.!?。]$/.test(cut) && /\s/.test(sentence.trim());
+  return (!/\s/.test(cut) && !/[.!?。]$/.test(cut) && /\s/.test(sentence.trim())) || readsBroken(cut);
+}
+
+/** A start inside another sentence: a closing quote or bracket, a separator, or a particle alone (never `만 원`). */
+const STARTS_INSIDE = new RegExp(String.raw`^(?:[.,:;·…|)\]}\-\u2013\u2014]|['"\u2019\u201d](?:\s|$)|(?!만\s)${LONE_PARTICLE})`, "u");
+/** An end outside a sentence: a separator, an opening bracket or a particle alone, with or without the hub's `…`. */
+const ENDS_OUTSIDE = new RegExp(String.raw`(?:[|·,:;/+\-\u2013\u2014([{]|\s${LONE_PARTICLE})\s*(?:…|\.\.\.)?$`, "u");
+/** Punctuation standing alone (` , `) or doubled where a cut word stood (`,.`, `:,`); an ellipsis is no double. */
+const LONE_PUNCTUATION = /[,:;][.,:;]|\.[,:;]|(?:^|\s)[.,:;|]+(?=\s|$)/;
+/** A bracket pair with nothing readable inside (`()`, `(…)`, `[ , ]`). */
+const EMPTY_BRACKET = /[([{][^\p{L}\p{N}]*[)\]}]/u;
+
+const count = (text: string, mark: string) => text.split(mark).length - 1;
+
+/**
+ * Whether a sentence no longer reads as one once cleaned (lina-app#197): an empty bracket pair or a bracket left open or
+ * closed alone, punctuation standing alone or doubled, a separator or a particle alone at either end, or a start inside
+ * a clause (a closing quote, a particle). Every history and comment line is drawn only from a sentence that does not
+ * (firstSentence, foldedText); a lower-case English word is no word of a history line either (firstSentence).
+ */
+export function readsBroken(sentence: string): boolean {
+  const text = sentence.trim();
+  if (!text || EMPTY_BRACKET.test(text) || LONE_PUNCTUATION.test(text) || STARTS_INSIDE.test(text) || ENDS_OUTSIDE.test(text)) return true;
+  return count(text, "(") !== count(text, ")") || count(text, "[") !== count(text, "]");
 }
 
 /**

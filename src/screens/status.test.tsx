@@ -389,3 +389,53 @@ describe("status tab, QA round 8 (lina-app#167)", () => {
     expect(title.classList.contains("one-line")).toBe(false);
   });
 });
+
+// lina-app#200 item 3: at 1280 the sidebar's head over the machines line read 기기·쿼터 while the tab and the phone's
+// head read 상태. The screen has one name at every width.
+describe("the status head (lina-app#200)", () => {
+  test("reads 상태 at every width, and 기기·쿼터 nowhere", async () => {
+    for (const wide of [true, false]) {
+      vi.stubGlobal("matchMedia", (query: string) => ({ matches: wide, media: query, addEventListener() {}, removeEventListener() {} }));
+      window.history.replaceState(null, "", "/app/#/status");
+      const view = render(<App store={new Store(fresh())} />);
+      await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe(""));
+      if (wide) {
+        expect(view.getByTestId("sidebar").querySelector(".nav-head")?.textContent).toBe("상태");
+        expect(view.getByRole("list", { name: "상태" })).toBeTruthy();
+      } else expect(view.getAllByText("상태").length).toBeGreaterThan(0);
+      expect(document.body.textContent, wide ? "1280" : "390").not.toContain("기기·쿼터");
+      view.unmount();
+    }
+  });
+});
+
+// lina-app#200 item 4: eight 서비스 다시 시작 looked enabled beside the install chip that reads 읽기 전용. Which is true:
+// the core's POST /api/lina/devices/<node>/restart (lina#234) is a real restart through the node's service layer, taken
+// from the owner's devices only (the work settings' owner-device gate, 403 from any other) and logged. The chip is the
+// hub's install label, not that gate, and the status screen does not read the gate's answer. So the control stays,
+// and a tap asks first in a sheet that names the node: a mis-tap on a phone restarts nothing.
+describe("restart asks first and names the node (lina-app#200)", () => {
+  test("the sheet and its confirmation name the node and the service; nothing posts before 다시 시작", async () => {
+    const source = fresh();
+    source.scene.devices.machines = [node("모래톱"), node("솔방울")];
+    const view = await open(source);
+    within(rowOf(view, "솔방울")).getByRole("button", { name: "솔방울 서비스 다시 시작" }).click();
+    const sheet = await waitFor(() => view.getByRole("dialog", { name: "솔방울 다시 시작" }));
+    expect(sheet.textContent).toContain("솔방울 서비스 다시 시작");
+    within(sheet).getByRole("button", { name: "작업 실행기" }).click();
+    await waitFor(() => expect(within(sheet).getByText("솔방울의 작업 실행기를 다시 시작합니다.")).toBeTruthy());
+    expect(source.deviceWrites).toEqual([]);
+    within(sheet).getByRole("button", { name: "다시 시작" }).click();
+    await waitFor(() => expect(source.deviceWrites).toEqual([{ device: "솔방울", action: "restart", service: "worker" }]));
+  });
+
+  test("모델 연결's confirmation names the node too", async () => {
+    const source = fresh();
+    source.scene.devices.machines = [node("모래톱")];
+    const view = await open(source);
+    within(rowOf(view, "모래톱")).getByRole("button", { name: "모래톱 서비스 다시 시작" }).click();
+    const sheet = await waitFor(() => view.getByRole("dialog", { name: "모래톱 다시 시작" }));
+    within(sheet).getByRole("button", { name: "모델 연결" }).click();
+    await waitFor(() => expect(within(sheet).getByText("모래톱의 모델 연결을 다시 시작합니다.")).toBeTruthy());
+  });
+});

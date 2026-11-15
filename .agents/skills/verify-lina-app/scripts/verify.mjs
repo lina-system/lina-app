@@ -1202,7 +1202,11 @@ const drivers = {
       const area = await box.boundingBox();
       check(mine.x + mine.width > area.x + area.width - 24 && mine.x > theirs.x, "the owner's message is not on the right");
       check((await box.getByTestId("talk-group").filter({ has: page.getByTestId("talk-reply") }).locator(".mark").count()) === 1, "the reply's group has no agent mark");
-      for (const word of ["글 입력 대기", "보내는 중", "답하는 중"]) check(!(await box.innerText()).includes(word), "the window reads " + word);
+      // The reason 보내기 is off is one line in the field's bar, never in the turns (lina-app#200).
+      const turns = await box.evaluate((element) => [...element.children].filter((child) => !child.classList.contains("talk-form")).map((child) => child.innerText).join("\n"));
+      for (const word of ["글 입력 대기", "보내는 중", "답하는 중"]) check(!turns.includes(word), "the window reads " + word);
+      const why = (await box.getByTestId("send-why").innerText().catch(() => "")).trim();
+      check(why === "답하는 중", "the line by 보내기 reads " + JSON.stringify(why) + " while the reply streams");
       check((await field.inputValue()) === "", "the field still holds the sent text");
       check(await send.isDisabled(), "보내기 is enabled while the reply streams");
       return "mid-stream: " + partial + " (" + ready + ")";
@@ -1372,7 +1376,7 @@ const drivers = {
   },
 
   async status(page, step) {
-    await step("open 기기·쿼터 from the 상태 tab and read its machines line", async () => {
+    await step("open 상태 from its tab and read its machines line", async () => {
       await openApp(page, "#/");
       await page.getByTestId("tab-status").click();
       await settled(page);
@@ -1526,13 +1530,16 @@ const drivers = {
       check((await button.innerText()).trim() === "서비스 다시 시작", "the restart control reads " + (await button.innerText()));
       check((await page.locator(".machine-row.is-down").getByRole("button").count()) === 0, "the unreachable node has a button");
       await button.click();
-      const dialog = page.getByRole("dialog", { name: "다시 시작" });
+      // The sheet and its confirmation name the node, so a mis-tap is seen before anything restarts (lina-app#200).
+      const dialog = page.getByRole("dialog", { name: name + " 다시 시작", exact: true });
       await dialog.waitFor();
       await dialog.getByRole("button", { name: "작업 실행기", exact: true }).click();
+      const question = (await dialog.locator(".settings-sheet-text").innerText()).trim();
+      check(question === name + "의 작업 실행기를 다시 시작합니다.", "the confirmation reads " + question);
       await dialog.getByRole("button", { name: "다시 시작", exact: true }).click();
       await dialog.waitFor({ state: "detached" });
       check((await page.getByTestId("write-error").count()) === 0, "the restart showed an error");
-      return name + " restarted, nothing new";
+      return name + " restarted after " + JSON.stringify(question) + ", nothing new";
     });
     await step("read 내 기기", async () => {
       const list = page.getByRole("list", { name: "내 기기", exact: true });
@@ -1762,7 +1769,7 @@ const drivers = {
       await page.getByTestId("screen-settings").waitFor();
     };
 
-    await step("open 설정 from its line right under 기기·쿼터", async () => {
+    await step("open 설정 from its line right under the machines line", async () => {
       // 상태's sidebar on a wide window; on a phone 상태 opens on the machines with 설정 under them.
       await openApp(page, "#/status");
       if (wide) {
@@ -3351,20 +3358,24 @@ const drivers = {
       await field.press("Enter");
       await box().getByTestId("talk-live").waitFor({ timeout: 5_000 });
       await box().getByTestId("talk-reply").last().filter({ hasText: "알려 드릴게요." }).waitFor({ timeout: 10_000 });
-      check((await box().getByTestId("talk-live").count()) === 0, "the live dot stayed");
+      // The last piece of the reply draws before the turn ends: the dots go with its end, so wait for that, bounded.
+      await box().getByTestId("talk-live").waitFor({ state: "detached", timeout: 3_000 }).catch(() => check(false, "the live dot stayed"));
       check((await field.inputValue()) === "", "the field kept " + (await field.inputValue()));
       return "reply: " + (await box().getByTestId("talk-reply").last().locator(".talk-bubble").innerText());
     });
-    await step("a chat's look: a date between days, one mark and name per group of the agent's, no state word under the field", async () => {
+    await step("a chat's look: a date between days, one mark and name per group of the agent's, and nothing beside 보내기 on an empty field", async () => {
       const days = await box().getByTestId("talk-day").allInnerTexts();
       check(JSON.stringify(days) === JSON.stringify(["어제", "오늘"]), "the dates read " + JSON.stringify(days));
       const groups = await box()
         .getByTestId("talk-group")
         .evaluateAll((all) => all.map((group) => ({ agent: group.classList.contains("is-agent"), marks: group.querySelectorAll(".mark").length, names: group.querySelectorAll("[data-testid=talk-name]").length, times: group.querySelectorAll("[data-testid=talk-time]").length })));
       check(groups.every((group) => group.times === 1 && group.marks === (group.agent ? 1 : 0) && group.names === (group.agent ? 1 : 0)), "the groups read " + JSON.stringify(groups));
-      for (const word of ["글 입력 대기", "보내는 중", "답하는 중"]) check(!(await box().innerText()).includes(word), "the window reads " + word);
+      const turns = await box().locator(".agent-talk-turns").innerText();
+      for (const word of ["글 입력 대기", "보내는 중", "답하는 중"]) check(!turns.includes(word), "the window reads " + word);
       const send = box().getByRole("button", { name: "보내기", exact: true });
       check((await send.innerText()).trim() === "" && (await send.isDisabled()), "보내기 is not a dim icon on an empty field");
+      // An empty field says nothing beside 보내기: the owner took 글 입력 대기 out of the chat (lina-app#200).
+      check((await box().getByTestId("send-why").count()) === 0, "the line by 보내기 is drawn on an empty field");
       return groups.length + " groups under " + days.join(", ");
     });
     await step("Shift+Enter breaks a line and the field grows up to about 5 lines, then scrolls; Enter sends", async () => {
@@ -3386,6 +3397,8 @@ const drivers = {
       check(eight.height < (three / 3) * 6.5 && eight.scroll > eight.client, "8 lines: " + JSON.stringify(eight));
       await field.press("Enter");
       await box().getByTestId("talk-reply").nth(2).filter({ hasText: "알려 드릴게요." }).waitFor({ timeout: 10_000 });
+      // The turn ends after its last piece draws; the next step's send is refused until it does.
+      await box().getByTestId("talk-live").waitFor({ state: "detached", timeout: 3_000 }).catch(() => check(false, "the live dot stayed after the reply"));
       const after = (await field.boundingBox()).height;
       check(Math.abs(after - one) < 2, "the empty field is " + after + " px, not " + one);
       return Math.round(one) + " -> " + Math.round(three) + " -> " + Math.round(eight.height) + " px; sent, back to " + Math.round(after);

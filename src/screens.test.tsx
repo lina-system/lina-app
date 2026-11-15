@@ -300,13 +300,13 @@ describe("machines, quota and checks", () => {
     const machine = source.scene.devices.machines.find((item) => item.role === "work" && item.state === "ok");
     expect(machine).toBeTruthy();
     fireEvent.click(view.getByRole("button", { name: `${machine?.name} 서비스 다시 시작` }));
-    const dialog = view.getByRole("dialog", { name: "다시 시작" });
+    const dialog = view.getByRole("dialog", { name: `${machine?.name} 다시 시작` });
     expect(source.deviceWrites).toEqual([]);
     fireEvent.click(within(dialog).getByRole("button", { name: "작업 실행기" }));
     expect(source.deviceWrites).toEqual([]);
     fireEvent.click(view.getByRole("button", { name: "다시 시작" }));
     expect(source.deviceWrites).toEqual([{ device: machine?.name, action: "restart", service: "worker" }]);
-    expect(view.queryByRole("dialog", { name: "다시 시작" })).toBeNull();
+    expect(view.queryByRole("dialog")).toBeNull();
     expect(view.queryByTestId("write-error")).toBeNull();
   });
 
@@ -319,7 +319,7 @@ describe("machines, quota and checks", () => {
     fireEvent.click(view.getByRole("button", { name: "작업 실행기" }));
     fireEvent.click(view.getByRole("button", { name: "다시 시작" }));
     await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("기기가 거절함"));
-    expect(view.queryByRole("dialog", { name: "다시 시작" })).toBeNull();
+    expect(view.queryByRole("dialog")).toBeNull();
   });
 
   test("one quota row per service with its accounts folded under it, known services by their display names", async () => {
@@ -1690,7 +1690,8 @@ describe("agent talk", () => {
     expect(field.value).toBe("오늘 어디까지 했어요?");
   });
 
-  test("보내기 in the agent's window is a dim icon while it is off, with no line under the field: an empty field, the turn going out, the reply coming in (lina-app#187)", async () => {
+  // lina-app#200 item 1: a disabled 보내기 says why in the words 댓글 and 답 use, one line in the field's bar.
+  test("보내기 in the agent's window is a dim icon while it is off; a word beside it says why while the turn goes out and the reply comes in, and none on an empty field (lina-app#187, #200)", async () => {
     let answer: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => (answer = resolve));
     class Held extends SyntheticSource {
@@ -1701,25 +1702,27 @@ describe("agent talk", () => {
     }
     const view = await open("#/talk/ag-1", { wide: true, source: new Held() });
     const { box, field, send } = parts(view);
-    const quiet = () => {
-      expect(box.queryByTestId("send-why")).toBeNull();
-      for (const word of ["글 입력 대기", "보내는 중", "답하는 중"]) expect(view.getByTestId("agent-talk").textContent).not.toContain(word);
-    };
+    const why = () => box.queryByTestId("send-why")?.textContent ?? null;
     expect(field.tagName).toBe("TEXTAREA");
     expect(send.textContent).toBe("");
     expect(send.disabled).toBe(true);
-    quiet();
+    expect(why()).toBeNull();
     field.value = "가짜 질문 하나";
     fireEvent.input(field);
     await waitFor(() => expect(send.disabled).toBe(false));
+    expect(why()).toBeNull();
     fireEvent.click(send);
     await waitFor(() => expect(box.getAllByTestId("talk-mine").at(-1)?.dataset.state).toBe("sending"));
     expect(send.disabled).toBe(true);
-    quiet();
+    expect(why()).toBe("보내는 중");
     answer();
     await waitFor(() => expect(box.getAllByTestId("talk-live")).toHaveLength(1));
     expect(send.disabled).toBe(true);
-    quiet();
+    expect(why()).toBe("답하는 중");
+    // The reason sits in the field's bar, never in the turns.
+    expect(view.getByTestId("agent-talk").querySelector(".agent-talk-turns")?.textContent).not.toContain("답하는 중");
+    await waitFor(() => expect(box.queryAllByTestId("talk-live")).toHaveLength(0), { timeout: 5000 });
+    expect(why()).toBeNull();
   });
 
   test("a refused turn puts the agent row's preview back to what it showed before the send (lina-app#143)", async () => {
@@ -1925,7 +1928,7 @@ describe("talk", () => {
     fireEvent.input(field);
   }
 
-  test("보내기 under a to-do's 대화 is a dim icon while it is off, with no line under the field (lina-app#187; 댓글 keeps its own, lina-app#158)", async () => {
+  test("보내기 under a to-do's 대화 is a dim icon while it is off, and says why in 댓글's words (lina-app#187, #200; lina-app#158)", async () => {
     let answer: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => (answer = resolve));
     class Held extends SyntheticSource {
@@ -1936,21 +1939,20 @@ describe("talk", () => {
     }
     const view = await open("#/items/T4", { wide: true, source: new Held() });
     const { box, field, send } = talkParts(view);
-    const quiet = () => {
-      expect(box.queryByTestId("send-why")).toBeNull();
-      for (const word of ["글 입력 대기", "보내는 중", "답하는 중"]) expect(view.getByTestId("talk").textContent).not.toContain(word);
-    };
+    const why = () => box.queryByTestId("send-why")?.textContent ?? null;
     expect(field.tagName).toBe("TEXTAREA");
     expect(send.disabled).toBe(true);
-    quiet();
+    // An empty field says nothing in the chat (the owner took 글 입력 대기 out); 댓글 keeps its own line.
+    expect(why()).toBeNull();
     type(field, "가짜 질문 하나");
     await waitFor(() => expect(send.disabled).toBe(false));
+    expect(why()).toBeNull();
     fireEvent.click(send);
     await waitFor(() => expect(send.disabled).toBe(true));
-    quiet();
+    expect(why()).toBe("보내는 중");
     answer();
     await waitFor(() => expect(box.getByTestId("talk-live")).toBeTruthy());
-    quiet();
+    expect(why()).toBe("답하는 중");
   });
 
   test("대화 sits under 댓글; Enter sends, the reply streams with a live mark, then one line says the agent keeps it", async () => {

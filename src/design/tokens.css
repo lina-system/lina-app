@@ -18,12 +18,14 @@
   --tab-track: rgba(120, 120, 128, 0.12);
   --tab-current: #ffffff;
 
-  --agent-0: #007aff;
-  --agent-1: #af52de;
-  --agent-2: #34c759;
-  --agent-3: #ff9500;
-  --agent-4: #5ac8fa;
-  --agent-5: #ff2d55;
+  /* Agent marks: a white letter on each, at least 4.5:1, the same in dark; none reads as the accent, red, orange or the
+     machines' green (lina-app#190, #200; src/design/contrast.test.ts). */
+  --agent-0: #7a45c8;
+  --agent-1: #1c6f78;
+  --agent-2: #a8327a;
+  --agent-3: #62682a;
+  --agent-4: #4f607a;
+  --agent-5: #7d5a44;
 
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Pretendard", sans-serif;
   --text-title: 26px;
@@ -74,13 +76,6 @@
     --orange: #ff9f0a;
     --tab-track: rgba(120, 120, 128, 0.12);
     --tab-current: #737377;
-
-    --agent-0: #0a84ff;
-    --agent-1: #bf5af2;
-    --agent-2: #30d158;
-    --agent-3: #ff9f0a;
-    --agent-4: #64d2ff;
-    --agent-5: #ff375f;
   }
 }
 

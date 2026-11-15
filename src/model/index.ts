@@ -673,8 +673,9 @@ export function buildModel(input: ModelInput, now: number): Model {
     ...(board?.cards ?? []).map((run) => ({ row: runListRow(run), listed: false })),
   ];
   // The lookup keeps every card and run (a goal's page and a run page link to them); the lists leave out ended work
-  // and work nothing names, and no line counts it (lina-app#141).
-  const allCards: CardRow[] = everyCard.filter((each) => each.listed && each.row.title !== null).map((each) => each.row);
+  // and work nothing names, and no line counts it (lina-app#141). A finished card nothing names stays, as 제목 없음:
+  // the core counts every finished card, those past its first page too, so the 완료 lines hold them all (lina-app#196).
+  const allCards: CardRow[] = everyCard.filter((each) => each.listed && (each.row.title !== null || each.row.state === "done")).map((each) => each.row);
   // One state per id (lina-app#152): a worker run the hub serves under its card's own id never stands in for the card,
   // so the row, its detail head and its goal all read the card's kanban status.
   const cardMap = new Map<string, CardRow>();
@@ -689,9 +690,9 @@ export function buildModel(input: ModelInput, now: number): Model {
   const done = apart(allCards.filter((card) => card.state === "done").sort(newestFirst((card) => card.endedAt)), now);
   const waiting = apart(allCards.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt)), now);
   const finished = doneLines(done, now);
-  // The core counts every finished card (lina#729); the ones it sent that no list shows are not counted here either.
-  const finishedSent = (cards?.cards ?? []).filter((card) => card.state === "done").length;
-  const finishedTotal = input.finished ? input.finished.total - (finishedSent - done.length) : done.length;
+  // The core counts every finished card (lina#729), and every one it sends is a line's: one number before and after
+  // the page reads the rest.
+  const finishedTotal = input.finished?.total ?? done.length;
 
   // Inbox: decisions (oldest first), finished runs waiting on the owner, then the owner's own to-dos.
   const goalTitleOfCard = (cardId: string) => input.goals?.goals.find((goal) => goal.workCards.some((card) => card.id === cardId))?.title;
@@ -752,6 +753,11 @@ export function buildModel(input: ModelInput, now: number): Model {
   const listed = new Set((board?.inbox.mine ?? []).map((row) => row.id));
   const mineSource = (board?.inbox.mine ?? []).filter((row) => !decided.has(row.id));
   for (const { row, index } of [...(input.pending?.held ?? [])].sort((a, b) => a.index - b.index)) if (!mineSource.some((each) => each.id === row.id)) mineSource.splice(Math.min(index, mineSource.length), 0, row);
+  // The owner's to-dos by when they are due (lina-app#198): dated ones first, the earliest date first (overdue, then
+  // today, then later), then the undated; of the same date, or both undated, the newest record first. The core lists
+  // its waiting ones last, a to-do due today among them; a row held for its toast keeps its place by the same rule.
+  const createdAt = (id: string) => itemMap.get(id)?.createdAt ?? 0;
+  mineSource.sort((a, b) => (a.due === b.due ? createdAt(b.id) - createdAt(a.id) : a.due === null ? 1 : b.due === null ? -1 : a.due < b.due ? -1 : 1));
   const mineRows: InboxRow[] = mineSource.map((row) => ({
     type: "mine",
     key: `mine:${row.id}`,

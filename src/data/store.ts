@@ -384,6 +384,46 @@ export class Store {
     });
   }
 
+  /**
+   * A list's last read failed and the core has not refused the credential (lina-app#199): reading the failed routes
+   * again may fill the screens. The stream reads only what changes, so nothing else would.
+   */
+  healable(): boolean {
+    if (this.refused || this.denied) return false;
+    return LIST_ROUTES.some((name) => this.entries.get(name)?.status === "failed");
+  }
+
+  /**
+   * A list whose every read failed (lina-app#199): what it holds is not known, so no screen counts it 0 or calls it
+   * empty. With no name, any of the lists.
+   */
+  unread(name?: RouteName): boolean {
+    return (name === undefined ? LIST_ROUTES : [name]).some((list) => {
+      const entry = this.entries.get(list);
+      return entry?.status === "failed" && entry.data === undefined;
+    });
+  }
+
+  /**
+   * Reads again every route whose last read failed (lina-app#199). A read that fails again keeps what the route held,
+   * and the kept copy is written only once nothing failed, so a failed read never overwrites it.
+   */
+  readFailed(): Promise<void> {
+    return this.queue(async () => {
+      const failed: (readonly [RouteName, string?])[] = [];
+      for (const [key, entry] of this.entries) {
+        if (entry.status !== "failed") continue;
+        const colon = key.indexOf(":");
+        failed.push(colon < 0 ? [key as RouteName] : [key.slice(0, colon) as RouteName, key.slice(colon + 1)]);
+      }
+      if (!failed.length) return;
+      const changes = await Promise.all(failed.map(([name, id]) => this.load(name, id)));
+      if (changes.some(Boolean)) this.changed();
+      else this.notify();
+      this.keep();
+    });
+  }
+
   /** The slow routes when they are due (at most once a minute), marking them read now. */
   private slowDue(): Want {
     const now = nowSeconds();

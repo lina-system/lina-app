@@ -160,6 +160,7 @@ function StoppedSection({ section }: { section: Section<CardRow> }) {
  * too. A to-do just added stands first, where the form was, above the fold: the core lists it last (lina-app#175).
  */
 function MineSection({ section }: { section: Section<InboxRow> }) {
+  const { store } = useApp();
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   // The rows listed before the add was taken: any row the record brings beyond them is one just added.
@@ -167,6 +168,9 @@ function MineSection({ section }: { section: Section<InboxRow> }) {
   const added = before ? section.rows.filter((row) => !before.has(row.key)) : [];
   const rest = section.rows.filter((row) => !added.includes(row));
   const shown = open ? section.rows : [...added, ...rest.slice(0, MINE_SHOWN)];
+  // The to-dos were never read: no count and no 할 일 추가 over a list that is not known (lina-app#199). The rows come
+  // from the board's inbox, so the board's read gates them; the items only date them.
+  if (store.unread("board")) return null;
   return (
     <section class="list-section" data-testid="home-mine">
       <div class="mine-head">
@@ -205,7 +209,7 @@ export function RunningScreen() {
   const { home } = model;
   if (!home.decisions && !home.review.rows.length && !home.mine.rows.length && !model.running.rows.length && !home.planned.rows.length && !home.waiting.rows.length && !model.counts.done) {
     // Nothing yet, but the owner can still write the first to-do (lina-app#95); while loading, only the loading line.
-    if (store.version === 0) return <Empty />;
+    if (store.version === 0 || store.unread()) return <Empty />;
     return (
       <div class="list" data-testid="screen-running">
         <MineSection section={home.mine} />
@@ -892,16 +896,17 @@ export function RestartSheet() {
   return (
     <>
       <div class="settings-scrim" aria-hidden="true" onClick={closeRestart} />
-      <div class="settings-sheet" role="dialog" aria-modal="true" aria-label={W.restart} data-testid="restart-sheet">
+      <div class="settings-sheet" role="dialog" aria-modal="true" aria-label={W.restartOf(ask.device)} data-testid="restart-sheet">
         {confirming ? (
           <>
-            <p class="settings-sheet-text">{ask.step === "worker" ? W.restartWorkerConfirm : W.restartOcxConfirm}</p>
+            <p class="settings-sheet-text">{ask.step === "worker" ? W.restartWorkerConfirm(ask.device) : W.restartOcxConfirm(ask.device)}</p>
             <button type="button" class="settings-sheet-button" onClick={send}>
               {W.restart}
             </button>
           </>
         ) : (
           <>
+            <p class="settings-sheet-text">{W.restartServiceOf(ask.device)}</p>
             <button type="button" class="settings-sheet-button" onClick={() => chooseRestart("worker")}>
               {W.restartWorker}
             </button>

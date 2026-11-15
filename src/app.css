@@ -1719,6 +1719,14 @@ button:disabled {
   color: var(--on-accent);
 }
 
+/* Why 보내기 is off, beside it on the field's row (lina-app#200): the bar keeps its height, so the field stays where it is. */
+.talk-form > .send-why {
+  flex: none;
+  flex-basis: auto;
+  align-self: center;
+  white-space: nowrap;
+}
+
 .talk-send svg {
   width: 20px;
   height: 20px;

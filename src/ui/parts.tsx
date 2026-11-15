@@ -335,8 +335,12 @@ export function Disclosure() {
   );
 }
 
-/** A list with no rows: 없음, or 불러오는 중 while the first read of the lists has not answered yet. */
+/**
+ * A list with no rows: 없음, or 불러오는 중 while the first read of the lists has not answered yet. Nothing while a list
+ * was never read (lina-app#199): its rows are not known, and the head says the read failed.
+ */
 export function Empty() {
   const { store } = useApp();
+  if (store.version > 0 && store.unread()) return null;
   return <p class="empty">{store.version === 0 ? W.loading : W.empty}</p>;
 }

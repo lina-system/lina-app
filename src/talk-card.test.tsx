@@ -40,3 +40,26 @@ test("at 390 the 대화 list opens the 작업 menu from its header", async () =>
   const menu = view.getByRole("dialog", { name: "메뉴" });
   for (const id of ["nav-today", "nav-inbox", "nav-goals"]) expect(menu.querySelector(`[data-testid=${id}]`)).toBeTruthy();
 });
+
+// lina-app#200 item 2: on the hub a goal whose one to-do is done but that still waits (1/1, state waiting) drew an
+// empty circle, while 2/2 and 3/3 goals already closed drew the checked, struck-through mark. On the card the mark
+// follows the goal's own to-dos: every n/n draws the done mark, and a goal with an open to-do keeps its dial.
+test("every n/n goal on the 대화 card draws the done mark, whatever n, and 0/1 keeps its dial", async () => {
+  const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
+  const items = source.scene.items.items as ItemSummary[];
+  const first = items.find((item) => item.kind === "goal" && item.agent === "ag-1")!;
+  const goal = (id: string, title: string, state: ItemSummary["state"], done: number, total: number) => ({ ...first, id, title, state, reason: null, due: null, todos: { done, total } });
+  items.push(goal("G91", "하나 끝난 목표", "waiting", 1, 1), goal("G92", "둘 끝난 목표", "done", 2, 2), goal("G93", "하나 남은 목표", "in_progress", 0, 1));
+  vi.stubGlobal("matchMedia", (query: string) => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} }));
+  window.history.replaceState(null, "", "/app/#/talk/ag-1");
+  const view = render(<App store={new Store(source)} />);
+  const card = await waitFor(() => view.getByTestId("agent-card"));
+  const row = (title: string) => [...card.querySelectorAll("[data-testid=row]")].find((each) => each.textContent?.includes(title)) as HTMLElement;
+  await waitFor(() => expect(row("하나 남은 목표")).toBeTruthy());
+  for (const title of ["하나 끝난 목표", "둘 끝난 목표"]) {
+    expect(row(title).classList.contains("is-checked"), title).toBe(true);
+    expect(row(title).querySelector("[data-testid=done-check]")?.getAttribute("aria-checked"), title).toBe("true");
+  }
+  expect(row("하나 남은 목표").querySelector("[data-testid=done-check]")).toBeNull();
+  expect(row("하나 남은 목표").querySelector(".dial")).toBeTruthy();
+});

@@ -143,6 +143,21 @@ function SendButton({ disabled, onSend }: { disabled: boolean; onSend: () => voi
 }
 
 /**
+ * Why 보내기 is off, in the words 댓글 and 답 use (lina-app#200): the reply coming in or the turn going out. An empty
+ * field says nothing: the owner took 글 입력 대기 out of the chat as noise (11-15), and a dim 보내기 on an empty field
+ * needs no reason. It sits beside 보내기 on the field's row, so the bar keeps its height and the field its place.
+ */
+function SendWhy({ replying, sending }: { replying: boolean; sending: boolean }) {
+  const why = replying ? W.replying : sending ? W.sendWhyBusy : null;
+  if (!why) return null;
+  return (
+    <span class="send-why" data-testid="send-why">
+      {why}
+    </span>
+  );
+}
+
+/**
  * A window's messages: the owner's on the right, plain text; the agent's on the left under its mark and name, its
  * markdown drawn; a date between days. A new message keeps the window at the bottom, and the owner's own always goes
  * there; read up, the window stays put and 맨 아래로 counts what came in (lina-app#187). `after` draws one line under
@@ -353,6 +368,7 @@ export function Talk({ detail }: { detail: ItemDetail }) {
       ) : null}
       <div class="comment-form talk-form">
         <KoreanInput label={W.talkField} value={text} onValue={setText} onEnter={() => void send()} inline multiline />
+        <SendWhy replying={last?.state === "streaming"} sending={busy} />
         <SendButton disabled={busy || !text.trim()} onSend={() => void send()} />
       </div>
       <ErrorLine line={error ?? undefined} />
@@ -761,6 +777,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
       </div>
       <div class="comment-form talk-form agent-talk-form">
         <KoreanInput label={W.talkField} value={text} onValue={setText} onEnter={() => void send()} inline multiline />
+        <SendWhy replying={box.turns.some((turn) => turn.state === "streaming")} sending={sending} />
         <SendButton disabled={sending || !text.trim()} onSend={() => void send()} />
         {/* Inside the field's bar: on a phone the bar is sticky and would cover a line drawn after it (lina-app#158). */}
         <ErrorLine line={error ?? undefined} />
@@ -793,10 +810,12 @@ export function AgentCard({ agent, folded = false }: { agent: string; folded?: b
       ])}
     </p>
   );
-  // A goal opens under 대화, beside the window on a wide one and one step deeper on a phone (lina-app#143).
+  // A goal opens under 대화, beside the window on a wide one and one step deeper on a phone (lina-app#143). Its mark
+  // follows its to-dos beside the n/n it writes: every n/n draws the done mark, also one that still waits to be closed
+  // (lina-app#200); the goal's page keeps the owner's own done check.
   const body = (
     <>
-      <ListSection section={view.goals} render={(goal) => <GoalLine key={goal.id} goal={{ ...goal, href: href({ name: "talk", id: agent, goal: goal.id }) }} showAgent={false} count />} />
+      <ListSection section={view.goals} render={(goal) => <GoalLine key={goal.id} goal={{ ...goal, state: goal.allDone ? "done" : goal.state, href: href({ name: "talk", id: agent, goal: goal.id }) }} showAgent={false} count />} />
       <ul class="rows" aria-label={W.done}>
         <li class="row" data-testid="card-done-today">
           <Link href={href({ name: "done", agent })} label={view.doneToday ? W.doneToday(view.doneToday.count) : W.loading}>

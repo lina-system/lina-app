@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import type { BoardSnapshot, ItemDetail, ItemList, RunCard, WorkCardList, WorkGoal } from "../api/client";
 import { generateScene, SYNTHETIC_SEED } from "../fixtures/synthetic";
 import { CRUMB, KIND_TITLE, STATE_WORD, W } from "../words";
-import { agentView, buildModel, cardTitle, doneFor, goalCards, goalState, itemContext, todoState, type CardRow, type CardSummary, type Section } from "./index";
+import { agentView, buildModel, cardTitle, doneFor, goalCards, goalState, itemContext, localDay, todoState, type CardRow, type CardSummary, type Section } from "./index";
 
 /**
  * A scene in the shape of the hub's real `/work/cards` rows (lina-app#148): every row carries `goalTitle`, `ask`,
@@ -183,6 +183,29 @@ test("finished cards whose visible lines are equal collapse to one line with the
     ["r3", 1],
   ]);
   expect(model.done).toHaveLength(8);
+});
+
+// lina-app#196: the hub's finished cards, more than the first page, some with no name the screen may draw (an English
+// own title and no goal) and those only past the first page, as in the hub's reply.
+test("the 완료 head counts the same cards on the first page and once every finished card is read: what has no name is one counted line (lina-app#196)", () => {
+  const named = Array.from({ length: 8 }, (_, index) => row(`n${index + 1}`, `가짜 정리 ${index + 1}단계 마치기`, "done", { endedAt: NOW - (index + 1) * 600 }));
+  const unnamed = Array.from({ length: 3 }, (_, index) => row(`u${index + 1}`, `fake cleanup pass ${index + 1}`, "done", { endedAt: NOW - 2 * DAY - index * 600 }));
+  const every = [...named, ...unnamed];
+  // The core's first page: the five newest finished cards and the total of every one it holds (lina#729).
+  const firstPage = (rows: readonly RealRow[]) => buildModel({ board, items, cards: { cards: rows.slice(0, 5), finishedTotal: rows.length } as WorkCardList, cardsAt: NOW, cardDetails: {}, failed: [], finished: { total: rows.length, all: false } }, NOW);
+  const lineCards = (rows: readonly CardRow[]) => rows.reduce((sum, line) => sum + (line.repeat ?? 1), 0);
+  const first = firstPage(every);
+  const opened = buildModel({ board, items, cards: { cards: every, finishedTotal: every.length } as WorkCardList, cardsAt: NOW, cardDetails: {}, failed: [], finished: { total: every.length, all: true } }, NOW);
+
+  expect(first.home.finished.count).toBe(11);
+  expect(first.counts.done).toBe(11);
+  expect(lineCards(first.home.finished.rows) + first.finished.more).toBe(11);
+  // Opened, the head, the sidebar and the rows are the same number: the three with no name are one line ×3.
+  expect(opened.home.finished.count).toBe(11);
+  expect(opened.counts.done).toBe(11);
+  expect(lineCards(opened.home.finished.rows)).toBe(11);
+  expect(lineCards(doneFor(opened))).toBe(11);
+  expect(opened.home.finished.rows.at(-1)).toMatchObject({ id: "u1", name: W.untitled, repeat: 3 });
 });
 
 test("running, stopped and planned cards never collapse, whatever their titles (lina-app#168)", () => {
@@ -401,4 +424,20 @@ test("a row, its detail head's row and its goal read the card's kanban status, w
     ["k2", "in_progress"],
   ]);
   expect(goalState(model, { ...detail, workCards: ["kg-order"] }, { goals }).state).toBe("in_progress");
+});
+
+// lina-app#198: the hub lists the owner's to-dos dated first, then undated, then the waiting ones dated or not, so a
+// to-do due today that waits sat under every undated one.
+test("the owner's to-dos read overdue and today first, then later dates, then undated, ties newest first (lina-app#198)", () => {
+  const mine = (id: string, due: string | null, waiting = false) => ({ id, title: `가상 할 일 ${id}`, waiting, due, agent: "ag-a" });
+  const created = new Map([["T21", 5], ["T22", 1], ["T23", 3], ["T24", 4], ["T25", 2], ["T26", 6]]);
+  const todoItems: ItemList = { ...items, items: [...created].map(([id, daysAgo]) => ({ ...item(id, "todo", `가상 할 일 ${id}`, null), createdAt: NOW - daysAgo * DAY })) };
+  // In the hub's order: dated (later, then today), undated (older first), then the waiting ones (overdue, today).
+  const rows = [mine("T21", localDay(NOW + 3 * DAY)), mine("T22", localDay(NOW)), mine("T23", null), mine("T24", null), mine("T25", localDay(NOW - 2 * DAY), true), mine("T26", localDay(NOW), true)];
+  const mineBoard = { ...board, inbox: { decide: [], mine: rows } } as unknown as BoardSnapshot;
+  const model = buildModel({ board: mineBoard, items: todoItems, cards: { cards: [] }, cardsAt: NOW, cardDetails: {}, failed: [] }, NOW);
+  const order = (rows: readonly { readonly key: string }[]) => rows.map((each) => each.key.replace("mine:", ""));
+  // Overdue, then today's two newest first, then the later date, then the undated newest first.
+  expect(order(model.home.mine.rows)).toEqual(["T25", "T22", "T26", "T21", "T23", "T24"]);
+  expect(order(model.inbox.sections[2].rows)).toEqual(["T25", "T22", "T26", "T21", "T23", "T24"]);
 });

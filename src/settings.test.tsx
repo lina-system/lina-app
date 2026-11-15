@@ -41,7 +41,7 @@ afterEach(() => {
 });
 
 describe("the settings screen", () => {
-  test("설정 is one line right under 기기·쿼터 in 상태's sidebar, and under the machines on the phone's 상태", async () => {
+  test("설정 is one line right under the machines line in 상태's sidebar, and under the machines on the phone's 상태", async () => {
     for (const wide of [true, false]) {
       setWide(wide);
       window.history.replaceState(null, "", "/app/#/status");

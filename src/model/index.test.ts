@@ -360,9 +360,10 @@ test("a title is hidden only when it has no Hangul or runs three Latin words, in
   expect(model.counts.stopped).toBe(3);
   expect(model.cards.get("k-done")?.title).toBe("AAS 회차 점검 마무리");
   expect(model.cards.get("k-running")?.title).toBe("qveris 일시 오류 정리");
-  expect(model.done.map((row) => row.id)).toEqual(["k-done"]);
-  expect(model.cards.get("k-sentence")?.title).toBeNull();
-  expect(model.unlisted.has("k-sentence")).toBe(true);
+  // An English sentence is not drawn; the finished card is still one of 완료's lines, as 제목 없음 (lina-app#196).
+  expect(model.done.map((row) => row.id)).toEqual(["k-done", "k-sentence"]);
+  expect(model.cards.get("k-sentence")).toMatchObject({ title: null, name: W.untitled });
+  expect(model.unlisted.has("k-sentence")).toBe(false);
 });
 
 test("a stopped run with no card or goal is named by its own or its to-do's title with a Latin word on its page, and is no row", () => {

@@ -88,7 +88,7 @@ export const W = {
   done: "완료",
   agents: "에이전트",
   goals: "목표",
-  status: "기기·쿼터",
+  status: "상태",
   back: "뒤로",
   sidebar: "메뉴",
 
@@ -152,8 +152,9 @@ export const W = {
   versionGap: (installed: string, fleet: string) => `${installed} → ${fleet}`,
   restartWorker: "작업 실행기",
   restartOcx: "모델 연결",
-  restartWorkerConfirm: "작업 실행기를 다시 시작합니다.",
-  restartOcxConfirm: "모델 연결을 다시 시작합니다.",
+  /** The sheet's confirmation names the node, so a mis-tap on a phone is seen before anything restarts (lina-app#200). */
+  restartWorkerConfirm: (name: string) => `${name}의 작업 실행기를 다시 시작합니다.`,
+  restartOcxConfirm: (name: string) => `${name}의 모델 연결을 다시 시작합니다.`,
   connected: "연결됨",
   cpu: "CPU",
   memory: "메모리",

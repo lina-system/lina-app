@@ -378,6 +378,40 @@ button:disabled {
   background: var(--fill);
 }
 
+/* The agent's picture over its letter circle (lina-app#191): the circle keeps its size, and shows when it fails. */
+.mark:has(> .mark-picture) {
+  position: relative;
+  overflow: hidden;
+}
+
+.mark-picture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The 대화 window's head in the bar: the agent's mark and name, the screen's one title (lina-app#191). */
+.talk-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.talk-head > h1 {
+  min-width: 0;
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+.talk-head > .mark {
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+}
+
 .row > a[aria-current="page"] .mark,
 .nav-row.is-current .mark {
   box-shadow: 0 0 0 1.5px var(--on-accent);
@@ -2108,6 +2142,33 @@ html:has(.stack) body {
   background: var(--bg-2);
 }
 
+/* An agent's 대화 window: back is an icon, the head takes the room up to the chip and the bell, and a hairline marks
+   the bar's edge over the conversation scrolling under it (lina-app#191). */
+.navbar.is-talk {
+  gap: 4px;
+  border-bottom: var(--line) solid var(--separator);
+}
+
+.navbar.is-talk > .talk-head {
+  flex: 1;
+}
+
+.navbar.is-talk .talk-head > h1 {
+  font-size: 17px;
+}
+
+.stack .navbar.is-talk .talk-head > .mark {
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+}
+
+.back.is-icon {
+  justify-content: center;
+  width: var(--hit);
+  padding-right: 0;
+}
+
 .back {
   display: flex;
   align-items: center;
@@ -3119,23 +3180,6 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   height: 100%;
 }
 
-.agent-talk-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px var(--inset);
-  border-bottom: var(--line) solid var(--separator);
-}
-
-.agent-talk-head .title {
-  font-weight: 600;
-}
-
-.agent-talk-title {
-  font-size: inherit;
-  font-weight: inherit;
-}
-
 .agent-talk-turns {
   flex: 1;
   min-height: 0;
@@ -3171,10 +3215,6 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   height: auto;
   min-height: 100%;
   background: var(--bg-2);
-}
-
-.stack .agent-talk-head {
-  border-bottom: 0;
 }
 
 .stack .agent-talk-turns {
@@ -3262,14 +3302,14 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 }
 
 /* lina-app#162: on a phone the open card's goals scroll in their own region, sized to end above the field bar and the
-   strip with the window's head and the card's toggle in view: the screen's content box (the strip, the safe area and
-   the keyboard already out of it), less the head and toggle above and the field bar's own height below. */
+   strip with the card's toggle in view: the screen's content box (the strip, the safe area and the keyboard already out
+   of it), less the toggle above and the field bar's own height below. The window's head is in the bar (lina-app#191). */
 .stack .phone-main:has(> .agent-talk) {
   container-type: size;
 }
 
 .stack .agent-card.is-open > .agent-card-body {
-  max-height: max(88px, calc(100cqh - 128px - var(--hit) - 12px - var(--talk-error-line, 0px)));
+  max-height: max(88px, calc(100cqh - 66px - var(--hit) - 12px - var(--talk-error-line, 0px)));
   overflow-y: auto;
 }
 

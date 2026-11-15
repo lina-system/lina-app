@@ -3280,13 +3280,19 @@ const drivers = {
       check(previews[0] === "변경 목록을 모으는 중이에요. 배포 순서는 답을 기다려요." && previews[1] === "아직 나눈 대화 없음", "the rows read " + JSON.stringify(previews));
       return agents + " agents; " + previews.join(" / ");
     });
-    await step("choose the first agent: its earlier turns, the window says it is not the messenger chat, its card holds its goals", async () => {
+    await step("choose the first agent: its earlier turns, its mark and name once in the bar, no help line, its card holds its goals", async () => {
       await page.locator(wide ? "[data-testid=nav-talk-0] a" : "[data-testid=talk-agent-0] a").click();
       await settled(page);
       await box().getByTestId("talk-mine").first().waitFor({ timeout: 10_000 });
       const mine = await box().getByTestId("talk-mine").allInnerTexts();
       check(JSON.stringify(mine) === JSON.stringify(["어디까지 왔어요?"]), "the earlier turns read " + JSON.stringify(mine));
-      check((await box().innerText()).includes("앱 대화 · 메신저 대화와 따로 남음"), "the window does not say it is apart from the messenger chat");
+      // lina-app#191: the agent's mark and name are the screen's one title, in the bar, and the window repeats neither.
+      const titles = page.getByTestId("screen-title");
+      check((await titles.count()) === 1, "screen titles: " + (await titles.count()));
+      const name = await text(titles);
+      check((await page.locator(wide ? ".toolbar" : ".navbar").locator(".talk-head > .mark").count()) === 1, "the bar's title has no agent mark");
+      check((await box().getByTestId("agent-talk-name").count()) === 0 && (await page.getByTestId("agent-talk-name").count()) === 1, "the name " + name + " is not once, in the bar");
+      check(!(await page.locator("body").innerText()).includes("메신저 대화와 따로 남음"), "the help line still shows");
       const card = page.getByTestId("agent-card");
       if (!wide) await card.getByRole("button").first().click();
       const goals = await card.locator("[data-testid=section-goals] [data-testid=row] .title").allInnerTexts();
@@ -3375,13 +3381,53 @@ const drivers = {
       return hash + " -> " + talk;
     });
     if (!wide) {
-      await step("phone: the field and 보내기 are 44 px tall and back reads 대화", async () => {
+      await step("phone: the field and 보내기 are 44 px tall, back is an icon named 대화, and the head stays in the bar while the window scrolls", async () => {
         const heights = await box().locator(".agent-talk-form textarea, .agent-talk-form button").evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().height)));
         check(heights.every((height) => height >= 44), "heights " + heights.join(", "));
-        check((await text(page.getByTestId("back"))) === "대화", "back reads " + (await text(page.getByTestId("back"))));
-        return heights.join(", ") + " px";
+        const back = page.getByTestId("back");
+        check((await text(back)) === "" && (await back.getAttribute("aria-label")) === "대화", "back reads " + JSON.stringify(await text(back)) + " named " + (await back.getAttribute("aria-label")));
+        const edge = await page.locator(".navbar").evaluate((bar) => getComputedStyle(bar).borderBottomStyle);
+        check(edge === "solid", "the bar has no edge over the window: " + edge);
+        const title = page.locator(".navbar").getByTestId("screen-title");
+        const before = await title.boundingBox();
+        // A scroll moves layout at once; the box read after it is the scrolled one.
+        await page.locator(".phone-main").evaluate((main) => (main.scrollTop = 0));
+        const after = await title.boundingBox();
+        check(before && after && Math.round(before.y) === Math.round(after.y) && (await title.isVisible()), "the head moved with the window: " + JSON.stringify([before, after]));
+        return heights.join(", ") + " px; head at y " + Math.round(after.y);
       });
     }
+    await step("pictures: an agent with avatar: true draws its picture in the bar; a picture that fails leaves the letter circle at the same size", async () => {
+      // The synthetic scene's first agent has avatar: true; the core's route (lina#738) is served here, then made to fail.
+      // Its own context with the service worker blocked: the app's worker passes reads past page.route.
+      const context = await touchContext(page, { serviceWorkers: "block" });
+      try {
+        const own = await context.newPage();
+        let answer = "picture";
+        const picture = '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#7c4dff"/></svg>';
+        await own.route("**/api/lina/agents/*/avatar", (route) =>
+          answer === "picture" && route.request().url().includes("/agents/ag-1/") ? route.fulfill({ status: 200, contentType: "image/svg+xml", body: picture }) : route.fulfill({ status: 404, contentType: "application/json", body: '{"error":"not_found"}' }),
+        );
+        const mark = own.locator(wide ? ".toolbar" : ".navbar").locator(".talk-head > .mark");
+        await openApp(own, "#/talk/ag-1");
+        await own.waitForFunction(() => document.querySelector(".talk-head > .mark img")?.naturalWidth > 0, null, { timeout: 5_000 });
+        const shown = await mark.boundingBox();
+        answer = "missing";
+        await openApp(own, "#/talk/ag-1");
+        await mark.waitFor();
+        await own.waitForFunction(() => !document.querySelector(".talk-head > .mark img"), null, { timeout: 5_000 });
+        const fallback = await mark.boundingBox();
+        const letter = await text(mark);
+        check(letter.length === 1, "the fallback circle reads " + JSON.stringify(letter));
+        check(Math.round(shown.width) === Math.round(fallback.width) && Math.round(shown.height) === Math.round(fallback.height), "the mark changed size: " + JSON.stringify([shown, fallback]));
+        await openApp(own, "#/talk/ag-2");
+        await mark.waitFor();
+        check((await mark.locator("img").count()) === 0, "an agent with no picture asked for one");
+        return "picture " + Math.round(shown.width) + " px, fallback " + JSON.stringify(letter) + " " + Math.round(fallback.width) + " px";
+      } finally {
+        await context.close();
+      }
+    });
   },
 
   async install(page, step) {

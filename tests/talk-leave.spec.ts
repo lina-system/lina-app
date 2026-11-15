@@ -23,7 +23,7 @@ test("a message sent just before opening another agent stays in its window, and 
   await openAgent(page, 0, phone);
   const window = page.getByTestId("agent-talk");
   await expect(window.getByTestId("talk-mine")).toHaveText(["어디까지 왔어요?"]);
-  const name = (await window.getByTestId("agent-talk-name").textContent()) ?? "";
+  const name = (await page.getByTestId("agent-talk-name").textContent()) ?? "";
   await page.clock.pauseAt(new Date(Date.now() + 60_000));
 
   await window.getByRole("textbox", { name: "메시지" }).fill("오늘 어디까지 했어요?");
@@ -37,7 +37,7 @@ test("a message sent just before opening another agent stays in its window, and 
   await openAgent(page, 0, phone);
   // The window reads its earlier turns from an effect, which Preact runs on the page's (paused) timers.
   await page.clock.runFor(100);
-  await expect(window.getByTestId("agent-talk-name")).toHaveText(name);
+  await expect(page.getByTestId("agent-talk-name")).toHaveText(name);
   await expect(window.getByTestId("talk-mine")).toHaveText(["어디까지 왔어요?", "오늘 어디까지 했어요?"]);
   await expect(window.getByTestId("talk-live")).toBeAttached();
 

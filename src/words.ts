@@ -282,8 +282,6 @@ export const W = {
   talkFailed: "답을 받지 못함",
   talkUnknownAgent: "없는 에이전트",
   talkRefusedKey: "에이전트가 연결을 거절함",
-  /** The owner's own window on an agent is not its messenger chat (lina#482). */
-  appWindow: "앱 대화 · 메신저 대화와 따로 남음",
   noTurns: "아직 나눈 대화 없음",
   historyFailed: "지난 대화를 읽지 못함",
   pickAgent: "에이전트를 고르면 대화가 열림",

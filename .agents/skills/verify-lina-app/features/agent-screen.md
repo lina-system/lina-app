@@ -10,7 +10,7 @@ Each configured agent has a screen: its running cards, cards needing review, its
 
 ## Intended behavior
 
-- The sidebar lists every agent with its colour dot, first letter and the count of its running cards, hidden at 0, and its stopped cards as a separate small red number, also hidden at 0.
+- The sidebar lists every agent with its mark (its picture, or its colour dot and first letter) and the count of its running cards, hidden at 0, and its stopped cards as a separate small red number, also hidden at 0.
 - The screen reads `진행 중` → `검토 필요` → `예정` → `목표` → one line `완료 · 오늘 n ›`; finished work never sits between running work and goals. The done line opens 완료 filtered to this agent (`#/done?agent=<id>`).
 - `예정` holds the agent's cards just created and not started, with no time beside them; they show nowhere else (not on the home).
 - `진행 중` holds the agent's stopped cards (first) and running cards. A stopped card's title keeps the label colour; only `중단됨 · <reason>` is red and its time is grey; `검토 필요` holds its cards waiting for review.

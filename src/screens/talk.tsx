@@ -572,11 +572,29 @@ function settle(box: Outbox, turn: Sent) {
 }
 
 /**
- * The owner's own window on one agent (lina#482): the earlier turns read from the core, then this page's turns, the
- * reply streaming in under the agent's mark. It is the agent's app conversation, not its messenger chat, and says so.
- * `titled`: the window is the whole screen (a phone), so the agent's name is the screen's title.
+ * Who the window talks with, as a chat app's head shows it (lina-app#191): the agent's mark and name, the screen's one
+ * title, in the bar over the window (the phone's navbar, the wide window's toolbar), so it never scrolls away. Before
+ * the agents are read, and for an address no agent has, it reads the tab's word.
  */
-export function AgentTalk({ agent, titled = false, children }: { agent: string; titled?: boolean; children?: ComponentChildren }) {
+export function TalkHead({ agent }: { agent: string }) {
+  const { model } = useApp();
+  const known = model.agents.some((each) => each.id === agent);
+  return (
+    <div class="talk-head">
+      {known ? <AgentMark id={agent} /> : null}
+      <h1 class="one-line" data-testid="screen-title">
+        <span data-testid={known ? "agent-talk-name" : undefined}>{known ? agentName(model, agent) : W.talk}</span>
+      </h1>
+    </div>
+  );
+}
+
+/**
+ * The owner's own window on one agent (lina#482): the earlier turns read from the core, then this page's turns, the
+ * reply streaming in under the agent's mark. It is the agent's app conversation, not its messenger chat. Its head is
+ * TalkHead, in the bar above it.
+ */
+export function AgentTalk({ agent, children }: { agent: string; children?: ComponentChildren }) {
   const { model, store } = useApp();
   const [lines, setLines] = useState<readonly ThreadLine[] | null>(null);
   const [historyError, setHistoryError] = useState(false);
@@ -713,18 +731,9 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
   if (missing) {
     return (
       <section class="agent-talk" aria-label={W.talkMissing} data-testid="talk-missing">
-        <header class="agent-talk-head">
-          <span class="lines">
-            {titled ? (
-              <h1 class="agent-talk-title" data-testid="screen-title">
-                <span class="title one-line">{W.talkMissing}</span>
-              </h1>
-            ) : (
-              <span class="title one-line">{W.talkMissing}</span>
-            )}
-          </span>
-        </header>
         <p class="empty">
+          {W.talkMissing}
+          <br />
           <a class="text-button" href={href({ name: "talks" })}>
             {W.talk}
           </a>
@@ -735,23 +744,6 @@ export function AgentTalk({ agent, titled = false, children }: { agent: string; 
 
   return (
     <section class="agent-talk" aria-label={`${name} ${W.talk}`} data-testid="agent-talk">
-      <header class="agent-talk-head">
-        <AgentMark id={agent} />
-        <span class="lines">
-          {titled ? (
-            <h1 class="agent-talk-title" data-testid="screen-title">
-              <span class="title one-line" data-testid="agent-talk-name">
-                {name}
-              </span>
-            </h1>
-          ) : (
-            <span class="title one-line" data-testid="agent-talk-name">
-              {name}
-            </span>
-          )}
-          <span class="sub">{W.appWindow}</span>
-        </span>
-      </header>
       {children}
       <div class="agent-talk-turns">
         {lines === null ? (

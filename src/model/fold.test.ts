@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { foldReason, tidyFoldedText, titleMayDraw, withoutRefs } from "./fold";
+import { foldedText, foldReason, tidyFoldedText, titleMayDraw, withoutRefs } from "./fold";
 
 test("a comment shows as it is unless it would show a path, a command, a hash, an issue number, an address or a fragment", () => {
   for (const plain of ["오류 문구 초안을 공유했어요.", "카드 번호는 앞 여섯 자리까지 보여 줄까요?", "1.5배 빨라졌어요."]) expect(foldReason(plain)).toBeNull();
@@ -111,4 +111,36 @@ test.each([
 test("a title is hidden only when it has no Hangul or runs three Latin words; names and short abbreviations stay (lina-app#156)", () => {
   for (const shown of ["가짜 PR 검사 대기", "OCX 가짜 재설치", "gh 가짜 확인", "가짜 omo-task 정리", "가짜 build-amd 모델 길 열기", "Honcho 가짜 정리", "가짜 판 2.97 다시 깔기"]) expect(titleMayDraw(shown), shown).toBe(true);
   for (const hidden of ["Re-review: fake verdict fixes", "fake-node: gone slots", "가짜 카드에서 fake worker run 받기", "", "   "]) expect(titleMayDraw(hidden), hidden).toBe(false);
+});
+
+// lina-app#161 item 6: comment sentences in the hub's real shapes. withoutRefs cuts the ref and leaves the words around
+// it; a sentence left as debris (a lone particle, a bare label, a label whose value was the ref) goes whole. The address
+// host is an example name in place of the real one.
+test.each([
+  ["백업 대체는 t_e6e0f90a 가 맡는다.", ""],
+  ["남은 범위 lina#718 라 카드 완료 금지.", ""],
+  ["주소: (lina-system/lina#12), (hermes-ops#277)", ""],
+  ["주소: http://hub.example.com:8080/ 되돌릴 커밋: e37e43f", ""],
+  ["Codex 리뷰 요청함. 남은 범위 lina#718 라 카드 완료 금지.", "Codex 리뷰 요청함."],
+  ["t_e6e0f90a 카드에서 이어서 확인함.", "카드에서 이어서 확인함."],
+  ["그 일은 오늘 가 볼 예정.", "그 일은 오늘 가 볼 예정."],
+  ["#196은 이 경로를 건드리지 않는다.", "이 경로를 건드리지 않는다."],
+  ["lina#206 이 카드가 쉬는 동안 합쳐졌다.", "이 카드가 쉬는 동안 합쳐졌다."],
+  ["주소: 아직 정하지 않음.", "주소: 아직 정하지 않음."],
+  ["(…)", ""],
+  ["(…), (…)", ""],
+  ["…", ""],
+  ["결과: 배포 성공, 커밋: a1b2c3d", "결과: 배포 성공"],
+  ["커밋: a1b2c3d, 결과: 배포 성공", "결과: 배포 성공"],
+  ["결과: ✅", "결과: ✅"],
+  ["확인: 👍", "확인: 👍"],
+  ["결과: ✅, 커밋: a1b2c3d", "결과: ✅"],
+  ["주소: (…) 결과: 배포 성공", "결과: 배포 성공"],
+  ["커밋: a1b2c3d.", ""],
+  ["결과: 배포 성공, 커밋: a1b2c3d.", "결과: 배포 성공."],
+  ["결과: ✅, 커밋: a1b2c3d.", "결과: ✅."],
+  ["결과: 배포 성공, 커밋: a1b2c3d. 정리함.", "결과: 배포 성공. 정리함."],
+  ["결과: 배포 성공, 커밋: a1b2c3d! 확인함.", "결과: 배포 성공! 확인함."],
+])("foldedText(%j) keeps only what still reads: %j (lina-app#161)", (comment, shown) => {
+  expect(foldedText(comment)).toBe(shown);
 });

@@ -83,6 +83,83 @@ export function withoutRefs(text: string): string {
   );
 }
 
+/** A Korean particle standing as its own word: a ref written apart from its particle (`t_e6e0f90a 가`) leaves it alone. */
+const LONE_PARTICLE = String.raw`(?:으로|에서|까지|부터|이라|라고|가|은|는|을|를|라|로|와|과|도|의|만|에)(?=[\s.,!?。]|$)`;
+/** A label: a word ending in `:` before a space or the end (`주소:`, never the `http:` of an address). */
+const LABEL = /\S+:(?=\s|$)/g;
+
+/** A field value that held refs or fold markers and nothing else once they are cut: `✅` or `네` never counts. */
+function fieldEmptied(value: string): boolean {
+  if (/…|\.\.\./.test(value) && ONLY_FOLD_MARKERS.test(value)) return true;
+  // What a cut ref leaves of the sentence end (`a1b2c3d.` leaves `.`) is not a value either.
+  return new RegExp(REF, "u").test(value) && !withoutRefs(value).replace(/[\s.,;:·!?。\-]+/g, "");
+}
+
+/**
+ * The sentence without its labelled fields whose value was nothing but refs (`커밋: a1b2c3d`): the label alone says
+ * nothing. A field with words in it stays, and so does every other field of the sentence. Null when such a label sits
+ * inside a phrase rather than starting a field: that sentence is debris whole (lina-app#161).
+ */
+function withoutEmptyFields(whole: string): string | null {
+  // The sentence end belongs to the sentence, not to its last field: it stays when that field goes.
+  const end = /[.!?。]+\s*$/.exec(whole)?.[0].trim() ?? "";
+  const sentence = end ? whole.slice(0, whole.lastIndexOf(end)) : whole;
+  const labels = [...sentence.matchAll(LABEL)];
+  let out = sentence;
+  let cut = false;
+  for (const [index, label] of [...labels.entries()].reverse()) {
+    const fieldEnd = labels[index + 1]?.index ?? sentence.length;
+    const value = sentence.slice(label.index + label[0].length, fieldEnd);
+    if (!value.trim() || !fieldEmptied(value)) continue;
+    // A label standing inside a phrase (`되돌릴 커밋: <hash>`) has no field of its own to cut: the sentence goes.
+    if (!/(?:^|[,;·.!?。/+-])\s*$/.test(sentence.slice(0, label.index))) return null;
+    out = out.slice(0, label.index) + " " + out.slice(fieldEnd);
+    cut = true;
+  }
+  if (!cut) return whole;
+  const kept = out.replace(/[\s·,:;\-\u2013\u2014]+$/, "");
+  return kept && end ? kept + end : kept;
+}
+
+/** A sentence of nothing but the hub's fold markers (`(…)`, `…`, `...`) and the brackets and separators around them. */
+const ONLY_FOLD_MARKERS = /^[\s()[\]….,·:;]*$/;
+
+/**
+ * Whether what withoutRefs left of a sentence is debris (lina-app#161): a particle the cut ref stood before, or one
+ * bare word with no sentence end where more words stood. A sentence that lost no ref is never debris.
+ */
+function leftAsDebris(sentence: string, cut: string): boolean {
+  if (cut === tidyFoldedText(sentence)) return false;
+  if (!cut) return true;
+  if (new RegExp(`(?:${REF})\\s+${LONE_PARTICLE}`, "u").test(sentence)) return true;
+  return !/\s/.test(cut) && !/[.!?。]$/.test(cut) && /\s/.test(sentence.trim());
+}
+
+/**
+ * A comment or history text as the screens show it (lina-app#161): each sentence through withoutRefs, and a sentence
+ * left as debris (leftAsDebris) dropped whole, an empty labelled field cut alone (withoutEmptyFields), so `가 맡는다`,
+ * `범위 라 …` or a bare `주소` never shows. A sentence of only fold markers goes too. Empty when nothing is left. List titles keep withoutRefs alone: a row never loses its whole title.
+ */
+export function foldedText(text: string): string {
+  return text
+    .split("\n")
+    .map((line) =>
+      line
+        .split(/(?<=[.!?。])\s+/)
+        .map((whole) => {
+          if (/…|\.\.\./.test(whole) && ONLY_FOLD_MARKERS.test(whole)) return "";
+          const sentence = withoutEmptyFields(whole);
+          if (sentence === null) return "";
+          const cut = withoutRefs(sentence);
+          return leftAsDebris(sentence, cut) ? "" : cut;
+        })
+        .filter(Boolean)
+        .join(" "),
+    )
+    .filter(Boolean)
+    .join("\n");
+}
+
 /**
  * Whether a title, its refs already cut, may be drawn on a row (lina-app#156): only one with no Hangul, or with a run
  * of three Latin words (an English sentence), is hidden. Product and tool names and short abbreviations (PR, QA, gh,

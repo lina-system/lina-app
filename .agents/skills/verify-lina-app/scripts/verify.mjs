@@ -2517,6 +2517,26 @@ const drivers = {
       check(back2 === "작업", "back over the sheet reads " + back2);
       return "작업 → 진행 중인 작업 → card sheet";
     });
+    await step("a real tap on the dimmed strip between the bar and the sheet closes the sheet", async () => {
+      const frame = page.getByTestId("detail-frame");
+      await frame.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+      const bar = await page.locator(".navbar").boundingBox();
+      const sheet = await frame.boundingBox();
+      const top = bar.y + bar.height;
+      check(sheet.y - top >= 8, "the strip above the sheet is " + (sheet.y - top) + " px tall");
+      const y = Math.round((top + sheet.y) / 2);
+      // A pointer at the point the owner taps, not a call on the scrim (lina-app#184): whatever is drawn there takes it.
+      const hit = await page.evaluate((y) => document.elementFromPoint(200, y)?.className ?? "", y);
+      await page.mouse.click(200, y);
+      await page.waitForFunction(() => location.hash === "#/running", null, { timeout: 2000 }).catch(() => {});
+      const hash = new URL(page.url()).hash;
+      check(hash === "#/running", "a tap at y " + y + " landed on " + JSON.stringify(hit) + " and left " + hash);
+      check((await page.getByTestId("detail-frame").count()) === 0, "the sheet is still drawn after the tap");
+      // The card again, so browser back below returns to the list as before.
+      await page.getByRole("list", { name: "진행 중인 작업" }).getByRole("link").first().click();
+      await page.getByTestId("detail-frame").getByTestId("screen-card").waitFor();
+      return "tap at y " + y + " (strip " + top + "-" + sheet.y + ") on " + JSON.stringify(hit) + " closed the sheet";
+    });
     await step("the browser back button restores the screen and its scroll", async () => {
       await page.goBack();
       await page.waitForFunction(() => location.hash === "#/running");

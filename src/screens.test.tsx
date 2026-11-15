@@ -1048,9 +1048,13 @@ describe("retry", () => {
       const view = await open("#/running", { wide: true, source });
       const buttons = view.getAllByRole("button", { name: /다시 시도$/ });
       expect(buttons).toHaveLength(1);
+      // 다시 시도 waits for the card's comments, which say whether a request already stands (lina-app#208).
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+      expect((buttons[0] as HTMLButtonElement).disabled).toBe(false);
       fireEvent.click(buttons[0]);
-      // The board does not list the worker runs a card started (as the core), so the card's to-do is not known and
-      // 다시 시도 asks the card itself.
+      // A work card takes the request on the card, even once its read detail names its runs' to-do.
       await waitFor(() => expect(source.calls).toEqual(['answerCard ["k-103",{"text":"다시 시도해 주세요."}]']));
       await waitFor(() => expect(view.getByTestId("retry-requested").textContent).toMatch(/^\S+에게 요청함$/));
       await act(async () => {

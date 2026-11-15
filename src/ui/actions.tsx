@@ -267,14 +267,18 @@ export class Actions {
     this.notify();
   }
 
-  /** Asks the card's owning agent to try again, once: a press while the last request still stands sends nothing. */
+  /**
+   * Asks the card's owning agent to try again, once: a press while the last request still stands, here or in the card's
+   * comments (lina-app#208), or before those are read, sends nothing. A run asks on its to-do; a work card always on
+   * the card, where its comments keep the request.
+   */
   async retry(card: CardRow): Promise<void> {
-    if (this.requested(card.key)) return;
+    if (card.asked === true || card.asked === null || this.requested(card.key)) return;
     const mark = this.cardMark(card.key);
     this.requestedOf.set(card.key, null);
     this.errors.delete(`retry:${card.key}`);
     this.notify();
-    const result = await this.store.write<unknown>((source) => (card.todo ? source.retry(card.todo) : source.answerCard(card.id, { text: W.retryText })), { refresh: false });
+    const result = await this.store.write<unknown>((source) => (card.kind === "run" && card.todo ? source.retry(card.todo) : source.answerCard(card.id, { text: W.retryText })), { refresh: false });
     if (result.ok) this.requestedOf.set(card.key, mark);
     else {
       this.requestedOf.delete(card.key);

@@ -174,8 +174,9 @@ export class Store {
   }
 
   /**
-   * Writes the kept copy at the stream's cursor: the lists, the slow routes and the open screen's routes as last read,
-   * the finished cards cut to the first page. Not while the credential is refused, and not again for the same state.
+   * Writes the kept copy at the stream's cursor: the lists, the slow routes, the open screen's routes and the read
+   * details of stopped cards (their comments hold a standing 다시 시도, lina-app#208) as last read, the finished cards
+   * cut to the first page. Not while the credential is refused, and not again for the same state.
    */
   private keep(): void {
     if (!this.stored || this.refused || this.denied || this.cursor === null) return;
@@ -187,7 +188,8 @@ export class Store {
     // it would not read that list until some event named it. Without every list there is no copy.
     for (const list of LIST_ROUTES) if (this.entries.get(list)?.data === undefined) return;
     const routes: Record<string, StoredRoute> = {};
-    for (const [name, id] of [...LIST_ROUTES.map((list) => [list] as const), ...SLOW_ROUTES, ...this.wanted]) {
+    const stopped = (this.get("cards")?.cards ?? []).filter((card) => card.state === "stopped").map((card) => ["card", card.id] as const);
+    for (const [name, id] of [...LIST_ROUTES.map((list) => [list] as const), ...SLOW_ROUTES, ...this.wanted, ...stopped]) {
       // The settings' writes need the ETag of the read that is on screen, which a kept copy does not hold.
       if (name === "settings" || name === "settingsHistory") continue;
       const key = this.key(name, id);
@@ -539,13 +541,18 @@ export class Store {
     return this.finishing;
   }
 
-  /** Reads routes not read yet without changing what the open screen wants (an expanded row's record). */
+  /**
+   * Reads routes not read yet without changing what the open screen wants (a stopped card's comments, lina-app#208).
+   * Read after the last cursor whose reads landed, so the kept copy written then stays at least as new as its cursor.
+   */
   ensure(routes: Want): void {
     const missing = distinct(routes).filter(([name, id]) => !this.entries.has(this.key(name, id)));
     if (!missing.length) return;
     for (const [name, id] of missing) this.entries.set(this.key(name, id), { status: "pending" });
     void Promise.all(missing.map(([name, id]) => this.load(name, id))).then((changes) => {
-      if (changes.some(Boolean)) this.changed();
+      if (!changes.some(Boolean)) return;
+      this.changed();
+      this.keep();
     });
   }
 

@@ -150,6 +150,11 @@ export interface CardRow {
   readonly goalTitle?: string | null;
   /** The cards such a line stands for, newest first, the line's own card first (lina-app#171); absent for one. */
   readonly fold?: readonly CardRow[];
+  /**
+   * A stopped work card whose comments hold the owner's 다시 시도 since its last beat (lina-app#208): the request still
+   * stands, on any page. Null while its detail, which holds the comments, is not read; absent on every other row.
+   */
+  readonly asked?: boolean | null;
 }
 
 /**
@@ -629,6 +634,9 @@ export function buildModel(input: ModelInput, now: number): Model {
     const words = [stop.words, short].filter(Boolean).join(SEP);
     return short === reason ? { ...stop, words } : { ...stop, words, reason: { lead: stop.words, text: reason } };
   };
+  // The owner's 다시 시도 on a card is a comment on it (the core keeps no other trace): one newer than the stop still stands.
+  const retryAsked = (detail: WorkCardDetail | undefined, stoppedAt: number | null): boolean | null =>
+    detail ? detail.comments.some((comment) => (comment.author === "owner" || comment.author === items?.owner?.id) && comment.body === W.retryText && (stoppedAt === null || comment.createdAt > stoppedAt)) : null;
   // The title of a to-do in the work record (never a goal: a goal names a row last), when it may be drawn.
   const todoName = (ids: readonly (string | null)[]) => ids.map((id) => (id ? itemMap.get(id) : undefined)).map((item) => (item && item.kind !== "goal" ? plainName(item.title) : null)).find(Boolean) ?? null;
   const runListRow = (run: RunCard): CardRow => {
@@ -668,7 +676,7 @@ export function buildModel(input: ModelInput, now: number): Model {
       const reason = said !== null && CUT_END.test(said) ? (whole ?? said) : (said ?? whole);
       // An ask that names the row is its reason already.
       const stop = row.stop && !(ask !== null && ask === title) ? stopWithReason(row.stop, row.reason, reason) : row.stop;
-      return { row: { ...row, title, name: title ?? row.name, stop, ask: null }, listed: !isEnded(card) };
+      return { row: { ...row, title, name: title ?? row.name, stop, ask: null, ...(card.state === "stopped" ? { asked: retryAsked(input.cardDetails[card.id], row.stateAt) } : {}) }, listed: !isEnded(card) };
     }),
     ...(board?.cards ?? []).map((run) => ({ row: runListRow(run), listed: false })),
   ];

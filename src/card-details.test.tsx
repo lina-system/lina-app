@@ -57,8 +57,12 @@ function fakeCore(scene: SyntheticSource, delayMs = 0) {
     if (result.kind !== "data") return new Response("{}", { status: 404 });
     return new Response(JSON.stringify(result.data), { status: 200 });
   }) as typeof fetch;
-  return { requests, fetchImpl, details: () => requests.flatMap((url) => CARD_DETAIL.exec(url)?.[1] ?? []) };
+  const reads = () => requests.flatMap((url) => CARD_DETAIL.exec(url)?.[1] ?? []);
+  // The one card the scene offers 다시 시도 on is read for its comments, wherever its row is drawn (lina-app#208).
+  return { requests, fetchImpl, details: () => reads().filter((id) => id !== RETRY_ROW), retryReads: () => reads().filter((id) => id === RETRY_ROW) };
 }
+
+const RETRY_ROW = "k-103";
 
 /** The change stream stays connecting: these tests are about the reads. */
 class QuietSocket {
@@ -93,14 +97,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-test(`the first load of ${CARDS} work cards reads the lists once and no card's detail; opening a card reads that card alone`, async () => {
+test(`the first load of ${CARDS} work cards reads the lists once and no card's detail but the 다시 시도 row's; opening a card reads that card alone`, async () => {
   const core = fakeCore(manyCards());
   const { store, view } = mount("#/running", core);
   await waitFor(() => expect(store.refreshes).toBeGreaterThan(0));
   // The unfinished cards and the newest finished ones (lina-app#186), from one read of the list.
   await waitFor(() => expect(view.getByTestId("section-finished").querySelectorAll("[data-testid=row]")).toHaveLength(FINISHED_SHOWN));
-  expect(core.requests.filter((url) => url.includes("/api/plugins/kanban/work/cards"))).toEqual([`/api/plugins/kanban/work/cards?finished_limit=${FINISHED_SHOWN}`]);
+  expect(core.requests.filter((url) => url.includes("/api/plugins/kanban/work/cards?"))).toEqual([`/api/plugins/kanban/work/cards?finished_limit=${FINISHED_SHOWN}`]);
   expect(core.details()).toEqual([]);
+  await waitFor(() => expect(core.retryReads()).toEqual([RETRY_ROW]));
 
   window.location.hash = "#/cards/k-1100";
   await waitFor(() => expect(view.getByTestId("screen-card").querySelector("[data-testid=detail-loading]")).toBeNull());

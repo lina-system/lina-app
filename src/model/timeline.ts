@@ -1,7 +1,6 @@
 import type { ItemDetail, RecordRound, RecordRow, RunRecord } from "../api/client";
 import { STATE_WORD, stateLabel, W } from "../words";
-import { foldReason, STATE_ONLY, wholeText } from "./fold";
-import { plainText } from "./plain";
+import { STATE_ONLY, wholeText } from "./fold";
 import { holds } from "./rounds";
 
 /** Who writes machine notices on a card (the dispatcher's and the worker's receipts): never a history line. */
@@ -36,18 +35,21 @@ export function commentLine(text: string, author: string | null | undefined, own
 /**
  * History entries newest first (lina-app#149, the one order of every history; of two at the same time, the one
  * recorded later first): an entry with no line of its own (`text` null) folds, and each run of them is one line with
- * their count (`folded`). A state word alone that follows the same state word is one line with the newest time and
- * their `count` (lina-app#236, drawn `×n`); an entry that carries its own count adds it.
+ * their count (`folded`) that holds them (`held`, newest first: the line opens to them, lina-app#241). A state word alone
+ * that follows the same state word is one line with the newest time and their `count` (lina-app#236, drawn `×n`); an
+ * entry that carries its own count adds it.
  */
-export function historyLines<T extends { readonly at: number; readonly text: string | null; readonly count?: number }>(entries: readonly T[]): (T & { readonly folded: number; readonly count: number })[] {
-  const lines: (T & { folded: number; count: number })[] = [];
+export function historyLines<T extends { readonly at: number; readonly text: string | null; readonly count?: number }>(entries: readonly T[]): (T & { readonly folded: number; readonly count: number; readonly held: readonly T[] })[] {
+  const lines: (T & { folded: number; count: number; held: T[] })[] = [];
   const order = entries.map((entry, index) => ({ entry, index })).sort((a, b) => b.entry.at - a.entry.at || b.index - a.index);
   for (const { entry } of order) {
     const last = lines.at(-1);
     const count = entry.count ?? 1;
-    if (entry.text === null && last && last.text === null) last.folded += 1;
-    else if (entry.text !== null && STATE_ONLY.has(entry.text) && last?.text === entry.text) last.count += count;
-    else lines.push({ ...entry, folded: entry.text === null ? 1 : 0, count });
+    if (entry.text === null && last && last.text === null) {
+      last.folded += 1;
+      last.held.push(entry);
+    } else if (entry.text !== null && STATE_ONLY.has(entry.text) && last?.text === entry.text) last.count += count;
+    else lines.push({ ...entry, folded: entry.text === null ? 1 : 0, count, held: entry.text === null ? [entry] : [] });
   }
   return lines;
 }
@@ -58,7 +60,7 @@ export function historyLines<T extends { readonly at: number; readonly text: str
  * line (lina-app#149, #153, #226). A text drawn more than once is one line at its newest time with its `count`
  * (lina-app#230), so the folded lines around a repeat it took away read as one.
  */
-export function commentHistory<T extends { readonly at: number; readonly author: string | null; readonly body: string | null }>(comments: readonly T[], owner?: string | null): (T & { readonly text: string | null; readonly count: number; readonly folded: number })[] {
+export function commentHistory<T extends { readonly at: number; readonly author: string | null; readonly body: string | null }>(comments: readonly T[], owner?: string | null): (T & { readonly text: string | null; readonly count: number; readonly folded: number; readonly held: readonly (T & { readonly text: string | null })[] })[] {
   const lines = comments.filter((comment) => !isMachineNotice(comment.body, comment.author, owner)).map((comment) => ({ ...comment, text: commentLine(comment.body ?? "", comment.author, owner) }));
   // A state word alone is an event, no sentence: historyLines counts one that repeats the line before it.
   const sentence = (text: string | null): text is string => text !== null && !STATE_ONLY.has(text);
@@ -95,11 +97,19 @@ export function decisionHistory(detail: Pick<ItemDetail, "decision" | "comments"
   return rows;
 }
 
-/** One event of a goal's history (기록): when, what kind, and the one sentence its row shows. */
+/** A text a folded line holds, to open as written (lina-app#241): when (if known), who wrote it (none for a record row) and all of it. */
+export interface HeldText {
+  readonly at: number | null;
+  readonly by: string | null;
+  readonly text: string;
+}
+
+/** One event of a goal's history (기록): when, what kind, the one sentence its row shows, and what a folded row holds. */
 export interface HistoryRow {
   readonly at: number;
   readonly kind: "comment" | "question" | "run" | "merge" | "close";
   readonly text: string;
+  readonly held: readonly HeldText[];
 }
 
 /**
@@ -108,10 +118,10 @@ export interface HistoryRow {
  * close. One row per event, `time · one line` (lina-app#123, #226, #236); state words that follow each other are one row with `×n`.
  */
 export function goalHistory(detail: ItemDetail, evidence: readonly { readonly at: number | null; readonly text: string }[], owner?: string | null): HistoryRow[] {
-  const rows: { at: number; kind: HistoryRow["kind"]; text: string | null }[] = [];
+  const rows: { at: number; kind: HistoryRow["kind"]; text: string | null; by?: string | null; source?: string }[] = [];
   for (const comment of detail.comments) {
-    if (!isMachineNotice(comment.text, comment.by, owner)) rows.push({ at: comment.at, kind: "comment", text: commentLine(comment.text, comment.by, owner) });
-    for (const reply of comment.replies) if (!isMachineNotice(reply.text, reply.by, owner)) rows.push({ at: reply.at, kind: "comment", text: commentLine(reply.text, reply.by, owner) });
+    if (!isMachineNotice(comment.text, comment.by, owner)) rows.push({ at: comment.at, kind: "comment", text: commentLine(comment.text, comment.by, owner), by: comment.by, source: comment.text });
+    for (const reply of comment.replies) if (!isMachineNotice(reply.text, reply.by, owner)) rows.push({ at: reply.at, kind: "comment", text: commentLine(reply.text, reply.by, owner), by: reply.by, source: reply.text });
   }
   rows.push(...decisionHistory(detail));
   for (const run of detail.runs) {
@@ -123,8 +133,19 @@ export function goalHistory(detail: ItemDetail, evidence: readonly { readonly at
     if (entry.at !== null && whole) rows.push({ at: entry.at, kind: "merge", text: whole });
   }
   if (detail.state === "done" && detail.stateSince !== null) rows.push({ at: detail.stateSince, kind: "close", text: detail.ownerDone ? W.markedDone : STATE_WORD.done });
-  return historyLines(rows).map(({ at, kind, text, folded, count }) => ({ at, kind, text: text === null ? W.foldedRun(folded) : count > 1 ? `${text} ${W.repeated(count)}` : text }));
+  return historyLines(rows).map(({ at, kind, text, folded, count, held }) => ({
+    at,
+    kind,
+    text: text === null ? W.foldedRun(folded) : count > 1 ? `${text} ${W.repeated(count)}` : text,
+    held: held.map((row) => ({ at: row.at, by: row.by ?? null, text: row.source ?? "" })),
+  }));
 }
+
+/**
+ * A record row as the timeline draws it (lina-app#241): `text` is its unit when it stands whole by the one gate (wholeText),
+ * else null and it folds; `source` is what the record holds, which the fold opens to as written.
+ */
+export type TimelineRow = RecordRow & { readonly source: string | null };
 
 /** How a round ended, as one word on its head (W.outcome). */
 export type Outcome = "accepted" | "rejected" | "stopped" | "ended" | "unknown" | "going";
@@ -142,13 +163,14 @@ export type TimelineBlock =
       readonly end: number | null;
       readonly startUnknown: boolean;
       readonly outcome: Outcome;
-      readonly rows: readonly RecordRow[];
+      /** Its rows, newest first: a report line that does not stand whole is a folded row of its own at the round's end. */
+      readonly rows: readonly TimelineRow[];
       /** The round's report line when it stands whole (wholeText); never on a round still going. */
       readonly result: string | null;
       /** How many rounds of this outcome with nothing else in them, one after another, the block stands for (`×n`, lina-app#236). */
       readonly count: number;
     }
-  | { readonly type: "comment"; readonly key: string; readonly at: number; readonly rows: readonly RecordRow[] };
+  | { readonly type: "comment"; readonly key: string; readonly at: number; readonly rows: readonly TimelineRow[] };
 
 /**
  * One round's word. A verdict first (검토 통과, 검토 반려), then its own end (작업 중단, 작업 마침); a round with no
@@ -170,10 +192,13 @@ export function outcomeOf(round: RecordRound, newest: boolean, live: boolean, no
  * board does not list).
  */
 export function timelineBlocks(records: readonly { readonly id: string; readonly record: RunRecord }[], live: (runId: string) => boolean, now: number): TimelineBlock[] {
-  // A machine notice is no row, nor a said row that would show raw text; rows read newest first, as every history (lina-app#149).
-  const shown = (rows: readonly RecordRow[]) => rows.filter((row) => (row.kind === "comment" ? !isMachineNotice(row.text) : row.kind !== "said" || (row.text !== null && !foldReason(plainText(row.text))))).sort((a, b) => b.at - a.at);
-  // A comment row is no owner's words (an agent's note the core cut at 300 characters): whole or folded (lina-app#230, #236).
-  const gated = (rows: readonly RecordRow[]) => shown(rows).map((row) => (row.kind === "comment" ? { ...row, text: wholeText(row.text) } : row));
+  // A machine notice is no row; rows read newest first, as every history (lina-app#149).
+  const shown = <R extends RecordRow>(rows: readonly R[]) => rows.filter((row) => row.kind !== "comment" || !isMachineNotice(row.text)).sort((a, b) => b.at - a.at);
+  // A comment row (an agent's note the core cut at 300 characters) and a going round's said row (what its worker says
+  // now) are no owner's words: whole by the one gate or folded, never a part (lina-app#230, #236, #241). An ended round's
+  // said row is the tail the core kept of a longer text, opening or ending anywhere in it: no unit, so it always folds.
+  const gated = (rows: readonly RecordRow[], ended = false): TimelineRow[] =>
+    shown(rows).map((row) => (row.kind === "tools" ? { ...row, source: null } : { ...row, text: ended && row.kind === "said" ? null : wholeText(row.text), source: row.text }));
   const blocks: TimelineBlock[] = [];
   // A card's worker runs may each serve the card's one record: a round or a comment read twice is drawn once
   // (lina-app#153).
@@ -186,6 +211,9 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
       // A round stands at the time its head reads: a going round's start, an ended one's end (its start when the end
       // is not on record).
       const at = (outcome === "going" ? (round.startedAt ?? round.endedAt) : (round.endedAt ?? round.startedAt)) ?? round.rows[0]?.at ?? 0;
+      const result = outcome === "going" ? null : wholeText(round.result);
+      // A report line that does not stand whole is folded at the round's end, never lost (lina-app#241).
+      const unread: TimelineRow[] = outcome !== "going" && result === null && round.result?.trim() ? [{ at, kind: "said", text: null, count: 1, source: round.result }] : [];
       blocks.push({
         type: "round",
         key: `${id}:${round.run ?? "x"}:${round.startedAt ?? round.endedAt ?? 0}`,
@@ -196,20 +224,22 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
         end: round.endedAt,
         startUnknown: round.startUnknown,
         outcome,
-        rows: gated(round.rows),
-        result: outcome === "going" ? null : wholeText(round.result),
+        rows: shown([...unread, ...gated(round.rows, outcome !== "going")]),
+        result,
         count: 1,
       });
     });
-    for (const comment of gated(record.comments)) if (first(`comment:${comment.at}:${comment.text}`)) blocks.push({ type: "comment", key: `${id}:c:${comment.at}`, at: comment.at, rows: [comment] });
+    for (const comment of gated(record.comments)) if (first(`comment:${comment.at}:${comment.source}`)) blocks.push({ type: "comment", key: `${id}:c:${comment.at}`, at: comment.at, rows: [comment] });
   }
-  // Comments made one after another between rounds are one 댓글 block. A round with nothing in it but the outcome of
-  // the round before it is that round's line, counted (lina-app#153, #236: `검토 통과 ×n` at the newest time).
+  // Comments made one after another between rounds are one 댓글 block. A round with nothing drawn in it but the outcome
+  // of the round before it is that round's line, counted (lina-app#153, #236: `검토 통과 ×n` at the newest time); what it
+  // folds joins that round's rows, so its folded line holds it (lina-app#241).
   const merged: TimelineBlock[] = [];
   for (const block of blocks.sort((a, b) => b.at - a.at)) {
     const last = merged.at(-1);
+    const nothingDrawn = block.rows.every((row) => row.text === null && row.kind !== "tools");
     if (block.type === "comment" && last?.type === "comment") merged[merged.length - 1] = { ...last, rows: shown([...last.rows, ...block.rows]) };
-    else if (block.type === "round" && last?.type === "round" && !block.rows.length && !block.result && block.outcome === last.outcome) merged[merged.length - 1] = { ...last, count: last.count + 1 };
+    else if (block.type === "round" && last?.type === "round" && nothingDrawn && !block.result && block.outcome === last.outcome) merged[merged.length - 1] = { ...last, count: last.count + 1, rows: [...last.rows, ...block.rows] };
     else merged.push(block);
   }
   return merged;

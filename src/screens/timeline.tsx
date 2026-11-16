@@ -1,12 +1,13 @@
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import type { RecordRow, Settings } from "../api/client";
+import type { Settings } from "../api/client";
 import { plainText } from "../model/plain";
 import { runModelLine } from "../model/settings";
-import { historyLines, timelineBlocks, type TimelineBlock } from "../model/timeline";
+import { historyLines, timelineBlocks, type TimelineBlock, type TimelineRow } from "../model/timeline";
 import { clockAt } from "../time";
 import { agentName, Box, useApp } from "../ui/parts";
-import { SEP, W } from "../words";
+import { DETAIL_WORD, SEP, W } from "../words";
+import { FoldLine } from "./comments";
 
 /**
  * The model a worker run used: its record once the screen has read it, else the run card the board lists. It is named
@@ -44,29 +45,36 @@ function timed(at: number, text: string, now: number): string {
   return [clockAt(at, now), text].join(SEP);
 }
 
-function Row({ row, owner, folded, count }: { row: RecordRow; owner: string; folded: number; count: number }) {
+/**
+ * One row of a block. A run of rows that do not stand whole is one folded line that opens to them as the record holds
+ * them (lina-app#241): 접힌 댓글 when they are all comments, else 접힌 기록.
+ */
+function Row({ row, owner, folded, count }: { row: TimelineRow; owner: string; folded: readonly TimelineRow[]; count: number }) {
   const { now } = useApp();
+  if (folded.length)
+    return (
+      <li class="timeline-row is-dim" data-kind="folded">
+        <FoldLine label={folded.every((each) => each.kind === "comment") ? W.foldedRun(folded.length) : DETAIL_WORD.foldedRecords(folded.length)} held={folded.map((each) => ({ at: each.at, by: null, text: each.source ?? "" }))} at={row.at} />
+      </li>
+    );
   if (row.kind === "tools")
     return (
       <li class="timeline-row is-dim" data-kind="tools">
         {timed(row.at, W.toolSteps(row.count), now)}
       </li>
     );
-  if (row.kind === "comment") {
-    // The owner's comment is its words as saved on one line, as in the comments box (lina-app#226); its author is the
-    // tooltip. A run of comments with no words is one dim line with their count.
-    const text = folded ? null : row.text;
+  if (row.kind === "comment")
+    // A comment row whose words stand whole is one line; its author is the tooltip.
     return (
-      <li class={text ? "timeline-row is-comment" : "timeline-row is-comment is-dim"} data-kind="comment" title={owner || undefined}>
-        <span class="timeline-text">{timed(row.at, text ?? W.foldedRun(folded || 1), now)}</span>
-        {text && count > 1 ? <span class="timeline-count">{` ${W.repeated(count)}`}</span> : null}
+      <li class="timeline-row is-comment" data-kind="comment" title={owner || undefined}>
+        <span class="timeline-text">{timed(row.at, row.text ?? "", now)}</span>
+        {count > 1 ? <span class="timeline-count">{` ${W.repeated(count)}`}</span> : null}
       </li>
     );
-  }
   return (
     <li class="timeline-row is-said" data-kind="said">
       {timed(row.at, row.text ?? "", now)}
-      {row.count > 1 ? <span class="timeline-count">{` ${W.repeated(row.count)}`}</span> : null}
+      {Math.max(count, row.count) > 1 ? <span class="timeline-count">{` ${W.repeated(Math.max(count, row.count))}`}</span> : null}
     </li>
   );
 }
@@ -92,8 +100,8 @@ function head(block: TimelineBlock, now: number): string {
 function Block({ block, owner, link, modelRun }: { block: TimelineBlock; owner: string; link: string | null; modelRun: string | null }) {
   const { now } = useApp();
   const [open, setOpen] = useState(true);
-  // A said row or a result line that would show raw text is already left out (timelineBlocks); the round still shows its head.
-  const rows = historyLines(block.rows.map((row) => ({ row, at: row.at, text: row.kind === "comment" ? row.text : "" })));
+  // A said row, a comment row or a report line that does not stand whole is folded (timelineBlocks); the round still shows its head.
+  const rows = historyLines(block.rows.map((row) => ({ row, at: row.at, text: row.kind === "tools" ? "" : row.text })));
   const title = head(block, now);
   return (
     <details class="timeline-block" open={open} onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)} data-testid="timeline-block" data-outcome={block.type === "round" ? block.outcome : "comment"}>
@@ -111,7 +119,7 @@ function Block({ block, owner, link, modelRun }: { block: TimelineBlock; owner: 
       {rows.length ? (
         <ul class="timeline-rows">
           {rows.map((line, index) => (
-            <Row key={`${line.at}:${index}`} row={line.row} owner={owner} folded={line.folded} count={line.count} />
+            <Row key={`${line.at}:${index}`} row={line.row} owner={owner} folded={line.held.map((held) => held.row)} count={line.count} />
           ))}
         </ul>
       ) : null}

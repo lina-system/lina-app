@@ -3496,6 +3496,59 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   color: var(--label-2);
 }
 
+/* lina-app#241: a folded line is a button that opens what it holds, each text whole and as written, its lines kept. */
+.fold-toggle {
+  min-height: var(--hit, 28px);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--label-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fold-toggle::before {
+  content: "\203A";
+  display: inline-block;
+  width: 12px;
+  transition: transform var(--motion);
+}
+
+.fold-toggle[aria-expanded="true"]::before {
+  transform: rotate(90deg);
+}
+
+.fold-toggle:focus-visible,
+.fold-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.fold-held {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  margin: 4px 0 0 12px;
+}
+
+.held-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.held-text {
+  margin: 2px 0 0;
+  color: var(--label);
+  white-space: pre-line;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
 /* lina-app#167: a title, a done condition, a decision's question and its context line, and a check's line wrap at a
    word instead of ending in an ellipsis, so they read beside an open detail (a 380 px list), in the 320 px goal pane of
    대화 and at 390. One line stays where one line is the design: tabs, chips, an agent row's last message and the folded

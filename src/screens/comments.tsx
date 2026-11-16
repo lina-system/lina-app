@@ -1,9 +1,9 @@
-import { useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 import type { ItemComment, ItemDetail } from "../api/client";
 import { KoreanInput } from "../korean-input";
 import { wholeText } from "../model/fold";
-import { ownerWrote } from "../model/timeline";
-import { ago } from "../time";
+import { ownerWrote, type HeldText } from "../model/timeline";
+import { ago, clockAt } from "../time";
 import { agentName, Box, useApp } from "../ui/parts";
 import { DETAIL_WORD, REPLY_RESULT, SEP, W } from "../words";
 import { writeError } from "./write-error";
@@ -16,6 +16,51 @@ export function firstWords(text: string, count = 4): string {
 /** A comment's text in the thread: the owner's as saved (lina-app#226), a bot's whole or nothing (wholeText, lina-app#236). */
 function shownText(text: string, by: string, owner: string): string {
   return ownerWrote(by, owner) ? text : (wholeText(text) ?? "");
+}
+
+/**
+ * A folded line (lina-app#241): a button that opens what it holds, each text whole and as written, in the order of the
+ * history around it, with its time and its author's name (none for a record row or an author the app has no name for,
+ * never an id). On a history it reads `time · words` as every line does (`at`). The gate does not read an opened text: the owner chose to read it. 접기 at its end closes it and puts
+ * focus back on the line, so the reader is where they opened it.
+ */
+export function FoldLine({ label, held, at = null }: { label: string; held: readonly HeldText[]; at?: number | null }) {
+  const { model, now } = useApp();
+  const [open, setOpen] = useState(false);
+  const line = useRef<HTMLButtonElement>(null);
+  return (
+    <>
+      <button ref={line} type="button" class="fold-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {at === null ? label : [clockAt(at, now), label].join(SEP)}
+      </button>
+      {open ? (
+        <div class="fold-held" data-testid="fold-held">
+          <ol class="held-list">
+            {held.map((text, index) => (
+              <li key={`${text.at}:${index}`} class="held">
+                <span class="sub" data-testid="held-head">
+                  {[text.at === null ? "" : clockAt(text.at, now), agentName(model, text.by)].filter(Boolean).join(SEP)}
+                </span>
+                <p class="held-text" data-testid="held-text">
+                  {text.text}
+                </p>
+              </li>
+            ))}
+          </ol>
+          <button
+            type="button"
+            class="text-button fold-close"
+            onClick={() => {
+              setOpen(false);
+              line.current?.focus();
+            }}
+          >
+            {DETAIL_WORD.close}
+          </button>
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 function waitsOnAgent(comment: ItemComment, owner: string): boolean {

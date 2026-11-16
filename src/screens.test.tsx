@@ -2966,13 +2966,14 @@ describe("the run's own timeline", () => {
     expect(titles.join("\n")).not.toMatch(/ –|^–/m);
   });
 
-  test("rows read newest first: sentences bright, tools one dim line with its count, a repeat once with ×n, raw text left out", async () => {
+  test("rows read newest first: sentences bright, tools one dim line with its count, a repeat once with ×n, raw text folded (lina-app#241)", async () => {
     const view = await open("#/cards/k-101", { wide: true });
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const going = view.getAllByTestId("timeline-block")[0];
     const rows = [...going.querySelectorAll(".timeline-row")].map((row) => [row.getAttribute("data-kind"), row.classList.contains("is-dim"), row.textContent]);
     expect(rows).toEqual([
       ["said", false, expect.stringMatching(/^(어제 )?\d\d:\d\d · 요약을 표로 옮기는 중 ×3$/)],
+      ["folded", true, expect.stringMatching(/^(어제 )?\d\d:\d\d · 접힌 기록 1건$/)],
       ["tools", true, expect.stringMatching(/^(어제 )?\d\d:\d\d · 도구 사용 4번$/)],
       ["said", false, expect.stringMatching(/^(어제 )?\d\d:\d\d · 변경마다 한 줄 요약을 붙이는 중$/)],
     ]);
@@ -3051,16 +3052,17 @@ describe("the run's own timeline", () => {
     expect(screenText(view.container)).not.toMatch(/\br\d+\b/);
   });
 
-  test("a run's own page shows its timeline; a raw result line is left out and the round keeps its head", async () => {
+  test("a run's own page shows its timeline; a raw result line folds into one line that opens to it and the round keeps its head (lina-app#241)", async () => {
     const view = await open("#/runs/r6", { wide: true });
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const block = view.getByTestId("timeline-block");
     expect(block.getAttribute("data-outcome")).toBe("ended");
     expect(block.querySelector(".timeline-head")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 완료$/);
     expect(block.querySelector("[data-testid=timeline-result]")).toBeNull();
-    expect(block.querySelector(".timeline-rows")).toBeNull();
     const text = screenText(view.getByTestId("timeline"));
     expect(text).not.toMatch(/index-structure|benchmark|3f2a1c9/);
+    fireEvent.click(within(block).getByRole("button", { name: /접힌 기록 1건$/ }));
+    expect(within(block).getByTestId("held-text").textContent).toBe("index-structure benchmark v2 done (3f2a1c9)");
     expect(text).not.toContain("가린 문장");
   });
 

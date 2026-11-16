@@ -16,7 +16,7 @@ import { useActions } from "../ui/actions";
 import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, itemTime, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, stateWords, useApp } from "../ui/parts";
 import { DETAIL_WORD, reasonWord, ROUND11_WORD, ROUND9_WORD, RUN_LINE_WORD, SEP, STATE_WORD, stateLabel, W, waitWord } from "../words";
 import { PastEvents, RunModelLine, Timeline, type PastEvent } from "./timeline";
-import { Comments, SendButton } from "./comments";
+import { Comments, FoldLine, SendButton } from "./comments";
 import { Talk } from "./talk";
 
 function Missing() {
@@ -438,9 +438,15 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
       {history.length ? (
         <Box title={W.record} testid="goal-history">
           <ul class="history-rows" aria-label={W.record}>
-            {history.map((row, index) => (
-              <HistoryLine key={`${row.at}:${index}`} at={row.at} text={row.text} kind={row.kind} />
-            ))}
+            {history.map((row, index) =>
+              row.held.length ? (
+                <li key={`${row.at}:${index}`} class="history-row" data-testid="history-row" data-kind={row.kind}>
+                  <FoldLine label={row.text} held={row.held} at={row.at} />
+                </li>
+              ) : (
+                <HistoryLine key={`${row.at}:${index}`} at={row.at} text={row.text} kind={row.kind} />
+              ),
+            )}
           </ul>
         </Box>
       ) : null}
@@ -645,9 +651,15 @@ function CardComments({ lines }: { lines: ReturnType<typeof cardCommentLines> })
   return (
     <Box title={W.comments} testid="card-comments">
       <ul class="history-rows" aria-label={W.comments}>
-        {lines.map((line) => (
-          <HistoryLine key={line.id} at={line.at} text={line.text === null ? W.foldedRun(line.folded) : line.count > 1 ? `${line.text} ${W.repeated(line.count)}` : line.text} kind="comment" who={line.text ? agentName(model, line.author) : undefined} />
-        ))}
+        {lines.map((line) =>
+          line.text === null ? (
+            <li key={line.id} class="history-row" data-testid="history-row" data-kind="comment">
+              <FoldLine label={W.foldedRun(line.folded)} held={line.held.map((held) => ({ at: held.at, by: held.author, text: held.body }))} at={line.at} />
+            </li>
+          ) : (
+            <HistoryLine key={line.id} at={line.at} text={line.count > 1 ? `${line.text} ${W.repeated(line.count)}` : line.text} kind="comment" who={agentName(model, line.author)} />
+          ),
+        )}
       </ul>
     </Box>
   );

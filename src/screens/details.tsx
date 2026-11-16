@@ -920,18 +920,23 @@ function WorkerRows({ ids, model, seen, state, link }: { ids: readonly string[];
 }
 
 /**
- * The title of a worker run the board does not list: the core serves no title of its own for it, so it reads the title
- * of the work card it ran for, or 제목 없음 when no card names it (never 코드 작업, lina-app#61 and #128).
+ * The title of a worker run the board does not list: the core serves no title of its own for it, so it reads the name of
+ * the work card it ran for as that card's row reads it (its goal's title first, lina-app#122, else its own title, else its
+ * kind word, lina-app#248), or 제목 없음 when the board does not know the card (lina-app#61 and #128).
  */
 export function workerTitle(model: Model, cardId: string | null | undefined): string {
-  return (cardId ? model.cards.get(cardId)?.own : null) || W.untitledRun;
+  return (cardId ? model.cards.get(cardId)?.name : undefined) ?? W.untitledRun;
 }
 
-/** A to-do's run by the one naming rule: its checked title when the board lists it, never raw text in its place. */
+/**
+ * A to-do's run by the one naming rule: its checked title when the board lists it, a card's worker run its card's name
+ * as its page reads it (lina-app#248), never raw text in its place.
+ */
 function runName(model: Model, run: ItemDetail["runs"][number]): string {
   const listed = model.runs.get(run.id);
   if (listed) return runRow(listed).name;
-  return foldReason(run.title) ? workerTitle(model, model.runOwner.get(run.id)) : run.title;
+  const owner = model.runOwner.get(run.id);
+  return owner || foldReason(run.title) ? workerTitle(model, owner) : run.title;
 }
 
 /** Whether a worker run still goes: its own state, or for a run the board does not list, its card's. */
@@ -1164,25 +1169,27 @@ function RoundSection({ round, line, workers }: { round: Round; line: string | n
 /** A worker run a card started: the board does not list it, so its page is its card and its own record. */
 function CardRunScreen({ id, cardId, cardLoading = false }: { id: string; cardId?: string | null; cardLoading?: boolean }) {
   const { model, store, now } = useApp();
-  // The core serves no title for a card's worker run: it reads its card's title (lina-app#61).
-  const title = workerTitle(model, cardId);
+  // The core serves no title for a card's worker run: it reads its card's name (lina-app#61, #248), grey when that is
+  // its kind word or 제목 없음, as a card's head is.
+  const card = cardId ? model.cards.get(cardId) : undefined;
+  const title = card?.title ?? null;
+  const untitled = workerTitle(model, cardId);
   // While its card is read, whether the run still goes is not known: its rounds wait rather than read 완료 기록 없음.
   if (cardLoading)
     return (
       <article class="detail" data-testid="screen-run">
-        <CardHead work="code" title={title}>
+        <CardHead work="code" title={title} untitled={untitled}>
           <RunModelLine runId={id} />
         </CardHead>
         <Loading />
       </article>
     );
-  const card = cardId ? model.cards.get(cardId) : undefined;
   const newest = store.get("record", id)?.rounds[0];
   const live = runLive(model, id);
   const state = newest ? W.outcome[outcomeOf(newest, true, live, now)] : live ? STATE_WORD.in_progress : null;
   return (
     <article class="detail" data-testid="screen-run">
-      <CardHead work="code" title={title}>
+      <CardHead work="code" title={title} untitled={untitled}>
         {state ? (
           <span class="sub" data-testid="run-state">
             {state}

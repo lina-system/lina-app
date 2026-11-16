@@ -1669,7 +1669,7 @@ const drivers = {
         return [(await page.getByTestId("screen-run").locator(".detail-title").innerText()).trim(), (await page.getByTestId("run-state").innerText()).trim()].join(" · ");
       };
       const opened = await read();
-      check(opened === "릴리스 변경 목록 정리 · 진행 중", "the round's page reads " + opened);
+      check(opened === "릴리스 노트 정리 · 진행 중", "the round's page reads " + opened);
       await page.reload();
       await freshnessReads(page, "");
       const again = await read();
@@ -1692,6 +1692,28 @@ const drivers = {
       const opened = (await page.getByTestId("screen-run").locator(".timeline-head").allInnerTexts()).map((text) => text.trim());
       check(JSON.stringify(opened) === JSON.stringify([head]), "the run's page holds " + JSON.stringify(opened) + ", not " + head);
       return hrefs.join(" ") + "; " + expected[3] + " holds " + head;
+    });
+    // lina-app#248: a card whose own title no rule draws (Latin words in it) is named by its goal's title on its row and
+    // head, and its worker run's page read 제목 없음. It reads the card's name, as its head does, also after a reload.
+    await step("on &hub=round24, k-830's worker run page reads its card's name, the goal's title, as the card's head does, never 제목 없음", async () => {
+      await openApp(page, "#/cards/k-830", "&hub=round24");
+      const cardHead = (await page.getByTestId("screen-card").locator(".detail-title").innerText()).trim();
+      await page.getByTestId("timeline-link").first().waitFor();
+      const target = await page.getByTestId("timeline-link").first().getAttribute("href");
+      check(target === "#/cards/k-830/runs/1", "the round's head links to " + target);
+      await page.getByTestId("timeline-link").first().click();
+      await page.waitForFunction((hash) => location.hash === hash, target, { timeout: 3_000 }).catch(() => check(false, "the head did not open " + target));
+      const read = async () => {
+        await page.getByTestId("screen-run").getByTestId("timeline").waitFor();
+        return (await page.getByTestId("screen-run").locator(".detail-title").innerText()).trim();
+      };
+      const opened = await read();
+      check(opened === "가상 기록 화면 다듬기" && opened === cardHead, "the run page reads " + opened + ", the card's head " + cardHead);
+      await page.reload();
+      await freshnessReads(page, "");
+      const again = await read();
+      check(again === opened, "after a reload the run page reads " + again);
+      return target + " reads " + opened + " as the card's head, also after a reload";
     });
     // lina-app#232: the hub's long card showed only 불러오는 중 for about 20 s on a phone's first open, while 110 reads of
     // its one record came. With every record read taking 1.5 s, the head and the newest history stand within 2 s, the
@@ -1770,12 +1792,12 @@ const drivers = {
       }
       return "r1, k-101, r8, r6: no model alias, no model line";
     });
-    await step("a card's worker run reads its card's title and a state word, never 코드 작업", async () => {
+    await step("a card's worker run reads its card's name (its row's, the goal's title first) and a state word, never 코드 작업", async () => {
       await openApp(page, "#/runs/r1");
       await page.getByTestId("timeline").waitFor();
       const title = (await page.getByTestId("screen-run").locator(".detail-title").innerText()).trim();
       const state = (await page.getByTestId("run-state").innerText()).trim();
-      check(title === "릴리스 변경 목록 정리" && state === "진행 중", "r1 reads " + title + " / " + state);
+      check(title === "릴리스 노트 정리" && state === "진행 중", "r1 reads " + title + " / " + state);
       await openApp(page, "#/cards/k-104");
       await page.getByTestId("worker-runs").waitFor();
       const lines = await page.getByTestId("worker-runs").getByRole("link").evaluateAll((items) => items.map((item) => item.getAttribute("aria-label")));
@@ -3883,7 +3905,7 @@ const drivers = {
       await page.getByTestId("screen-run").waitFor();
       await page.getByTestId("screen-run").getByTestId("timeline").waitFor();
       const title = (await page.locator(".detail-title").first().innerText()).trim();
-      check(title === "릴리스 변경 목록 정리", "the run page is named " + title);
+      check(title === "릴리스 노트 정리", "the run page is named " + title);
       return new URL(page.url()).hash + " " + title;
     });
     await step("a stopped writer: no 요약 중단됨 beside the freshness line; 상태 · 점검 holds it as one row", async () => {

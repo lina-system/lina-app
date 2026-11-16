@@ -351,6 +351,13 @@ test("a sentence before a list that is not drawn stays (lina-app#239)", () => {
   expect(foldedText("설정 파일이 없어 작업을 중단했다. 남은 일은 둘이다:\n1. 설정을 고친다.\n3. 서버를 켠다.")).toBe("설정 파일이 없어 작업을 중단했다.");
 });
 
+// lina-app#239 review: a cut-off sentence after a list is no sentence of the list; the list is not drawn whole with it.
+test("a cut-off sentence after a numbered list is not drawn with the list (lina-app#239)", () => {
+  expect(foldedText("남은 일: 1. 설정을 고친다. 2. 서버를 켠다. 고치는 중이")).toBe("");
+  // A whole sentence after the list still stays with it.
+  expect(foldedText("남은 일: 1. 설정을 고친다. 2. 서버를 켠다. 그 뒤에 다시 확인한다.")).toBe("남은 일: 1. 설정을 고친다. 2. 서버를 켠다. 그 뒤에 다시 확인한다.");
+});
+
 // lina-app#207, #226: the hub's comments wrote machine times (`안전망 =2026-11-16T03:30+09:00`); rewriting one into a date
 // changed the sentence, so a sentence holding one is not drawn at all.
 test("a comment sentence holding a machine time is not drawn (lina-app#207, #226)", () => {

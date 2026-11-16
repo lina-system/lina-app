@@ -428,7 +428,7 @@ function listLine(text: string): string {
 
 /**
  * A list in a stop's reason, its lead-in and items joined: whole less a bracket of refs only, when its marks run 1, 2, 3
- * (each list on the line on its own) and every sentence reads once its mark is set aside (readsAsWritten); else empty.
+ * (each list on the line on its own) and every sentence reads once its mark is set aside (readsAsWritten), a sentence after the items whole (drawnSentence); else empty.
  */
 function listEntry(text: string): string {
   const whole = withoutRefBrackets(text);
@@ -439,7 +439,12 @@ function listEntry(text: string): string {
     return run > 0;
   });
   if (!numbered) return "";
-  return sentencesOf(whole).every((sentence) => readsAsWritten(sentence.replace(/^(?:\(?\d{1,2}[.)]|[\u2460-\u2473])\s*/u, ""))) ? whole : "";
+  // A sentence that holds a mark is the lead-in and its items (a noun phrase may be one); one that holds none follows them and must be whole (drawnSentence) (lina-app#239 review).
+  const reads = (sentence: string) =>
+    listMarks(`${sentence} `).length
+      ? readsAsWritten(sentence.replace(/^(?:\(?\d{1,2}[.)]|[\u2460-\u2473])\s*/u, ""))
+      : drawnSentence(sentence) !== null;
+  return sentencesOf(whole).every(reads) ? whole : "";
 }
 
 /**

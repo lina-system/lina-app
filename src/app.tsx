@@ -7,7 +7,7 @@ import { newestFirst, SLOW_ROUTES, useClock, useStore, type Store, type Want } f
 import { buildModel, runRow, type Model } from "./model";
 import { back, baseOf, defaultListFor, href, isFrame, isList, linkClick, navigate, onSaveScroll, onStackMotion, parse, tabOf, tabRoot, TABS, useNav, type Route, type Tab } from "./router";
 import { slideMotion } from "./stack-motion";
-import { bindSwipeBack, isStandalone } from "./swipe-back";
+import { bindSwipeBack, isStandalone, stackBusy } from "./swipe-back";
 import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RestartSheet, RunningScreen, StatusScreen, TodayScreen } from "./screens/lists";
 import { AgentCard, AgentTalk, TalkAgents, TalkHead, TalkNameLine, TalkPreview, talkRowName } from "./screens/talk";
 import { CardScreen, GoalScreen, GroupScreen, groupOf, ItemScreen, RoundScreen, roundRunId, RunScreen, workerTitle } from "./screens/details";
@@ -794,7 +794,7 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
     const slide = slideMotion();
     // The sheet rises and falls by itself: the screen under it never slides.
     onStackMotion((direction, apply) => (current.current.sheet || isFrame(parse(window.location.hash)) ? void apply() : slide(direction, apply)));
-    const unbind = bindSwipeBack({ standalone: () => isStandalone(), atRoot: () => current.current.isRoot, onBack: () => current.current.goBack() });
+    const unbind = bindSwipeBack({ standalone: () => isStandalone(), atRoot: () => current.current.isRoot, busy: () => stackBusy(), onBack: () => current.current.goBack() });
     return () => {
       onStackMotion(null);
       unbind();

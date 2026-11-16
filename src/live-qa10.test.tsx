@@ -81,6 +81,22 @@ test("one failed read on a quiet open stream counts from the same moment on ever
   expect(view.getByTestId("freshness-line").textContent).toBe("갱신 지연");
 });
 
+// lina-app#33: right after the last moment the screens were known current the line read 갱신 0초 전.
+test("the line reads 갱신 방금 in its first seconds, then counts seconds", async () => {
+  const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
+  const { store, view } = open(source);
+  await step(60_000);
+  const read = source.read.bind(source);
+  vi.spyOn(source, "read").mockImplementation(((name: Parameters<typeof read>[0], id?: string) =>
+    name === "board" ? Promise.resolve({ kind: "failed", offline: false, at: Date.now() / 1000 }) : read(name, id)) as typeof source.read);
+  await act(async () => store.refresh());
+  expect(view.getByTestId("freshness-line").textContent).toBe("갱신 방금");
+  await step(4_000);
+  expect(view.getByTestId("freshness-line").textContent).toBe("갱신 방금");
+  await step(1_000);
+  expect(view.getByTestId("freshness-line").textContent).toBe("갱신 5초 전");
+});
+
 // A hidden tab closes its socket; shown again it said 갱신 지연 at once, until its reconnect answered.
 test("a tab hidden for a moment shows no word throughout when its reconnect lands within the settle time", async () => {
   const { view } = open(new SyntheticSource({ now: Math.floor(Date.now() / 1000) }));

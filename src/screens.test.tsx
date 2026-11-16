@@ -330,13 +330,13 @@ describe("machines, quota and checks", () => {
     const services = [...list.querySelectorAll(":scope > .quota-row")];
     expect(services.map((row) => row.querySelector("summary .title")?.textContent)).toEqual(["Claude", "ChatGPT", "가온셈"]);
     const labels = services.map((row) => row.querySelector("summary")?.getAttribute("aria-label") ?? "");
-    expect(labels).toEqual(["Claude · 72% · 시간당 +1% · 3일 후 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후", "가온셈 · 5% · 12일 후"]);
-    expect(services.map((row) => row.querySelector("summary .sub")?.textContent)).toEqual(["72% · 시간당 +1% · 3일 후", "31% · 시간당 +1% · 2일 후", "5% · 12일 후"]);
+    expect(labels).toEqual(["Claude · 72% · 시간당 +1% · 3일 후 초기화 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후 초기화", "가온셈 · 5% · 12일 후 초기화"]);
+    expect(services.map((row) => row.querySelector("summary .sub")?.textContent)).toEqual(["72% · 시간당 +1% · 3일 후 초기화", "31% · 시간당 +1% · 2일 후 초기화", "5% · 12일 후 초기화"]);
     expect(services.map((row) => (row.querySelector("details") as HTMLDetailsElement).open)).toEqual([false, false, false]);
     expect(services.map((row) => row.querySelectorAll("[data-testid=account]").length)).toEqual([2, 1, 2]);
     // One convention, the service row's: the percent used, never "left".
-    expect(services[0].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 72% · 시간당 +1% · 3일 후 · 주의");
-    expect(services[2].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 5% · 12일 후");
+    expect(services[0].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 72% · 시간당 +1% · 3일 후 초기화 · 주의");
+    expect(services[2].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 5% · 12일 후 초기화");
     expect(services[0].querySelector(".rate")?.getAttribute("title")).toBe("최근 5시간 평균");
     expect(services.filter((row) => row.querySelector("summary .warn-mark"))).toHaveLength(1);
   });
@@ -397,7 +397,7 @@ describe("usage, OCX and the accounts' quota", () => {
     const view = await open("#/status", { wide: true });
     const list = view.getByRole("list", { name: "쿼터" });
     const rows = [...list.querySelectorAll(":scope > li")].map((row) => row.querySelector(".row-body")?.getAttribute("aria-label") ?? row.querySelector("summary")?.getAttribute("aria-label"));
-    expect(rows).toEqual(["Claude · 72% · 시간당 +1% · 3일 후 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후", "가온셈 · 5% · 12일 후", "Cursor · 계정 없음", "모델 3개 켜짐 · 연결 끊김: 물레방아"]);
+    expect(rows).toEqual(["Claude · 72% · 시간당 +1% · 3일 후 초기화 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후 초기화", "가온셈 · 5% · 12일 후 초기화", "Cursor · 계정 없음", "모델 3개 켜짐 · 연결 끊김: 물레방아"]);
     // Every one of them is a row of the list, with the row look: a title line and a 44 px minimum height.
     for (const row of list.querySelectorAll(":scope > li")) expect(row.querySelector(".title")).not.toBeNull();
     expect(view.getByTestId("quota-missing").textContent).toBe("Cursor · 계정 없음");
@@ -409,14 +409,14 @@ describe("usage, OCX and the accounts' quota", () => {
     const accounts = [...view.getByRole("list", { name: "쿼터" }).querySelectorAll("[data-testid=account]")];
     const labels = accounts.map((row) => row.getAttribute("aria-label"));
     expect(labels).toContain("계정 2 · 다시 로그인 필요");
-    expect(labels).toContain("계정 2 · 일시 중지 · 26일 후");
+    expect(labels).toContain("계정 2 · 일시 중지 · 26일 후 초기화");
     const reauth = accounts.find((row) => row.getAttribute("aria-label") === "계정 2 · 다시 로그인 필요") as HTMLElement;
     expect(reauth.querySelector(".sub .warn-mark")?.textContent).toBe("다시 로그인 필요");
     expect(reauth.querySelector(".meter")).toBeNull();
     expect(reauth.textContent).not.toMatch(/시간당|후$/);
-    const paused = accounts.find((row) => row.getAttribute("aria-label") === "계정 2 · 일시 중지 · 26일 후") as HTMLElement;
+    const paused = accounts.find((row) => row.getAttribute("aria-label") === "계정 2 · 일시 중지 · 26일 후 초기화") as HTMLElement;
     expect(paused.textContent).toContain("일시 중지");
-    expect(paused.textContent).toContain("26일 후");
+    expect(paused.textContent).toContain("26일 후 초기화");
     expect(paused.textContent).not.toContain("시간당");
   });
 
@@ -649,7 +649,7 @@ describe("freshness", () => {
         await vi.advanceTimersByTimeAsync(STREAM_TICK_MS * 3);
       });
       // The board was current until this read failed: a few seconds old, not 갱신 지연.
-      expect(view.getByTestId("freshness-line").textContent).toMatch(/^갱신 \d+초 전$/);
+      expect(view.getByTestId("freshness-line").textContent).toMatch(/^갱신 (?:방금|\d+초 전)$/);
       await act(async () => {
         await vi.advanceTimersByTimeAsync(31_000);
       });

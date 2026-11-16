@@ -2132,15 +2132,15 @@ const drivers = {
       await list.locator("summary").first().click();
       const accounts = await list.getByTestId("account").evaluateAll((rows) => rows.filter((row) => row.checkVisibility()).map((row) => ({ name: row.getAttribute("aria-label"), bar: Boolean(row.querySelector(".meter")), word: row.querySelector(".sub .warn-mark")?.textContent ?? null, colour: row.querySelector(".sub .warn-mark") ? getComputedStyle(row.querySelector(".sub .warn-mark")).color : null })));
       // The service row's percent, never "left": one convention in the panel.
-      check(accounts.length === 2 && /^계정 1 · \d+% · 시간당 \+\d+% · \d+(분|시간|일) 후(?: · 주의)?$/.test(accounts[0].name), "Claude's live account reads " + accounts[0].name);
+      check(accounts.length === 2 && /^계정 1 · \d+% · 시간당 \+\d+% · \d+(분|시간|일) 후 초기화(?: · 주의)?$/.test(accounts[0].name), "Claude's live account reads " + accounts[0].name);
       check(!accounts[0].name.includes("남음"), "the account still reads what is left: " + accounts[0].name);
-      // OCX cannot read this one, so it says only that: no rate, no reset and no bar, in the warning colour.
+      // OCX cannot read this one, so it says only that: no rate, no reset and no bar, in red.
       check(accounts[1].name === "계정 2 · 다시 로그인 필요" && accounts[1].word === "다시 로그인 필요" && accounts[1].colour === "rgb(255, 59, 48)" && !accounts[1].bar, "the account to sign in again reads " + JSON.stringify(accounts[1]));
       // A paused account keeps its reset, drops its rate and its bar stays only about the window.
       await list.locator("summary").nth(2).click();
       const paused = await list.getByTestId("account").evaluateAll((rows) => rows.filter((row) => row.checkVisibility()).map((row) => ({ name: row.getAttribute("aria-label"), rate: row.textContent.includes("시간당") })));
       const pausedRow = paused.find((row) => row.name.includes("일시 중지"));
-      check(pausedRow && /^계정 \d · 일시 중지 · \d+(분|시간|일) 후$/.test(pausedRow.name) && !pausedRow.rate, "the paused account reads " + JSON.stringify(pausedRow));
+      check(pausedRow && /^계정 \d · 일시 중지 · \d+(분|시간|일) 후 초기화$/.test(pausedRow.name) && !pausedRow.rate, "the paused account reads " + JSON.stringify(pausedRow));
       return names.join(" | ") + "; " + plain.join(" | ") + "; Claude: " + accounts.map((row) => row.name).join(" | ") + "; " + pausedRow.name;
     });
     await step("주의 follows the rule over the accounts that are not paused, resets read hours under a day and days over, no rate means no rate part", async () => {
@@ -2153,7 +2153,7 @@ const drivers = {
         check(reaches === rows[index].warn, rows[index].name + " shows 주의=" + rows[index].warn + " but its rate reaches 100% before reset=" + reaches);
         const reset = Math.min(...live.map((account) => main(account).resetAt)) - scene.at;
         const word = rows[index].sub.split(" · ").at(-1);
-        check(reset < 86400 ? /^\d+시간 후$/.test(word) : /^\d+일 후$/.test(word), rows[index].name + " resets in " + Math.round(reset) + " s but reads " + word);
+        check(reset < 86400 ? /^\d+시간 후 초기화$/.test(word) : /^\d+일 후 초기화$/.test(word), rows[index].name + " resets in " + Math.round(reset) + " s but reads " + word);
         check(!/ · {2}| · $|^ · | ·  · /.test(rows[index].sub) && rows[index].sub.split(" · ").every(Boolean), rows[index].name + " has a gap: " + rows[index].sub);
         if (service.ratePerHour === null) check(!rows[index].sub.includes("시간당"), rows[index].name + " has no rate but reads " + rows[index].sub);
       }

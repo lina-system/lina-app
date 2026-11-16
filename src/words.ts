@@ -54,6 +54,7 @@ export function stateLabel(state: WorkState, reason?: string | null): string {
 
 export const SEP = " · ";
 const NONE = "—";
+const JUST_NOW = "방금";
 export const CRUMB = " › ";
 
 /** A count in grouped digits, for tokens under 만. */
@@ -168,6 +169,8 @@ export const W = {
   quotaAccount: (n: number) => `계정 ${n}`,
   quotaPaused: "일시 중지",
   quotaReauth: "다시 로그인 필요",
+  /** The window's reset, never a run-out projection (lina-app#33): `2시간 후 초기화`. */
+  quotaReset: (until: string) => `${until} 초기화`,
   quotaUnavailable: "사용 불가",
   quotaMissing: (service: string) => `${service}${SEP}계정 없음`,
 
@@ -175,6 +178,8 @@ export const W = {
   usageRange: { today: "오늘", "7d": "7일", "30d": "30일" } as Readonly<Record<UsageRange, string>>,
   usageByModel: "모델별",
   usageByMachine: "기기별",
+  /** The core fills the machines in the background (lina#273): right after it starts the list is still empty. */
+  usageMachinesReading: "기기별 사용량을 읽는 중",
   usageTotal: (cost: string, tokens: string) => `${cost}${SEP}토큰 ${tokens}`,
   usageLine: (name: string, cost: string, tokens: string) => `${name}${SEP}${cost}${SEP}토큰 ${tokens}`,
   cost: costValue,
@@ -213,7 +218,8 @@ export const W = {
   checksOk: (n: number) => `정상 ${n}`,
   checkState: { failing: "실패", stale: "갱신 지연", error: "읽기 오류" } as Record<string, string>,
 
-  fresh: (seconds: number) => `갱신 ${seconds}초 전`,
+  /** 방금 in its first seconds, never `갱신 0초 전` (lina-app#33). */
+  fresh: (seconds: number) => `갱신 ${seconds < 5 ? JUST_NOW : `${seconds}초 전`}`,
   connecting: "연결 중",
   stale: "갱신 지연",
   offline: "연결 끊김",
@@ -228,7 +234,7 @@ export const W = {
   sendWhyEmpty: "글 입력 대기",
   sendWhyBusy: "보내는 중",
   sentTo: (agent: string) => `${agent}에게 보냄`,
-  justNow: "방금",
+  justNow: JUST_NOW,
   resolved: "해결됨",
   writeFailed: "보내지 못함",
 

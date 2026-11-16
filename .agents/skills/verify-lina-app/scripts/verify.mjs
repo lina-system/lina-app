@@ -2692,15 +2692,16 @@ const drivers = {
                 .map((box) => {
                   const badge = box.querySelector("[data-testid=bell-count]")?.getBoundingClientRect();
                   const icon = box.querySelector("[data-testid=bell] svg")?.getBoundingClientRect();
-                  return { box: box.clientWidth, content: box.scrollWidth, badge: box.querySelector("[data-testid=bell-count]")?.textContent ?? "", past: badge ? Math.round((badge.right - box.getBoundingClientRect().right) * 10) / 10 : null, clear: badge && icon ? badge.left > (icon.left + icon.right) / 2 && badge.bottom < (icon.top + icon.bottom) / 2 : null };
+                  return { box: box.clientWidth, content: box.scrollWidth, badge: box.querySelector("[data-testid=bell-count]")?.textContent ?? "", past: badge ? Math.round((badge.right - box.getBoundingClientRect().right) * 10) / 10 : null, clear: badge && icon ? badge.left >= icon.right - 0.5 || badge.bottom <= icon.top + 0.5 : null, overlap: badge && icon ? [Math.max(0, Math.min(badge.right, icon.right) - Math.max(badge.left, icon.left)), Math.max(0, Math.min(badge.bottom, icon.bottom) - Math.max(badge.top, icon.top))].map((px) => Math.round(px * 10) / 10) : null };
                 }),
             );
             check(look.length > 0, hash + query + ": no head tools drawn");
             for (const tools of look) {
               check(tools.content <= tools.box && (tools.past === null || tools.past <= 0), hash + query + ": the tools draw " + tools.content + " px in a " + tools.box + " px box, the badge " + tools.badge + " ends " + tools.past + " px past it");
-              check(tools.clear !== false, hash + query + ": the badge " + tools.badge + " reaches the icon's centre");
+              // lina-app#242: on the hub the badge covered 4 x 7 px of the icon's box at 390; it sits clear of it.
+              check(tools.clear !== false, hash + query + ": the badge " + tools.badge + " covers " + JSON.stringify(tools.overlap) + " px of the icon");
             }
-            seen.push((query ? "round23 " : "") + hash + " " + look.map((tools) => tools.badge + " " + tools.content + "/" + tools.box + " px").join(", "));
+            seen.push((query ? "round23 " : "") + hash + " " + look.map((tools) => tools.badge + " " + tools.content + "/" + tools.box + " px, over the icon " + JSON.stringify(tools.overlap)).join(", "));
           }
         }
         return seen.join("; ");

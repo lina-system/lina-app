@@ -179,15 +179,15 @@ button:disabled {
   color: var(--label-3);
 }
 
-/* The badge sits off the bell's top right corner at every width, so a two-digit count leaves the bell readable: what it
-   covers of the 18 px icon lies right of and above its centre (lina-app#152, #232). It shares the icon's grid cell in
-   the flow, 5 px right of the icon's centre, so a count that reaches past the bell widens the bell, and the head's
-   tools hold it whole (lina-app#238). */
+/* The badge sits off the bell's top right corner at every width, so a two-digit count leaves the bell readable
+   (lina-app#152, #232): it starts at the 18 px icon's right edge and covers none of it (lina-app#242). It shares the
+   icon's grid cell in the flow, so a count that reaches past the bell widens the bell, and the head's tools hold it
+   whole (lina-app#238). */
 .badge {
   grid-area: 1 / 1;
   align-self: start;
   justify-self: start;
-  margin: -4px 0 0 calc(16px + 5px);
+  margin: -4px 0 0 calc((32px - 18px) / 2 + 18px);
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
@@ -2483,7 +2483,7 @@ html:has(.stack) body {
 }
 
 .stack .badge {
-  margin: 2px 0 0 calc(var(--hit) / 2 + 5px);
+  margin: 2px 0 0 calc((var(--hit) - 18px) / 2 + 18px);
   min-width: 18px;
   height: 18px;
   border-radius: 9px;

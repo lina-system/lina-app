@@ -54,15 +54,11 @@ describe("work rows keep the readable part of a title (lina-app#156 items 1, 2)"
     const view = await open("#/done", new SyntheticSource({ scene: realShapeScene() }));
     const screen = view.getByTestId("screen-done");
     const sub = (id: string) => rowOf(screen, id)?.querySelector("[data-testid=row-sub]")?.textContent ?? null;
-    expect(rowOf(screen, "k-swap-1")?.querySelector(".title")?.textContent).toBe("가상 교체 시험");
-    expect(sub("k-swap-1")).toBe("가짜 교체 1단계 정리");
-    // An abbreviation is a Latin word too (lina-app#222).
-    expect(sub("k-swap-2")).toBeNull();
-    // A hash outside a bracket is never cut out of a finished card's title (lina-app#231): hidden.
-    expect(sub("k-swap-4")).toBeNull();
-    // No Hangul, or Latin words: hidden, the goal's title alone.
-    expect(sub("k-swap-3")).toBeNull();
-    expect(sub("k-swap-5")).toBeNull();
+    // In 완료 the goal's title is one line for its five cards (lina-app#237), the newest's link, under it no one card's name.
+    expect(rowOf(screen, "k-swap-1")?.querySelector(".title")?.textContent).toBe("가상 교체 시험 ×5");
+    expect(sub("k-swap-1")).toBeNull();
+    for (const id of ["k-swap-2", "k-swap-3", "k-swap-4", "k-swap-5"]) expect(rowOf(screen, id) ?? null).toBeNull();
+    expect(screen.textContent).not.toMatch(/OCX|fake|a6687ba/);
     // The group head still counts its rows.
     for (const section of screen.querySelectorAll("[data-testid^=section-]")) {
       const count = Number(section.querySelector("[data-testid=count]")?.textContent ?? "0");

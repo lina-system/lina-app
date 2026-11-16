@@ -85,7 +85,7 @@ for (const wide of [true, false]) {
     let holding = true;
     const release = () => {
       holding = false;
-      for (let index = 0; index < finishing && template; index++) source.scene.cards.cards.push({ ...template, id: `k-${900 + index}`, plain: { ...template.plain, title: `${template.plain.title} ${index + 1}` }, endedAt: now(), lastHeartbeatAt: now() });
+      for (let index = 0; index < finishing && template; index++) source.scene.cards.cards.push(Object.assign({ ...template, id: `k-${900 + index}`, plain: { ...template.plain, title: `${template.plain.title} ${index + 1}` }, endedAt: now(), lastHeartbeatAt: now() }, { goalTitle: null }));
       for (const go of held.splice(0)) go();
     };
     const read = source.read.bind(source);

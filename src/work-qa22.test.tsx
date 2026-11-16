@@ -35,7 +35,7 @@ async function finishedRows(view: ReturnType<typeof render>) {
   await waitFor(() => expect(within(group).queryByRole("button", { name: `${W.done} ${W.close}` })).not.toBeNull());
   return [...group.querySelectorAll("[data-testid=row]")].map((row) => ({
     grey: row.querySelector(".title.is-kind") !== null,
-    title: row.querySelector(".title")?.textContent ?? "",
+    title: (row.querySelector(".title")?.textContent ?? "").replace(/ ×\d+$/, ""),
     sub: row.querySelector("[data-testid=row-sub]")?.textContent ?? null,
     cards: Number(/(?:×|제목 없는 )(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1),
   }));

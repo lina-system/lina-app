@@ -64,8 +64,9 @@ test("item 2: a card's worker runs and rounds read newest first, and a folded ro
   const view = await open("#/cards/k-108", new SyntheticSource({ now: scene.now, scene: { ...scene, cardDetails } }));
   const card = await frame(view);
   const box = await waitFor(() => within(card).getByTestId("worker-runs"));
-  const order = [...box.querySelectorAll("[data-testid=row] a")].map((link) => /r1[5-7]/.exec(link.getAttribute("href") ?? "")?.[0]).filter(Boolean);
-  expect(order).toEqual(["r17", "r16", "r15"]);
+  // k-108 lists r15, r16, r17: each link names its run's place among them (lina-app#238).
+  const order = [...box.querySelectorAll("[data-testid=row] a")].map((link) => link.getAttribute("href"));
+  expect(order).toEqual(["#/cards/k-108/runs/3", "#/cards/k-108/runs/2", "#/cards/k-108/runs/1"]);
   expect(within(box).getByTestId("round-fold").querySelector("summary")?.textContent).toBe("이전 기록 1건");
   expect(box.textContent).not.toContain("댓글");
 });

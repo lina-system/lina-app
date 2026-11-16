@@ -186,7 +186,7 @@ export function round22Scene(scene: Scene): Scene {
  * report line (so their heads hold the outcome alone), a stopped one between them, and one whose report line is a whole
  * Korean sentence. The rounds of one outcome with nothing else, one after another, are one head with `×n`.
  */
-export function round23Scene(scene: Scene): Scene {
+export function round23RecordScene(scene: Scene): Scene {
   const done = scene.cardDetails["k-105"];
   const end = scene.now - 2 * 3600;
   const round = (run: number, fields: Partial<RunRecord["rounds"][number]>): RunRecord["rounds"][number] => {
@@ -207,6 +207,40 @@ export function round23Scene(scene: Scene): Scene {
   ];
   const record: RunRecord = { ...scene.records.r1, id: "r5", at: scene.now, cardId: "k-105", rounds, comments: [], errors: [] };
   return { ...scene, cardDetails: { ...scene.cardDetails, "k-105": { ...done, workerRuns: done.workerRuns.map((worker) => ({ ...worker, firstSeenAt: end - 9 * 40 * 60 - 9 * 60 })) } }, records: { ...scene.records, r5: record } };
+}
+
+/** k-101's worker runs under ids of the hub's shape for round 23 (lina-app#238): a task id a person never reads. */
+export const ROUND23_RUNS: Readonly<Record<string, string>> = { r9: "OT-GAJ1101090105", r10: "OT-GAJ1101093210", r1: "OT-GAJ1101101500" };
+
+/** Every string and key of a plain object or array, with `names` renamed; anything else is kept as it is. */
+function renamed<T>(value: T, names: Readonly<Record<string, string>>): T {
+  if (typeof value === "string") return (names[value] ?? value) as T;
+  if (Array.isArray(value)) return value.map((each) => renamed(each, names)) as T;
+  if (value === null || typeof value !== "object" || Object.getPrototypeOf(value) !== Object.prototype) return value;
+  return Object.fromEntries(Object.entries(value).map(([key, each]) => [names[key] ?? key, renamed(each, names)])) as T;
+}
+
+/**
+ * The hub's shapes UI QA round 23 met (`&hub=round23`, lina-app#238), field by field as the hub serves them, in made-up
+ * words: k-101's worker runs carry task ids (ROUND23_RUNS) and, as the hub's long card does, a `lina-worker` entry named
+ * by a command word (`wait`) with no record; and the bell holds the hub's 61 unread notices, a two-digit badge.
+ */
+export function round23FrameScene(scene: Scene): Scene {
+  const next = renamed(scene, ROUND23_RUNS);
+  const card = next.cardDetails["k-101"];
+  const last = card.workerRuns.at(-1);
+  const workerRuns = last ? [...card.workerRuns, { id: "wait", kind: "lina-worker" as const, firstSeenAt: last.firstSeenAt, lastSeenAt: last.lastSeenAt }] : card.workerRuns;
+  const target = next.items.items.find((item) => item.kind === "todo" && item.mine);
+  const unread = next.board.notices.filter((notice) => !notice.read).length;
+  const more = target
+    ? Array.from({ length: Math.max(0, 61 - unread) }, (_, index) => ({ key: `todo:${target.id}:${next.now - 600 - index * 60}`, target: target.id, at: next.now - 600 - index * 60, kind: "todo" as const, line: `가상 알림 ${index + 1} · 내 할 일`, read: false }))
+    : [];
+  const notices = [...next.board.notices, ...more];
+  return {
+    ...next,
+    cardDetails: { ...next.cardDetails, "k-101": { ...card, workerRuns } },
+    board: { ...next.board, notices, counts: { ...next.board.counts, unread: notices.filter((notice) => !notice.read).length } },
+  };
 }
 
 /** Round 22's goal (lina-app#231): its title, and its done condition with an issue reference, a Latin word and a `#3`. */
@@ -244,7 +278,7 @@ export const ROUND23 = {
  * records whose own state and to-do count disagree, as the item list serves them: two `done` with to-dos open (0/1 with
  * its to-do planned and a finished card under its title, 4/16), one `planned` (0/1) whose cards are all finished.
  */
-export function round23Scene(scene: Scene): Scene {
+export function round23ListScene(scene: Scene): Scene {
   const template = scene.cards.cards.find((card) => card.state === "done");
   const agents = scene.items.agents.map((agent) => agent.id);
   if (!template || agents.length < 3) return scene;
@@ -290,6 +324,11 @@ export function round23Scene(scene: Scene): Scene {
     items: { ...scene.items, items: [...scene.items.items, ...goals, ...todos] },
     itemDetails: { ...scene.itemDetails, ...details },
   };
+}
+
+/** `&hub=round23`: the three shapes UI QA round 23 met, one after the other (lina-app#236, #237, #238). */
+export function round23Scene(scene: Scene): Scene {
+  return round23ListScene(round23FrameScene(round23RecordScene(scene)));
 }
 
 function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {

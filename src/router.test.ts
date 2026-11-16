@@ -18,6 +18,16 @@ describe("the 완료 filter lives in the address", () => {
   });
 });
 
+describe("a card's worker run by its place (lina-app#238)", () => {
+  test("#/cards/<card>/runs/<n> reads back as the same place, a frame under the work tab; a place that is no number from 1 is no round", () => {
+    expect(parse("#/cards/hermes%3At_1/runs/3")).toEqual({ name: "round", card: "hermes:t_1", n: 3 });
+    expect(href({ name: "round", card: "hermes:t_1", n: 3 })).toBe("#/cards/hermes%3At_1/runs/3");
+    expect(tabOf(parse("#/cards/k-1/runs/1"))).toBe("work");
+    expect(defaultListFor({ name: "round", card: "k-1", n: 1 })).toEqual({ name: "running" });
+    for (const hash of ["#/cards/k-1/runs/0", "#/cards/k-1/runs/01", "#/cards/k-1/runs/r1", "#/cards/k-1/runs"]) expect(parse(hash).name, hash).toBe("home");
+  });
+});
+
 describe("설정 and the lists it pushes", () => {
   test("#/settings is a list; what it pushes reads back as the same page", () => {
     expect(parse("#/settings")).toEqual({ name: "settings" });

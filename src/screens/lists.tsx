@@ -130,8 +130,8 @@ const STOPPED_SHOWN = 5;
  * The one fold under a capped group: `외 n개`, the rows it holds; choosing it opens them in place. While they are read
  * (`loading`), the same line says 불러오는 중, so nothing above it moves.
  */
-function MoreRow({ title, hidden, onOpen, loading = false }: { title: string; hidden: number; onOpen: (event: Event) => void; loading?: boolean }) {
-  const line = loading ? W.loading : W.more(hidden);
+function MoreRow({ title, hidden, onOpen, loading = false, line: said }: { title: string; hidden: number; onOpen: (event: Event) => void; loading?: boolean; line?: string }) {
+  const line = loading ? W.loading : (said ?? W.more(hidden));
   return (
     <li class="row more-row" aria-busy={loading ? "true" : undefined}>
       <button type="button" class="row-button" aria-expanded={false} aria-label={`${title} ${line}`} disabled={loading} onClick={onOpen}>
@@ -314,31 +314,45 @@ export function RunningScreen() {
 }
 
 /**
- * 완료 on the work tab (lina-app#186, #225): one unit, cards. Its head is every finished card and its fold `외 n개`, the
- * cards its drawn lines do not stand for; a line standing for cards whose lines read the same says how many on its row
- * (lina-app#168). The page reads the newest few; the fold reads the rest, and once read, opens and closes in place.
+ * 완료 on the work tab (lina-app#186, #225, #237). Its head is every finished card, the sidebar's number; a line standing
+ * for cards whose titles read the same says how many on its row (lina-app#168). Its fold `외 n개` counts the lines it
+ * opens, as every group's fold counts its rows, so the lines drawn and its n are the lines opened. The page reads the
+ * newest few first and the group reads the rest right after: until they are in, the fold says it is reading, never a
+ * number counted from a part of the list; a read that failed is read again from the fold.
  */
 function FinishedSection({ section }: { section: Section<CardRow> }) {
   const { model, store } = useApp();
   const { open, expand, hide } = useFold();
+  const partial = !model.finished.all;
+  const [asked, setAsked] = useState(false);
+  useEffect(() => {
+    if (!partial || !section.count) return;
+    setAsked(true);
+    void store.showFinished(true);
+  }, [partial, section.count > 0]);
   if (!section.count) return null;
   const shown = open ? section.rows : section.rows.slice(0, FINISHED_SHOWN);
-  const hidden = section.count - cardCount(shown);
+  const hidden = partial ? 1 : section.rows.length - shown.length;
+  const failed = partial && asked && !store.finished().loading;
   return (
     <section class="list-section" data-testid={`section-${section.id}`}>
       <SectionHead section={section} />
       <ul class="rows" aria-label={section.title}>
         {shown.map((card) => (
-          <CardRowView key={card.key} card={repeatedLine(card)} />
+          <FinishedLine key={card.key} line={card} />
         ))}
         {hidden > 0 ? (
           <MoreRow
             title={section.title}
             hidden={hidden}
-            loading={model.finished.more > 0 && store.finished().loading}
+            loading={partial && !failed}
+            line={failed ? W.retry : undefined}
             onOpen={(event) => {
+              if (partial) {
+                void store.showFinished();
+                return;
+              }
               expand(event);
-              if (model.finished.more > 0) void store.showFinished();
             }}
           />
         ) : null}
@@ -388,11 +402,16 @@ function LatestLine({ agentId, testid }: { agentId: string; testid: string }) {
 }
 
 /**
- * A finished line that stands for cards whose lines read the same says how many (lina-app#168); the line of the cards
- * nothing names says it in its name already (lina-app#231).
+ * A finished line: one that stands for cards whose titles read the same says how many (lina-app#168); the line of the
+ * cards nothing names says it in its name already (lina-app#231), and wears no one agent's mark or card's time when its
+ * cards are several agents' (lina-app#237): how many agents, and its newest card's time said as such.
  */
-function repeatedLine(card: CardRow): CardRow {
-  return card.repeat && card.title !== null ? { ...card, name: `${card.name} ${W.repeated(card.repeat)}` } : card;
+function FinishedLine({ line }: { line: CardRow }) {
+  const { now } = useApp();
+  if (line.title !== null) return <CardRowView card={line.repeat ? { ...line, name: `${line.name} ${W.repeated(line.repeat)}` } : line} />;
+  const agents = new Set((line.fold ?? [line]).map((card) => card.agent)).size;
+  const when = line.endedAt === null ? null : W.newest(ago(now - line.endedAt));
+  return <CardRowView card={agents > 1 ? { ...line, agent: null, sub: W.agentsCount(agents), when } : { ...line, when }} />;
 }
 
 /**
@@ -424,7 +443,7 @@ export function DoneScreen({ agent }: { agent?: string }) {
       {shown.length ? (
         <ul class="rows" aria-label={W.done}>
           {shown.map((card) => (
-            <CardRowView key={card.key} card={repeatedLine(card)} />
+            <FinishedLine key={card.key} line={card} />
           ))}
         </ul>
       ) : (
@@ -472,6 +491,12 @@ export function GoalLine({ goal, showAgent, count = false }: { goal: GoalRow; sh
                 {itemWords(line)}
               </span>
               {time ? <span class="time">{`${SEP}${time}`}</span> : null}
+            </span>
+          ) : null}
+          {/* The record's words stay; when they disagree with its count or its cards, one line says how (lina-app#237). */}
+          {line && goal.why ? (
+            <span class="sub" data-testid="goal-why">
+              {goal.why}
             </span>
           ) : null}
           {condition ? <span class="sub wrap-line">{condition}</span> : null}

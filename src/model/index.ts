@@ -211,6 +211,11 @@ export interface GoalRow {
   readonly runningCount: number;
   /** Every to-do of the goal is done, whoever owns it (the check box marks the whole goal). */
   readonly allDone: boolean;
+  /**
+   * The one line a goal says when its record disagrees with itself (lina-app#237): closed with its own to-do count open,
+   * or planned while every card linked to it is finished. The record's state and count stay as they are; null otherwise.
+   */
+  readonly why: string | null;
 }
 
 export interface AgentView {
@@ -499,17 +504,18 @@ export function apart(rows: readonly CardRow[], now: number): CardRow[] {
 }
 
 /**
- * A finished group's lines (lina-app#168): cards whose lines read the same (the hub's titles that differ only by a hash
- * or a number the screen cuts) are one line, the newest of them, which it opens, with how many it stands for
- * (`repeat`); the cards nothing names are one such line too (lina-app#225), named for what it holds and how many, never
- * by a kind word (lina-app#231). The rows come newest first; the group head counts the cards (cardCount).
+ * A finished group's lines (lina-app#168): cards whose titles read the same (the hub's titles that differ only by a hash
+ * or a number the screen cuts, and the cards a goal's title names first, lina-app#237) are one line, the newest of them,
+ * which it opens, with how many it stands for (`repeat`); its second line is their own name only while they share it.
+ * The cards nothing names are one such line too (lina-app#225), named for what it holds and how many, never by a kind
+ * word (lina-app#231). The rows come newest first; the group head counts the cards (cardCount).
  */
 function collapsed(rows: readonly CardRow[]): CardRow[] {
   const lines = new Map<string, CardRow>();
   for (const row of rows) {
-    const key = row.title === null ? "" : [row.name, row.sub ?? ""].join("\n");
+    const key = row.title === null ? "" : row.name;
     const first = lines.get(key);
-    lines.set(key, first ? { ...first, repeat: (first.repeat ?? 1) + 1, fold: [...(first.fold ?? [first]), row] } : { ...row, when: null });
+    lines.set(key, first ? { ...first, sub: first.sub === row.sub ? first.sub : null, repeat: (first.repeat ?? 1) + 1, fold: [...(first.fold ?? [first]), row] } : { ...row, when: null });
   }
   const unnamed = lines.get("");
   if (unnamed) lines.set("", { ...unnamed, name: W.untitledCount(unnamed.repeat ?? 1), sub: null });
@@ -869,6 +875,12 @@ export function buildModel(input: ModelInput, now: number): Model {
       const todos = goalTodos(goal);
       // The goal list reads the work tab's fold of its cards, as its page head does (lina-app#168).
       const fold = goalFold(parts, goal, []);
+      const why =
+        fold.state === "done" && todos.total > todos.done
+          ? W.todosLeft(todos.total - todos.done)
+          : fold.state === "planned" && fold.cards.length > 0 && fold.cards.every((card) => card.state === "done")
+            ? W.workDone(fold.cards.length)
+            : null;
       return {
         id: goal.id,
         href: href({ name: "goal", id: goal.id }),
@@ -884,6 +896,7 @@ export function buildModel(input: ModelInput, now: number): Model {
         runningCards: fold.running,
         runningCount: Math.max(runningTodos.length, fold.running.length),
         allDone: todos.total > 0 && todos.done === todos.total,
+        why,
       };
     });
 
@@ -1114,8 +1127,9 @@ function linkedCards(parts: FoldParts, ids: ReadonlySet<string>, cardIds: readon
  * from 작업 and from 대화) and its rows in the goal lists read. Its cards are the ones linkedCards finds for the goal and
  * its to-dos; the fold is foldState's.
  */
-function goalFold(parts: FoldParts, goal: GoalFacts, cardIds: readonly string[]): GoalFacts & { readonly running: readonly CardRow[] } {
-  return foldState(goal, linkedCards(parts, goalIds(parts, goal.id), cardIds, goal.title));
+function goalFold(parts: FoldParts, goal: GoalFacts, cardIds: readonly string[]): GoalFacts & { readonly running: readonly CardRow[]; readonly cards: readonly CardRow[] } {
+  const cards = linkedCards(parts, goalIds(parts, goal.id), cardIds, goal.title);
+  return { ...foldState(goal, cards), cards };
 }
 
 /**

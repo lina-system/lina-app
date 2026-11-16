@@ -1060,7 +1060,8 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       for (let index = 0; index < MANY_FINISHED; index++) {
         const ended = now - (3 + 3 * index) * HOUR;
         const title = `${FINISHED_WORK[index % FINISHED_WORK.length]} ${FINISHED_STEP[Math.floor(index / FINISHED_WORK.length)]}`;
-        cardList.cards.push({ ...done, id: `k-${300 + index}`, title, plain: plain(title, null, "끝까지 마쳤음"), endedAt: ended, lastHeartbeatAt: ended });
+        // In no goal, as most of the hub's finished cards (lina-app#237): each is a line of its own title.
+        cardList.cards.push(Object.assign({ ...done, id: `k-${300 + index}`, title, plain: plain(title, null, "끝까지 마쳤음"), endedAt: ended, lastHeartbeatAt: ended }, { goalTitle: null }));
       }
       // The title shape UI QA round 21 met on the hub (lina-app#228), in made-up words: no goal and no checked title, and its
       // own has a Latin word and a ref glued to the bracket after its colon, so cutting them would leave `손보기: (…) 이후`.

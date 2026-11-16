@@ -684,11 +684,27 @@ function waitsOnOwner(state: WorkState, reason: string | null, row: CardRow | un
 /**
  * The cards a folded line stands for (lina-app#171), in the detail it opens: one `time · state · sentence` line each, the
  * opened card first, then newest first, each the link to its own card. The sentence is its result line, else the first
- * sentence of its latest note a person may read, else its own name.
+ * sentence of its latest note a person may read, else its own name. The cards nothing names, when they are several
+ * agents', say how many each agent has instead, each the link to that agent's 완료 (lina-app#237).
  */
-function FoldMembers({ id, fold }: { id: string; fold: readonly CardRow[] | undefined }) {
-  const { store, now } = useApp();
+function FoldMembers({ id, fold, byAgent }: { id: string; fold: readonly CardRow[] | undefined; byAgent: boolean }) {
+  const { model, store, now } = useApp();
   if (!fold) return null;
+  if (byAgent) {
+    const counts = new Map<string, number>();
+    for (const card of fold) counts.set(card.agent ?? "", (counts.get(card.agent ?? "") ?? 0) + 1);
+    return (
+      <Box title={ROUND9_WORD.foldMembers(fold.length)} testid="fold-members">
+        <ul class="history-rows" aria-label={ROUND9_WORD.foldMembers(fold.length)}>
+          {[...counts].sort((a, b) => b[1] - a[1]).map(([agent, count]) => (
+            <li key={agent} class="history-row" data-testid="fold-agent">
+              <Link href={href(agent ? { name: "done", agent } : { name: "done" })}>{[agentName(model, agent), W.cardsCount(count)].filter(Boolean).join(SEP)}</Link>
+            </li>
+          ))}
+        </ul>
+      </Box>
+    );
+  }
   const note = (cardId: string) => wholeText(store.get("cards")?.cards.find((card) => card.id === cardId)?.now);
   const cards = [...fold.filter((card) => card.id === id), ...fold.filter((card) => card.id !== id)];
   return (
@@ -915,7 +931,8 @@ export function CardScreen({ id }: { id: string }) {
   const records = workerRuns.flatMap((worker) => store.get("record", worker.id)?.comments ?? []);
   const commentLines = cardCommentLines(detail.comments, records, store.get("items")?.owner?.id);
   const recordFailed = workerRuns.some((worker) => store.status("record", worker.id) === "failed");
-  const fold = model.home.finished.rows.find((line) => line.fold?.some((card) => card.id === id))?.fold;
+  const foldLine = model.home.finished.rows.find((line) => line.fold?.some((card) => card.id === id));
+  const fold = foldLine?.fold;
   const askHere = Boolean(ask && !readOnly && !everyQuestion.length && !answering(`answer:${id}`));
   const nowLine = detail.plain.now && state === "in_progress" ? detail.plain.now : null;
   // A card with nothing of its own yet (a planned one: no to-do, run, line or comment) says so in one line under its head,
@@ -935,7 +952,7 @@ export function CardScreen({ id }: { id: string }) {
         {state === "in_progress" && detail.todoProgress.total > 0 ? <Progress done={detail.todoProgress.done} total={detail.todoProgress.total} word /> : null}
         {readOnly ? <ReadOnlyLine agent={row?.agent ?? detail.agent} waits={waitsOnOwner(state, reason, row)} /> : null}
       </CardHead>
-      <FoldMembers id={id} fold={fold} />
+      <FoldMembers id={id} fold={fold} byAgent={foldLine?.title === null && new Set(fold?.map((card) => card.agent)).size > 1} />
       {/* Each question with the place to answer it, keyed as its 수신함 row, so answering here hides that row too. */}
       {questions.map((question) => (
         <Fragment key={question.commentId}>

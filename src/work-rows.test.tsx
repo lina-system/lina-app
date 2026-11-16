@@ -32,12 +32,13 @@ function sameGoalScene() {
 describe("work tab rows (lina-app#148)", () => {
   beforeEach(() => setWide(true));
 
-  test("rows of one goal read apart: the card's own name is a second line, also in the row's name", async () => {
+  // lina-app#237: in 완료 a title is one line, its own names read apart in the detail it opens.
+  test("finished cards of one goal are one line of its title, counting them, with no one card's own name under it", async () => {
     const view = await open("#/done", new SyntheticSource({ scene: sameGoalScene() }));
     const rows = within(view.getByTestId("screen-done")).getAllByTestId("row").filter((row) => row.textContent?.includes("가상 반복 목표"));
-    expect(rows).toHaveLength(2);
-    expect(rows.map((row) => row.querySelector("[data-testid=row-sub]")?.textContent).sort()).toEqual(["가짜 둘째 정리", "가짜 첫 정리"]);
-    expect(rows.every((row) => row.querySelector("a")?.getAttribute("aria-label")?.includes("가짜"))).toBe(true);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].querySelector(".title")?.textContent).toBe(`가상 반복 목표 ${W.repeated(2)}`);
+    expect(rows[0].querySelector("[data-testid=row-sub]")).toBeNull();
   });
 
   test("planned cards are a 예정 group under 진행 중, its head counting its rows; the header is 작업", async () => {

@@ -123,13 +123,14 @@ function markedScene() {
     },
   };
   const k101 = base.cardDetails["k-101"];
-  const cardComment = (id: number, at: number, body: string) => ({ id, author: "owner", body, createdAt: at });
+  // The agent's words: the owner's are drawn as saved, markers and all (lina-app#226, owner-comments.test.tsx).
+  const cardComment = (id: number, at: number, body: string) => ({ id, author: "ag-2", body, createdAt: at });
   const cardDetails = {
     ...base.cardDetails,
     "k-101": { ...k101, comments: [...k101.comments, cardComment(901, now - 2 * MIN, "**배포 순서**를 정해 주세요."), cardComment(902, now - MIN, "** **"), cardComment(903, now - 30, "  ")] },
   };
   const goal = Object.values(base.itemDetails).find((detail) => detail.kind === "goal")!;
-  const goalComment = (cid: string, at: number, text: string) => ({ cid, by: "owner", at, text, status: "open" as const, kind: "comment" as const, replies: [] });
+  const goalComment = (cid: string, at: number, text: string) => ({ cid, by: "ag-2", at, text, status: "open" as const, kind: "comment" as const, replies: [] });
   const itemDetails = {
     ...base.itemDetails,
     [goal.id]: { ...goal, comments: [...goal.comments, goalComment("c901", now - 2 * MIN, "**굵게 쓴 말** 확인함."), goalComment("c902", now - MIN, "** **")] },

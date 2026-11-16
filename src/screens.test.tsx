@@ -87,7 +87,8 @@ const REASONS = ["결정 필요", "피드백", "검토 필요", "보류", "진�
 const WAITS = ["결정 대기", "피드백 대기", "다른 일 대기"];
 // Latin words the term table allows on screen: the app name, CPU and the services' display names.
 const LATIN_WORDS = ["LINA", "CPU", "Claude", "ChatGPT", "Gemini", "Grok", "Cursor"];
-const STATE_LINE = new RegExp(`^(?:${WAITS.join("|")}|(?:${STATES.join("|")})(?: · (?:${[...REASONS, ...WAITS].join("|")}))?)$`);
+// A goal or to-do past its due date says 지남 after its state's words, or alone instead of 예정 (lina-app#221, #225).
+const STATE_LINE = new RegExp(`^(?:(?:${WAITS.join("|")}|(?:${STATES.join("|")})(?: · (?:${[...REASONS, ...WAITS].join("|")}))?)(?: · 지남)?|지남)$`);
 
 describe.each([
   ["1280", true],
@@ -2795,18 +2796,14 @@ describe("work cards", () => {
 describe("work cards, round 4", () => {
   beforeEach(() => setWide(true));
 
-  test("a comment that would show a path, a hash or a cut-off fragment reads its first sentence with those left out, one line, never folded (lina-app#142)", async () => {
+  test("a comment that holds a path, a hash or the hub's own cut is no line of its own: it folds, never cut to what is left (lina-app#142, #226)", async () => {
     const view = await open("#/cards/k-103", { wide: true });
     const comments = within(view.getByTestId("card-comments")).getAllByTestId("history-row");
     // Newest first, as every history (lina-app#149).
-    expect(comments.map((comment) => comment.textContent)).toEqual([
-      expect.stringMatching(/^(어제 )?\d\d:\d\d · 결제 실패 문구를 새 문체로 바꾸는 중인데 카드사별로…$/),
-      expect.stringMatching(/^(어제 )?\d\d:\d\d · 키 12개를 바꿈$/),
-      expect.stringMatching(/^(어제 )?\d\d:\d\d · 오류 문구 초안을 공유했어요\.$/),
-    ]);
-    // Who wrote it is the line's tooltip, not a second line.
-    expect(comments.every((comment) => Boolean(comment.getAttribute("title")))).toBe(true);
-    expect(screenText(view.container)).not.toMatch(/errors\.json|3f2a1c9|접힌 댓글/);
+    expect(comments.map((comment) => comment.textContent)).toEqual([expect.stringMatching(/^(어제 )?\d\d:\d\d · 접힌 댓글 2건$/), expect.stringMatching(/^(어제 )?\d\d:\d\d · 오류 문구 초안을 공유했어요\.$/)]);
+    // Who wrote it is the drawn line's tooltip, not a second line.
+    expect(Boolean(comments[1].getAttribute("title"))).toBe(true);
+    expect(screenText(view.container)).not.toMatch(/errors\.json|3f2a1c9|키 12개를 바꿈|카드사별로/);
   });
 
   test("완료's agent filter is the address: it survives a reload and a live update, and each count is its list", async () => {

@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { USAGE_RANGES, type Machine, type PersonDevice, type PowerStation, type PowerView, type QuotaAccount, type QuotaService, type RunnerCell, type UsageRange } from "../api/client";
 import type { CardRow, DueRow, GoalRow, InboxRow, Section } from "../model";
-import { agentView, doneFor, foldTitle, itemLineOf, itemWords, localDay } from "../model";
+import { agentView, cardCount, doneFor, foldTitle, itemLineOf, itemWords, localDay } from "../model";
 import type { OpenCheck } from "../model/checks";
 import { stopReason } from "../model/stop-reason";
 import type { UsageLine } from "../model/usage";
@@ -314,17 +314,16 @@ export function RunningScreen() {
 }
 
 /**
- * 완료 on the work tab (lina-app#186, #221): one unit, the rows. Its head is the rows drawn and its fold `외 n개`, the
- * rows held back and the finished cards not read yet; a line standing for cards whose lines read the same says how many
- * on its row (lina-app#168). The page reads the newest few; the fold reads the rest, and once read, opens and closes in
- * place.
+ * 완료 on the work tab (lina-app#186, #225): one unit, cards. Its head is every finished card and its fold `외 n개`, the
+ * cards its drawn lines do not stand for; a line standing for cards whose lines read the same says how many on its row
+ * (lina-app#168). The page reads the newest few; the fold reads the rest, and once read, opens and closes in place.
  */
 function FinishedSection({ section }: { section: Section<CardRow> }) {
   const { model, store } = useApp();
   const { open, expand, hide } = useFold();
   if (!section.count) return null;
   const shown = open ? section.rows : section.rows.slice(0, FINISHED_SHOWN);
-  const hidden = section.rows.length - shown.length + model.finished.more;
+  const hidden = section.count - cardCount(shown);
   return (
     <section class="list-section" data-testid={`section-${section.id}`}>
       <SectionHead section={section} />
@@ -395,8 +394,8 @@ function repeatedLine(card: CardRow): CardRow {
 
 /**
  * 완료, for every agent or one. The filter is the address (`#/done?agent=<id>`), so it survives a reload and every
- * live update; each choice's count is the rows it shows, the lines the work tab lists (lina-app#179, #221). It counts
- * nothing until the page holds every finished card (lina-app#186).
+ * live update; each choice's count is the cards its rows stand for, as the work tab counts them (lina-app#179, #225). It
+ * counts nothing until the page holds every finished card (lina-app#186).
  */
 export function DoneScreen({ agent }: { agent?: string }) {
   const { model } = useApp();
@@ -409,7 +408,7 @@ export function DoneScreen({ agent }: { agent?: string }) {
     <div class="list" data-testid="screen-done">
       <div class="filter" role="group" aria-label={W.agents} data-testid="done-filter">
         {choices.map((choice) => {
-          const count = doneFor(model, choice.id).length;
+          const count = cardCount(doneFor(model, choice.id));
           return (
             <button key={choice.id ?? "all"} type="button" class="choice" aria-pressed={choice.id === agent} aria-label={`${choice.name} ${count}`} onClick={() => choose(choice.id)}>
               {choice.name}

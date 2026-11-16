@@ -66,9 +66,10 @@ test("a work card's own title names it until its checked title exists, and its k
   // A checked title wins over the card's own title, and the kind is read from the checked one.
   expect(model.cards.get("k-checked")).toMatchObject({ name: "결제: 카드 입력 폼 다듬기", title: "결제: 카드 입력 폼 다듬기", work: "code" });
 
-  // The own title fails the raw-text rule and the card is in no goal: nothing names it, and the row says so (제목
-  // 없음), never its kind word; its kind is read from the checked title alone, which does not exist.
-  expect(model.cards.get("k-raw")).toMatchObject({ name: "제목 없음", title: null, work: "code" });
+  // The own title fails the raw-text rule and the card is in no goal: nothing names it, and it is counted in 완료's one
+  // line of the cards nothing names (lina-app#225), never its kind word or 제목 없음; its kind is read from the checked
+  // title alone, which does not exist.
+  expect(model.cards.get("k-raw")).toMatchObject({ name: W.cards, title: null, work: "code" });
   expect(model.done.map((card) => card.name)).not.toContain("코드 작업");
 });
 
@@ -139,9 +140,9 @@ test("a goal's title that would show raw text does not name a row: a stopped car
     goals: { goals: scene.goals.goals.map((goal) => (goal.id === "kg-2" ? { ...goal, title: "LINA-41 release notes / CHANGES.md" } : goal)) },
     cards: { cards: scene.cards.cards.map((card) => (card.id === "k-107" ? { ...card, plain: { ...card.plain, title: null }, title: "payment-receipt.md copy", goalTitle: "LINA-41 release notes / CHANGES.md" } : card)) },
   });
-  // A stopped card is always a row (lina-app#148): with no title that may be drawn and no ask, it reads 제목 없음, never
-  // whose stopped card it is (lina-app#156).
-  expect(raw.cards.get("k-107")?.name).toBe(W.untitled);
+  // A stopped card is always a row (lina-app#148): with no title that may be drawn and no ask, it reads its kind of work,
+  // never 제목 없음 (lina-app#225) and never whose stopped card it is (lina-app#156).
+  expect(raw.cards.get("k-107")?.name).toBe(KIND_TITLE.code);
 });
 
 test("a stopped row says why and who it waits on from what the core serves, and is plain when the core does not say", () => {
@@ -342,7 +343,9 @@ test("no row is untitled: work nothing names is not listed, no line counts it, a
 
 // lina-app#156, #222: a title with a product's name, an abbreviation, a file name or an English sentence is not drawn in
 // any state. A stopped card nothing names still is a row; a finished one reads by its Hangul words (lina-app#214).
-test("a title with a Latin word is not drawn in any state: a stopped card still is a row, a finished one reads by its Hangul words (lina-app#156, #222)", () => {
+// lina-app#225: a stopped, planned or running card's title is read by the row title rule (workTitle): a product name or an
+// abbreviation stays, a path or a run of three Latin words does not; then its Hangul words, then its kind of work.
+test("a stopped or running card's title keeps a product name, a finished card's reads by its Hangul words, and no card reads 제목 없음 (lina-app#156, #225)", () => {
   const stopped = { ...summary("k-push", "푸시 키 배포와 HTTPS 주소 열기", null, "stopped"), reason: "decision", waitingOn: "owner" };
   const stoppedPath = summary("k-path", "AAS 회차 점검 notes/aas.md", null, "stopped");
   const stoppedLatin = summary("k-latin", "fake gate cleanup", null, "stopped");
@@ -352,14 +355,15 @@ test("a title with a Latin word is not drawn in any state: a stopped card still 
   const all = [stopped, stoppedPath, stoppedLatin, done, running, sentence];
   const model = buildModel({ cards: { cards: all }, cardDetails: Object.fromEntries(all.map((card) => [card.id, detail(card)])), failed: [] }, NOW);
 
-  expect(model.cards.get("k-push")).toMatchObject({ title: W.untitled, name: W.untitled });
-  expect(model.cards.get("k-path")?.name).toBe(W.untitled);
-  // No Hangul and no ask: still a row (lina-app#148), read as 제목 없음, never whose stopped card it is.
-  expect(model.cards.get("k-latin")?.name).toBe(W.untitled);
+  expect(model.cards.get("k-push")).toMatchObject({ title: "푸시 키 배포와 HTTPS 주소 열기", name: "푸시 키 배포와 HTTPS 주소 열기" });
+  // A path is raw text: the title reads by its Hangul words instead.
+  expect(model.cards.get("k-path")).toMatchObject({ title: "회차 점검", name: "회차 점검" });
+  // No Hangul and no ask: still a row (lina-app#148), read by its kind of work, never 제목 없음 or whose stopped card it is.
+  expect(model.cards.get("k-latin")).toMatchObject({ title: null, name: KIND_TITLE.code });
   expect(model.running.sections[0].rows.map((row) => row.id).sort()).toEqual(["k-latin", "k-path", "k-push"]);
   expect(model.counts.stopped).toBe(3);
   expect(model.cards.get("k-done")?.title).toBe("회차 점검 마무리");
-  expect(model.cards.get("k-running")?.title).toBeNull();
+  expect(model.cards.get("k-running")?.title).toBe("qveris 일시 오류 정리");
   // An English sentence is not drawn; a finished card still is one of 완료's lines (lina-app#196), read by its Hangul
   // words (lina-app#214).
   expect(model.done.map((row) => row.id)).toEqual(["k-done", "k-sentence"]);

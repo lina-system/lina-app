@@ -1,14 +1,7 @@
 import type { ItemDetail, RecordRound, RecordRow, RunRecord } from "../api/client";
-import { STATE_WORD, STATE_WORDS, stateLabel, W } from "../words";
-import { timesInText } from "../time";
-import { CLOCK, cutLeavesHole, cutMark, foldReason, isIdentifier, nameKind, sentenceMayShow, sentencesOf, withParticle, wordCore } from "./fold";
-import { withLeadIns } from "./plain";
+import { STATE_WORD, stateLabel, W } from "../words";
+import { drawnSentences, STATE_ONLY } from "./fold";
 import { holds } from "./rounds";
-
-/** How long a history row's sentence may be, in characters, before it is cut with `…` (lina-app#142). */
-export const SENTENCE_MAX = 60;
-
-const HANGUL = /[\uac00-\ud7a3]/;
 
 /** Who writes machine notices on a card (the dispatcher's and the worker's receipts): never a history line. */
 const MACHINE_AUTHORS = new Set(["kanban-dispatcher", "dispatcher", "lina-worker", "system"]);
@@ -17,118 +10,35 @@ const MACHINE_AUTHORS = new Set(["kanban-dispatcher", "dispatcher", "lina-worker
 const MACHINE_TAG = /^\s*\[[^\]\n\d]{1,20}\]/;
 
 /**
- * Bracketed tags that open a written sentence ([검토자 02:21 결정]): a role and a time, no part of what a history line
- * reads (lina-app#153).
+ * Whether the owner wrote a comment, by its author alone (lina-app#226): `owner`, what the core writes for a comment made
+ * in the app, or the owner's id (`items.owner.id`). Never read from the words.
  */
-const LEADING_TAGS = /^(?:\s*\[[^\]\n]*\])+\s*/;
+export function ownerWrote(author: string | null | undefined, owner?: string | null): boolean {
+  return author === "owner" || (Boolean(owner) && author === owner);
+}
 
 /**
  * Whether a comment is a machine notice, by its author or its opening tag (lina-app#149): it is no history line. The
  * owner's own comment is never one, even when it opens with a bracketed word such as `[중요]`.
  */
-export function isMachineNotice(text: string | null | undefined, author?: string | null): boolean {
-  if (author === "owner") return false;
+export function isMachineNotice(text: string | null | undefined, author?: string | null, owner?: string | null): boolean {
+  if (ownerWrote(author, owner)) return false;
   return (author ? MACHINE_AUTHORS.has(author) : false) || MACHINE_TAG.test(text ?? "");
 }
 
-/** A word that is a particle alone, with the sentence's end after it (`로`, `를.`). */
-const PARTICLE_ALONE = /^(으로|에서|까지|부터|이라고|라고|이라|가|은|는|을|를|라|로|와|과|도|의|만|에)([.,!?。]*)$/;
-
-/** A list's number before a sentence (`1)`, `(2)`): no part of it. */
-const LIST_MARK = /^\(?\d{1,2}\)\s+/;
-
 /**
- * One sentence as a person reads it, or null: its identifiers are left out, and it is dropped whole when it holds an
- * English word, starts inside a word or a number (.5초), a quote or a bracket, is a table's cell, is mostly not
- * Korean, or what is left fails the fold's one rule for a drawn sentence (sentenceMayShow, lina-app#197, #222: no start
- * inside, no open end, no hole, no Latin word or code) or has a hole where an identifier was (cutLeavesHole, the fold's
- * one rule for every cut, lina-app#218), so no word is ever cut or spliced.
+ * The one sentence a history row shows for a bot's text: its first sentence the screens draw whole (drawnSentences,
+ * lina-app#226), never cut or shortened; the row's own width folds a long one. Null when it has none.
  */
-function readable(sentence: string): string | null {
-  const words = sentence.replace(LIST_MARK, "").split(/\s+/).filter(Boolean);
-  if (!words.length || /^[.,:;·…—|)\]}-]|^['"’”]$/.test(words[0]) || /\|\s*$/.test(sentence)) return null;
-  const kept: string[] = [];
-  // The sentence as kept, with a mark where each identifier was cut, for the hole rule.
-  const marked: string[] = [];
-  let removed = false;
-  for (let index = 0; index < words.length; index += 1) {
-    const word = words[index];
-    const core = wordCore(word);
-    if (!/[\p{L}\p{N}]/u.test(core)) continue;
-    // A time of day after its date (`11월 16일 03:30`, an ISO time as timesInText writes it) is part of that date.
-    if (CLOCK.test(core) && /^\d{1,2}일$/.test(kept.at(-1) ?? "")) {
-      kept.push(word);
-      marked.push(word);
-      continue;
-    }
-    if (isIdentifier(core)) {
-      removed = true;
-      // A particle written apart after the name (`번들 dist/ 를`) joins the kind of thing it named, so it never stands
-      // alone (lina-app#207); a sentence that opens on the name has nothing of its own around it and goes.
-      const particle = PARTICLE_ALONE.exec(words[index + 1] ?? "");
-      const noun = particle && kept.length ? nameKind(core) : null;
-      if (particle && noun) {
-        kept.push(withParticle(noun, particle[1]) + particle[2]);
-        marked.push(kept.at(-1) ?? "");
-        index += 1;
-      } else marked.push(cutMark(core) + (/[.!?。)\]]$/.exec(word)?.[0] ?? ""));
-      continue;
-    }
-    if (foldReason(core) === "latin") return null;
-    kept.push(word);
-    marked.push(word);
-  }
-  if (cutLeavesHole(marked.join(" "))) return null;
-  const korean = kept.filter((word) => HANGUL.test(word)).length;
-  if (!korean || korean * 2 < kept.length || (removed && kept.length < 2)) return null;
-  let shown = kept.join(" ");
-  const end = /[.!?。]$/.exec(sentence)?.[0];
-  if (end && !shown.endsWith(end)) shown = `${shown.replace(/[,.:;]$/, "")}${end}`;
-  return sentenceMayShow(shown) ? shown : null;
+export function firstSentence(text: string | null | undefined): string | null {
+  return drawnSentences(text ?? "")[0] ?? null;
 }
 
-/** Where the first bracket or quote the text leaves open starts, or -1. */
-function openBracket(text: string): number {
-  const open: { index: number; mark: string }[] = [];
-  for (const [index, mark] of [...text].entries()) {
-    if (mark === "(" || mark === "[" || mark === "“" || mark === "‘") open.push({ index, mark });
-    else if ((mark === ")" || mark === "]" || mark === "”" || mark === "’") && open.length) open.pop();
-    else if (mark === '"' || mark === "'") {
-      if (open.at(-1)?.mark === mark) open.pop();
-      else open.push({ index, mark });
-    }
-  }
-  return open[0]?.index ?? -1;
+/** A comment's history line: the owner's words as saved (lina-app#226), a bot's first sentence the screens draw. */
+export function commentLine(text: string, author: string | null | undefined, owner?: string | null): string | null {
+  if (ownerWrote(author, owner)) return text.trim() ? text : null;
+  return firstSentence(text);
 }
-
-/**
- * The one sentence a history row shows for a longer text: its first sentence a person may read (readable), cut at a
- * word end with `…` when it runs past SENTENCE_MAX characters, before a bracket or quote the cut would leave open, and
- * back to an earlier word end while the rule fails what is left (a modifier or a particle alone before the `…`). Null
- * when nothing a person reads is left.
- */
-export function firstSentence(text: string | null | undefined, max = SENTENCE_MAX): string | null {
-  const sentences = withLeadIns(timesInText(text ?? ""))
-    .split("\n")
-    .flatMap((line) => sentencesOf(line.replace(LEADING_TAGS, "").trim()))
-    .filter(Boolean);
-  const shown = sentences.map(readable).find((sentence): sentence is string => sentence !== null);
-  if (!shown) return null;
-  const letters = [...shown];
-  if (letters.length <= max) return shown;
-  const head = letters.slice(0, max - 1);
-  // A cut inside a bracket cuts before it, so no bracket is left open (lina-app#197); else at the last word end.
-  const open = openBracket(head.join(""));
-  const space = head.lastIndexOf(" ");
-  for (let kept = (open > 0 ? head.slice(0, open) : space > 0 ? head.slice(0, space) : head).join(""); kept; kept = kept.slice(0, Math.max(0, kept.lastIndexOf(" ")))) {
-    const cut = `${kept.replace(/[\s,.:;]+$/, "")}…`;
-    if (sentenceMayShow(cut)) return cut;
-  }
-  return null;
-}
-
-/** A line that is a state word and nothing else (완료, 진행 중, 검토 통과). */
-const STATE_ONLY = new Set<string>([...STATE_WORDS, ...Object.values(W.outcome)]);
 
 /**
  * History entries newest first (lina-app#149, the one order of every history; of two at the same time, the one
@@ -149,11 +59,12 @@ export function historyLines<T extends { readonly at: number; readonly text: str
 }
 
 /**
- * A work card's comments as history lines, newest first: a machine notice is no line, every other comment is its
- * first sentence a person may read, and a run of comments with none is one 접힌 댓글 line (lina-app#149, #153).
+ * A work card's comments as history lines, newest first: a machine notice is no line, the owner's comment is its words
+ * as saved, a bot's its first sentence the screens draw (commentLine), and a run of comments with none is one 접힌 댓글
+ * line (lina-app#149, #153, #226).
  */
-export function commentHistory<T extends { readonly at: number; readonly author: string | null; readonly body: string | null }>(comments: readonly T[]): (T & { readonly text: string | null; readonly folded: number })[] {
-  return historyLines(comments.filter((comment) => !isMachineNotice(comment.body, comment.author)).map((comment) => ({ ...comment, text: firstSentence(comment.body) })));
+export function commentHistory<T extends { readonly at: number; readonly author: string | null; readonly body: string | null }>(comments: readonly T[], owner?: string | null): (T & { readonly text: string | null; readonly folded: number })[] {
+  return historyLines(comments.filter((comment) => !isMachineNotice(comment.body, comment.author, owner)).map((comment) => ({ ...comment, text: commentLine(comment.body ?? "", comment.author, owner) })));
 }
 
 /**
@@ -189,15 +100,15 @@ export interface HistoryRow {
 }
 
 /**
- * A goal's history, newest first: each comment and reply (its first sentence), its question, how each of its runs
- * ended, each finished work card's merge line (its evidence) and its close. One row per event, `time · one sentence`
- * (lina-app#123).
+ * A goal's history, newest first: each comment and reply (the owner's as saved, a bot's its first sentence: commentLine),
+ * its question, how each of its runs ended, each finished work card's merge line (its evidence) and its close. One row
+ * per event, `time · one sentence` (lina-app#123, #226).
  */
-export function goalHistory(detail: ItemDetail, evidence: readonly { readonly at: number | null; readonly text: string }[]): HistoryRow[] {
+export function goalHistory(detail: ItemDetail, evidence: readonly { readonly at: number | null; readonly text: string }[], owner?: string | null): HistoryRow[] {
   const rows: { at: number; kind: HistoryRow["kind"]; text: string | null }[] = [];
   for (const comment of detail.comments) {
-    if (!isMachineNotice(comment.text, comment.by)) rows.push({ at: comment.at, kind: "comment", text: firstSentence(comment.text) });
-    for (const reply of comment.replies) if (!isMachineNotice(reply.text, reply.by)) rows.push({ at: reply.at, kind: "comment", text: firstSentence(reply.text) });
+    if (!isMachineNotice(comment.text, comment.by, owner)) rows.push({ at: comment.at, kind: "comment", text: commentLine(comment.text, comment.by, owner) });
+    for (const reply of comment.replies) if (!isMachineNotice(reply.text, reply.by, owner)) rows.push({ at: reply.at, kind: "comment", text: commentLine(reply.text, reply.by, owner) });
   }
   rows.push(...decisionHistory(detail));
   for (const run of detail.runs) {

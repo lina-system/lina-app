@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { ago, clockAt, dateClock, timesInText, until } from "./time";
+import { ago, clockAt, dateClock, until } from "./time";
 
 test("how long ago reads 방금 under a minute, then minutes, then hours", () => {
   expect(ago(0)).toBe("방금");
@@ -25,16 +25,6 @@ test("a round's time carries its day when that is not today: 어제 for yesterda
   expect(clockAt(new Date(2026, 10, 1, 9, 10).getTime() / 1000, now)).toBe("11월 1일 09:10");
 });
 
-test("an ISO time written inside a text reads as the screens write a time: its date and time of day (lina-app#207)", () => {
+test("a date and a time of day read as the screens write a time (lina-app#207)", () => {
   expect(dateClock(new Date(2026, 10, 16, 3, 30).getTime() / 1000)).toBe("11월 16일 03:30");
-  // No offset: the device's own time, as written.
-  expect(timesInText("안전망 =2026-11-16T03:30")).toBe("안전망 11월 16일 03:30");
-  expect(timesInText("백업 2026-11-16T00:30:15 기준")).toBe("백업 11월 16일 00:30 기준");
-  // An offset or Z: that instant on the device's clock.
-  expect(timesInText("안전망 =2026-11-16T03:30+09:00")).toBe(`안전망 ${dateClock(Date.UTC(2026, 10, 15, 18, 30) / 1000)}`);
-  expect(timesInText("백업 2026-11-16T00:30Z")).toBe(`백업 ${dateClock(Date.UTC(2026, 10, 16, 0, 30) / 1000)}`);
-  // A key still there keeps its =; a date alone and text with no time stay as they are.
-  expect(timesInText("UNTIL=2026-11-16T00:30")).toBe("UNTIL=11월 16일 00:30");
-  expect(timesInText("2026-11-16 배포")).toBe("2026-11-16 배포");
-  expect(timesInText("a=b 그대로")).toBe("a=b 그대로");
 });

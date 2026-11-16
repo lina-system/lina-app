@@ -19,24 +19,24 @@ test("a round's word: the verdict, then its own end, then going only while it ho
   expect(outcomeOf(round({}), true, true, 50)).toBe("unknown");
 });
 
-test("a history sentence is the first sentence with ids, paths and commands taken out, cut at 60 characters", () => {
-  expect(firstSentence("커밋 3f2a1c9 반영했어요. 다음은 표로 바꿉니다")).toBe("커밋 반영했어요.");
-  expect(firstSentence("lina-app#128 기준으로 src/app.tsx 정리함\n둘째 줄")).toBe("기준으로 정리함");
-  expect(firstSentence("`npm test` 돌려서 통과함! 이어서 배포")).toBe("돌려서 통과함!");
+test("a history sentence is the first sentence the screens draw whole: no id, path or command is cut out, nothing is shortened (lina-app#226)", () => {
+  expect(firstSentence("커밋 3f2a1c9 반영했어요. 다음은 표로 바꿉니다")).toBe("다음은 표로 바꿉니다");
+  expect(firstSentence("lina-app#128 기준으로 src/app.tsx 정리함\n둘째 줄")).toBeNull();
+  expect(firstSentence("`npm test` 돌려서 통과함! 이어서 배포")).toBeNull();
   const long = "가".repeat(80);
-  expect(firstSentence(long)).toBe(`${"가".repeat(59)}…`);
-  expect([...(firstSentence(long) ?? "")]).toHaveLength(60);
+  expect(firstSentence(long)).toBe(long);
   // Nothing a person can read is left: no sentence, the row says so in its own words.
   expect(firstSentence("https://example.com/a/b deploy.sh --force")).toBeNull();
   // A quoted passage of two sentences is one sentence: neither half is dropped for its unclosed quote (lina-app#224 review).
   expect(firstSentence("담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다.")).toBe("담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다.");
-  expect(firstSentence("실패 건수는 0. 검사는 대기 중.")).toBe("실패 건수는 0.");
+  // Neither sentence has a predicate or 8 Hangul letters: fragments (lina-app#226).
+  expect(firstSentence("실패 건수는 0. 검사는 대기 중.")).toBeNull();
   expect(firstSentence(null)).toBeNull();
 });
 
-// lina-app#197: the shapes the hub's history and comment lines took after cleaning (round 13, input/ of the brief), the
-// words made up. Each is drawn only as a sentence that still reads as one; else the next one, else none (the row keeps
-// its own word). The card's comments go through the fold first (historyText), a record row straight to firstSentence.
+// lina-app#197, #226: the shapes the hub's history and comment lines took (round 13, input/ of the brief), the words made
+// up. Each is drawn only whole; else the next one, else none (the row keeps its own word). The card's comments go through
+// the fold first (historyText), a record row straight to firstSentence.
 test.each([
   // A leading clause fragment: the quoted name before it was code, or the line opens on a particle.
   ["fake_option' 값은 꺼져 있고 이유 문구가 붙어 있다. 다음 판에서 다시 확인함.", "다음 판에서 다시 확인함."],
@@ -53,10 +53,10 @@ test.each([
   ["가상 문서 정리 |", null],
   // A list number opens the sentence: the sentence stays, the number goes.
   ["1) 가상 설정이 긴 답에서 돌았다. 둘째 문장.", "가상 설정이 긴 답에서 돌았다."],
-  // The 60-letter cut never leaves a bracket open: it cuts before it.
-  ["완료 조건이 모두 체크됨(가상 일지 두 번, 가상 주간 한 장, 나눠야 할 곳은 나누고 나누면 안 될 곳은 안 나눔)", "완료 조건이 모두 체크됨…"],
-  // Sentences that read stay as they are.
-  ["22:45 기준으로 문구를 다시 확인함.", "기준으로 문구를 다시 확인함."],
+  // A long sentence is drawn whole: nothing shortens it (lina-app#226).
+  ["완료 조건이 모두 체크됨(가상 일지 두 번, 가상 주간 한 장, 나눠야 할 곳은 나누고 나누면 안 될 곳은 안 나눔)", "완료 조건이 모두 체크됨(가상 일지 두 번, 가상 주간 한 장, 나눠야 할 곳은 나누고 나누면 안 될 곳은 안 나눔)"],
+  // A time of day reads against the row's own time and cannot be cut out: no line (lina-app#153, #226).
+  ["22:45 기준으로 문구를 다시 확인함.", null],
   // A product name is a Latin word too (lina-app#222): no line.
   ["iPhone에서 다시 확인함.", null],
   ["가상 화면 (두 번째 판) 정리를 마침.", "가상 화면 (두 번째 판) 정리를 마침."],
@@ -65,25 +65,25 @@ test.each([
   expect(firstSentence(foldedText(text))).toBe(shown);
 });
 
-// lina-app#207: a name cut inside a sentence left its particle standing alone. The hub's card comments read
-// `그 뒤 디스패처가 152번 로 막았다.` and `허브가 앱 번들 를 서빙.` (round 15); the names here are made up. The kind of thing
-// the name was stands in, with the particle in the form that noun takes. A sentence that opens on the name goes whole.
+// lina-app#207, #226: a name inside a sentence left its particle standing alone once it was cut (round 15); a kind word
+// stood in for it since, which changed the sentence. Now the sentence is not drawn at all; the names here are made up.
 test.each([
-  ["그 뒤 디스패처가 152번 `fake_field` 로 막았다.", "그 뒤 디스패처가 152번 항목으로 막았다."],
-  ["허브가 앱 번들 `dist/` 를 서빙.", "허브가 앱 번들 폴더를 서빙."],
-  ["허브가 앱 번들 a1b2c3d4e5 를 서빙.", "허브가 앱 번들 커밋을 서빙."],
-  ["허브가 앱 번들 fake/index.html 을 서빙.", "허브가 앱 번들 파일을 서빙."],
-  ["그 뒤 디스패처가 152번 r3 로 막았다.", "그 뒤 디스패처가 152번 항목으로 막았다."],
+  ["그 뒤 디스패처가 152번 `fake_field` 로 막았다.", null],
+  ["허브가 앱 번들 `dist/` 를 서빙.", null],
+  ["허브가 앱 번들 a1b2c3d4e5 를 서빙.", null],
+  ["허브가 앱 번들 fake/index.html 을 서빙.", null],
+  ["그 뒤 디스패처가 152번 r3 로 막았다.", null],
   ["`fake_field` 로 막았다.", null],
-])("a history line %j reads %j: a name cut inside it leaves no particle alone (lina-app#207)", (text, shown) => {
+])("a history line %j reads %j: a name inside it is never cut out or stood in for (lina-app#207, #226)", (text, shown) => {
   expect(firstSentence(text)).toBe(shown);
   expect(firstSentence(foldedText(text))).toBe(shown);
 });
 
-// lina-app#218: the round 17 shapes, words made up: a lead-in reads with its first item, and a sentence whose cut left a
-// hole (a particle apart, a modifier whose noun was cut) gives way to the next one, else to none.
+// lina-app#218, #226: the round 17 shapes, words made up: a lead-in is no line and is never joined to its first item, and
+// a sentence holding a ref gives way to the next one, else to none.
 test.each([
-  ["확인할 가짜 결과:\n- 가짜 빌드 통과.\n- 가짜 시험 통과.", "확인할 가짜 결과: 가짜 빌드 통과."],
+  ["확인할 가짜 결과:\n- 가짜 빌드 통과.\n- 가짜 시험 통과.", null],
+  ["확인할 가짜 결과:\n- 가짜 빌드를 마쳤다.", "가짜 빌드를 마쳤다."],
   ["확인할 가짜 결과:", null],
   ["가짜 끝 조건은 더 새 a1b2c3d4e5로 충족됨. 가짜 시험을 마친 뒤 닫아도 된다.", "가짜 시험을 마친 뒤 닫아도 된다."],
   ["가짜 끝 조건은 새 lina#12로 충족됨.", null],
@@ -111,8 +111,8 @@ test.each([
   ['가짜 댓글의 세 번 끊겼다"는 틀렸다. 가짜 시험을 마침.', "가짜 시험을 마침."],
   // No clean sentence: no line.
   ["가짜 PR (닫음). 가짜 결함 D1~D7을 모았다.", null],
-  // The 60-letter cut never leaves a quote open: it cuts before it.
-  ['가짜 요청은 "가짜 화면을 열 때마다 목록을 통째로 다시 받아 기다리게 하지 말고 지난번 화면을 바로 보여 주기"였다.', "가짜 요청은…"],
+  // A long sentence is drawn whole, its quote and all (lina-app#226).
+  ['가짜 요청은 "가짜 화면을 열 때마다 목록을 통째로 다시 받아 기다리게 하지 말고 지난번 화면을 바로 보여 주기"였다.', '가짜 요청은 "가짜 화면을 열 때마다 목록을 통째로 다시 받아 기다리게 하지 말고 지난번 화면을 바로 보여 주기"였다.'],
 ])("a history line %j reads %j: one sentence the rule passes, else the next, else none (lina-app#222)", (text, shown) => {
   expect(firstSentence(text)).toBe(shown);
   expect(firstSentence(foldedText(plainText(text)))).toBe(shown);
@@ -141,12 +141,12 @@ const REAL_HISTORY: readonly (readonly [string, string, string | null])[] = [
   ["lina-worker", "[대기 충족] of — 돌렸다.", null],
   ["kanban-dispatcher", "[받음] 1744 대화에 들어감: 21:44 · OT-QAX1113…", null],
   ["worker-a", "장부 G73 / T264.", null],
-  ["worker-a", "t_27363156 레스큐 봇", "레스큐 봇"],
+  ["worker-a", "t_27363156 레스큐 봇", null],
   ["worker-a", "rc=1(없음)", null],
   ["worker-a", "[현황]", null],
   ["worker-a", "[받음] 첫 화면 문구를 짧게 고쳤어요.", null],
   ["lina-worker", "작업을 받아 대화에 들어감", null],
-  ["worker-a", "G73 장부를 맞추고 T264 할 일을 닫았어요. 이어서 배포", "장부를 맞추고 할 일을 닫았어요."],
+  ["worker-a", "G73 장부를 맞추고 T264 할 일을 닫았어요. 이어서 배포", null],
 ];
 
 const IDENTIFIER = /[A-Za-z]+[-_:]?\d|\d+[A-Za-z]|#\d|=|_/;
@@ -163,13 +163,9 @@ test.each(REAL_HISTORY)("a real comment by %s, %j, is a whole sentence with no i
   for (const word of line.replace(/…$/, "").split(/\s+/)) expect(words, word).toContain(word.replace(/[.,!?。:;]+$/, ""));
 });
 
-test("a long sentence is cut at a word end with …, never inside a word", () => {
+test("a long sentence is drawn whole, never cut (lina-app#226)", () => {
   const body = "배포 전에 바뀐 화면 문구를 하나씩 다시 읽어 보고 어색한 곳을 고쳐서 검토 요청을 올렸고 이어서 남은 화면 두 곳을 맞추는 중";
-  const line = firstSentence(body) ?? "";
-  expect(line.endsWith("…")).toBe(true);
-  expect([...line].length).toBeLessThanOrEqual(60);
-  expect(body.startsWith(line.slice(0, -1))).toBe(true);
-  expect(body[line.length - 1]).toBe(" ");
+  expect(firstSentence(body)).toBe(body);
 });
 
 test("history lines read newest first, and a run of entries with nothing left to read is one line with its count", () => {
@@ -209,7 +205,8 @@ test("a goal's history: comments, its question, its runs, the merge and the clos
     [600, "run", "완료"],
     [400, "question", "질문: 가이드를 첫 화면에 걸지 결정 필요"],
     [300, "comment", "짧게 고쳤어요."],
-    [200, "comment", "첫 화면 문구는 짧게 해 주세요."],
+    // The owner's comment is drawn as saved (lina-app#226).
+    [200, "comment", "첫 화면 문구는 짧게 해 주세요. 자세한 건 docs/guide.md 참고"],
   ]);
 });
 
@@ -253,7 +250,7 @@ test.each(NOISY)("a card's history with %s: no line starts with [, none repeats 
 test("a bracket tag with a role and a time is cut off the sentence; a receipt's one-word tag still makes it a machine notice", () => {
   expect(firstSentence("[검토자 02:21 결정] 배포는 금요일 오후로 함.")).toBe("배포는 금요일 오후로 함.");
   expect(firstSentence("[작업자 04:40 코드 반영 끝, 시험 통과]")).toBeNull();
-  expect(firstSentence("22:45 기준으로 문구를 다시 확인함.")).toBe("기준으로 문구를 다시 확인함.");
+  expect(firstSentence("22:45 기준으로 문구를 다시 확인함.")).toBeNull();
   expect(isMachineNotice("[검토자 02:21 결정] 배포는 금요일 오후로 함.", "worker-a")).toBe(false);
   expect(isMachineNotice("[받음] 대화에 들어감", "worker-a")).toBe(true);
 });

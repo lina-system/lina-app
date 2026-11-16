@@ -6,17 +6,14 @@ import { SyntheticSource } from "./data/synthetic-source";
 
 // lina-app#161 item 6: comment sentences in the hub's real shapes, where withoutRefs cut a ref and left debris around it.
 // The thread and a card's comment history show none of it; a comment with nothing left is one folded row. The address
-// host is an example name in place of the real one. A ref inside a sentence with its particle written apart reads as
-// the kind of thing it names (lina-app#207): that sentence keeps its meaning instead of folding.
+// host is an example name in place of the real one. A ref inside a sentence with its particle written apart read as the
+// kind of thing it names (lina-app#207); that changed the sentence, so it folds now like the rest (lina-app#226).
 
 const MIN = 60;
 const REAL = ["t_e6e0f90a 가 맡는다.", "lina#718 라 카드 완료 금지.", "주소: (lina-system/lina#12), (hermes-ops#277)", "주소: http://hub.example.com:8080/ 되돌릴 커밋: e37e43f"];
 const DEBRIS = ["가 맡는다.", "라 카드 완료 금지.", "주소", "되돌릴 커밋"];
-/** The same refs inside a sentence (lina-app#207): the kind of thing each names stands in, with its particle. */
-const NAMED = [
-  ["백업 대체는 t_e6e0f90a 가 맡는다.", "백업 대체는 카드가 맡는다."],
-  ["남은 범위 lina#718 라 카드 완료 금지.", "남은 범위 이슈라 카드 완료 금지."],
-] as const;
+/** The same refs inside a sentence (lina-app#207): no kind word stands in for them any more (lina-app#226). */
+const NAMED = ["백업 대체는 t_e6e0f90a 가 맡는다.", "남은 범위 lina#718 라 카드 완료 금지."] as const;
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -58,28 +55,27 @@ for (const [index, comment] of REAL.entries()) {
   });
 }
 
-for (const [comment, shown] of NAMED) {
-  test(`a comment ${JSON.stringify(comment)} reads ${JSON.stringify(shown)} in the thread, no particle alone (lina-app#207)`, async () => {
+for (const comment of NAMED) {
+  test(`a comment ${JSON.stringify(comment)} folds in the thread: its ref is never cut or stood in for (lina-app#207, #226)`, async () => {
     const { texts, folded } = await thread([comment]);
-    expect(texts).toContain(shown);
-    expect(folded).toEqual([]);
+    expect(texts).not.toContain(comment);
+    expect(folded).toEqual(["접힌 기록 1건"]);
   });
 
-  test(`a card's comment history reads ${JSON.stringify(comment)} as ${JSON.stringify(shown)} (lina-app#207)`, async () => {
+  test(`a card's comment history folds ${JSON.stringify(comment)} (lina-app#207, #226)`, async () => {
     const scene = new SyntheticSource({ now: Math.floor(Date.now() / 1000) }).scene;
     const k103 = scene.cardDetails["k-103"];
     const comments = [{ id: 800, author: "ag-2", body: comment, createdAt: scene.now - 10 * MIN }];
     const view = await open("#/cards/k-103", new SyntheticSource({ now: scene.now, scene: { ...scene, cardDetails: { ...scene.cardDetails, "k-103": { ...k103, comments } } } }));
     const rows = within(view.getByTestId("card-comments")).getAllByTestId("history-row").map((row) => (row.textContent ?? "").replace(/^(?:어제 |\d+월 \d+일 )?\d\d:\d\d · /, ""));
-    expect(rows).toEqual([shown]);
+    expect(rows).toEqual(["접힌 댓글"]);
   });
 }
 
-test("item 6: a comment keeps each sentence that still reads, a ref inside it as the kind it names (lina-app#207)", async () => {
-  const { texts } = await thread(["Codex 리뷰 요청함. 남은 범위 lina#718 라 카드 완료 금지."]);
-  // A sentence with a product name in it is no sentence the screens draw (lina-app#222); the next one still is.
-  expect(texts).toContain("남은 범위 이슈라 카드 완료 금지.");
-  for (const text of texts) expect(text).not.toMatch(/범위 라|Codex/);
+test("item 6: a comment whose every sentence holds a product name or a ref folds whole (lina-app#222, #226)", async () => {
+  const { texts, folded } = await thread(["Codex 리뷰 요청함. 남은 범위 lina#718 라 카드 완료 금지."]);
+  expect(folded).toEqual(["접힌 기록 1건"]);
+  for (const text of texts) expect(text).not.toMatch(/범위 라|Codex|남은 범위/);
 });
 
 test("item 6: comments with nothing left in a row are one 접힌 기록 N건 row", async () => {

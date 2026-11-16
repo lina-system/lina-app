@@ -380,7 +380,7 @@ export function round24RecordScene(scene: Scene): Scene {
     { id: "k-443", title: "가짜 기기 바꾸기", reason: "decision", ask: "바꿀 시각 결정", blockReason: "가짜 판 · 새 기기 · fake-mac 가짜 상태 확인\n가짜 서버는 다시 켰고 주소 세 곳(127.0.0.1·LAN·tailnet 200)에서 답이 왔다. 가짜 앱 첫 화면도 열렸다.\n결정할 것: 오늘 밤에 바꿀지, 내일 아침에 바꿀지 정해 주세요." },
     { id: "k-444", title: "가짜 백업 확인하기", reason: "feedback", ask: null, blockReason: "initial_status" },
   ];
-  const stoppedCards = stops.map((stop, index) => ({ ...template, id: stop.id, title: stop.title, goalTitle: null, reason: stop.reason, waitingOn: "owner", retry: "none", ask: stop.ask, readOnly: true, lastHeartbeatAt: now - (index + 2) * hour }) as SceneCard);
+  const stoppedCards = stops.map((stop, index) => ({ ...template, id: stop.id, title: stop.title, plain: { ...template.plain, title: stop.title }, goalTitle: null, reason: stop.reason, waitingOn: "owner", retry: "none", ask: stop.ask, readOnly: true, lastHeartbeatAt: now - (index + 2) * hour }) as SceneCard);
   const stoppedDetails = Object.fromEntries(stops.map((stop) => [stop.id, { ...detail, id: stop.id, title: stop.title, reason: stop.reason, comments: [], workerRuns: [], readOnly: true }]));
   const thread = scene.itemDetails.T4;
   const reply = (cid: string, text: string, ago: number) => ({ cid, by: "ag-2", at: now - ago, text, status: "open" as const, kind: "comment" as const, replies: [] });
@@ -411,7 +411,8 @@ export const ROUND24 = {
 } as const;
 
 /**
- * The hub's shapes UI QA round 24 met (`&hub=round24`, lina-app#242), on top of round 23's, field by field as its lists
+ * The hub's shapes UI QA round 24 met (`&hub=round24`, lina-app#242), on top of round24RecordScene and round 23's list shapes
+ * (not its record frame, whose extra worker run would move the long card's record), field by field as its lists
  * serve them, in made-up words (ROUND24). Three stopped cards of one agent under one goal title, read-only, waiting on the
  * owner's decision, never retried, each with a short ask, a long Latin `now` and its inbox block reason. Two planned cards
  * of two agents under one goal title, one titled as the goal (scheduled), one with a title of its own (in triage). And the
@@ -420,7 +421,7 @@ export const ROUND24 = {
  * two drawn as written; the hub links them to the goal by that title alone.
  */
 export function round24Scene(scene: Scene): Scene {
-  const next = round24RecordScene(round23Scene(scene));
+  const next = round23ListScene(round24RecordScene(scene));
   const template = next.cards.cards.find((card) => card.state === "done");
   const agents = next.items.agents.map((agent) => agent.id);
   if (!template || agents.length < 3) return next;

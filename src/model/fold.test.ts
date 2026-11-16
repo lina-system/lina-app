@@ -154,6 +154,33 @@ test.each([
   expect(sentenceMayShow(sentence)).toBe(shows);
 });
 
+// lina-app#228: a sentence that carries a list (`(1)`, `1)`, `1.` or `①` marks) is drawn whole with every item or not at all.
+// The split joins an item to the list before it (the same kind of mark, the next number), so a lead-in and its items on
+// one line are one sentence; a list the hub cut (`…`), that goes on to the next line, that skips a number or that does
+// not start at 1 is not drawn, and a line that opens on a list's number and holds its next item is that list whole.
+const LIST = "가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. (2) 버튼을 아래로 옮겼다. (3) 카드사 이름을 굵게 바꿨다.";
+test.each([
+  [LIST, [LIST]],
+  [`${LIST} 다음 문장도 있다.`, [LIST, "다음 문장도 있다."]],
+  // A `1)` mark inside a sentence is a bracket closed alone: that list is never drawn.
+  ["가짜 순서: 1) 빌드를 마친다. 2) 배포를 한다.", []],
+  ["가짜 순서는 1. 가짜 빌드를 마친다. 2. 가짜 배포를 한다.", ["가짜 순서는 1. 가짜 빌드를 마친다. 2. 가짜 배포를 한다."]],
+  ["가짜 할 일은 둘이다 ① 문구를 고친다 ② 버튼을 옮긴다.", ["가짜 할 일은 둘이다 ① 문구를 고친다 ② 버튼을 옮긴다."]],
+  ["가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. (2) 버튼을 아래로…", []],
+  ["가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. (3) 버튼을 아래로 옮겼다.", []],
+  ["앞의 일은 끝났고 (2) 버튼을 아래로 옮겼다.", []],
+  ["가짜 남은 일: (1) 영수증 금액 줄을 다시 본다.\n(2) 환불 문구 확인.", []],
+  ["가짜 남은 일: (1) 영수증 금액 줄을 다시 본다.\n(2) 환불 안내 문구를 고친다.", ["환불 안내 문구를 고친다."]],
+  ["(1) 가짜 문구를 맞췄다. (2) 가짜 버튼을 옮겼다.", []],
+  // A range is no list's mark (`11-16)`).
+  ["가짜 보고(검토 기간 11-16) 내용을 고쳤다.", ["가짜 보고(검토 기간 11-16) 내용을 고쳤다."]],
+  // An item of several sentences: its list goes on past the sentence, so neither item is drawn; the sentence between is.
+  ["가짜 검토 결과: ① 첫 화면 문구를 맞췄다. 가짜 시안도 함께 고쳤다. ② 버튼을 아래로 옮겼다.", ["가짜 시안도 함께 고쳤다."]],
+  ["가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. 가짜 시안도 함께 고쳤다.\n가짜 새 줄이다. (2) 버튼을 옮겼다.", ["가짜 시안도 함께 고쳤다.", "가짜 새 줄이다."]],
+])("drawnSentences(%j) is %j: a list whole or not at all (lina-app#228)", (text, drawn) => {
+  expect(drawnSentences(text)).toEqual(drawn);
+});
+
 // lina-app#228: a ref or a Latin word cut from between a separator (or the title's start) and the bracket after it
 // leaves that bracket an aside on nothing (`손보기: (지난 판 되돌림) 이후`): a hole, so the cut gives nothing. A bracket the title
 // itself opens after its colon, with nothing cut, stays; one that ends the title is the colon's aside, its colon gone.
@@ -196,6 +223,10 @@ test("a title holding a digits-only hash passes the sentence rule only once the 
 test.each([
   ["가짜 순서는 1. 가짜 빌드를 마친다. 다음 문장.", ["가짜 순서는 1. 가짜 빌드를 마친다.", "다음 문장."]],
   ["2. 가짜 시험 통과.", ["2. 가짜 시험 통과."]],
+  // An item stays with the list before it: the same kind of mark, the next number (lina-app#228).
+  ["가짜 결과: (1) 문구를 맞췄다. (2) 버튼을 옮겼다. 다음 문장.", ["가짜 결과: (1) 문구를 맞췄다. (2) 버튼을 옮겼다.", "다음 문장."]],
+  ["가짜 순서는 1. 가짜 빌드를 마친다. 2. 가짜 배포를 한다. 다음 문장.", ["가짜 순서는 1. 가짜 빌드를 마친다. 2. 가짜 배포를 한다.", "다음 문장."]],
+  ["가짜 결과: (1) 문구를 맞췄다. 2) 버튼을 옮겼다.", ["가짜 결과: (1) 문구를 맞췄다.", "2) 버튼을 옮겼다."]],
   // A count at the end of a sentence is no list's number, so the next sentence stays its own (lina-app#224 review).
   ["가짜 실패 건수는 0. 가짜 검사는 대기 중.", ["가짜 실패 건수는 0.", "가짜 검사는 대기 중."]],
   ["가짜 대기는 3. 가짜 검사는 대기 중.", ["가짜 대기는 3.", "가짜 검사는 대기 중."]],

@@ -206,7 +206,7 @@ test("the 완료 head is every finished card on the first page and once every on
   // Opened, the head, the sidebar and the cards the rows stand for are the same number: the three nothing names are one
   // grey line ×3 (lina-app#225), never 제목 없음.
   expect(opened.home.finished.rows).toHaveLength(9);
-  expect(opened.home.finished.rows.at(-1)).toMatchObject({ title: null, name: W.cards, repeat: 3 });
+  expect(opened.home.finished.rows.at(-1)).toMatchObject({ title: null, name: W.untitledCount(3), repeat: 3 });
   expect(opened.finished.more).toBe(0);
   expect(opened.home.finished.count).toBe(11);
   expect(opened.counts.done).toBe(11);

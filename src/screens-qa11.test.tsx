@@ -41,7 +41,7 @@ const navCount = (view: ReturnType<typeof render>, testid: string) => ({
 });
 const rows = (root: Element | null) => (root ? root.querySelectorAll("[data-testid=row]").length : 0);
 /** The cards a list's rows stand for, a `×n` row counting n (lina-app#225). */
-const cards = (root: Element | null) => (root ? [...root.querySelectorAll("[data-testid=row]")].reduce((sum, row) => sum + Number(/×(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1), 0) : 0);
+const cards = (root: Element | null) => (root ? [...root.querySelectorAll("[data-testid=row]")].reduce((sum, row) => sum + Number(/(?:×|제목 없는 )(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1), 0) : 0);
 /** A group's cards and the ones its fold holds, `외 n개` (lina-app#225). */
 const cardsAndFold = (root: Element | null) => cards(root) + Number(/외 (\d+)개/.exec(root?.querySelector(".more-row")?.textContent ?? "")?.[1] ?? 0);
 

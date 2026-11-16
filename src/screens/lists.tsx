@@ -387,9 +387,12 @@ function LatestLine({ agentId, testid }: { agentId: string; testid: string }) {
   );
 }
 
-/** A finished line that stands for cards whose lines read the same says how many (lina-app#168). */
+/**
+ * A finished line that stands for cards whose lines read the same says how many (lina-app#168); the line of the cards
+ * nothing names says it in its name already (lina-app#231).
+ */
 function repeatedLine(card: CardRow): CardRow {
-  return card.repeat ? { ...card, name: `${card.name} ${W.repeated(card.repeat)}` } : card;
+  return card.repeat && card.title !== null ? { ...card, name: `${card.name} ${W.repeated(card.repeat)}` } : card;
 }
 
 /**

@@ -46,7 +46,7 @@ function rowOf(view: ReturnType<typeof render>, id: string): HTMLElement {
 
 test("a folded ×3 row's detail lists the three cards of the fold, the opened one first, each `time · state · sentence`", async () => {
   const view = await open("#/cards/k-131", hub());
-  expect(rowOf(view, "k-131").textContent).toContain("×3");
+  expect(rowOf(view, "k-131").textContent).toMatch(/(?:×|제목 없는 )3/);
   const lines = within(await frame(view)).getAllByTestId("fold-member").map((line) => line.textContent ?? "");
   expect(lines).toHaveLength(3);
   for (const line of lines) expect(line).toMatch(new RegExp(`^${TIME} · 완료 · `));

@@ -37,7 +37,7 @@ async function finishedRows(view: ReturnType<typeof render>) {
     grey: row.querySelector(".title.is-kind") !== null,
     title: row.querySelector(".title")?.textContent ?? "",
     sub: row.querySelector("[data-testid=row-sub]")?.textContent ?? null,
-    cards: Number(/×(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1),
+    cards: Number(/(?:×|제목 없는 )(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1),
   }));
 }
 
@@ -64,5 +64,15 @@ for (const wide of [true, false]) {
     expect(grey[0].cards).toBe(ROUND22_HOLES.length);
     expect(rows.some((row) => /\(\s*\)|\(\d+\)|@|^[·,]|^(용|을|를)\s/.test(row.title))).toBe(false);
     expect(view.container.textContent).not.toContain(W.untitled);
+  });
+
+  test(`the grey line says what it holds, never a bare kind word, and counts its cards once (${width})`, async () => {
+    const view = await open("#/", hub(), wide);
+    const rows = await finishedRows(view);
+    const grey = rows.filter((row) => row.grey);
+    expect(grey.map((row) => row.title)).toEqual([W.untitledCount(ROUND22_HOLES.length)]);
+    expect(rows.some((row) => row.title === W.cards || row.title.startsWith(`${W.cards} ×`))).toBe(false);
+    const link = view.getByTestId("section-finished").querySelector("[data-testid=row] .title.is-kind")?.closest("a");
+    expect(link?.getAttribute("aria-label")).toContain(W.untitledCount(ROUND22_HOLES.length));
   });
 }

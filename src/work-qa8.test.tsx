@@ -68,7 +68,7 @@ describe("finished lines collapse (lina-app#168 item 1)", () => {
     expect(rows[0].querySelector(".title")?.textContent).toBe(`${DEPLOY} ${W.repeated(5)}`);
     expect(rows[0].querySelector("a")?.getAttribute("href")).toMatch(/\/cards\/k-deploy-1$/);
     // The head and the sidebar's 완료 count the cards (lina-app#225): a ×5 line is one row and counts its five.
-    const cards = within(finished).getAllByTestId("row").reduce((sum, row) => sum + Number(/×(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1), 0);
+    const cards = within(finished).getAllByTestId("row").reduce((sum, row) => sum + Number(/(?:×|제목 없는 )(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1), 0);
     expect(cards).toBe(within(finished).getAllByTestId("row").length + 4);
     expect(Number(finished.querySelector("[data-testid=count]")?.textContent)).toBe(cards);
     expect(Number(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")?.textContent)).toBe(cards);

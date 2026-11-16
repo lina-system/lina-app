@@ -318,7 +318,7 @@ async function rowNames(list) {
 // A group's rows, one each (a `×n` line too), and the rows its fold `외 n개` holds back (lina-app#221).
 // The cards some rows stand for, a `×n` row counting n (lina-app#225).
 async function cardsOf(rows) {
-  return (await rows.allInnerTexts()).reduce((sum, text) => sum + Number(/×(\d+)/.exec(text)?.[1] ?? 1), 0);
+  return (await rows.allInnerTexts()).reduce((sum, text) => sum + Number(/(?:×|제목 없는 )(\d+)/.exec(text)?.[1] ?? 1), 0);
 }
 
 // The cards a 완료 group's rows and its fold `외 n개` stand for (lina-app#225).
@@ -3186,16 +3186,16 @@ const drivers = {
       await group.locator(".more-row").getByRole("button").click();
       await group.getByRole("button", { name: "완료 닫기", exact: true }).waitFor();
       const after = await finishedNow(group);
-      const folds = (await group.locator("li[data-testid=row]").allInnerTexts()).map((text) => /×(\d+)/.exec(text)?.[1]).filter(Boolean);
+      const folds = (await group.locator("li[data-testid=row]").allInnerTexts()).map((text) => /(?:×|제목 없는 )(\d+)/.exec(text)?.[1]).filter(Boolean);
       const grey = await group.locator("li[data-testid=row] .title.is-kind").allInnerTexts();
       const untitled = await page.getByTestId("screen-running").getByText("제목 없음").count();
       check(after.head === 524 && after.rows === 514 && after.all === 524 && (after.nav === null || Number(after.nav) === 524), "opened: " + JSON.stringify(after));
-      check(JSON.stringify(folds) === JSON.stringify(["4", "5", "2", "2", "2"]) && JSON.stringify(grey) === JSON.stringify(["작업 ×2"]) && untitled === 0, "folds " + JSON.stringify(folds) + ", grey " + JSON.stringify(grey) + ", 제목 없음 " + untitled);
+      check(JSON.stringify(folds) === JSON.stringify(["4", "5", "2", "2", "2"]) && JSON.stringify(grey) === JSON.stringify(["제목 없는 2건"]) && untitled === 0, "folds " + JSON.stringify(folds) + ", grey " + JSON.stringify(grey) + ", 제목 없음 " + untitled);
       return "before " + before.head + " = " + before.rows + " rows + 외 " + (before.all - before.rows) + "개 (sidebar " + (before.nav ?? "phone") + "); opened " + after.rows + " rows for " + after.all + " cards, head " + after.head + ", sidebar " + (after.nav ?? "phone") + ", folds ×" + folds.join(" ×");
     });
     // lina-app#225 (QA round 20, the real hub): the hub's 525 finished cards read 525 collapsed and 475 opened, a planned card
     // with a Latin goal title was in no list, and a waiting to-do past its due date read only its date.
-    await step("on the hub's shape (&hub=round20), 완료 counts cards in every state: 46 cards read 5 rows and 외 41개, then rows whose ×n add up to 46 with one grey 작업 ×10 (the six titled alike but for a hash outside a bracket are never cut, lina-app#231), the head and the sidebar 46 (lina-app#225)", async () => {
+    await step("on the hub's shape (&hub=round20), 완료 counts cards in every state: 46 cards read 5 rows and 외 41개, then rows whose ×n add up to 46 with one grey 제목 없는 10건 (the six titled alike but for a hash outside a bracket are never cut, lina-app#231), the head and the sidebar 46 (lina-app#225)", async () => {
       await openApp(page, "#/", "&hub=round20");
       const group = page.getByTestId("section-finished");
       const before = await finishedNow(group);
@@ -3206,7 +3206,7 @@ const drivers = {
       const grey = await group.locator("li[data-testid=row] .title.is-kind").allInnerTexts();
       const untitled = await page.getByTestId("screen-running").getByText("제목 없음").count();
       check(after.head === 46 && after.all === 46 && after.rows < 46 && (after.nav === null || Number(after.nav) === 46), "opened: " + JSON.stringify(after));
-      check(JSON.stringify(grey) === JSON.stringify(["작업 ×10"]) && untitled === 0, "grey " + JSON.stringify(grey) + ", 제목 없음 " + untitled);
+      check(JSON.stringify(grey) === JSON.stringify(["제목 없는 10건"]) && untitled === 0, "grey " + JSON.stringify(grey) + ", 제목 없음 " + untitled);
       return "before " + before.head + " = " + before.rows + " rows + 외 " + (before.all - before.rows) + "개 (sidebar " + (before.nav ?? "phone") + "); opened " + after.rows + " rows for " + after.all + " cards, head " + after.head + ", grey " + grey.join("");
     });
     // lina-app#231 (QA round 22, the real hub): finished titles read with a hole where a Latin word or a ref was cut.
@@ -3222,7 +3222,7 @@ const drivers = {
       const cut = drawn.filter((title) => !titles.some((each) => each === title || each.startsWith(title + " (")));
       const holes = drawn.filter((title) => /\(\s*\)|\(\d+\)|@|^[·,]|^(용|을|를)\s/.test(title));
       check(after.head === titles.length && after.all === titles.length, "opened: " + JSON.stringify(after) + " of " + titles.length + " cards");
-      check(cut.length === 0 && holes.length === 0 && grey.length === 1 && /×7$/.test(grey[0]), "cut " + JSON.stringify(cut) + ", holes " + JSON.stringify(holes) + ", grey " + JSON.stringify(grey));
+      check(cut.length === 0 && holes.length === 0 && JSON.stringify(grey) === JSON.stringify(["제목 없는 7건"]), "cut " + JSON.stringify(cut) + ", holes " + JSON.stringify(holes) + ", grey " + JSON.stringify(grey));
       return after.rows + " lines for " + after.all + " cards: " + drawn.length + " titles as written, grey " + grey.join("");
     });
     await step("on the hub's shape (&hub=round20), every planned card is a row of 예정, its head their number, the one with a Latin goal title named by it (lina-app#225)", async () => {

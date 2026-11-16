@@ -42,7 +42,7 @@ function finished(view: ReturnType<typeof render>) {
   return {
     head: Number(view.getByTestId("head-finished").querySelector("[data-testid=count]")?.textContent),
     rows: rows.length,
-    cards: rows.reduce((sum, row) => sum + Number(/×(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1), 0),
+    cards: rows.reduce((sum, row) => sum + Number(/(?:×|제목 없는 )(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1), 0),
     fold: Number(/외 (\d+)개/.exec(more?.textContent ?? "")?.[1] ?? 0),
     loading: more?.textContent === W.loading,
   };
@@ -76,9 +76,9 @@ for (const wide of [true, false]) {
     // The cards nothing names are one grey row that says how many, never 제목 없음: the four with no Hangul and the six
     // titled alike but for a hash outside a bracket, which is never cut out of a finished title (lina-app#231).
     const unnamed = [...group.querySelectorAll("[data-testid=row] .title.is-kind")].map((title) => title.textContent);
-    expect(unnamed).toEqual([`${W.cards} ${W.repeated(10)}`]);
+    expect(unnamed).toEqual([W.untitledCount(10)]);
     expect(view.container.textContent).not.toContain(W.untitled);
-    expect([...group.querySelectorAll("[data-testid=row]")].map((row) => /×(\d+)/.exec(row.textContent ?? "")?.[1]).filter(Boolean)).toEqual(["10", "3"]);
+    expect([...group.querySelectorAll("[data-testid=row]")].map((row) => /(?:×|제목 없는 )(\d+)/.exec(row.textContent ?? "")?.[1]).filter(Boolean)).toEqual(["10", "3"]);
   });
 
   test(`${W.done} screen: 전체 counts the cards its rows stand for, the sidebar's number (${width})`, async () => {
@@ -86,7 +86,7 @@ for (const wide of [true, false]) {
     const view = await open("#/done", source, wide);
     const list = await waitFor(() => view.getByRole("list", { name: W.done }));
     const all = view.getByRole("button", { name: new RegExp(`^${W.allAgents} \\d+$`) });
-    const cards = [...list.querySelectorAll("[data-testid=row]")].reduce((sum, row) => sum + Number(/×(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1), 0);
+    const cards = [...list.querySelectorAll("[data-testid=row]")].reduce((sum, row) => sum + Number(/(?:×|제목 없는 )(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1), 0);
     expect(cards).toBe(cardsIn(source, "done").length);
     expect(Number(all.querySelector(".count")?.textContent)).toBe(cards);
     if (wide) expect(sidebarDone(view)).toBe(cards);

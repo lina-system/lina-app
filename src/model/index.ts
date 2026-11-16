@@ -501,8 +501,8 @@ export function apart(rows: readonly CardRow[], now: number): CardRow[] {
 /**
  * A finished group's lines (lina-app#168): cards whose lines read the same (the hub's titles that differ only by a hash
  * or a number the screen cuts) are one line, the newest of them, which it opens, with how many it stands for
- * (`repeat`); the cards nothing names are one such line too (lina-app#225). The rows come newest first; the group head
- * counts the cards (cardCount).
+ * (`repeat`); the cards nothing names are one such line too (lina-app#225), named for what it holds and how many, never
+ * by a kind word (lina-app#231). The rows come newest first; the group head counts the cards (cardCount).
  */
 function collapsed(rows: readonly CardRow[]): CardRow[] {
   const lines = new Map<string, CardRow>();
@@ -511,6 +511,8 @@ function collapsed(rows: readonly CardRow[]): CardRow[] {
     const first = lines.get(key);
     lines.set(key, first ? { ...first, repeat: (first.repeat ?? 1) + 1, fold: [...(first.fold ?? [first]), row] } : { ...row, when: null });
   }
+  const unnamed = lines.get("");
+  if (unnamed) lines.set("", { ...unnamed, name: W.untitledCount(unnamed.repeat ?? 1), sub: null });
   return [...lines.values()];
 }
 

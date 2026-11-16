@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
-import { foldedText, sentencesOf } from "./fold";
+import { foldedText, sentencesOf, withoutCutEnd } from "./fold";
+import { wholeTitle } from "./index";
 import { firstSentence } from "./timeline";
 
 // lina-app#226: whole or nothing. Invented sentences in every shape the real hub's long cards hold, each with what the
@@ -105,4 +106,20 @@ test("every drawn sentence is its source sentence less ref-only brackets, and ev
     expect(drawnOf(text), text).toEqual(expected);
     expect(firstSentence(text), text).toBe(expected[0] ?? null);
   }
+});
+
+test("a bracket that holds Korean words beside a ref is kept, so the whole title is refused (lina-app#233 review)", () => {
+  expect(wholeTitle("가상 화면 정리 (가짜를 a1b2c3d로)")).toBeNull();
+  expect(wholeTitle("가상 화면 정리 (a1b2c3d)")).toBe("가상 화면 정리");
+  expect(wholeTitle("가상 화면 정리 (lina#12·#13)")).toBe("가상 화면 정리");
+});
+
+test("a list whose last item the core cut is dropped whole, not left as a shorter list (lina-app#233 review)", () => {
+  const cut = "가짜 남은 일: (1) 첫 화면 문구를 고쳤다. 가짜 시안도 함께 고쳤다. (2) 환불 문구를 아직 고치는 중이";
+  expect(withoutCutEnd(cut)).toBe("");
+  expect(foldedText(withoutCutEnd(cut))).toBe("");
+  // a cut last sentence outside any list still goes alone
+  expect(withoutCutEnd("가짜 정리를 마쳤다. 가짜 시안을 고치는 중이")).toBe("가짜 정리를 마쳤다.");
+  // a list that ends whole stays
+  expect(withoutCutEnd("가짜 남은 일: (1) 첫 화면 문구를 고쳤다. (2) 환불 문구를 고쳤다.")).toBe("가짜 남은 일: (1) 첫 화면 문구를 고쳤다. (2) 환불 문구를 고쳤다.");
 });

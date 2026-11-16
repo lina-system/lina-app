@@ -27,7 +27,7 @@ import { BANNED_WORDS, CRUMB, KIND_TITLE, ROUND9_WORD, SEP, SOURCE_WORD, STATE_W
 import { href } from "../router";
 import { clockAt } from "../time";
 import { checksView, type ChecksView } from "./checks";
-import { foldedText, foldReason, sentenceMayShow, sentencesOf, withoutLatin, withoutRefs } from "./fold";
+import { foldedText, foldReason, holdsRefsOnly, sentenceMayShow, sentencesOf, withoutLatin, withoutRefs } from "./fold";
 import { cardKind, type CardKind } from "./kind";
 import { ocxView, usageViews, type OcxView, type UsageRangeView } from "./usage";
 
@@ -365,7 +365,7 @@ function finishedTitle(title: string | null): string | null {
   return (cut.match(/\p{Script=Hangul}/gu) ?? []).length >= 4 && sentenceMayShow(cut) ? cut : null;
 }
 
-/** A bracket and the space before it: removed from a title only when what it holds is refs alone (withoutRefs empties it). */
+/** A bracket and the space before it: removed from a title only when what it holds is refs alone (holdsRefsOnly). */
 const BRACKET = /\s*[([]([^()[\]]*)[)\]]/g;
 
 /**
@@ -377,7 +377,7 @@ const BRACKET = /\s*[([]([^()[\]]*)[)\]]/g;
 export function wholeTitle(title: string | null | undefined): string | null {
   if (!title) return null;
   const whole = title
-    .replace(BRACKET, (bracket, inner: string) => (inner.trim() && !withoutRefs(inner) ? "" : bracket))
+    .replace(BRACKET, (bracket, inner: string) => (holdsRefsOnly(inner) ? "" : bracket))
     .replace(/\s+/g, " ")
     .trim();
   return whole && withoutRefs(whole) === whole && sentenceMayShow(whole) ? whole : null;

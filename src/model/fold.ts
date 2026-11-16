@@ -382,7 +382,11 @@ export function drawnSentence(sentence: string): string | null {
 export function withoutCutEnd(text: string): string {
   const sentences = sentencesOf(text.trim());
   const last = sentences.at(-1) ?? "";
-  return /[.!?。]["'\u201d\u2019)\]]*$/.test(last) || endsOnPredicate(last) ? text : sentences.slice(0, -1).join(" ");
+  if (/[.!?。]["'\u201d\u2019)\]]*$/.test(last) || endsOnPredicate(last)) return text;
+  // A cut inside a numbered list takes the whole list with it: the items before it would read as a list that ends there (lina-app#233).
+  const placed = sentences.map((sentence) => ({ sentence, line: 0, marks: listMarks(sentence) }));
+  const unit = listUnits(placed).find((candidate) => candidate.to >= sentences.length - 1);
+  return sentences.slice(0, unit ? unit.from : -1).join(" ");
 }
 
 /**
@@ -476,10 +480,15 @@ function listText(sentences: readonly string[], kind: string, runs: boolean): st
   return reads ? texts.join(" ") : null;
 }
 
+/** Whether a bracket's inside is refs, ids or hashes and their separators alone: no word, so cutting it leaves no hole (lina-app#233). */
+export function holdsRefsOnly(inner: string): boolean {
+  return inner.trim() !== "" && !inner.replace(ONE_REF, "").replace(/[\s·,]+/g, "");
+}
+
 /** A sentence less every bracket that holds only refs, ids or hashes, with the space before it (lina-app#226). */
 function withoutRefBrackets(sentence: string): string {
   return sentence
-    .replace(REF_BRACKET, (whole, inner: string) => (inner.trim() && !inner.replace(ONE_REF, "").replace(/[\s·,]+/g, "") ? "" : whole))
+    .replace(REF_BRACKET, (whole, inner: string) => (holdsRefsOnly(inner) ? "" : whole))
     .replace(/\s+/g, " ")
     .trim();
 }

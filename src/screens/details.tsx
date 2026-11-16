@@ -9,7 +9,7 @@ import { holds } from "../model/rounds";
 import { stopReason } from "../model/stop-reason";
 import { answerOf, commentHistory, decisionHistory, firstSentence, goalHistory, historyLines, isMachineNotice, outcomeOf, ownerWrote } from "../model/timeline";
 import type { CardKind } from "../model/kind";
-import { isRunId } from "../data/store";
+import { isRunId, newestRun } from "../data/store";
 import { back, baseOf, href, isFrame, navigate, parse, tabOf } from "../router";
 import { ago, clockAt, dayLabel } from "../time";
 import { useActions } from "../ui/actions";
@@ -908,9 +908,14 @@ export function CardScreen({ id }: { id: string }) {
   const workerRuns = detail.workerRuns.filter((worker, index, all) => isRunId(worker.id) && all.findIndex((other) => other.id === worker.id) === index);
   const { rounds, outside } = workerRounds({ runs: detail.runs, workerRuns });
   // The history and comments wait for the records of the card's worker runs, read only once its detail named them
-  // (lina-app#217): drawn from the detail alone they read `이전 기록 N건` and then grow when the records land.
-  const reading = drawn.current !== id && workerRuns.some((worker) => store.status("record", worker.id) === "pending");
-  if (!reading) drawn.current = id;
+  // (lina-app#217): drawn from the detail alone they read `이전 기록 N건` and then grow when the records land. The
+  // record of the run seen last is read first (lina-app#232): once it holds a round, the history draws from it while the
+  // others are read and add below it in place; the comments, which take theirs too, wait for them all.
+  const pending = drawn.current !== id && workerRuns.some((worker) => store.status("record", worker.id) === "pending");
+  const newest = newestRun(workerRuns);
+  const filling = pending && newest !== null && Boolean(store.get("record", newest)?.rounds.length);
+  const reading = pending && !filling;
+  if (!pending) drawn.current = id;
   // The state word of a worker run the board does not list: going while it beats, else how its round ended.
   const workerState = (runId: string) => {
     if (runLive(model, runId)) return STATE_WORD.in_progress;
@@ -1047,7 +1052,7 @@ export function CardScreen({ id }: { id: string }) {
               ) : null
             }
           />
-          <CardComments lines={commentLines} />
+          {filling ? <Loading /> : <CardComments lines={commentLines} />}
         </>
       )}
     </article>

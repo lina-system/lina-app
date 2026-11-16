@@ -1512,6 +1512,26 @@ const drivers = {
       check(comments.length === 4 && comments.every((line) => /^(어제 )?\d\d:\d\d · \S[^\n]*$/.test(line.trim())), "expected 4 one-line comments, got " + JSON.stringify(comments));
       return state + "; " + heads.join(", ") + "; " + order.join(", ");
     });
+    // lina-app#232: the hub's long card showed only 불러오는 중 for about 20 s on a phone's first open, while 110 reads of
+    // its one record came. With every record read taking 1.5 s, the head and the newest history stand within 2 s, the
+    // rest fills below one 불러오는 중 line, and the first history row neither moves nor changes when it lands.
+    await step("a card whose records come slowly draws its head and newest history first, then fills below in place", async () => {
+      await openApp(page, "#/running", "&records=slow");
+      const opened = Date.now();
+      await page.getByRole("list", { name: "진행 중인 작업" }).getByRole("link", { name: /릴리스 노트 정리/ }).click();
+      const detail = page.getByTestId("screen-card");
+      const first = detail.getByTestId("timeline").locator("li").first();
+      await first.waitFor({ timeout: 2_000 }).catch(() => check(false, "no history row within 2 s of opening the card"));
+      const drawn = Date.now() - opened;
+      const read = async () => ({ box: await first.boundingBox(), text: (await first.innerText()).trim(), loading: await detail.getByTestId("detail-loading").count(), comments: await detail.getByTestId("card-comments").count(), head: (await detail.locator(".detail-title").innerText()).trim() });
+      await page.waitForTimeout(400);
+      const before = await read();
+      check(before.loading === 1 && before.comments === 0, "while the other records are read: " + JSON.stringify(before));
+      await detail.getByTestId("card-comments").waitFor({ timeout: 10_000 }).catch(() => check(false, "the comments never came"));
+      const after = await read();
+      check(after.loading === 0 && after.text === before.text && after.head === before.head && Math.abs(after.box.y - before.box.y) < 0.5 && Math.abs(after.box.x - before.box.x) < 0.5, "the first row moved or changed: " + JSON.stringify({ before, after }));
+      return "first row in " + drawn + " ms at y " + Math.round(before.box.y * 10) / 10 + ", still " + Math.round(after.box.y * 10) / 10 + " once the comments came";
+    });
     await step("a work card with no checked title: its head reads its row's name, its own title under it, and its kind", async () => {
       await openApp(page, "#/cards/k-102");
       const detail = page.getByTestId("screen-card");

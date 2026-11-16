@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/ho
 import type { AppLabel } from "./data/http-source";
 import { LIVE_SETTLE_MS, startLive } from "./data/live";
 import { nowSeconds } from "./data/source";
-import { SLOW_ROUTES, useClock, useStore, type Store, type Want } from "./data/store";
+import { newestRun, SLOW_ROUTES, useClock, useStore, type Store, type Want } from "./data/store";
 import { buildModel, runRow, type Model } from "./model";
 import { back, baseOf, defaultListFor, href, isFrame, isList, linkClick, navigate, onSaveScroll, onStackMotion, parse, tabOf, tabRoot, TABS, useNav, type Route, type Tab } from "./router";
 import { slideMotion } from "./stack-motion";
@@ -84,9 +84,15 @@ function wantsFor(route: Route, store: Store): Want {
       const goalCards = new Set((store.get("goals")?.goals ?? []).map((goal) => goal.id));
       return [["item", route.id], ...(detail?.workCards ?? []).filter((id) => goalCards.has(id)).map((id) => ["goal", id] as const)];
     }
-    case "card":
-      // A card's detail and the records of its worker runs (the timeline).
-      return [["card", route.id], ...(store.get("card", route.id)?.workerRuns ?? []).map((worker) => ["record", worker.id] as const)];
+    case "card": {
+      // A card's detail and the records of its worker runs (the timeline). The record of the run seen last comes first
+      // and alone: on a long card each run may serve the card's whole record again, 110 reads of 300 kB that the history
+      // waited for on a phone (lina-app#232). The others are asked once it is in.
+      const workers = store.get("card", route.id)?.workerRuns ?? [];
+      const newest = newestRun(workers);
+      const records = newest !== null && store.status("record", newest) === "pending" ? [newest] : workers.map((worker) => worker.id);
+      return [["card", route.id], ...records.map((id) => ["record", id] as const)];
+    }
     case "run": {
       // The card that started the run, named by its record: a run page opened on its own still finds its card.
       const cardId = store.get("record", route.id)?.cardId;

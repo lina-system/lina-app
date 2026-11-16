@@ -23,6 +23,16 @@ export function isRunId(id: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id) && /\d/.test(id);
 }
 
+/**
+ * The worker run of a card seen last, the one whose record holds the card's newest round; the later of two seen at the
+ * same time. A card's detail reads its record first and alone (lina-app#232).
+ */
+export function newestRun(workers: readonly { readonly id: string; readonly lastSeenAt: number }[]): string | null {
+  let newest: { readonly id: string; readonly lastSeenAt: number } | null = null;
+  for (const worker of workers) if (isRunId(worker.id) && (!newest || worker.lastSeenAt >= newest.lastSeenAt)) newest = worker;
+  return newest?.id ?? null;
+}
+
 /** The routes once each, in order, without a record whose id cannot name a run. */
 function distinct(routes: Want): Want {
   const seen = new Set<string>();

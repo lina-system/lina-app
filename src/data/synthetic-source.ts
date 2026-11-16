@@ -238,6 +238,12 @@ const NOT_THE_READ: WriteResult<never> = { ok: false, status: 412, detail: null 
 /** The owner's done mark can be taken back for ten minutes (lina#149). */
 export const UNDO_SECONDS = 600;
 
+/**
+ * `&records=slow` (lina-app#232): each of k-101's worker runs serves the card's one record (r1's), as the hub's long card
+ * does, and each read of it takes this long, as 300 kB of it does on a phone's link.
+ */
+export const SLOW_RECORD_MS = 1500;
+
 type DueGroup = keyof BoardSnapshot["due"];
 
 /** What one owner's done mark changed, so undo can put it back. */
@@ -506,6 +512,8 @@ export class SyntheticSource implements Source {
   }
   private readonly connections = new Set<Connection>();
   private readonly script: StreamScript;
+  /** `&records=slow`: k-101 read as the hub's long card (lina-app#232); see SLOW_RECORD_MS. */
+  private readonly slowRecords: boolean;
   /** `&error=checks`: the hub's checks route does not answer, while every other route still does. */
   private readonly checksError: boolean;
   private streamDown: boolean;
@@ -537,7 +545,8 @@ export class SyntheticSource implements Source {
   private readonly signing = new Set<string>();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean } = {}) {
+    this.slowRecords = options.slowRecords ?? false;
     this.staleNext = options.settings === "stale";
     this.raceNext = options.settings === "race";
     this.talkRefusal = options.talk ?? null;
@@ -571,7 +580,9 @@ export class SyntheticSource implements Source {
     if (this.checksError && name === "checks") return { kind: "failed", offline: false, at };
     this.deliverReplies(at);
     if (name === "devices") this.applySignIns();
-    const body = bodyOf(this.scene, name, id);
+    const longCard = name === "record" && this.slowRecords && this.scene.cardDetails["k-101"]?.workerRuns.some((worker) => worker.id === id);
+    if (longCard) await new Promise((resolve) => setTimeout(resolve, SLOW_RECORD_MS));
+    const body = longCard ? { ...this.scene.records.r1, id: id as string } : bodyOf(this.scene, name, id);
     if (body === undefined) return { kind: "missing", at };
     const key = `${name}:${id ?? ""}`;
     const version = versions.get(this.scene) ?? 0;

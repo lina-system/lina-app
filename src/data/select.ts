@@ -24,7 +24,8 @@ const POWER_VARIANTS: readonly string[] = ["stopped", "none"] satisfies PowerVar
  * a new session token, or carries another device's message to the first agent, `&push=off` a core without push, `&settings=readonly|empty|stale|race|ocx-down` work settings this
  * device only reads, that were never written, that another device writes just before this page's first write (412) or
  * just after it lands (the changes queued behind it are dropped), whose models OCX did not answer for (the last
- * good list, with an error), or that leave four models warned about.
+ * good list, with an error), or that leave four models warned about, `&records=slow` one where every worker run of k-101
+ * serves the card's one record and each read of it takes 1.5 s (lina-app#232).
  */
 export function chooseSource(location: Pick<Location, "search"> = window.location, flag: string | undefined = import.meta.env.VITE_LINA_SOURCE): Source {
   const params = new URLSearchParams(location.search);
@@ -52,6 +53,7 @@ export function chooseSource(location: Pick<Location, "search"> = window.locatio
       pushOff: params.get("push") === "off",
       settings: settings && SETTINGS_SCRIPTS.includes(settings) ? (settings as SettingsScript) : null,
       power: power && POWER_VARIANTS.includes(power) ? (power as PowerVariant) : null,
+      slowRecords: params.get("records") === "slow",
     });
     // verify.mjs reads the synthetic copy after a write to check the record changed, not only the screen.
     if (typeof window !== "undefined") {

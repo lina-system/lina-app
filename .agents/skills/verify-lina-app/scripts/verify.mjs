@@ -3836,7 +3836,7 @@ const drivers = {
       check((await field.inputValue()) === "", "the field kept " + (await field.inputValue()));
       return "reply: " + (await box().getByTestId("talk-reply").last().locator(".talk-bubble").innerText());
     });
-    await step("a chat's look: a date between days, one mark and name per group of the agent's, and nothing beside 보내기 on an empty field", async () => {
+    await step("a chat's look: a date between days, one mark and name per group of the agent's, and 글 입력 대기 beside 보내기 on an empty field", async () => {
       const days = await box().getByTestId("talk-day").allInnerTexts();
       check(JSON.stringify(days) === JSON.stringify(["어제", "오늘"]), "the dates read " + JSON.stringify(days));
       const groups = await box()
@@ -3847,8 +3847,9 @@ const drivers = {
       for (const word of ["글 입력 대기", "보내는 중", "답하는 중"]) check(!turns.includes(word), "the window reads " + word);
       const send = box().getByRole("button", { name: "보내기", exact: true });
       check((await send.innerText()).trim() === "" && (await send.isDisabled()), "보내기 is not a dim icon on an empty field");
-      // An empty field says nothing beside 보내기: the owner took 글 입력 대기 out of the chat (lina-app#200).
-      check((await box().getByTestId("send-why").count()) === 0, "the line by 보내기 is drawn on an empty field");
+      // An off 보내기 says why, on an empty field too (lina-app#238).
+      const why = (await box().getByTestId("send-why").innerText().catch(() => "")).trim();
+      check(why === "글 입력 대기", "the line by 보내기 reads " + JSON.stringify(why) + " on an empty field");
       return groups.length + " groups under " + days.join(", ");
     });
     await step("Shift+Enter breaks a line and the field grows up to about 5 lines, then scrolls; Enter sends", async () => {

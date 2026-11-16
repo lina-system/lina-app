@@ -58,8 +58,8 @@ describe("work rows keep the readable part of a title (lina-app#156 items 1, 2)"
     expect(sub("k-swap-1")).toBe("가짜 교체 1단계 정리");
     // An abbreviation is a Latin word too (lina-app#222).
     expect(sub("k-swap-2")).toBeNull();
-    // The ref and the particle glued to it go together; the sentence still reads.
-    expect(sub("k-swap-4")).toBe("가짜 교체 판을 올리기");
+    // A hash outside a bracket is never cut out of a finished card's title (lina-app#231): hidden.
+    expect(sub("k-swap-4")).toBeNull();
     // No Hangul, or Latin words: hidden, the goal's title alone.
     expect(sub("k-swap-3")).toBeNull();
     expect(sub("k-swap-5")).toBeNull();

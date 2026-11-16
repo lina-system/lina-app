@@ -117,6 +117,55 @@ export function round20Scene(scene: Scene): Scene {
   };
 }
 
+/** Made-up finished titles drawn as written, or less a bracket of refs only, for round 22 (lina-app#231). */
+export const ROUND22_WHOLE: readonly (readonly [string, string])[] = [
+  ["가상 목록 다듬기", "가상 목록 다듬기"],
+  ["가상 회차 정리 (lina#12·#13)", "가상 회차 정리"],
+  ["가상 앱 반영 (가상 22회차 앞)", "가상 앱 반영 (가상 22회차 앞)"],
+  ["가상 보관함 정리 (a1b2c3d)", "가상 보관함 정리"],
+];
+
+/** Made-up finished titles whose only drawable form is a cut, each leaving a hole shape the hub showed (lina-app#231). */
+export const ROUND22_HOLES: readonly string[] = [
+  "가상 허브를 FakeBoard (추가)",
+  "가상 허브 앱을 v2.4 (포함)로 올리기",
+  "fakeproxy 용 호출자 키 발급·배포",
+  "가상 서버 끊김에도 fakegate·보조 살아 있게",
+  "가상 서버 fakeuser@1000 재시작 정리",
+  "가상 검사 대기 결함 고치기 (PR 667)",
+  "가상 앱 반영: 묶음을 a1b2c3d4e5로 (가상 22회차 앞)",
+];
+
+/**
+ * The hub's shapes UI QA round 22 met (`&hub=round22`, lina-app#231), field by field as its cards list serves them, in
+ * made-up words: finished cards with no checked lines, read-only, the old ones with no history kept (`detail: false`,
+ * no beat) and the newest with no `detail` field and a last beat, some under a goal title. Listed in the hub's order: a
+ * few old ones first, then oldest to newest, then one old one last, so the list's first finished cards are not its
+ * newest. Their titles: some drawn as written or less a bracket of refs (ROUND22_WHOLE, each under round 20's made-up
+ * names too), one whose goal title holds a Latin word over a whole own title, and the hole shapes (ROUND22_HOLES).
+ */
+export function round22Scene(scene: Scene): Scene {
+  const template = scene.cards.cards.find((card) => card.state === "done");
+  const agents = scene.items.agents.map((agent) => agent.id);
+  if (!template || agents.length < 3) return scene;
+  const now = scene.now;
+  const finished = (index: number, title: string, hoursAgo: number, fields: Partial<SceneCard> = {}): SceneCard => {
+    const recent = hoursAgo < 24;
+    const card = { ...template, id: `k-${600 + index}`, title, goalTitle: null, agent: agents[index % 3], state: "done", reason: null, waitingOn: null, retry: null, ask: null, elapsedSeconds: 600 + index * 60, todoProgress: { done: 0, total: 0 }, now: null, endedAt: now - Math.round(hoursAgo * 3600), lastHeartbeatAt: recent ? now - Math.round(hoursAgo * 3600) : null, plain: { title: null, now: null, result: null }, readOnly: true, detail: false, ...fields } as SceneCard & { detail?: boolean };
+    if (recent) delete card.detail;
+    return card;
+  };
+  const titles = [...ROUND22_WHOLE.map(([title]) => title), ...Array.from({ length: 12 }, (_, index) => round20Title(index)), ...ROUND22_HOLES];
+  // Oldest to newest: 9 days ago to 8 minutes ago.
+  const ages = titles.map((_, index) => 9 * 24 - (index * (9 * 24 - 0.14)) / (titles.length - 1));
+  const listed = titles.map((title, index) => finished(index, title, ages[index]));
+  const goalLatin = finished(titles.length, "가상 묶음 정리 마치기", 5 * 24, { goalTitle: "가상 FakeHub 옮기기" });
+  // The hub lists a few old cards first and one last.
+  const old = [6 * 24, 4 * 24 + 5, 7 * 24].map((hours, index) => finished(titles.length + 1 + index, round20Title(12 + index), hours));
+  const cards = [...old.slice(0, 2), goalLatin, ...listed, old[2]];
+  return { ...scene, cards: { ...scene.cards, cards: [...scene.cards.cards.filter((card) => card.state !== "done"), ...cards] } };
+}
+
 function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
   switch (name) {
     case "board":
@@ -470,7 +519,7 @@ export class SyntheticSource implements Source {
   private readonly signing = new Set<string>();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null } = {}) {
     this.staleNext = options.settings === "stale";
     this.raceNext = options.settings === "race";
     this.talkRefusal = options.talk ?? null;
@@ -494,7 +543,7 @@ export class SyntheticSource implements Source {
         settings: options.settings === "stale" || options.settings === "race" ? null : options.settings,
         power: options.power,
       });
-    this.scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : generated;
+    this.scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : generated;
   }
 
   async read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {

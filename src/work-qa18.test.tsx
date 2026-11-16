@@ -57,20 +57,20 @@ for (const wide of [true, false]) {
 
   test(`${W.done}: 524 cards folded to 514 rows, one of them the cards nothing names, read one number everywhere, before, while and after the rest is read (${width})`, async () => {
     const view = await open("#/", hub(), wide);
-    const before = finished(view);
-    // The newest five lines, and the fold the 519 cards they do not stand for.
-    expect(before).toEqual({ head: 524, rows: 5, cards: 5, fold: 519, loading: false, hide: false });
-    if (wide) expect(sidebarDone(view)).toBe(524);
     const group = view.getByTestId("section-finished");
-    const states: ReturnType<typeof finished>[] = [];
+    const states: ReturnType<typeof finished>[] = [finished(view)];
     const watch = new MutationObserver(() => states.push(finished(view)));
     watch.observe(group, { subtree: true, childList: true, characterData: true });
-    fireEvent.click(group.querySelector(".more-row button") as HTMLElement);
-    await waitFor(() => expect(finished(view).hide).toBe(true));
+    // The group reads the rest right after the page's first few (lina-app#237); its fold then counts the lines it opens.
+    await waitFor(() => expect(finished(view).fold).toBeGreaterThan(0));
     watch.disconnect();
-    // At every moment between the tap and the settled list, the head is 524 and, but while it reads, the cards drawn and the fold.
-    expect(states.length).toBeGreaterThan(0);
-    for (const state of states) expect(state.loading ? { head: state.head, rows: state.rows } : { head: state.head, cards: state.cards + state.fold }).toEqual(state.loading ? { head: before.head, rows: before.rows } : { head: 524, cards: 524 });
+    const before = finished(view);
+    expect(before).toEqual({ head: 524, rows: 5, cards: 5, fold: 509, loading: false, hide: false });
+    if (wide) expect(sidebarDone(view)).toBe(524);
+    // At every moment the head is 524, and the fold says it reads or the 509 lines it holds back, never a part's count.
+    for (const state of states) expect(state.head).toBe(524);
+    for (const state of states) expect(state.loading || state.fold === 509, JSON.stringify(state)).toBe(true);
+    fireEvent.click(group.querySelector(".more-row button") as HTMLElement);
     const after = finished(view);
     expect(after).toEqual({ head: 524, rows: 514, cards: 524, fold: 0, loading: false, hide: true });
     if (wide) expect(sidebarDone(view)).toBe(524);
@@ -80,7 +80,7 @@ for (const wide of [true, false]) {
     expect(view.container.textContent).not.toContain(W.untitled);
     // Hiding restores the collapsed view: the first five rows and one fold for the rest, the head unchanged.
     fireEvent.click(within(group).getByRole("button", { name: `${W.done} ${W.close}` }));
-    expect(finished(view)).toEqual({ head: 524, rows: 5, cards: 5, fold: 519, loading: false, hide: false });
+    expect(finished(view)).toEqual({ head: 524, rows: 5, cards: 5, fold: 509, loading: false, hide: false });
     if (wide) expect(sidebarDone(view)).toBe(524);
     // Opened again, it is the whole list at once: nothing is read twice.
     fireEvent.click(group.querySelector(".more-row button") as HTMLElement);

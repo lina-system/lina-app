@@ -322,10 +322,25 @@ async function cardsOf(rows) {
   return (await rows.allInnerTexts()).reduce((sum, text) => sum + Number(/(?:×|제목 없는 )(\d+)/.exec(text)?.[1] ?? 1), 0);
 }
 
-// The cards a 완료 group's rows and its fold `외 n개` stand for (lina-app#225).
-async function cardsAndFold(section) {
+// The lines a 완료 group's fold `외 n개` opens, once the group has read every finished card and says so (lina-app#237).
+async function finishedFold(section) {
+  await section.evaluate((group) => new Promise((done) => {
+    const settled = () => { const fold = group.querySelector(".more-row:not([data-testid=fold-hide])"); return !fold || /^외 \d+개$/.test(fold.textContent.trim()); };
+    if (settled()) return done();
+    const watch = new MutationObserver(() => { if (settled()) { watch.disconnect(); done(); } });
+    watch.observe(group, { subtree: true, childList: true, characterData: true });
+  }));
   const fold = section.locator(".more-row:not([data-testid=fold-hide])");
-  return (await cardsOf(section.locator("li[data-testid=row]"))) + ((await fold.count()) ? Number(/외 (\d+)개/.exec(await fold.innerText())?.[1] ?? 0) : 0);
+  return (await fold.count()) ? Number(/외 (\d+)개/.exec(await fold.innerText())?.[1] ?? 0) : 0;
+}
+
+// The cards a 완료 group's lines stand for (a `×n` line counting n, lina-app#225): read with its fold open, then folded back.
+async function cardsAndFold(section) {
+  const more = await finishedFold(section);
+  if (more) await section.locator(".more-row:not([data-testid=fold-hide])").getByRole("button").click();
+  const cards = await cardsOf(section.locator("li[data-testid=row]"));
+  if (more) await section.getByRole("button", { name: "완료 닫기", exact: true }).click();
+  return cards;
 }
 
 // The scroll of the element a list scrolls in: the nearest one above it that may scroll, else the page (lina-app#221).
@@ -1252,6 +1267,25 @@ const drivers = {
       check(names.length === 5, "expected 5 goals, got " + names.length);
       return names.join(" | ");
     });
+    // lina-app#237 (QA round 23, the real hub): goals the record closed at 0/1 and 4/16, and one planned whose cards were done.
+    await step("on the hub's shape (&hub=round23), a goal whose record state and to-do count or cards disagree keeps the record's words and says why in one line", async () => {
+      await openApp(page, "#/goals", "&hub=round23");
+      const list = page.getByRole("list", { name: "목표" });
+      await list.waitFor();
+      const read = async (title) => {
+        const row = list.locator(".goal-row").filter({ has: page.locator(".title", { hasText: new RegExp("^" + title + "$") }) });
+        const text = async (selector) => ((await row.locator(selector).count()) ? (await row.locator(selector).first().innerText()).trim() : null);
+        return { state: await text("[data-testid=goal-state] .state"), why: await text("[data-testid=goal-why]"), label: await row.getByRole("link").getAttribute("aria-label") };
+      };
+      const early = await read("가상 시험 앱 따로 띄우기");
+      const four = await read("가상 프록시 교체 시험");
+      const planned = await read("가상 결함 여덟 가지 고치기");
+      check(early.state === "완료" && early.why === "할 일 1개 남음" && / 0\/1$/.test(early.label ?? ""), "closed at 0/1: " + JSON.stringify(early));
+      check(four.state === "완료" && four.why === "할 일 12개 남음" && / 4\/16$/.test(four.label ?? ""), "closed at 4/16: " + JSON.stringify(four));
+      check(planned.state === "예정" && planned.why === "작업 2건 완료", "planned with its cards done: " + JSON.stringify(planned));
+      await openApp(page, "#/goals");
+      return [early, four, planned].map((goal) => goal.state + " · " + goal.why).join(" | ");
+    });
     await step("open a goal and read its boxes", async () => {
       await page.getByRole("list", { name: "목표" }).getByRole("link", { name: /결제 화면 개편/ }).click();
       await page.locator(".detail-title").waitFor();
@@ -1508,10 +1542,35 @@ const drivers = {
       check(JSON.stringify(order) === JSON.stringify(["변경 목록 모으기", "모은 변경 확인", "공지 문구 확인"]), "the to-dos read " + order.join(", "));
       const links = page.getByTestId("timeline-link");
       const hrefs = await links.evaluateAll((items) => items.map((item) => item.getAttribute("href")));
-      check(JSON.stringify(hrefs) === JSON.stringify(["#/runs/r1", "#/runs/r10", "#/runs/r9"]), "the round heads link to " + JSON.stringify(hrefs));
+      check(JSON.stringify(hrefs) === JSON.stringify(["#/cards/k-101/runs/3", "#/cards/k-101/runs/2", "#/cards/k-101/runs/1"]), "the round heads link to " + JSON.stringify(hrefs));
       const comments = await page.getByTestId("card-comments").getByTestId("history-row").allInnerTexts();
       check(comments.length === 4 && comments.every((line) => /^(어제 )?\d\d:\d\d · \S[^\n]*$/.test(line.trim())), "expected 4 one-line comments, got " + JSON.stringify(comments));
       return state + "; " + heads.join(", ") + "; " + order.join(", ");
+    });
+    // lina-app#238: on the hub a history head linked to `#/runs/OT-…`, a task id that shows on hover and in the status
+    // bar. A card's worker run is named by the card and its place among the card's worker runs, after a reload too.
+    await step("on the hub's shape (&hub=round23), no link on a card holds a task id; a round's head opens its run by its place, and a reload keeps the page", async () => {
+      await openApp(page, "#/cards/k-101", "&hub=round23");
+      await page.getByTestId("timeline-link").first().waitFor();
+      const hrefs = await page.locator("a[href]").evaluateAll((links) => links.map((link) => link.getAttribute("href")));
+      const named = hrefs.filter((href) => /OT-[A-Z]+\d+/.test(href) || href.startsWith("#/runs/"));
+      check(named.length === 0, "links name a run by its id: " + JSON.stringify(named));
+      const head = page.getByTestId("timeline-link").first();
+      const target = await head.getAttribute("href");
+      check(target === "#/cards/k-101/runs/3", "the newest round's head links to " + target);
+      await head.click();
+      await page.waitForFunction((hash) => location.hash === hash, target, { timeout: 3_000 }).catch(() => check(false, "the head did not open " + target));
+      const read = async () => {
+        await page.getByTestId("screen-run").getByTestId("timeline").waitFor();
+        return [(await page.getByTestId("screen-run").locator(".detail-title").innerText()).trim(), (await page.getByTestId("run-state").innerText()).trim()].join(" · ");
+      };
+      const opened = await read();
+      check(opened === "릴리스 변경 목록 정리 · 진행 중", "the round's page reads " + opened);
+      await page.reload();
+      await freshnessReads(page, "");
+      const again = await read();
+      check(again === opened && (await page.evaluate(() => location.hash)) === target, "after a reload the page reads " + again);
+      return hrefs.length + " links, none with a task id; " + target + " reads " + opened + ", also after a reload";
     });
     // lina-app#232: the hub's long card showed only 불러오는 중 for about 20 s on a phone's first open, while 110 reads of
     // its one record came. With every record read taking 1.5 s, the head and the newest history stand within 2 s, the
@@ -1549,13 +1608,14 @@ const drivers = {
       check((await detail.getByTestId("card-now").count()) === 0, "the card shows a now line");
       return head + " / " + own + "; " + kind + "; no now line";
     });
-    await step("a worker record's comment rows have no author: they read through the one gate, never as saved (lina-app#230)", async () => {
+    await step("a worker record's comment rows have no author: they read through the one gate, never as saved, whole or folded (lina-app#230, #236)", async () => {
       // k-102's record (r2) holds an agent's English verdict note and a note the core cut inside a word at 300 characters.
       const rows = page.getByTestId("card-comments").getByTestId("history-row");
       await rows.first().waitFor();
       const lines = (await rows.allInnerTexts()).map((line) => line.trim());
-      // The same verdict note on three runs is one line with its count (lina-app#230).
-      check(lines.length === 3 && / · 검토를 마쳤고 병합해도 된다\. ×3$/.test(lines[0]) && / · 위키 문서의 결제 화면 절을 새 문체로 바꿨다\.$/.test(lines[1]) && / · 접힌 댓글$/.test(lines[2]), "k-102's comments read " + JSON.stringify(lines));
+      // The same verdict note on three runs is one line with its count (lina-app#230); the cut note is longer than a whole
+      // line may be and folds with the English one: no sentence of either is drawn (lina-app#236).
+      check(lines.length === 2 && / · 검토를 마쳤고 병합해도 된다\. ×3$/.test(lines[0]) && / · 접힌 댓글 2건$/.test(lines[1]), "k-102's comments read " + JSON.stringify(lines));
       const text = await page.getByTestId("card-comments").innerText();
       check(!/[A-Za-z]|줄였다\. 표/.test(text), "raw record text in the card's comments: " + text.replace(/\s+/g, " "));
       return lines.join(" | ");
@@ -1603,14 +1663,27 @@ const drivers = {
       check(!(await page.locator("article.detail").innerText()).includes("코드 작업"), "k-104 reads 코드 작업");
       return title + " · " + state + "; k-104 " + lines.join(", ");
     });
-    await step("a numbered list in a comment is one line, whole with every item and every sentence, or none of it (lina-app#230)", async () => {
+    await step("a bot's comment is one line drawn whole, or folded: no list, lead-in, part or sentence of it alone (lina-app#236)", async () => {
       const rows = page.getByTestId("card-comments").getByTestId("history-row");
       await rows.first().waitFor();
       const lines = (await rows.allInnerTexts()).map((line) => line.trim().replace(/^(?:어제 )?\d\d:\d\d · /, ""));
-      const whole = ["검토 메모: ① 금액 줄을 오른쪽으로 붙였다. 굵기는 그대로 두었다. ② 환불 줄을 금액 줄 아래로 옮겼다.", "남은 검토 두 가지: (1) 영수증 화면의 금액 줄을 다시 본다. (2) 환불 문구 확인.", "실패 화면 검토 결과: (1) 첫 화면 문구를 새 문체로 맞췄다. (2) 다시 시도 버튼을 아래로 옮겼다. (3) 카드사 이름을 굵게 바꿨다."];
-      // A long amount with its unit is drawn as a number; a digits-only hash folds (lina-app#230).
-      // One time of day with its particle glued after it is a fact; two, or one after a separator, fold.
-      check(JSON.stringify(lines) === JSON.stringify(["접힌 댓글", "영수증 화면은 12:50에 다시 올렸다.", "환불 한도는 12345678원으로 정했다.", "접힌 댓글", ...whole, "접힌 댓글"]), "k-104's comments read " + JSON.stringify(lines));
+      // Newest first: three 검토 통과 in a row are one line; a comment longer than a whole line and a log line fold; a long
+      // amount and one time of day with its particle are facts; the hub's opening stamp is no word of the comment; two
+      // sentences stand with the one they lean on; every list, lead-in and part, and the digits-only hash, fold in one line.
+      const expected = ["검토 통과 ×3", "접힌 댓글 2건", "영수증 화면은 12:50에 다시 올렸다.", "환불 한도는 12345678원으로 정했다.", "금액 줄을 오른쪽으로 붙였다.", "앞 판의 금액 줄이 두 칸 밀려 있었다. 그 줄은 뒤에서 바로잡음.", "접힌 댓글 11건"];
+      check(JSON.stringify(lines) === JSON.stringify(expected), "k-104's comments read " + JSON.stringify(lines));
+      return lines.join(" | ");
+    });
+    await step("rounds of one outcome in a row are one 기록 head with ×n at the newest time; a whole report line stays on its head (lina-app#236)", async () => {
+      // &hub=round23: k-105's worker run r5 holds the hub's long card's record shape, ten rounds, most accepted with an
+      // English report line, so their heads hold the outcome alone.
+      await openApp(page, "#/cards/k-105", "&hub=round23");
+      const heads = page.getByTestId("timeline").locator(".timeline-head");
+      await heads.first().waitFor();
+      const lines = (await heads.allInnerTexts()).map((line) => line.trim().replace(/^(?:어제 )?\d\d:\d\d · /, ""));
+      check(JSON.stringify(lines) === JSON.stringify(["검토 통과 ×3", "중단됨", "검토 통과 · 백업 기록 마지막 달을 다시 살폈다.", "중단됨", "검토 통과 ×4"]), "k-105's 기록 heads read " + JSON.stringify(lines));
+      const text = await page.getByTestId("timeline").innerText();
+      check(!/[A-Za-z]/.test(text), "raw record text in k-105's 기록: " + text.replace(/\s+/g, " "));
       return lines.join(" | ");
     });
     await step("a finished run with no record lists its past events, time · one sentence", async () => {
@@ -2571,6 +2644,43 @@ const drivers = {
       check(badge.right <= look.width && badge.top >= 0, "the badge leaves the window: " + JSON.stringify(badge));
       return "icon " + Math.round(icon.right - icon.left) + "x" + Math.round(icon.bottom - icon.top) + ", badge covers " + covered.join("x") + " px of its top right corner";
     });
+    // lina-app#238: on the hub the head's tools (the install chip and the bell) drew 92 px in an 87 px box at 390: the
+    // badge stood past the bell's right edge. The box holds the chip, the bell and its badge, with one digit or two.
+    await step("the head's tools hold the install chip, the bell and its badge on every tab, also with the hub's 61 (&hub=round23)", async () => {
+      const context = await touchContext(page);
+      try {
+        const own = await context.newPage();
+        await own.addInitScript(() => {
+          window.__LINA_APP_LABEL__ = { text: "실제", kind: "real" };
+        });
+        const seen = [];
+        for (const query of ["", "&hub=round23"]) {
+          await openApp(own, "#/", query);
+          for (const hash of ["#/", "#/talk", "#/status"]) {
+            await own.evaluate((to) => (location.hash = to), hash);
+            await own.getByTestId("install-label").first().waitFor();
+            const look = await own.evaluate(() =>
+              [...document.querySelectorAll(".toolbar-tools")]
+                .filter((box) => box.getClientRects().length)
+                .map((box) => {
+                  const badge = box.querySelector("[data-testid=bell-count]")?.getBoundingClientRect();
+                  const icon = box.querySelector("[data-testid=bell] svg")?.getBoundingClientRect();
+                  return { box: box.clientWidth, content: box.scrollWidth, badge: box.querySelector("[data-testid=bell-count]")?.textContent ?? "", past: badge ? Math.round((badge.right - box.getBoundingClientRect().right) * 10) / 10 : null, clear: badge && icon ? badge.left > (icon.left + icon.right) / 2 && badge.bottom < (icon.top + icon.bottom) / 2 : null };
+                }),
+            );
+            check(look.length > 0, hash + query + ": no head tools drawn");
+            for (const tools of look) {
+              check(tools.content <= tools.box && (tools.past === null || tools.past <= 0), hash + query + ": the tools draw " + tools.content + " px in a " + tools.box + " px box, the badge " + tools.badge + " ends " + tools.past + " px past it");
+              check(tools.clear !== false, hash + query + ": the badge " + tools.badge + " reaches the icon's centre");
+            }
+            seen.push((query ? "round23 " : "") + hash + " " + look.map((tools) => tools.badge + " " + tools.content + "/" + tools.box + " px").join(", "));
+          }
+        }
+        return seen.join("; ");
+      } finally {
+        await context.close();
+      }
+    });
     await step("choosing a notice opens its item and marks it read on the core", async () => {
       await bell().click();
       const first = dialog().locator("li:not(.is-read) a").first();
@@ -3190,12 +3300,12 @@ const drivers = {
       }
       return found.join(", ") + "; running list " + running;
     });
-    await step("with 40 more finished cards (&finished=many), 완료 lists the newest five and one fold; the fold reads the rest in place, and no number moves", async () => {
+    await step("with 40 more finished cards (&finished=many), 완료 lists the newest five and one fold counting the lines it opens; opened in place, no number moves (lina-app#237)", async () => {
       await openApp(page, "#/", "&finished=many");
       const group = page.getByTestId("section-finished");
+      const hidden = await finishedFold(group);
       const head = Number((await group.getByTestId("head-finished").getByTestId("count").innerText()).trim());
       const fold = group.locator(".more-row:not([data-testid=fold-hide])");
-      const hidden = Number(/외 (\d+)개/.exec(await fold.innerText())?.[1] ?? 0);
       const shown = await group.locator("li[data-testid=row]").count();
       const nav = await sidebarCount(page, "nav-done");
       check(head === 41 && shown === 5 && shown + hidden === head && (nav === null || Number(nav) === head), "완료 says " + head + ", the sidebar " + nav + ", the rows " + shown + " and the fold " + hidden);
@@ -3208,7 +3318,7 @@ const drivers = {
       const after = await group.locator("li[data-testid=row]").count();
       const again = Number((await group.getByTestId("head-finished").getByTestId("count").innerText()).trim());
       const moved = await offset();
-      check(after === head && again === head && (nav === null || Number(await sidebarCount(page, "nav-done")) === head), "opened, 완료 says " + again + " and lists " + after);
+      check(after === shown + hidden && again === head && (nav === null || Number(await sidebarCount(page, "nav-done")) === head), "opened, 완료 says " + again + " and lists " + after);
       check(first === moved, "the first finished row moved from " + first + " to " + moved + " px below the list's top");
       return "완료 " + head + ": " + shown + " + 외 " + hidden + "개, opened " + after + " rows";
     });
@@ -3234,12 +3344,12 @@ const drivers = {
       return "opened at " + opened + " px: " + rows + " rows, 닫기 at " + bottom + " px; closed: " + after.rows + " rows + " + after.fold + ", back at " + back + " px";
     });
     // The 완료 group as it reads now: its head, the sidebar's 완료 (null on a phone), its rows and the cards they and the fold stand for.
-    const finishedNow = async (group) => ({ head: Number((await group.getByTestId("head-finished").getByTestId("count").innerText()).trim()), nav: await sidebarCount(page, "nav-done"), rows: await group.locator("li[data-testid=row]").count(), all: await cardsAndFold(group) });
-    await step("on the hub's shape (&hub=round18), 완료 is one unit, cards: 524 cards read 5 rows and 외 519개, then 514 rows standing for 524, with no 제목 없음 (lina-app#225)", async () => {
+    const finishedNow = async (group) => ({ more: await finishedFold(group), head: Number((await group.getByTestId("head-finished").getByTestId("count").innerText()).trim()), nav: await sidebarCount(page, "nav-done"), rows: await group.locator("li[data-testid=row]").count(), all: await cardsAndFold(group) });
+    await step("on the hub's shape (&hub=round18), 완료's head counts cards and its fold lines: 524 cards read 5 rows and 외 509개, then 514 rows standing for 524, with no 제목 없음 (lina-app#225, #237)", async () => {
       await openApp(page, "#/", "&hub=round18");
       const group = page.getByTestId("section-finished");
       const before = await finishedNow(group);
-      check(before.head === 524 && before.rows === 5 && before.all === 524 && (before.nav === null || Number(before.nav) === 524), "before: " + JSON.stringify(before));
+      check(before.head === 524 && before.rows === 5 && before.more === 509 && before.all === 524 && (before.nav === null || Number(before.nav) === 524), "before: " + JSON.stringify(before));
       await group.locator(".more-row").getByRole("button").click();
       await group.getByRole("button", { name: "완료 닫기", exact: true }).waitFor();
       const after = await finishedNow(group);
@@ -3248,11 +3358,11 @@ const drivers = {
       const untitled = await page.getByTestId("screen-running").getByText("제목 없음").count();
       check(after.head === 524 && after.rows === 514 && after.all === 524 && (after.nav === null || Number(after.nav) === 524), "opened: " + JSON.stringify(after));
       check(JSON.stringify(folds) === JSON.stringify(["4", "5", "2", "2", "2"]) && JSON.stringify(grey) === JSON.stringify(["제목 없는 2건"]) && untitled === 0, "folds " + JSON.stringify(folds) + ", grey " + JSON.stringify(grey) + ", 제목 없음 " + untitled);
-      return "before " + before.head + " = " + before.rows + " rows + 외 " + (before.all - before.rows) + "개 (sidebar " + (before.nav ?? "phone") + "); opened " + after.rows + " rows for " + after.all + " cards, head " + after.head + ", sidebar " + (after.nav ?? "phone") + ", folds ×" + folds.join(" ×");
+      return "before " + before.head + " = " + before.rows + " rows + 외 " + before.more + "개 (sidebar " + (before.nav ?? "phone") + "); opened " + after.rows + " rows for " + after.all + " cards, head " + after.head + ", sidebar " + (after.nav ?? "phone") + ", folds ×" + folds.join(" ×");
     });
     // lina-app#225 (QA round 20, the real hub): the hub's 525 finished cards read 525 collapsed and 475 opened, a planned card
     // with a Latin goal title was in no list, and a waiting to-do past its due date read only its date.
-    await step("on the hub's shape (&hub=round20), 완료 counts cards in every state: 46 cards read 5 rows and 외 41개, then rows whose ×n add up to 46 with one grey 제목 없는 10건 (the six titled alike but for a hash outside a bracket are never cut, lina-app#231), the head and the sidebar 46 (lina-app#225)", async () => {
+    await step("on the hub's shape (&hub=round20), 완료's head counts cards and its fold the lines it opens: 46 cards read 5 rows and 외 n개, then 5 + n rows whose ×n add up to 46 with one grey 제목 없는 10건 (the six titled alike but for a hash outside a bracket are never cut, lina-app#231), the head and the sidebar 46 (lina-app#225)", async () => {
       await openApp(page, "#/", "&hub=round20");
       const group = page.getByTestId("section-finished");
       const before = await finishedNow(group);
@@ -3262,9 +3372,9 @@ const drivers = {
       const after = await finishedNow(group);
       const grey = await group.locator("li[data-testid=row] .title.is-kind").allInnerTexts();
       const untitled = await page.getByTestId("screen-running").getByText("제목 없음").count();
-      check(after.head === 46 && after.all === 46 && after.rows < 46 && (after.nav === null || Number(after.nav) === 46), "opened: " + JSON.stringify(after));
+      check(after.head === 46 && after.all === 46 && after.rows === before.rows + before.more && (after.nav === null || Number(after.nav) === 46), "opened: " + JSON.stringify(after));
       check(JSON.stringify(grey) === JSON.stringify(["제목 없는 10건"]) && untitled === 0, "grey " + JSON.stringify(grey) + ", 제목 없음 " + untitled);
-      return "before " + before.head + " = " + before.rows + " rows + 외 " + (before.all - before.rows) + "개 (sidebar " + (before.nav ?? "phone") + "); opened " + after.rows + " rows for " + after.all + " cards, head " + after.head + ", grey " + grey.join("");
+      return "before " + before.head + " = " + before.rows + " rows + 외 " + before.more + "개 (sidebar " + (before.nav ?? "phone") + "); opened " + after.rows + " rows for " + after.all + " cards, head " + after.head + ", grey " + grey.join("");
     });
     // lina-app#231 (QA round 22, the real hub): finished titles read with a hole where a Latin word or a ref was cut.
     await step("on the hub's shape (&hub=round22), every finished line is a title as written (less a bracket of refs) or the grey line, which stands for the 7 titles with a hole shape; no hole is drawn (lina-app#231)", async () => {
@@ -3275,7 +3385,8 @@ const drivers = {
       const after = await finishedNow(group);
       const titles = await page.evaluate(() => window.__linaScene.cards.cards.filter((card) => card.state === "done").flatMap((card) => [card.title, card.goalTitle].filter(Boolean)));
       const cards = await page.evaluate(() => window.__linaScene.cards.cards.filter((card) => card.state === "done").length);
-      const drawn = await group.locator("li[data-testid=row] .title:not(.is-kind)").allInnerTexts();
+      // A line of one title over several cards says how many after it (lina-app#237).
+      const drawn = (await group.locator("li[data-testid=row] .title:not(.is-kind)").allInnerTexts()).map((title) => title.trim().replace(/ ×\d+$/, ""));
       const grey = await group.locator("li[data-testid=row] .title.is-kind").allInnerTexts();
       const cut = drawn.filter((title) => !titles.some((each) => each === title || each.startsWith(title + " (")));
       const holes = drawn.filter((title) => /\(\s*\)|\(\d+\)|@|^[·,]|^(용|을|를)\s/.test(title));
@@ -3317,6 +3428,33 @@ const drivers = {
       } finally {
         await context.close();
       }
+    });
+    // lina-app#237 (QA round 23, the real hub): 5 lines + 외 160개 folded but 146 lines opened, eleven titles twice, and the
+    // grey line wearing one agent and one card's time over nine agents' cards.
+    await step("on the hub's shape (&hub=round23), 완료's fold counts the lines it opens, no title is twice, and the grey line names no one agent, says its newest time as such and opens as counts by agent (lina-app#237)", async () => {
+      await openApp(page, "#/", "&hub=round23");
+      const group = page.getByTestId("section-finished");
+      const before = await finishedNow(group);
+      await group.locator(".more-row:not([data-testid=fold-hide])").getByRole("button").click();
+      await group.getByRole("button", { name: "완료 닫기", exact: true }).waitFor();
+      const titles = (await group.locator("li[data-testid=row] .lines > .title").allInnerTexts()).map((title) => title.trim().replace(/ ×\d+$/, ""));
+      const twice = titles.filter((title, index) => titles.indexOf(title) !== index);
+      const cards = await page.evaluate(() => window.__linaScene.cards.cards.filter((card) => card.state === "done").length);
+      check(before.head === cards && before.all === cards && titles.length === before.rows + before.more && twice.length === 0, "folded " + JSON.stringify(before) + "; opened " + titles.length + " lines, twice " + JSON.stringify(twice));
+      const grey = group.locator("li[data-testid=row]").filter({ has: page.locator(".title.is-kind") });
+      const marks = await grey.locator(".mark:not(.mark-none)").count();
+      const sub = (await grey.getByTestId("row-sub").innerText()).trim();
+      const time = (await grey.locator(".time").innerText()).replace(/^\s*·\s*/, "").trim();
+      check(marks === 0 && sub === "에이전트 3명" && /^가장 최근 \d+분 전$/.test(time), "the grey line: marks " + marks + ", " + sub + ", " + time);
+      await grey.getByRole("link").click();
+      const box = page.getByTestId("fold-members");
+      await box.waitFor();
+      const agents = (await box.getByTestId("fold-agent").allInnerTexts()).map((line) => line.trim());
+      const sum = agents.reduce((total, line) => total + Number(/(\d+)건$/.exec(line)?.[1] ?? 0), 0);
+      const grouped = Number(/(\d+)/.exec((await grey.locator(".title").innerText()).trim())?.[1] ?? 0);
+      check(agents.length === 3 && sum === grouped && (await box.getByTestId("fold-member").count()) === 0, "opened: " + JSON.stringify(agents) + " for " + grouped);
+      await openApp(page, "#/running");
+      return "folded " + before.rows + " + 외 " + before.more + "개, opened " + titles.length + " lines for " + cards + " cards, none twice; grey: " + sub + " · " + time + ", opened " + agents.join(" | ");
     });
     await step("on the hub's shape (&hub=round20), every planned card is a row of 예정, its head their number, the one with a Latin goal title named by it (lina-app#225)", async () => {
       await openApp(page, "#/", "&hub=round20");
@@ -3836,7 +3974,7 @@ const drivers = {
       check((await field.inputValue()) === "", "the field kept " + (await field.inputValue()));
       return "reply: " + (await box().getByTestId("talk-reply").last().locator(".talk-bubble").innerText());
     });
-    await step("a chat's look: a date between days, one mark and name per group of the agent's, and nothing beside 보내기 on an empty field", async () => {
+    await step("a chat's look: a date between days, one mark and name per group of the agent's, and 글 입력 대기 beside 보내기 on an empty field", async () => {
       const days = await box().getByTestId("talk-day").allInnerTexts();
       check(JSON.stringify(days) === JSON.stringify(["어제", "오늘"]), "the dates read " + JSON.stringify(days));
       const groups = await box()
@@ -3847,8 +3985,9 @@ const drivers = {
       for (const word of ["글 입력 대기", "보내는 중", "답하는 중"]) check(!turns.includes(word), "the window reads " + word);
       const send = box().getByRole("button", { name: "보내기", exact: true });
       check((await send.innerText()).trim() === "" && (await send.isDisabled()), "보내기 is not a dim icon on an empty field");
-      // An empty field says nothing beside 보내기: the owner took 글 입력 대기 out of the chat (lina-app#200).
-      check((await box().getByTestId("send-why").count()) === 0, "the line by 보내기 is drawn on an empty field");
+      // An off 보내기 says why, on an empty field too (lina-app#238).
+      const why = (await box().getByTestId("send-why").innerText().catch(() => "")).trim();
+      check(why === "글 입력 대기", "the line by 보내기 reads " + JSON.stringify(why) + " on an empty field");
       return groups.length + " groups under " + days.join(", ");
     });
     await step("Shift+Enter breaks a line and the field grows up to about 5 lines, then scrolls; Enter sends", async () => {

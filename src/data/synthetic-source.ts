@@ -1,4 +1,4 @@
-import { SETTINGS_HISTORY, type ActionResult, type AddItemRequest, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type BoardSnapshot, type ChangeEvent, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemDetail, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type Settings, type SettingsAuditLine, type SettingsModel, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest, type WorkState } from "../api/client";
+import { SETTINGS_HISTORY, type ActionResult, type AddItemRequest, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type BoardSnapshot, type ChangeEvent, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemDetail, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type RunRecord, type Settings, type SettingsAuditLine, type SettingsModel, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest, type WorkState } from "../api/client";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type PowerVariant, type Scene, type SettingsVariant } from "../fixtures/synthetic";
 import { localDay, type CardSummary } from "../model";
 import { mergePatch } from "../model/settings";
@@ -180,9 +180,156 @@ export function round22Scene(scene: Scene): Scene {
   };
 }
 
+/**
+ * The hub's long card's record shape UI QA round 23 met (`&hub=round23`, lina-app#236), field by field as a worker run's
+ * record serves it, in made-up words: k-105's worker run r5 holds ten rounds, newest first, most accepted with an English
+ * report line (so their heads hold the outcome alone), a stopped one between them, and one whose report line is a whole
+ * Korean sentence. The rounds of one outcome with nothing else, one after another, are one head with `×n`.
+ */
+export function round23RecordScene(scene: Scene): Scene {
+  const done = scene.cardDetails["k-105"];
+  const end = scene.now - 2 * 3600;
+  const round = (run: number, fields: Partial<RunRecord["rounds"][number]>): RunRecord["rounds"][number] => {
+    const endedAt = end - (10 - run) * 40 * 60;
+    return { run, startedAt: endedAt - 9 * 60, endedAt, endKnown: true, startUnknown: false, result: "Merged the fake PR after both widths passed.", verdict: "accepted", stopped: false, rows: [], ...fields };
+  };
+  const rounds = [
+    round(10, {}),
+    round(9, { result: "Fake review read, no change asked." }),
+    round(8, {}),
+    round(7, { result: null, verdict: null, stopped: true }),
+    round(6, { result: "백업 기록 마지막 달을 다시 살폈다." }),
+    round(5, { result: null, verdict: null, stopped: true }),
+    round(4, {}),
+    round(3, { result: "Fake audit merged via fake#12." }),
+    round(2, {}),
+    round(1, {}),
+  ];
+  const record: RunRecord = { ...scene.records.r1, id: "r5", at: scene.now, cardId: "k-105", rounds, comments: [], errors: [] };
+  return { ...scene, cardDetails: { ...scene.cardDetails, "k-105": { ...done, workerRuns: done.workerRuns.map((worker) => ({ ...worker, firstSeenAt: end - 9 * 40 * 60 - 9 * 60 })) } }, records: { ...scene.records, r5: record } };
+}
+
+/** k-101's worker runs under ids of the hub's shape for round 23 (lina-app#238): a task id a person never reads. */
+export const ROUND23_RUNS: Readonly<Record<string, string>> = { r9: "OT-GAJ1101090105", r10: "OT-GAJ1101093210", r1: "OT-GAJ1101101500" };
+
+/** Every string and key of a plain object or array, with `names` renamed; anything else is kept as it is. */
+function renamed<T>(value: T, names: Readonly<Record<string, string>>): T {
+  if (typeof value === "string") return (names[value] ?? value) as T;
+  if (Array.isArray(value)) return value.map((each) => renamed(each, names)) as T;
+  if (value === null || typeof value !== "object" || Object.getPrototypeOf(value) !== Object.prototype) return value;
+  return Object.fromEntries(Object.entries(value).map(([key, each]) => [names[key] ?? key, renamed(each, names)])) as T;
+}
+
+/**
+ * The hub's shapes UI QA round 23 met (`&hub=round23`, lina-app#238), field by field as the hub serves them, in made-up
+ * words: k-101's worker runs carry task ids (ROUND23_RUNS) and, as the hub's long card does, a `lina-worker` entry named
+ * by a command word (`wait`) with no record; and the bell holds the hub's 61 unread notices, a two-digit badge.
+ */
+export function round23FrameScene(scene: Scene): Scene {
+  const next = renamed(scene, ROUND23_RUNS);
+  const card = next.cardDetails["k-101"];
+  const last = card.workerRuns.at(-1);
+  const workerRuns = last ? [...card.workerRuns, { id: "wait", kind: "lina-worker" as const, firstSeenAt: last.firstSeenAt, lastSeenAt: last.lastSeenAt }] : card.workerRuns;
+  const target = next.items.items.find((item) => item.kind === "todo" && item.mine);
+  const unread = next.board.notices.filter((notice) => !notice.read).length;
+  const more = target
+    ? Array.from({ length: Math.max(0, 61 - unread) }, (_, index) => ({ key: `todo:${target.id}:${next.now - 600 - index * 60}`, target: target.id, at: next.now - 600 - index * 60, kind: "todo" as const, line: `가상 알림 ${index + 1} · 내 할 일`, read: false }))
+    : [];
+  const notices = [...next.board.notices, ...more];
+  return {
+    ...next,
+    cardDetails: { ...next.cardDetails, "k-101": { ...card, workerRuns } },
+    board: { ...next.board, notices, counts: { ...next.board.counts, unread: notices.filter((notice) => !notice.read).length } },
+  };
+}
+
 /** Round 22's goal (lina-app#231): its title, and its done condition with an issue reference, a Latin word and a `#3`. */
 export const ROUND22_GOAL = "가상 말투 키우기";
 export const ROUND22_CONDITION = "lina#77 가상 말투 기준이 맞고 남은 메모가 memory 칸 #3에 들어감";
+
+/** Round 23's made-up titles (lina-app#237): goal titles over finished cards, and the finished cards nothing names. */
+export const ROUND23 = {
+  /** Over five cards titled as the goal and three with titles of their own: the hub drew one `×5` line and three more. */
+  weekly: "가상 주간 보고 다듬기",
+  weeklyOwn: ["가상 표 칸 맞추기", "가상 요약 줄 줄이기", "가상 그림 번호 고치기"],
+  /** Over two cards, each with a title of its own. */
+  order: "가상 알림 순서 바꾸기",
+  orderOwn: ["가상 알림 순서 1차 시험", "가상 알림 순서 2차 시험"],
+  /** Over one card titled as the goal and one with a title of its own. */
+  move: "가상 설정 화면 옮기기",
+  moveOwn: "가상 설정 화면 글자 맞추기",
+  /** Titles no rule draws (Latin only), no goal: the cards of the grey line. */
+  unnamed: ["fix a9c2 (#12)", "chore bump deps (#31)", "deploy sync 3f2a1b9", "release notes v2", "wip", "retry 2", "fix typo", "merge main", "bump 1.4.2"],
+  /** A goal closed with its one to-do still planned (0/1), and one finished card under its title. */
+  closedEarly: "가상 시험 앱 따로 띄우기",
+  /** A goal closed at 4 of 16 to-dos. */
+  closedAtFour: "가상 프록시 교체 시험",
+  /** A goal still planned, its one to-do planned, while both cards under its title are finished. */
+  plannedDone: "가상 결함 여덟 가지 고치기",
+  plannedDoneOwn: ["가상 결함 앞 넷 고치기", "가상 결함 뒤 넷 고치기"],
+} as const;
+
+/**
+ * The hub's shapes UI QA round 23 met (`&hub=round23`, lina-app#237), field by field as its lists serve them, in made-up
+ * words. Finished cards in the hub's finished row shape (no checked lines, no ask, read-only; the old ones keep no
+ * history and no beat, the newest a beat and no `detail` field), more than the work tab reads first: a goal title over
+ * cards titled as the goal and cards with titles of their own (ROUND23), titles apart, and cards nothing names from every
+ * agent, the newest of them the newest finished card, so the grey line is the group's first. And the first agent's goal
+ * records whose own state and to-do count disagree, as the item list serves them: two `done` with to-dos open (0/1 with
+ * its to-do planned and a finished card under its title, 4/16), one `planned` (0/1) whose cards are all finished.
+ */
+export function round23ListScene(scene: Scene): Scene {
+  const template = scene.cards.cards.find((card) => card.state === "done");
+  const agents = scene.items.agents.map((agent) => agent.id);
+  if (!template || agents.length < 3) return scene;
+  const now = scene.now;
+  let next = 0;
+  const finished = (title: string, goalTitle: string | null, hoursAgo: number, agent = agents[next % 3]): SceneCard => {
+    const recent = hoursAgo < 24;
+    const ended = now - Math.round(hoursAgo * 3600);
+    const card = { ...template, id: `k-${700 + next++}`, title, goalTitle, agent, state: "done", reason: null, waitingOn: null, retry: null, ask: null, elapsedSeconds: 900 + next * 60, todoProgress: { done: 0, total: 0 }, now: null, endedAt: ended, lastHeartbeatAt: recent ? ended : null, plain: { title: null, now: null, result: null }, readOnly: true, detail: false } as SceneCard & { detail?: boolean };
+    if (recent) delete card.detail;
+    return card;
+  };
+  const R = ROUND23;
+  const cards = [
+    // The newest finished card is one nothing names; the others of the grey line are spread over the days, every agent's.
+    ...R.unnamed.map((title, index) => finished(title, null, index === 0 ? 0.1 : 6 + index * 20, agents[index % 3])),
+    ...Array.from({ length: 5 }, (_, index) => finished(R.weekly, R.weekly, 1 + index * 30)),
+    ...R.weeklyOwn.map((title, index) => finished(title, R.weekly, 2 + index * 25)),
+    ...R.orderOwn.map((title, index) => finished(title, R.order, 3 + index * 40)),
+    finished(R.move, R.move, 4),
+    finished(R.moveOwn, R.move, 50),
+    finished(R.closedEarly, R.closedEarly, 0.6),
+    ...R.plannedDoneOwn.map((title, index) => finished(title, R.plannedDone, 5 + index * 10)),
+    ...Array.from({ length: 12 }, (_, index) => finished(round20Title(20 + index), null, 8 + index * 9)),
+  ];
+  const since = now - 2 * 86_400;
+  const base = scene.items.items.find((item) => item.id === "G1");
+  const goal = (id: string, title: string, state: "done" | "planned", todos: { done: number; total: number }, closedAgo: number | null) =>
+    ({ ...base, id, parent: "A1", title, agent: agents[0], addedBy: agents[0], mine: false, state, reason: null, stateSince: closedAgo === null ? since : now - closedAgo, lastActivityAt: now - 3600, createdAt: now - 9 * 86_400, closedAt: closedAgo === null ? null : now - closedAgo, due: null, doneCondition: null, area: "가상 영역", projects: [], todos, runCount: 2, commentCount: 0 }) as Scene["items"]["items"][number];
+  const goals = [goal("G7", R.closedEarly, "done", { done: 0, total: 1 }, 37 * 60), goal("G8", R.closedAtFour, "done", { done: 4, total: 16 }, 3 * 3600), goal("G9", R.plannedDone, "planned", { done: 0, total: 1 }, null)];
+  // Each goal's to-dos the item list still serves: open ones, planned.
+  const todo = (id: string, parent: string, title: string) => ({ ...goals[0], id, kind: "todo" as const, parent, title, state: "planned" as const, closedAt: null, doneCondition: null, area: null, todos: null, runCount: 0 });
+  const todos = [todo("T15", "G7", "가상 시험 앱 주소 정하기"), todo("T16", "G8", "가상 프록시 끊김 재기"), todo("T17", "G9", "가상 결함 목록 맞추기")];
+  const detail = scene.itemDetails.G1;
+  const details = Object.fromEntries(goals.map((each) => [each.id, { ...detail, ...each, why: null, basis: [], children: todos.filter((row) => row.parent === each.id), comments: [], runs: [], links: [], workCards: [], decision: null, ownerDone: null }]));
+  // The hub serves the detail of a card it keeps history for (no `detail: false`): its row's fields and empty lists.
+  const kept = cards.filter((card) => !("detail" in card));
+  const cardDetails = Object.fromEntries(kept.map((card) => [card.id, { ...card, todos: [], workerRuns: [], runsAwaitingVerdict: [], gates: [], comments: [], runs: [] }]));
+  return {
+    ...scene,
+    cardDetails: { ...scene.cardDetails, ...cardDetails } as Scene["cardDetails"],
+    cards: { ...scene.cards, cards: [...scene.cards.cards.filter((card) => card.state !== "done"), ...cards] },
+    items: { ...scene.items, items: [...scene.items.items, ...goals, ...todos] },
+    itemDetails: { ...scene.itemDetails, ...details },
+  };
+}
+
+/** `&hub=round23`: the three shapes UI QA round 23 met, one after the other (lina-app#236, #237, #238). */
+export function round23Scene(scene: Scene): Scene {
+  return round23ListScene(round23FrameScene(round23RecordScene(scene)));
+}
 
 function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
   switch (name) {
@@ -545,7 +692,7 @@ export class SyntheticSource implements Source {
   private readonly signing = new Set<string>();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; hubRound23?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean } = {}) {
     this.slowRecords = options.slowRecords ?? false;
     this.staleNext = options.settings === "stale";
     this.raceNext = options.settings === "race";
@@ -570,7 +717,7 @@ export class SyntheticSource implements Source {
         settings: options.settings === "stale" || options.settings === "race" ? null : options.settings,
         power: options.power,
       });
-    this.scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : generated;
+    this.scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : options.hubRound23 ? round23Scene(generated) : generated;
   }
 
   async read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {

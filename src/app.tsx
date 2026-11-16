@@ -10,7 +10,7 @@ import { slideMotion } from "./stack-motion";
 import { bindSwipeBack, isStandalone } from "./swipe-back";
 import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RestartSheet, RunningScreen, StatusScreen, TodayScreen } from "./screens/lists";
 import { AgentCard, AgentTalk, TalkAgents, TalkHead, TalkNameLine, TalkPreview, talkRowName } from "./screens/talk";
-import { CardScreen, GoalScreen, ItemScreen, RunScreen, workerTitle } from "./screens/details";
+import { CardScreen, GoalScreen, ItemScreen, RoundScreen, roundRunId, RunScreen, workerTitle } from "./screens/details";
 import { RollbackSheet, SettingPage, settingParent, SettingsScreen, settingTitle } from "./screens/settings";
 import { SETTINGS_HISTORY } from "./api/client";
 import { BackIcon, BellIcon, CalendarIcon, DeviceIcon, DoneIcon, GearIcon, GoalIcon, InboxIcon, MenuIcon, RunningIcon } from "./ui/icons";
@@ -71,6 +71,10 @@ export function titleOf(route: Route, model: Model, store: Store): string {
       const cardId = model.runOwner.get(route.id) ?? store.get("record", route.id)?.cardId;
       return run ? runRow(run).name : cardId ? workerTitle(model, cardId) : W.cards;
     }
+    case "round": {
+      const id = roundRunId(store, route.card, route.n);
+      return id ? titleOf({ name: "run", id }, model, store) : workerTitle(model, route.card);
+    }
   }
 }
 
@@ -98,6 +102,11 @@ function wantsFor(route: Route, store: Store): Want {
       const cardId = store.get("record", route.id)?.cardId;
       return cardId ? [["record", route.id], ["card", cardId]] : [["record", route.id]];
     }
+    case "round": {
+      // The card names which worker run stands at the place, then that run's record is read.
+      const id = roundRunId(store, route.card, route.n);
+      return id ? [["card", route.card], ["record", id]] : [["card", route.card]];
+    }
     case "status":
       // Its machines, quota, usage, OCX's state and checks are drawn on its first screen, so they come with the lists.
       return SLOW_ROUTES.filter(([name]) => name !== "settingsModels");
@@ -112,12 +121,13 @@ function wantsFor(route: Route, store: Store): Want {
 }
 
 /**
- * Screens that list or count every finished card (완료, 오늘, an agent and its 대화 card, a goal's or to-do's cards, a
- * finished card's fold) read them all; the work tab reads the newest few (lina-app#186). A card the list does not hold may
- * be a finished one not read yet.
+ * Screens that list or count every finished card (완료, 오늘, an agent and its 대화 card, a goal's or to-do's cards, the
+ * goals whose lines fold their cards (lina-app#237), a finished card's fold) read them all; the work tab reads the newest
+ * few (lina-app#186). A card the list does not hold may be a finished one not read yet.
  */
 function readsEveryFinished(route: Route, store: Store): boolean {
   switch (route.name) {
+    case "goals":
     case "done":
     case "today":
     case "agent":
@@ -125,9 +135,11 @@ function readsEveryFinished(route: Route, store: Store): boolean {
     case "goal":
     case "item":
       return true;
-    case "card": {
+    case "card":
+    case "round": {
       if (store.status("cards") === "pending") return false;
-      const card = store.get("cards")?.cards.find((each) => each.id === route.id);
+      const id = route.name === "round" ? route.card : route.id;
+      const card = store.get("cards")?.cards.find((each) => each.id === id);
       return card === undefined || card.state === "done";
     }
     case "run": {
@@ -185,6 +197,8 @@ function Screen({ route }: { route: Route }) {
       return <CardScreen id={route.id} />;
     case "run":
       return <RunScreen id={route.id} />;
+    case "round":
+      return <RoundScreen card={route.card} n={route.n} />;
   }
 }
 

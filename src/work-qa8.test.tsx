@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor, within } from "@testing-library/preact";
+import { render, waitFor, within } from "@testing-library/preact";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { ItemDetail, WorkCardSummary } from "./api/client";
 import { App } from "./app";
@@ -60,9 +60,9 @@ describe("finished lines collapse (lina-app#168 item 1)", () => {
   test("five cards that differ only by a hash are one 완료 line ×5 opening the newest; the head and the sidebar count the cards", async () => {
     const view = await open("#/running", new SyntheticSource({ scene: round8Scene() }));
     const finished = view.getByTestId("section-finished");
-    // The page reads the newest finished cards first (lina-app#186); the fold reads the oldest deploy too.
-    fireEvent.click(within(finished).getByRole("button", { name: `${W.done} ${W.more(1)}` }));
-    await waitFor(() => expect(finished.querySelector(".more-row:not([data-testid=fold-hide])")).toBeNull());
+    // The page reads the newest finished cards first (lina-app#186), then the group reads the rest, the oldest deploy too
+    // (lina-app#237): its five lines are all of them, with no fold.
+    await waitFor(() => expect(finished.querySelector(".more-row")).toBeNull());
     const rows = within(finished).getAllByTestId("row").filter((row) => row.textContent?.includes(DEPLOY));
     expect(rows).toHaveLength(1);
     expect(rows[0].querySelector(".title")?.textContent).toBe(`${DEPLOY} ${W.repeated(5)}`);

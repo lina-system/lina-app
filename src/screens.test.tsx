@@ -2019,7 +2019,8 @@ describe("agent talk", () => {
   });
 
   // lina-app#200 item 1: a disabled 보내기 says why in the words 댓글 and 답 use, one line in the field's bar.
-  test("보내기 in the agent's window is a dim icon while it is off; a word beside it says why while the turn goes out and the reply comes in, and none on an empty field (lina-app#187, #200)", async () => {
+  // lina-app#238: an off 보내기 always says why, on an empty field too, as 댓글 and a decision's 답 do.
+  test("보내기 in the agent's window is a dim icon while it is off; a word beside it says why on an empty field, while the turn goes out and while the reply comes in (lina-app#187, #200, #238)", async () => {
     let answer: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => (answer = resolve));
     class Held extends SyntheticSource {
@@ -2034,7 +2035,7 @@ describe("agent talk", () => {
     expect(field.tagName).toBe("TEXTAREA");
     expect(send.textContent).toBe("");
     expect(send.disabled).toBe(true);
-    expect(why()).toBeNull();
+    expect(why()).toBe("글 입력 대기");
     field.value = "가짜 질문 하나";
     fireEvent.input(field);
     await waitFor(() => expect(send.disabled).toBe(false));
@@ -2050,7 +2051,7 @@ describe("agent talk", () => {
     // The reason sits in the field's bar, never in the turns.
     expect(view.getByTestId("agent-talk").querySelector(".agent-talk-turns")?.textContent).not.toContain("답하는 중");
     await waitFor(() => expect(box.queryAllByTestId("talk-live")).toHaveLength(0), { timeout: 5000 });
-    expect(why()).toBeNull();
+    expect(why()).toBe("글 입력 대기");
   });
 
   test("a refused turn puts the agent row's preview back to what it showed before the send (lina-app#143)", async () => {
@@ -2314,7 +2315,7 @@ describe("talk", () => {
     fireEvent.input(field);
   }
 
-  test("보내기 under a to-do's 대화 is a dim icon while it is off, and says why in 댓글's words (lina-app#187, #200; lina-app#158)", async () => {
+  test("보내기 under a to-do's 대화 is a dim icon while it is off, and says why in 댓글's words, on an empty field too (lina-app#187, #200, #238; lina-app#158)", async () => {
     let answer: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => (answer = resolve));
     class Held extends SyntheticSource {
@@ -2328,8 +2329,7 @@ describe("talk", () => {
     const why = () => box.queryByTestId("send-why")?.textContent ?? null;
     expect(field.tagName).toBe("TEXTAREA");
     expect(send.disabled).toBe(true);
-    // An empty field says nothing in the chat (the owner took 글 입력 대기 out); 댓글 keeps its own line.
-    expect(why()).toBeNull();
+    expect(why()).toBe("글 입력 대기");
     type(field, "가짜 질문 하나");
     await waitFor(() => expect(send.disabled).toBe(false));
     expect(why()).toBeNull();
@@ -2747,7 +2747,8 @@ describe("work cards", () => {
       expect.stringMatching(/^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/),
       expect.stringMatching(/^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/),
     ]);
-    expect(links.map((link) => link.getAttribute("href"))).toEqual(["#/runs/r1", "#/runs/r10", "#/runs/r9"]);
+    // r1, r10 and r9 by their place among k-101's worker runs (lina-app#238).
+    expect(links.map((link) => link.getAttribute("href"))).toEqual(["#/cards/k-101/runs/3", "#/cards/k-101/runs/2", "#/cards/k-101/runs/1"]);
     view.unmount();
     const waiting = await open("#/cards/k-104", { wide: true });
     expect(waiting.getByTestId("card-done-so-far").textContent).toBe("완료된 것실패 화면 세 곳의 문구와 버튼을 비교함");
@@ -3036,13 +3037,13 @@ describe("the run's own timeline", () => {
     // k-101's rounds stay r9, r10, r1. Only r1 (round 3) has a model.
     const third = round(3);
     const line = third?.querySelector("[data-testid=run-model]");
-    expect(third?.querySelector("[data-testid=timeline-link]")?.getAttribute("href")).toBe("#/runs/r1");
+    expect(third?.querySelector("[data-testid=timeline-link]")?.getAttribute("href")).toBe("#/cards/k-101/runs/3");
     expect(line?.textContent).toBe("가온 큰 모델 · 보통");
     expect(line?.classList.contains("timeline-model")).toBe(true);
     expect(third?.querySelector(".timeline-head")?.contains(line ?? null)).toBe(false);
-    expect(round(2)?.querySelector("[data-testid=timeline-link]")?.getAttribute("href")).toBe("#/runs/r10");
+    expect(round(2)?.querySelector("[data-testid=timeline-link]")?.getAttribute("href")).toBe("#/cards/k-101/runs/2");
     expect(round(2)?.querySelector("[data-testid=run-model]")).toBeNull();
-    expect(round(1)?.querySelector("[data-testid=timeline-link]")?.getAttribute("href")).toBe("#/runs/r9");
+    expect(round(1)?.querySelector("[data-testid=timeline-link]")?.getAttribute("href")).toBe("#/cards/k-101/runs/1");
     expect(round(1)?.querySelector("[data-testid=run-model]")).toBeNull();
     for (const comment of blocks.filter((block) => block.getAttribute("data-outcome") === "comment")) {
       expect(comment.querySelector("[data-testid=run-model]")).toBeNull();
@@ -3066,7 +3067,7 @@ describe("the run's own timeline", () => {
   test("a worker run a card started opens its own page from the card even though the board does not list it", async () => {
     const view = await open("#/cards/k-101", { wide: true });
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
-    const link = view.getByTestId("timeline").querySelector('a[href="#/runs/r1"]') as HTMLAnchorElement;
+    const link = view.getByTestId("timeline").querySelector('a[href="#/cards/k-101/runs/3"]') as HTMLAnchorElement;
     expect(link.textContent).toMatch(/^(어제 )?\d\d:\d\d · 진행 중$/);
     fireEvent.click(link);
     await waitFor(() => expect(view.queryByTestId("screen-run")).not.toBeNull());
@@ -3112,7 +3113,7 @@ describe("the run's own timeline", () => {
     // The worker links never disappear: they stand under the error line, in the one 기록 with no second head (lina-app#179).
     const boxes = [...view.getByTestId("screen-card").querySelectorAll(":scope > .box > .box-head")].map((head) => head.textContent);
     expect(boxes).toEqual(["지금", "할 일", "기록", "댓글"]);
-    expect([...view.getByTestId("worker-runs").querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual(["#/runs/r1", "#/runs/r10", "#/runs/r9"]);
+    expect([...view.getByTestId("worker-runs").querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual(["#/cards/k-101/runs/3", "#/cards/k-101/runs/2", "#/cards/k-101/runs/1"]);
     expect(view.getByTestId("card-now").textContent).toContain("변경마다 한 줄 요약을 붙이는 중");
     expect(within(view.getByTestId("card-comments")).getAllByTestId("history-row")).toHaveLength(4);
   });

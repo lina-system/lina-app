@@ -64,8 +64,9 @@ test("item 2: a card's worker runs and rounds read newest first, and a folded ro
   const view = await open("#/cards/k-108", new SyntheticSource({ now: scene.now, scene: { ...scene, cardDetails } }));
   const card = await frame(view);
   const box = await waitFor(() => within(card).getByTestId("worker-runs"));
-  const order = [...box.querySelectorAll("[data-testid=row] a")].map((link) => /r1[5-7]/.exec(link.getAttribute("href") ?? "")?.[0]).filter(Boolean);
-  expect(order).toEqual(["r17", "r16", "r15"]);
+  // k-108 lists r15, r16, r17: each link names its run's place among them (lina-app#238).
+  const order = [...box.querySelectorAll("[data-testid=row] a")].map((link) => link.getAttribute("href"));
+  expect(order).toEqual(["#/cards/k-108/runs/3", "#/cards/k-108/runs/2", "#/cards/k-108/runs/1"]);
   expect(within(box).getByTestId("round-fold").querySelector("summary")?.textContent).toBe("이전 기록 1건");
   expect(box.textContent).not.toContain("댓글");
 });
@@ -287,8 +288,9 @@ test("item 7: a card's history sentences show no ledger, goal, card id or agent-
     .getAllByTestId("history-row")
     .map((row) => (row.textContent ?? "").replace(/^(?:어제 |\d+월 \d+일 )?\d\d:\d\d · /, ""));
   for (const text of texts) expect(text).not.toMatch(ID);
-  // A sentence holding an agent-and-time bracket or an id is not drawn: neither is cut out of it (lina-app#226).
-  expect(texts).toEqual(["목표 없이 열려 있던 카드라서 옮김.", "접힌 댓글 2건"]);
+  // A comment holding a ledger, a goal number or an id in any sentence folds whole: nothing is cut out of it and no
+  // sentence of it is drawn alone (lina-app#226, #236).
+  expect(texts).toEqual(["접힌 댓글 3건"]);
 });
 
 test("item 7: a goal's history sentences show no ids either", async () => {

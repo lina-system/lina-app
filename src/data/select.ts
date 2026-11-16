@@ -19,6 +19,9 @@ const POWER_VARIANTS: readonly string[] = ["stopped", "none"] satisfies PowerVar
  * finished cards and an overdue to-do (lina-app#221), `&hub=round20` the hub's 13 stopped cards, a planned card with a
  * Latin goal title, 46 finished cards in ×n and unnamed lines and a waiting to-do past its due date (lina-app#225),
  * `&hub=round22` the hub's finished cards with titles drawn whole and titles with every hole shape (lina-app#231),
+ * `&hub=round23` the hub's long card's record with rounds of one outcome in a row (lina-app#236), the hub's finished cards under one goal title in a `×n` line and single lines, the grey line first with
+ * every agent's cards, and goals whose record state and to-do count disagree (lina-app#237),
+ * and the hub's worker run ids on k-101's history and its 61 unread notices (lina-app#238),
  * `&talk=busy|down|none` one whose talk turns are refused (429, 503, 409), `&live=down|drop|resync|token|talk` a change
  * stream that refuses every connection, drops once while another device writes, sends one resync, restarts the core with
  * a new session token, or carries another device's message to the first agent, `&push=off` a core without push, `&settings=readonly|empty|stale|race|ocx-down` work settings this
@@ -47,6 +50,7 @@ export function chooseSource(location: Pick<Location, "search"> = window.locatio
       hubRound18: params.get("hub") === "round18",
       hubRound20: params.get("hub") === "round20",
       hubRound22: params.get("hub") === "round22",
+      hubRound23: params.get("hub") === "round23",
       manyFinished: params.get("finished") === "many",
       talk: talk && TALK_REFUSALS.includes(talk) ? (talk as TalkRefusal) : null,
       live: live && STREAM_SCRIPTS.includes(live) ? (live as StreamScript) : "ok",

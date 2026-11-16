@@ -56,20 +56,23 @@ for (const wide of [true, false]) {
     const total = cardsIn(source, "done").length;
     expect(total).toBeGreaterThan(40);
     const view = await open("#/", source, wide);
-    const before = finished(view);
-    expect(before).toEqual({ head: total, rows: FINISHED_SHOWN, cards: FINISHED_SHOWN, fold: total - FINISHED_SHOWN, loading: false });
-    if (wide) expect(sidebarDone(view)).toBe(total);
     const group = view.getByTestId("section-finished");
-    const states: ReturnType<typeof finished>[] = [];
+    const states: ReturnType<typeof finished>[] = [finished(view)];
     const watch = new MutationObserver(() => states.push(finished(view)));
     watch.observe(group, { subtree: true, childList: true, characterData: true });
-    fireEvent.click(group.querySelector(".more-row button") as HTMLElement);
-    await waitFor(() => expect(within(group).queryByRole("button", { name: `${W.done} ${W.close}` })).not.toBeNull());
+    // The group reads the rest right after the page's first few (lina-app#237): until then it says so, then its fold
+    // counts the lines it opens.
+    await waitFor(() => expect(finished(view).fold).toBeGreaterThan(0));
     watch.disconnect();
     expect(states.some((state) => state.loading)).toBe(true);
     for (const state of states) expect(state.head).toBe(total);
-    for (const state of states) if (!state.loading) expect(state.cards + state.fold).toBe(total);
+    const before = finished(view);
+    for (const state of states) if (!state.loading) expect(state.fold).toBe(before.fold);
+    expect(before).toMatchObject({ head: total, rows: FINISHED_SHOWN, loading: false });
+    if (wide) expect(sidebarDone(view)).toBe(total);
+    fireEvent.click(group.querySelector(".more-row button") as HTMLElement);
     const after = finished(view);
+    expect(after.rows).toBe(before.rows + before.fold);
     expect(after).toMatchObject({ head: total, cards: total, fold: 0 });
     expect(after.rows).toBeLessThan(total);
     if (wide) expect(sidebarDone(view)).toBe(total);

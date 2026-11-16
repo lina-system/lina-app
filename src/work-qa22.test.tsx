@@ -31,11 +31,13 @@ async function open(hash: string, source: SyntheticSource, wide: boolean) {
 /** Every finished row's title and how many cards it stands for, with the fold opened. */
 async function finishedRows(view: ReturnType<typeof render>) {
   const group = view.getByTestId("section-finished");
+  // The group reads every finished card first (lina-app#237); its fold opens them once it says how many lines it holds.
+  await waitFor(() => expect(group.querySelector(".more-row")?.textContent).toMatch(/^외 \d+개$/));
   fireEvent.click(group.querySelector(".more-row button") as HTMLElement);
   await waitFor(() => expect(within(group).queryByRole("button", { name: `${W.done} ${W.close}` })).not.toBeNull());
   return [...group.querySelectorAll("[data-testid=row]")].map((row) => ({
     grey: row.querySelector(".title.is-kind") !== null,
-    title: row.querySelector(".title")?.textContent ?? "",
+    title: (row.querySelector(".title")?.textContent ?? "").replace(/ ×\d+$/, ""),
     sub: row.querySelector("[data-testid=row-sub]")?.textContent ?? null,
     cards: Number(/(?:×|제목 없는 )(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1),
   }));

@@ -3,6 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { App } from "./app";
 import { Store } from "./data/store";
 import { SyntheticSource } from "./data/synthetic-source";
+import { plainText } from "./model/plain";
 import { commentHistory, goalHistory } from "./model/timeline";
 import type { ItemDetail } from "./api/client";
 
@@ -36,9 +37,9 @@ test.each(OWN)("the owner's comment %j is its own history line, unchanged, by th
     const lines = commentHistory([{ id: 1, at: 100, author, body }], owner);
     expect(lines.map((line) => line.text)).toEqual([body]);
   }
-  // A bot's comment with the same words goes through the rule: never a cut of it.
+  // A bot's comment with the same words goes through the rule: the whole of it, its markdown markers out, or none (lina-app#236).
   const bot = commentHistory([{ id: 1, at: 100, author: "ag-2", body }]);
-  expect([body, null]).toContain(bot[0]?.text ?? null);
+  expect([body, plainText(body), null]).toContain(bot[0]?.text ?? null);
 });
 
 test("a goal's 기록 draws the owner's comments and replies as saved, a bot's through the rule", () => {

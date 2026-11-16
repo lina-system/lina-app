@@ -10,7 +10,7 @@ The bell in the toolbar (the navigation bar on a phone) carries the core's unrea
 
 ## Intended behavior
 
-- The badge is the core's `counts.unread`, hidden at 0; the button is named `알림 n` (`알림` at 0). At every width the badge sits off the bell's top right corner, so even a two-digit count covers at most a fifth of the bell and never its centre: what it covers of the 18 px icon lies right of and above the icon's centre (lina-app#152, #232).
+- The badge is the core's `counts.unread`, hidden at 0; the button is named `알림 n` (`알림` at 0). At every width the badge sits off the bell's top right corner, so even a two-digit count covers at most a fifth of the bell and never its centre: what it covers of the 18 px icon lies right of and above the icon's centre (lina-app#152, #232). The head's tools box holds the install chip, the bell and its badge whole: the badge never stands past the box's right edge, with one digit or two (lina-app#238).
 - The dialog `알림` opens with `안 읽음 n`, the same n as the badge, so the badge is told apart from 수신함's count. It lists every notice line; unread ones have a blue dot and the label colour; read ones have no dot and their text is the secondary grey, at full opacity (nothing is faded). `모두 읽음` (disabled when nothing is unread) and `닫기` sit on top as accent text buttons; Escape or a click outside also closes it. On a phone it opens as a bottom sheet over a dimmed screen (see [Phone](./phone.md)).
 - Choosing a notice: on screen its item opens and the badge drops by one at once; in the record that notice is read (`{keys: [key]}`).
 - `모두 읽음`: on screen the badge goes and every line turns grey; in the record every notice is read (`{all: true}`).
@@ -37,6 +37,7 @@ Preconditions:
 
 - **Count and list.** Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive bell`. The bell is named `알림 5`; its dialog reads `안 읽음 5` and lists 7 lines, 5 of them in the label colour with a blue dot; `모두 읽음` is enabled; `닫기` and Escape close it.
 - **Badge corner.** The badge's rectangle starts right of the icon's centre and ends above it (it covers about 4x7 px of the icon's top right corner at 1280 and 390), and stays inside the window.
+- **Tools box.** With the install label `실제` set, on `#/`, `#/talk` and `#/status`, on the scene and on `&hub=round23` (the hub's 61 unread), every head's `.toolbar-tools` draws no wider than its box (scrollWidth <= clientWidth), the badge ends inside it, and it still sits off the icon's centre (lina-app#238).
 - **Read one.** Choose the first unread line. The address becomes that notice's item, the bell reads `알림 4`, the dialog `안 읽음 4` with 4 lines in the label colour, and the record's unread count is 4.
 - **Read all.** Open the bell and choose `모두 읽음`. The bell is named `알림` with no badge, the dialog reads `안 읽음 0`, all 7 lines are grey, every notice in the record is read, and web storage is empty.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/bell/bell-1280.{png,aria.yml,json}` and `bell-390.{png,aria.yml,json}`.

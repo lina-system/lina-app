@@ -8,6 +8,11 @@ export type Route =
   | { readonly name: "done"; readonly agent?: string }
   | { readonly name: "agent" | "goal" | "item" | "card" | "run"; readonly id: string }
   /**
+   * A card's worker run by its place among the card's worker runs (`#/cards/<card>/runs/<n>`, from 1): the run's own id
+   * is a task id no person reads, and an address shows on hover and in the status bar (lina-app#238).
+   */
+  | { readonly name: "round"; readonly card: string; readonly n: number }
+  /**
    * `talk` is the owner's own window on one agent (`#/talk/<agent>`); `talks` (`#/talk`) lists the agents. A goal
    * chosen on the agent's card opens under 대화 too (`#/talk/<agent>?goal=<id>`, lina-app#143).
    */
@@ -59,6 +64,7 @@ export function parse(hash: string): Route {
   }
   if (parts.length === 1 && (LISTS as readonly string[]).includes(parts[0]) && parts[0] !== "talks") return { name: parts[0] as ListName };
   if (parts[0] === "settings") return { name: "setting", page: parts.slice(1).join("/") };
+  if (parts.length === 4 && parts[0] === "cards" && parts[2] === "runs" && /^[1-9]\d*$/.test(parts[3])) return { name: "round", card: parts[1], n: Number(parts[3]) };
   const name = PATHS[parts[0]];
   if (parts.length === 2 && name && name !== "home") return { name, id: parts[1] } as Route;
   return { name: "home" };
@@ -68,6 +74,7 @@ export function href(route: Route): string {
   if (route.name === "home") return "#/";
   if (route.name === "setting") return `#/settings/${route.page.split("/").map(encodeURIComponent).join("/")}`;
   if (route.name === "talk" && route.goal) return `#/talk/${encodeURIComponent(route.id)}?${new URLSearchParams({ goal: route.goal })}`;
+  if (route.name === "round") return `#/cards/${encodeURIComponent(route.card)}/runs/${route.n}`;
   if ("id" in route) return `#/${SEGMENT[route.name]}/${encodeURIComponent(route.id)}`;
   if (route.name === "done" && route.agent) return `#/done?${new URLSearchParams({ agent: route.agent })}`;
   if (route.name === "talks") return "#/talk";
@@ -84,7 +91,7 @@ export function isList(route: Route): boolean {
  * So does a goal chosen on an agent's card in 대화 (`#/talk/<agent>?goal=<id>`, lina-app#143).
  */
 export function isFrame(route: Route): boolean {
-  return route.name === "goal" || route.name === "item" || route.name === "card" || route.name === "run" || (route.name === "talk" && Boolean(route.goal));
+  return route.name === "goal" || route.name === "item" || route.name === "card" || route.name === "run" || route.name === "round" || (route.name === "talk" && Boolean(route.goal));
 }
 
 /**
@@ -113,6 +120,7 @@ export function defaultListFor(route: Route): Route {
   switch (route.name) {
     case "card":
     case "run":
+    case "round":
       return { name: "running" };
     case "goal":
       return { name: "goals" };

@@ -3,11 +3,11 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, RecordRow, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
 import { cardTitle, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, runRow, todoState, wholeTitle, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
-import { foldedText, foldReason, withoutCutEnd } from "../model/fold";
+import { foldReason, wholeText } from "../model/fold";
 import { plainText } from "../model/plain";
 import { holds } from "../model/rounds";
 import { stopReason } from "../model/stop-reason";
-import { answerOf, commentHistory, decisionHistory, firstSentence, goalHistory, historyLines, isMachineNotice, outcomeOf, ownerWrote } from "../model/timeline";
+import { answerOf, commentHistory, decisionHistory, goalHistory, historyLines, isMachineNotice, outcomeOf, ownerWrote } from "../model/timeline";
 import type { CardKind } from "../model/kind";
 import { isRunId, newestRun } from "../data/store";
 import { back, baseOf, href, isFrame, navigate, parse, tabOf } from "../router";
@@ -128,37 +128,12 @@ function useDecisionRow(id: string): { text: string } | null {
 }
 
 /**
- * A bot's history text as the screens draw it (foldedText: each sentence whole or not at all, lina-app#226; one holding a
- * word the screens never use left out, lina-app#230), its markdown markers out. Empty when nothing is left: the line folds.
- */
-export function historyText(text: string): string {
-  return foldedText(plainText(text));
-}
-
-/**
- * A comment's text for its history line: the owner's words and a machine notice keep their own text (the owner's drawn
- * as saved, lina-app#226; a notice still known as one and left out), a bot's goes through historyText.
- */
-function historyComment(text: string, author: string | null, owner: string | null | undefined): string {
-  return ownerWrote(author, owner) || isMachineNotice(text, author, owner) ? text : historyText(text);
-}
-
-/**
  * The item with its comments' markdown markers out (plainText), the owner's left as saved (lina-app#226): a comment that
  * was only markers and spaces, with no reply, is no comment at all, never an empty or folded row (lina-app#166).
  */
 function plainItem(detail: ItemDetail, owner: string | null | undefined): ItemDetail {
   const plain = <T extends { readonly text: string; readonly by: string }>(entries: readonly T[]) => entries.map((entry) => ({ ...entry, text: ownerWrote(entry.by, owner) ? (entry.text.trim() ? entry.text : "") : plainText(entry.text) }));
   return { ...detail, comments: plain(detail.comments).map((comment) => ({ ...comment, replies: plain(comment.replies).filter((reply) => reply.text) })).filter((comment) => comment.text || comment.replies.length) };
-}
-
-/** The item with its comments' and its decision's text as history reads them (historyComment), for its 기록 lines. */
-function historyItem(detail: ItemDetail, owner: string | null | undefined): ItemDetail {
-  return {
-    ...detail,
-    comments: detail.comments.map((comment) => ({ ...comment, text: historyComment(comment.text, comment.by, owner), replies: comment.replies.map((reply) => ({ ...reply, text: historyComment(reply.text, reply.by, owner) })) })),
-    decision: detail.decision ? { ...detail.decision, text: historyText(detail.decision.text) } : null,
-  };
 }
 
 /** The item without its decision's answer among its comments: 질문 · 답 shows that answer, once (lina-app#157). */
@@ -416,11 +391,7 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
   const open = detail.decision && !detail.decision.answered;
   const owner = store.get("items")?.owner?.id;
   const plain = plainItem(detail, owner);
-  const history = goalHistory(
-    open ? { ...historyItem(plain, owner), decision: null } : historyItem(plain, owner),
-    evidence.map((entry) => ({ ...entry, text: historyText(entry.text) })),
-    owner,
-  );
+  const history = goalHistory(open ? { ...plain, decision: null } : plain, evidence, owner);
   const decisionRow = useDecisionRow(detail.id);
   // The sentence its row draws under its name, by the one rule (wholeTitle, lina-app#231): no issue reference shows.
   const condition = wholeTitle(detail.doneCondition);
@@ -495,7 +466,7 @@ function TodoBody({ detail }: { detail: ItemDetail }) {
   // An answered decision's question and answer are history (lina-app#153); an open one is its box above.
   const owner = store.get("items")?.owner?.id;
   const plain = plainItem(detail, owner);
-  const history = detail.decision?.answered ? historyLines(decisionHistory(historyItem(plain, owner))) : [];
+  const history = detail.decision?.answered ? historyLines(decisionHistory(plain)) : [];
   const decisionRow = useDecisionRow(detail.id);
   return (
     <article class="detail" data-testid="screen-item">
@@ -625,10 +596,9 @@ export function roundHead(round: Round, now: number): string {
   return [span, state].filter(Boolean).join(SEP);
 }
 
-/** A round's own line as history reads it (historyText), or null when none of it may show (lina-app#157). */
+/** A round's own line as history reads it, whole or not at all (wholeText, lina-app#157, #236). */
 function roundLine(line: string): string | null {
-  const text = historyText(line);
-  return text && !foldReason(text) ? text : null;
+  return wholeText(line);
 }
 
 /**
@@ -648,14 +618,14 @@ function roundGroups(rounds: readonly Round[]): (Round | Round[])[] {
 
 /**
  * A work card's comments, one history line each, newest first: its time and the owner's words as saved, or a bot's
- * first sentence the screens draw whole (lina-app#142, historyText #157, #226); its author is the line's tooltip. A
- * machine notice is no line, each run of comments with no sentence is one 접힌 댓글 line with their count
- * (lina-app#149), and a line drawn more than once is one line with `×n` (commentHistory, lina-app#230). A comment that was only markdown markers and spaces is no line at all (lina-app#166). `records` are
- * the comment rows of its worker runs' records (lina-app#174): each is drawn once, and never when the card holds the
- * comment it was cut from. A record row has no author: the core makes it from a receipt's note (a verdict note, a cancel
- * reason, which on the hub an agent writes), joined to one line and cut at 300 characters with no mark, so it goes through
- * the one gate as any comment whose author is not the owner, less the sentence the cut went through (withoutCutEnd,
- * lina-app#230). Only a comment whose author is the owner is drawn as saved (lina-app#226).
+ * whole text when it stands whole (wholeText, lina-app#236); its author is the line's tooltip. A machine notice is no
+ * line, each run of comments that do not stand whole is one 접힌 댓글 line with their count (lina-app#149), and a line
+ * drawn more than once is one line with `×n` (commentHistory, lina-app#230). A comment that was only markdown markers and
+ * spaces is no line at all (lina-app#166). `records` are the comment rows of its worker runs' records (lina-app#174):
+ * each is drawn once, and never when the card holds the comment it was cut from. A record row has no author: the core
+ * makes it from a receipt's note (a verdict note, a cancel reason, which on the hub an agent writes), joined to one line
+ * and cut at 300 characters with no mark, so it goes through the one gate as any comment whose author is not the owner:
+ * a cut one is longer than a whole line may be, and folds. Only a comment whose author is the owner is drawn as saved (lina-app#226).
  */
 export function cardCommentLines(comments: WorkCardDetail["comments"], records: readonly RecordRow[], owner: string | undefined) {
   const oneLine = (text: string) => plainText(text).split(/\s+/).join(" ").trim();
@@ -665,11 +635,8 @@ export function cardCommentLines(comments: WorkCardDetail["comments"], records: 
     return row.kind === "comment" && !held.some((body) => body.startsWith(text)) && all.findIndex((other) => other.at === row.at && other.text === row.text) === index;
   });
   const own = comments.filter((comment) => plainText(comment.body)).map((comment) => ({ id: String(comment.id), at: comment.createdAt, author: comment.author, body: comment.body }));
-  const fromRecord = recorded.filter((row) => plainText(row.text ?? "")).map((row, index) => ({ id: `record:${row.at}:${index}`, at: row.at, author: null, body: withoutCutEnd(row.text ?? "") }));
-  return commentHistory(
-    [...own, ...fromRecord].map((comment) => ({ ...comment, body: historyComment(comment.body, comment.author, owner) })),
-    owner,
-  );
+  const fromRecord = recorded.filter((row) => plainText(row.text ?? "")).map((row, index) => ({ id: `record:${row.at}:${index}`, at: row.at, author: null, body: row.text ?? "" }));
+  return commentHistory([...own, ...fromRecord], owner);
 }
 
 function CardComments({ lines }: { lines: ReturnType<typeof cardCommentLines> }) {
@@ -722,7 +689,7 @@ function waitsOnOwner(state: WorkState, reason: string | null, row: CardRow | un
 function FoldMembers({ id, fold }: { id: string; fold: readonly CardRow[] | undefined }) {
   const { store, now } = useApp();
   if (!fold) return null;
-  const note = (cardId: string) => firstSentence(store.get("cards")?.cards.find((card) => card.id === cardId)?.now);
+  const note = (cardId: string) => wholeText(store.get("cards")?.cards.find((card) => card.id === cardId)?.now);
   const cards = [...fold.filter((card) => card.id === id), ...fold.filter((card) => card.id !== id)];
   return (
     <Box title={ROUND9_WORD.foldMembers(cards.length)} testid="fold-members">

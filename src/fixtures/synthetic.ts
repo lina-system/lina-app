@@ -392,7 +392,8 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
             ]
           : card.id === "k-104"
           ? [
-              // The text shapes UI QA round 21 met on the hub (lina-app#228), in made-up words: a digits-only hash, a lead-in
+              // The text shapes UI QA rounds 21 to 23 met on the hub (lina-app#228, #230, #236), in made-up words, field by field as the
+              // hub serves a card's comments: a bot's comment is drawn whole or folded, never a part of it. A digits-only hash, a lead-in
               // with its whole list on one line, and a lead-in whose list goes on to the next line.
               { id: 1, author: agentId(1), body: "실패 화면 시안은 아직 4815162342 판에 머물러 있다.", createdAt: now - 3 * HOUR + 2 * MIN },
               { id: 2, author: agentId(1), body: "실패 화면 검토 결과: (1) 첫 화면 문구를 새 문체로 맞췄다. (2) 다시 시도 버튼을 아래로 옮겼다. (3) 카드사 이름을 굵게 바꿨다.", createdAt: now - 3 * HOUR + 4 * MIN },
@@ -400,11 +401,26 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
               // Round 22's (lina-app#230): a list whose items hold more than one sentence, and one the hub cut its head from.
               { id: 4, author: agentId(1), body: "검토 메모: ① 금액 줄을 오른쪽으로 붙였다. 굵기는 그대로 두었다. ② 환불 줄을 금액 줄 아래로 옮겼다.", createdAt: now - 3 * HOUR + 8 * MIN },
               { id: 5, author: agentId(1), body: "(2) 영수증 머리 줄을 줄였다. 글자 크기는 그대로 두었다.\n(3) 버튼 문구를 고쳤다.", createdAt: now - 3 * HOUR + 10 * MIN },
-              // A long amount with its unit is a number, not a hash (lina-app#230).
-              { id: 6, author: agentId(1), body: "환불 한도는 12345678원으로 정했다.", createdAt: now - 3 * HOUR + 12 * MIN },
-              // One time of day with its particle is a fact; two, or one after a separator (a log line), are not drawn.
-              { id: 7, author: agentId(1), body: "영수증 화면은 12:50에 다시 올렸다.", createdAt: now - 3 * HOUR + 14 * MIN },
-              { id: 8, author: agentId(1), body: "12:50 · 영수증 화면 배포를 시작했다.\n배포는 12:50에 시작해 13:05에 끝났다.", createdAt: now - 3 * HOUR + 16 * MIN },
+              // Round 23's (lina-app#236): a second list on another mark style, a list whose numbers go down, a lead-in whose list
+              // is English, a third of three parts, a sentence that points at a list or at the sentence before it.
+              { id: 6, author: agentId(1), body: "확인 차례: (1) 목록을 연다. ② 금액 칸을 누른다.", createdAt: now - 3 * HOUR + 12 * MIN },
+              { id: 7, author: agentId(1), body: "차례: 2. 금액 칸을 누른다. 1. 목록을 연다.", createdAt: now - 3 * HOUR + 14 * MIN },
+              { id: 8, author: agentId(1), body: "아직 안 한 것: merged build 확인, 영수증 화면 두 폭, 어두운 화면.", createdAt: now - 3 * HOUR + 16 * MIN },
+              { id: 9, author: agentId(1), body: "1 부분 — 영수증 머리 줄을 줄였다. 2 부분 — 금액 칸을 넓혔다. 3 부분 — 환불 화면 손질을 마쳤다.", createdAt: now - 3 * HOUR + 18 * MIN },
+              { id: 10, author: agentId(1), body: "살펴보니 고칠 곳이 셋이다. ① 금액 줄이 밀렸다. ② 환불 줄이 겹쳤다. ③ 카드사 이름이 잘렸다.", createdAt: now - 3 * HOUR + 20 * MIN },
+              { id: 11, author: agentId(1), body: "까닭은 셋, 모두 시안 쪽 탓.\n(1) 금액 줄 폭을 잘못 잡았다.\n(2) 환불 줄을 빠뜨렸다.\n(3) 글자 굵기를 잘못 골랐다.", createdAt: now - 3 * HOUR + 22 * MIN },
+              // Whole comments: two sentences with the one they lean on, a stamp the hub opens a comment with, a long amount with its
+              // unit, one time of day with its particle; a comment longer than a whole line may be folds (WHOLE_LETTERS).
+              { id: 12, author: agentId(1), body: "앞 판의 금액 줄이 두 칸 밀려 있었다. 그 줄은 뒤에서 바로잡음.", createdAt: now - 3 * HOUR + 24 * MIN },
+              { id: 13, author: agentId(1), body: "[가짜 기록 11-16 09:41 · 목표: 결제 · 장부 G901] 금액 줄을 오른쪽으로 붙였다.", createdAt: now - 3 * HOUR + 26 * MIN },
+              { id: 14, author: agentId(1), body: "환불 한도는 12345678원으로 정했다.", createdAt: now - 3 * HOUR + 28 * MIN },
+              { id: 15, author: agentId(1), body: "영수증 화면은 12:50에 다시 올렸다.", createdAt: now - 3 * HOUR + 30 * MIN },
+              { id: 16, author: agentId(1), body: "영수증 화면의 금액 줄과 환불 줄과 카드사 이름 줄을 같은 칸에 맞추고 글자 굵기와 간격을 모두 처음 시안대로 되돌린 다음 두 폭에서 다시 보고 어긋난 곳을 하나씩 고쳤다. 그다음 환불 안내 문구와 다시 시도 버튼도 같은 칸에 맞췄다.", createdAt: now - 3 * HOUR + 32 * MIN },
+              // One time of day after a separator (a log line) and two times fold; the same state word in a row is one line with ×n.
+              { id: 17, author: agentId(1), body: "12:50 · 영수증 화면 배포를 시작했다.\n배포는 12:50에 시작해 13:05에 끝났다.", createdAt: now - 3 * HOUR + 34 * MIN },
+              { id: 18, author: agentId(1), body: "검토 통과", createdAt: now - 3 * HOUR + 36 * MIN },
+              { id: 19, author: agentId(1), body: "검토 통과", createdAt: now - 3 * HOUR + 38 * MIN },
+              { id: 20, author: agentId(1), body: "검토 통과", createdAt: now - 3 * HOUR + 40 * MIN },
             ]
           : [],
       runs: rounds[card.id] ?? [

@@ -1,10 +1,9 @@
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import type { RecordRow, Settings } from "../api/client";
-import { foldReason } from "../model/fold";
 import { plainText } from "../model/plain";
 import { runModelLine } from "../model/settings";
-import { firstSentence, historyLines, timelineBlocks, type TimelineBlock } from "../model/timeline";
+import { historyLines, timelineBlocks, type TimelineBlock } from "../model/timeline";
 import { clockAt } from "../time";
 import { agentName, Box, useApp } from "../ui/parts";
 import { SEP, W } from "../words";
@@ -27,11 +26,6 @@ export function RunModelLine({ runId, class: className = "sub" }: { runId: strin
       {line}
     </p>
   );
-}
-
-/** A line the screen may show as it is: no raw English, paths, commands or ids. */
-function clean(text: string | null): text is string {
-  return Boolean(text) && !foldReason(text ?? "");
 }
 
 /**
@@ -78,14 +72,15 @@ function Row({ row, owner, folded }: { row: RecordRow; owner: string; folded: nu
 
 /**
  * A round's head is one history line, `time · what happened` (lina-app#123, #142): a going round its start and 진행 중,
- * an ended one its end (its start when the end is not on record) and its outcome, then its result sentence when it
- * left one a person may read. No round number (lina-app#61). Comments between rounds head their block with 댓글.
+ * an ended one its end (its start when the end is not on record) and its outcome, `×n` when it stands for n rounds of
+ * that outcome in a row (lina-app#236), then its result line when it stands whole (timelineBlocks). No round number
+ * (lina-app#61). Comments between rounds head their block with 댓글.
  */
 function head(block: TimelineBlock, now: number): string {
   if (block.type === "comment") return W.comments;
   const at = block.outcome === "going" ? (block.start ?? block.end) : (block.end ?? block.start);
-  const result = clean(block.result) ? firstSentence(block.result) : null;
-  return [at === null ? "" : clockAt(at, now), W.outcome[block.outcome], result].filter(Boolean).join(SEP);
+  const outcome = block.count > 1 ? `${W.outcome[block.outcome]} ${W.repeated(block.count)}` : W.outcome[block.outcome];
+  return [at === null ? "" : clockAt(at, now), outcome, block.result].filter(Boolean).join(SEP);
 }
 
 /**
@@ -96,8 +91,8 @@ function head(block: TimelineBlock, now: number): string {
 function Block({ block, owner, link, modelRun }: { block: TimelineBlock; owner: string; link: string | null; modelRun: string | null }) {
   const { now } = useApp();
   const [open, setOpen] = useState(true);
-  // A sentence or a result line that would show raw text is left out; the round still shows its head.
-  const rows = historyLines(block.rows.filter((row) => row.kind !== "said" || clean(row.text)).map((row) => ({ row, at: row.at, text: row.kind === "comment" ? row.text : "" })));
+  // A said row or a result line that would show raw text is already left out (timelineBlocks); the round still shows its head.
+  const rows = historyLines(block.rows.map((row) => ({ row, at: row.at, text: row.kind === "comment" ? row.text : "" })));
   const title = head(block, now);
   return (
     <details class="timeline-block" open={open} onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)} data-testid="timeline-block" data-outcome={block.type === "round" ? block.outcome : "comment"}>

@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import type { ItemComment, ItemDetail } from "../api/client";
 import { KoreanInput } from "../korean-input";
-import { foldedText } from "../model/fold";
+import { wholeText } from "../model/fold";
 import { ownerWrote } from "../model/timeline";
 import { ago } from "../time";
 import { agentName, Box, useApp } from "../ui/parts";
@@ -13,9 +13,9 @@ export function firstWords(text: string, count = 4): string {
   return words.length > count ? `${words.slice(0, count).join(" ")}…` : words.join(" ");
 }
 
-/** A comment's text in the thread: the owner's as saved (lina-app#226), a bot's each sentence the screens draw (foldedText). */
+/** A comment's text in the thread: the owner's as saved (lina-app#226), a bot's whole or nothing (wholeText, lina-app#236). */
 function shownText(text: string, by: string, owner: string): string {
-  return ownerWrote(by, owner) ? text : foldedText(text);
+  return ownerWrote(by, owner) ? text : (wholeText(text) ?? "");
 }
 
 function waitsOnAgent(comment: ItemComment, owner: string): boolean {

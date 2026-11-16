@@ -1,6 +1,7 @@
 import type { ItemDetail, RecordRound, RecordRow, RunRecord } from "../api/client";
 import { STATE_WORD, stateLabel, W } from "../words";
-import { drawnSentences, STATE_ONLY, withoutCutEnd } from "./fold";
+import { foldReason, STATE_ONLY, wholeText } from "./fold";
+import { plainText } from "./plain";
 import { holds } from "./rounds";
 
 /** Who writes machine notices on a card (the dispatcher's and the worker's receipts): never a history line. */
@@ -26,56 +27,40 @@ export function isMachineNotice(text: string | null | undefined, author?: string
   return (author ? MACHINE_AUTHORS.has(author) : false) || MACHINE_TAG.test(text ?? "");
 }
 
-/**
- * The one sentence a history row shows for a bot's text: its first sentence the screens draw whole (drawnSentences,
- * lina-app#226), never cut or shortened; the row's own width folds a long one. Null when it has none.
- */
-export function firstSentence(text: string | null | undefined): string | null {
-  return drawnSentences(text ?? "")[0] ?? null;
-}
-
-/** A comment's history line: the owner's words as saved (lina-app#226), a bot's first sentence the screens draw. */
+/** A comment's history line (lina-app#236): the owner's words as saved (lina-app#226), a bot's whole text or none (wholeText). */
 export function commentLine(text: string, author: string | null | undefined, owner?: string | null): string | null {
   if (ownerWrote(author, owner)) return text.trim() ? text : null;
-  return firstSentence(text);
-}
-
-/**
- * A worker run's record comment row as its history line (lina-app#230): the row has no author (the core makes it from a
- * receipt's note, which on the hub an agent writes, cut at 300 characters with no mark), so it is the first sentence the
- * one gate draws of its markdown-free words, less the sentence the cut went through (withoutCutEnd). Null when none is.
- */
-export function recordCommentLine(text: string | null): string | null {
-  return text ? firstSentence(withoutCutEnd(text)) : null;
+  return wholeText(text);
 }
 
 /**
  * History entries newest first (lina-app#149, the one order of every history; of two at the same time, the one
- * recorded later first): an entry with no sentence left (`text` null) is no line of its own, and each run of them is
- * one line with their count (`folded`). A line that is only the state word of the line before it is no line
- * (lina-app#153).
+ * recorded later first): an entry with no line of its own (`text` null) folds, and each run of them is one line with
+ * their count (`folded`). A state word alone that follows the same state word is one line with the newest time and
+ * their `count` (lina-app#236, drawn `×n`); an entry that carries its own count adds it.
  */
-export function historyLines<T extends { readonly at: number; readonly text: string | null }>(entries: readonly T[]): (T & { readonly folded: number })[] {
-  const lines: (T & { folded: number })[] = [];
+export function historyLines<T extends { readonly at: number; readonly text: string | null; readonly count?: number }>(entries: readonly T[]): (T & { readonly folded: number; readonly count: number })[] {
+  const lines: (T & { folded: number; count: number })[] = [];
   const order = entries.map((entry, index) => ({ entry, index })).sort((a, b) => b.entry.at - a.entry.at || b.index - a.index);
   for (const { entry } of order) {
     const last = lines.at(-1);
+    const count = entry.count ?? 1;
     if (entry.text === null && last && last.text === null) last.folded += 1;
-    else if (entry.text !== null && STATE_ONLY.has(entry.text) && last?.text === entry.text) continue;
-    else lines.push({ ...entry, folded: entry.text === null ? 1 : 0 });
+    else if (entry.text !== null && STATE_ONLY.has(entry.text) && last?.text === entry.text) last.count += count;
+    else lines.push({ ...entry, folded: entry.text === null ? 1 : 0, count });
   }
   return lines;
 }
 
 /**
  * A work card's comments as history lines, newest first: a machine notice is no line, the owner's comment is its words
- * as saved, a bot's its first sentence the screens draw (commentLine), and a run of comments with none is one 접힌 댓글
- * line (lina-app#149, #153, #226). A sentence drawn more than once is one line at its newest time with its `count`
+ * as saved, a bot's its whole text or none (commentLine, lina-app#236), and a run of comments with none is one 접힌 댓글
+ * line (lina-app#149, #153, #226). A text drawn more than once is one line at its newest time with its `count`
  * (lina-app#230), so the folded lines around a repeat it took away read as one.
  */
 export function commentHistory<T extends { readonly at: number; readonly author: string | null; readonly body: string | null }>(comments: readonly T[], owner?: string | null): (T & { readonly text: string | null; readonly count: number; readonly folded: number })[] {
   const lines = comments.filter((comment) => !isMachineNotice(comment.body, comment.author, owner)).map((comment) => ({ ...comment, text: commentLine(comment.body ?? "", comment.author, owner) }));
-  // A state word alone is an event, no sentence: historyLines drops one that repeats the line before it.
+  // A state word alone is an event, no sentence: historyLines counts one that repeats the line before it.
   const sentence = (text: string | null): text is string => text !== null && !STATE_ONLY.has(text);
   const newest = new Map<string, (typeof lines)[number]>();
   for (const line of lines) if (sentence(line.text) && line.at >= (newest.get(line.text)?.at ?? -Infinity)) newest.set(line.text, line);
@@ -94,14 +79,17 @@ export function answerOf(detail: Pick<ItemDetail, "decision" | "comments">): { r
   return answer ? { at: answer.at, text: answer.text } : null;
 }
 
-/** An item's decision as history: when it was asked (its kind word and sentence) and when the owner answered it. */
+/**
+ * An item's decision as history, from its typed fields: when it was asked (its kind word, and its text when it stands
+ * whole: wholeText, lina-app#236) and when the owner answered it.
+ */
 export function decisionHistory(detail: Pick<ItemDetail, "decision" | "comments">): { at: number; kind: "question"; text: string }[] {
   const decision = detail.decision;
   if (!decision) return [];
   const word = decision.kind === "ask" ? W.ask : W.act;
   const rows: { at: number; kind: "question"; text: string }[] = [];
-  const sentence = decision.at ? firstSentence(decision.text) : null;
-  if (decision.at && sentence) rows.push({ at: decision.at, kind: "question", text: `${word}: ${sentence}` });
+  const whole = wholeText(decision.text);
+  if (decision.at) rows.push({ at: decision.at, kind: "question", text: whole ? `${word}: ${whole}` : word });
   const answer = answerOf(detail);
   if (answer) rows.push({ at: answer.at, kind: "question", text: W.answeredWhat(word) });
   return rows;
@@ -115,9 +103,9 @@ export interface HistoryRow {
 }
 
 /**
- * A goal's history, newest first: each comment and reply (the owner's as saved, a bot's its first sentence: commentLine),
- * its question, how each of its runs ended, each finished work card's merge line (its evidence) and its close. One row
- * per event, `time · one sentence` (lina-app#123, #226).
+ * A goal's history, newest first: each comment and reply (the owner's as saved, a bot's whole or folded: commentLine),
+ * its question, how each of its runs ended, each finished work card's merge line (its evidence, whole or none) and its
+ * close. One row per event, `time · one line` (lina-app#123, #226, #236); state words that follow each other are one row with `×n`.
  */
 export function goalHistory(detail: ItemDetail, evidence: readonly { readonly at: number | null; readonly text: string }[], owner?: string | null): HistoryRow[] {
   const rows: { at: number; kind: HistoryRow["kind"]; text: string | null }[] = [];
@@ -131,11 +119,11 @@ export function goalHistory(detail: ItemDetail, evidence: readonly { readonly at
     if (at !== null && run.state !== "in_progress" && run.state !== "planned") rows.push({ at, kind: "run", text: stateLabel(run.state, run.reason) });
   }
   for (const entry of evidence) {
-    const sentence = firstSentence(entry.text);
-    if (entry.at !== null && sentence) rows.push({ at: entry.at, kind: "merge", text: sentence });
+    const whole = wholeText(entry.text);
+    if (entry.at !== null && whole) rows.push({ at: entry.at, kind: "merge", text: whole });
   }
   if (detail.state === "done" && detail.stateSince !== null) rows.push({ at: detail.stateSince, kind: "close", text: detail.ownerDone ? W.markedDone : STATE_WORD.done });
-  return historyLines(rows).map(({ at, kind, text, folded }) => ({ at, kind, text: text ?? W.foldedRun(folded) }));
+  return historyLines(rows).map(({ at, kind, text, folded, count }) => ({ at, kind, text: text === null ? W.foldedRun(folded) : count > 1 ? `${text} ${W.repeated(count)}` : text }));
 }
 
 /** How a round ended, as one word on its head (W.outcome). */
@@ -155,8 +143,10 @@ export type TimelineBlock =
       readonly startUnknown: boolean;
       readonly outcome: Outcome;
       readonly rows: readonly RecordRow[];
-      /** The round's report line; never on a round still going. */
+      /** The round's report line when it stands whole (wholeText); never on a round still going. */
       readonly result: string | null;
+      /** How many rounds of this outcome with nothing else in them, one after another, the block stands for (`×n`, lina-app#236). */
+      readonly count: number;
     }
   | { readonly type: "comment"; readonly key: string; readonly at: number; readonly rows: readonly RecordRow[] };
 
@@ -180,10 +170,10 @@ export function outcomeOf(round: RecordRound, newest: boolean, live: boolean, no
  * board does not list).
  */
 export function timelineBlocks(records: readonly { readonly id: string; readonly record: RunRecord }[], live: (runId: string) => boolean, now: number): TimelineBlock[] {
-  // A machine notice is no row; rows read newest first, as every history (lina-app#149).
-  const shown = (rows: readonly RecordRow[]) => rows.filter((row) => row.kind !== "comment" || !isMachineNotice(row.text)).sort((a, b) => b.at - a.at);
-  // A comment row is no owner's words: it reads through the one gate, null when none of it may show (lina-app#230).
-  const gated = (rows: readonly RecordRow[]) => shown(rows).map((row) => (row.kind === "comment" ? { ...row, text: recordCommentLine(row.text) } : row));
+  // A machine notice is no row, nor a said row that would show raw text; rows read newest first, as every history (lina-app#149).
+  const shown = (rows: readonly RecordRow[]) => rows.filter((row) => (row.kind === "comment" ? !isMachineNotice(row.text) : row.kind !== "said" || (row.text !== null && !foldReason(plainText(row.text))))).sort((a, b) => b.at - a.at);
+  // A comment row is no owner's words (an agent's note the core cut at 300 characters): whole or folded (lina-app#230, #236).
+  const gated = (rows: readonly RecordRow[]) => shown(rows).map((row) => (row.kind === "comment" ? { ...row, text: wholeText(row.text) } : row));
   const blocks: TimelineBlock[] = [];
   // A card's worker runs may each serve the card's one record: a round or a comment read twice is drawn once
   // (lina-app#153).
@@ -207,18 +197,19 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
         startUnknown: round.startUnknown,
         outcome,
         rows: gated(round.rows),
-        result: outcome === "going" ? null : round.result,
+        result: outcome === "going" ? null : wholeText(round.result),
+        count: 1,
       });
     });
     for (const comment of gated(record.comments)) if (first(`comment:${comment.at}:${comment.text}`)) blocks.push({ type: "comment", key: `${id}:c:${comment.at}`, at: comment.at, rows: [comment] });
   }
   // Comments made one after another between rounds are one 댓글 block. A round with nothing in it but the outcome of
-  // the round before it is no block (lina-app#153).
+  // the round before it is that round's line, counted (lina-app#153, #236: `검토 통과 ×n` at the newest time).
   const merged: TimelineBlock[] = [];
   for (const block of blocks.sort((a, b) => b.at - a.at)) {
     const last = merged.at(-1);
     if (block.type === "comment" && last?.type === "comment") merged[merged.length - 1] = { ...last, rows: shown([...last.rows, ...block.rows]) };
-    else if (block.type === "round" && last?.type === "round" && !block.rows.length && !block.result && block.outcome === last.outcome) continue;
+    else if (block.type === "round" && last?.type === "round" && !block.rows.length && !block.result && block.outcome === last.outcome) merged[merged.length - 1] = { ...last, count: last.count + 1 };
     else merged.push(block);
   }
   return merged;

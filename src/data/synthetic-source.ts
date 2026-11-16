@@ -1,4 +1,4 @@
-import { SETTINGS_HISTORY, type ActionResult, type AddItemRequest, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type BoardSnapshot, type ChangeEvent, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemDetail, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type Settings, type SettingsAuditLine, type SettingsModel, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest, type WorkState } from "../api/client";
+import { SETTINGS_HISTORY, type ActionResult, type AddItemRequest, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type BoardSnapshot, type ChangeEvent, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemDetail, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type RunRecord, type Settings, type SettingsAuditLine, type SettingsModel, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest, type WorkState } from "../api/client";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type PowerVariant, type Scene, type SettingsVariant } from "../fixtures/synthetic";
 import { localDay, type CardSummary } from "../model";
 import { mergePatch } from "../model/settings";
@@ -178,6 +178,35 @@ export function round22Scene(scene: Scene): Scene {
     items: { ...scene.items, items: [...scene.items.items, goal, ...todos] },
     itemDetails: { ...scene.itemDetails, G6: { ...base, ...goal, why: null, basis: [], children: todos, comments: [], runs: [], links: [], workCards: [], decision: null, ownerDone: null } },
   };
+}
+
+/**
+ * The hub's long card's record shape UI QA round 23 met (`&hub=round23`, lina-app#236), field by field as a worker run's
+ * record serves it, in made-up words: k-105's worker run r5 holds ten rounds, newest first, most accepted with an English
+ * report line (so their heads hold the outcome alone), a stopped one between them, and one whose report line is a whole
+ * Korean sentence. The rounds of one outcome with nothing else, one after another, are one head with `×n`.
+ */
+export function round23Scene(scene: Scene): Scene {
+  const done = scene.cardDetails["k-105"];
+  const end = scene.now - 2 * 3600;
+  const round = (run: number, fields: Partial<RunRecord["rounds"][number]>): RunRecord["rounds"][number] => {
+    const endedAt = end - (10 - run) * 40 * 60;
+    return { run, startedAt: endedAt - 9 * 60, endedAt, endKnown: true, startUnknown: false, result: "Merged the fake PR after both widths passed.", verdict: "accepted", stopped: false, rows: [], ...fields };
+  };
+  const rounds = [
+    round(10, {}),
+    round(9, { result: "Fake review read, no change asked." }),
+    round(8, {}),
+    round(7, { result: null, verdict: null, stopped: true }),
+    round(6, { result: "백업 기록 마지막 달을 다시 살폈다." }),
+    round(5, { result: null, verdict: null, stopped: true }),
+    round(4, {}),
+    round(3, { result: "Fake audit merged via fake#12." }),
+    round(2, {}),
+    round(1, {}),
+  ];
+  const record: RunRecord = { ...scene.records.r1, id: "r5", at: scene.now, cardId: "k-105", rounds, comments: [], errors: [] };
+  return { ...scene, cardDetails: { ...scene.cardDetails, "k-105": { ...done, workerRuns: done.workerRuns.map((worker) => ({ ...worker, firstSeenAt: end - 9 * 40 * 60 - 9 * 60 })) } }, records: { ...scene.records, r5: record } };
 }
 
 /** Round 22's goal (lina-app#231): its title, and its done condition with an issue reference, a Latin word and a `#3`. */
@@ -545,7 +574,7 @@ export class SyntheticSource implements Source {
   private readonly signing = new Set<string>();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; hubRound23?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean } = {}) {
     this.slowRecords = options.slowRecords ?? false;
     this.staleNext = options.settings === "stale";
     this.raceNext = options.settings === "race";
@@ -570,7 +599,7 @@ export class SyntheticSource implements Source {
         settings: options.settings === "stale" || options.settings === "race" ? null : options.settings,
         power: options.power,
       });
-    this.scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : generated;
+    this.scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : options.hubRound23 ? round23Scene(generated) : generated;
   }
 
   async read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {

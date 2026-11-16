@@ -18,9 +18,9 @@ test("a record's comment row is no owner's: an agent's English verdict note, cut
   expect(lines[0].folded).toBe(2);
 });
 
-test("a record row cut inside a word keeps only its whole sentences (lina-app#230)", () => {
-  const lines = cardCommentLines([], [recordRow(100, "가짜 금액 줄을 다시 확인했다. 가짜 환불 안내 문구는 아직 고치는 중이")], OWNER);
-  expect(texts(lines)).toEqual(["가짜 금액 줄을 다시 확인했다."]);
+test("a record row the core cut at 300 characters is longer than a whole line may be: it folds, no sentence of it is drawn (lina-app#230, #236)", () => {
+  const lines = cardCommentLines([], [recordRow(100, `${"가짜 금액 줄을 다시 확인했다. ".repeat(20)}가짜 환불 안내 문구는 아직 고치는 중이다.`), recordRow(200, "가짜 금액 줄을 다시 확인했다.")], OWNER);
+  expect(texts(lines)).toEqual(["가짜 금액 줄을 다시 확인했다.", null]);
 });
 
 test("a record row that is the core's cut of a comment the card holds is not drawn again (lina-app#230)", () => {
@@ -39,7 +39,9 @@ test("a comment by a profile name or another agent on the owner's card goes thro
     [],
     OWNER,
   );
-  expect(texts(lines)).toEqual(["G2 먼저 보고 T3는 내일 본다", "가짜 검토를 마쳤다.", "가짜 판을 올렸다."]);
+  // A bot's comment with an English or a code word in any sentence folds whole (lina-app#236).
+  expect(texts(lines)).toEqual(["G2 먼저 보고 T3는 내일 본다", null]);
+  expect(lines[1].folded).toBe(2);
 });
 
 test("a record row whose last sentence ends in markdown markers is drawn whole (lina-app#233 review)", () => {

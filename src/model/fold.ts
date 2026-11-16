@@ -360,137 +360,91 @@ function endsOnPredicate(sentence: string): boolean {
 }
 
 /**
- * One sentence as the screens draw it, whole or not at all (lina-app#226): exactly as written, less a bracket that holds
- * only refs, ids or hashes (with the space before it); a state word alone (STATE_ONLY) is one. Null for a sentence the
- * checks of sentenceMayShow fail (a lead-in ends on its colon there), one that holds a mark of NEVER_DRAWN, opens on a word
- * that continues the one before it, holds a list whose marks do not run from 1 (lina-app#228), or is a fragment: no
- * predicate and fewer than FRAGMENT_BELOW Hangul letters (`원인 둘.`, a bare label such as `직접 확인한 것`), or holds a word the
- * screens never use (BANNED_WORDS: the one gate leaves it out, lina-app#230). Nothing else is ever cut out.
+ * Whether one sentence reads as written (lina-app#226): the checks of sentenceMayShow (a lead-in ends on its colon there),
+ * no mark of NEVER_DRAWN, no list's number before it, no list whose marks do not run from 1 (lina-app#228), and no word the
+ * screens never use (BANNED_WORDS, lina-app#230).
  */
-export function drawnSentence(sentence: string): string | null {
+function sentenceReads(text: string): boolean {
+  return readsAsWritten(text) && !/^\(?\d{1,2}[.)]\s/.test(text) && listMarks(text).every((mark, index) => mark.n === index + 1);
+}
+
+/** The checks of sentenceReads that do not read list marks: the one rule, NEVER_DRAWN and BANNED_WORDS. */
+function readsAsWritten(text: string): boolean {
+  return !BANNED_WORDS.some((word) => text.includes(word)) && sentenceMayShow(text) && !holdsNeverDrawn(text);
+}
+
+/** A text with no predicate and fewer than FRAGMENT_BELOW Hangul letters: a fragment (`원인 둘.`, a bare label such as `직접 확인한 것`). */
+function isFragment(text: string): boolean {
+  return !endsOnPredicate(text) && (text.match(/\p{Script=Hangul}/gu) ?? []).length < FRAGMENT_BELOW;
+}
+
+/**
+ * One sentence of a stop reason as the detail draws it, whole or not at all: exactly as written, less a bracket that
+ * holds only refs, ids or hashes; a state word alone is one. Null for one that does not read (sentenceReads), opens on a
+ * word that continues the one before it, or is a fragment.
+ */
+function drawnSentence(sentence: string): string | null {
   const text = withoutRefBrackets(sentence);
   if (STATE_ONLY.has(text)) return text;
-  if (BANNED_WORDS.some((word) => text.includes(word))) return null;
-  if (!sentenceMayShow(text) || holdsNeverDrawn(text) || CONTINUES.test(text) || /^\(?\d{1,2}[.)]\s/.test(text)) return null;
-  // A list's marks run 1, 2, 3 from its first item: one that skips or starts later is a list cut (lina-app#228).
-  if (listMarks(text).some((mark, index) => mark.n !== index + 1)) return null;
-  if (!endsOnPredicate(text) && (text.match(/\p{Script=Hangul}/gu) ?? []).length < FRAGMENT_BELOW) return null;
-  return text;
+  return sentenceReads(text) && !CONTINUES.test(text) && !isFragment(text) ? text : null;
 }
 
 /**
- * A text the core cut at a fixed length with no mark, less the sentence the cut went through (lina-app#230): a worker
- * run's record row is a receipt's note joined to one line and cut at 300 characters (hermes_cli/worker/record.py), so
- * its last sentence counts only when it ends on an end mark or a predicate (`확인했다`, `마침`); `고치는 중이` does not.
+ * A stop's reason as the detail says it (the work inbox's `blockReason`, index.ts stopReasonText): each line's sentences
+ * drawnSentence draws, empty when none is, and a list drawn whole or not at all (listEntry), so no item of a list stands
+ * alone. No history line or comment reads so: they are whole or folded (wholeText).
  */
-export function withoutCutEnd(text: string): string {
-  // The end is read on the words with their markdown markers out: a trailing `**` hides the full stop (lina-app#233 review).
-  const plain = plainText(text);
-  const sentences = sentencesOf(plain);
-  const last = sentences.at(-1) ?? "";
-  if (/[.!?。]["'\u201d\u2019)\]]*$/.test(last) || endsOnPredicate(last)) return plain;
-  // A cut inside a numbered list takes the whole list with it: the items before it would read as a list that ends there (lina-app#233).
-  const placed = sentences.map((sentence) => ({ sentence, line: 0, marks: listMarks(sentence) }));
-  const unit = listUnits(placed).find((candidate) => candidate.to >= sentences.length - 1);
-  return sentences.slice(0, unit ? unit.from : -1).join(" ");
-}
-
-/**
- * The sentences of a text the screens draw (drawnSentence), in order: each line read without its head (LINE_HEAD), split
- * into sentences (sentencesOf). The one reading of every history line, folded comment and stop reason.
- */
-export function drawnSentences(text: string): string[] {
-  return drawnLines(text).flat();
-}
-
-/** A comment or history text as the screens show it: each line's drawn sentences (drawnSentence), empty when none is. */
 export function foldedText(text: string): string {
-  return drawnLines(text)
-    .map((line) => line.join(" "))
-    .filter(Boolean)
-    .join("\n");
-}
-
-/** A sentence of a text, the line it stands on, and the list marks it holds. */
-interface Placed {
-  readonly sentence: string;
-  readonly line: number;
-  readonly marks: readonly ListMark[];
-}
-
-/** A numbered list in a text (lina-app#230): its sentences `from`..`to`, its marks' kind, and whether they run 1, 2, 3. */
-interface ListUnit {
-  readonly from: number;
-  readonly to: number;
-  readonly kind: string;
-  readonly runs: boolean;
-}
-
-/**
- * The numbered lists of a text, each one unit (lina-app#230): it opens on the sentence holding its first mark, or on the
- * lead-in before it that ends on a colon, holds every sentence up to the one with its last mark (each next mark of the
- * same kind a higher number; one that is not opens a new list), and ends with the line that mark stands on, so the
- * sentences after an item's first are that item's. Its marks run when they read 1, 2, 3 from its first item.
- */
-function listUnits(placed: readonly Placed[]): ListUnit[] {
-  const units: ListUnit[] = [];
-  for (let at = 0; at < placed.length; at += 1) {
-    const first = placed[at].marks[0];
-    if (first === undefined) continue;
-    const numbers: number[] = [];
-    let to = at;
-    // Where the next list opens (its lead-in sentence, when one stands alone before its first mark): the unit's later sentences stop short of it.
-    let stop = placed.length;
-    for (let next = at; next < placed.length; next += 1) {
-      const own = placed[next].marks.filter((mark) => mark.kind === first.kind);
-      // The sentence's marks of any kind: a list that opens on another marker style ends this one as well (lina-app#233).
-      const head = own.length > 0 ? own : placed[next].marks;
-      // A lower number, or a lead-in before the mark (on its sentence, or a sentence ending on a colon), opens a new list.
-      const leadsIn = head.length > 0 && (head[0].at > 0 || /:\s*$/.test(placed[next - 1]?.sentence ?? ""));
-      if (next > at && head.length && ((own.length > 0 && own[0].n <= numbers[numbers.length - 1]) || leadsIn)) {
-        stop = head[0].at === 0 && /:\s*$/.test(placed[next - 1].sentence) ? Math.max(next - 1, to + 1) : next;
-        break;
-      }
-      if (own.length) {
-        numbers.push(...own.map((mark) => mark.n));
-        to = next;
-      }
+  const lines = text.split("\n").map((line) => line.replace(LINE_TAGS, "").trim());
+  const drawn: string[] = [];
+  for (let at = 0; at < lines.length; at += 1) {
+    const leadsIn = /:$/.test(lines[at]) && opensOn(lines[at + 1] ?? "") !== undefined;
+    if (!leadsIn && !listMarks(`${lines[at]} `).length) {
+      drawn.push(lineSentences(lines[at]).flatMap((sentence) => drawnSentence(sentence) ?? []).join(" "));
+      continue;
     }
-    while (to + 1 < stop && placed[to + 1].line === placed[to].line) to += 1;
-    const lead = at - 1 > (units.at(-1)?.to ?? -1) && first.at === 0 && /:\s*$/.test(placed[at - 1].sentence);
-    units.push({ from: lead ? at - 1 : at, to, kind: first.kind, runs: numbers.every((n, index) => n === index + 1) });
+    // The list: this line and each next line that opens on a list's mark, one entry.
+    let to = at;
+    while (to + 1 < lines.length && opensOn(lines[to + 1])) to += 1;
+    drawn.push(listEntry(lines.slice(at, to + 1).join(" ")));
     at = to;
   }
-  return units;
-}
-
-/** Whether a list's lead-in or a piece of one of its items reads (lina-app#230): the sentence checks bar the fragment rule. */
-function pieceReads(piece: string): boolean {
-  return sentenceMayShow(piece) && !holdsNeverDrawn(piece) && !BANNED_WORDS.some((word) => piece.includes(word));
+  return drawn.filter(Boolean).join("\n");
 }
 
 /**
- * A list as the screens draw it (lina-app#230): every sentence as written (less a bracket of refs only, as drawnSentence),
- * joined into one entry, or null when its marks do not run from 1 or any piece does not read (pieceReads): its lead-in
- * (without its colon), the words of each item between two marks, and each next sentence of an item (drawnSentence). The
- * lead-in and an item's words after its mark may be a noun phrase (`(2) 환불 문구 확인.`): the mark makes them one.
+ * A list in a stop's reason, its lead-in and items joined: whole less a bracket of refs only, when its marks run 1, 2, 3
+ * and every sentence reads once its mark is set aside (readsAsWritten); else empty.
  */
-function listText(sentences: readonly string[], kind: string, runs: boolean): string | null {
-  if (!runs) return null;
-  const texts = sentences.map(withoutRefBrackets);
-  // Each sentence's words before its first mark (the lead-in, or the next sentence of the item before), then each item's.
-  const pieces = texts.flatMap((text, at) => {
-    const marks = listMarks(text).filter((mark) => mark.kind === kind);
-    const cuts = [0, ...marks.flatMap((mark) => [mark.at, mark.end])];
-    return Array.from({ length: marks.length + 1 }, (_, index) => ({ text: text.slice(cuts[index * 2], marks[index]?.at ?? text.length).trim(), item: index > 0, lead: at === 0 && index === 0 }));
-  });
-  // The lead-in and an item's words after its mark may be a noun phrase; an item's next sentence is one of its own.
-  const reads = pieces.every(({ text, item, lead }) => {
-    const piece = text.replace(lead ? /:$/ : /[,;]$/, "").trim();
-    if (item) return piece !== "" && pieceReads(piece);
-    return piece === "" || (lead ? pieceReads(piece) : drawnSentence(piece) !== null);
-  });
-  return reads ? texts.join(" ") : null;
+function listEntry(text: string): string {
+  const whole = withoutRefBrackets(text);
+  if (!listMarks(`${whole} `).every((mark, index) => mark.n === index + 1)) return "";
+  return sentencesOf(whole).every((sentence) => readsAsWritten(sentence.replace(/^(?:\(?\d{1,2}[.)]|[\u2460-\u2473])\s*/u, ""))) ? whole : "";
+}
+
+/**
+ * How long a bot's text may be to stand whole on one history line (lina-app#236): two sentences and 120 letters. On the
+ * hub's long cards a bot's sentence is 56 letters at the median and 124 at the 90th percentile, so two median sentences
+ * fit, and a record row the core cut at 300 letters never does. A longer text is folded (features/card-detail.md).
+ */
+const WHOLE_SENTENCES = 2;
+const WHOLE_LETTERS = 120;
+
+/**
+ * A bot's text as one history or comment line (lina-app#236): the whole text or nothing, never a part of it. Its markdown
+ * markers, the stamp it opens with (`[이름 16:52]`) and a bracket of refs only are no words of it; everything else stays
+ * as written. Null when it holds more than one line, a list's mark, more than WHOLE_SENTENCES sentences or WHOLE_LETTERS
+ * letters, opens on a word that continues something before it, is a fragment, or any sentence of it does not read
+ * (sentenceReads). A state word alone is one. The line it would have been folds into the history's 접힌 line.
+ */
+export function wholeText(text: string | null | undefined): string | null {
+  const plain = plainText(text ?? "").replace(LINE_TAGS, "");
+  if (!plain || plain.includes("\n")) return null;
+  const whole = withoutRefBrackets(plain);
+  if (STATE_ONLY.has(whole)) return whole;
+  const sentences = sentencesOf(whole);
+  if (sentences.length > WHOLE_SENTENCES || [...whole].length > WHOLE_LETTERS || listMarks(`${whole} `).length) return null;
+  return !CONTINUES.test(whole) && !isFragment(whole) && sentences.every(sentenceReads) ? whole : null;
 }
 
 /** Whether a bracket's inside is refs, ids or hashes and their separators alone: no word, so cutting it leaves no hole (lina-app#233). */
@@ -506,29 +460,12 @@ function withoutRefBrackets(sentence: string): string {
     .trim();
 }
 
-/**
- * Each line's drawn entries: a sentence no list holds as drawnSentence draws it, and a numbered list as one entry on its
- * first line, whole (listText) or not at all (lina-app#230). No item's sentence and no list's later line is drawn alone.
- */
-function drawnLines(text: string): string[][] {
-  const lines = text.split("\n");
-  const placed = lines.flatMap((line, at) => lineSentences(line).map((sentence) => ({ sentence, line: at, marks: listMarks(sentence) })));
-  const drawn: string[][] = lines.map(() => []);
-  const units = listUnits(placed);
-  for (let at = 0; at < placed.length; at += 1) {
-    const unit = units.find((candidate) => candidate.from === at);
-    const entry = unit ? listText(placed.slice(unit.from, unit.to + 1).map(({ sentence }) => sentence), unit.kind, unit.runs) : drawnSentence(placed[at].sentence);
-    if (entry !== null) drawn[placed[at].line].push(entry);
-    if (unit) at = unit.to;
-  }
-  return drawn;
-}
-
 /** A line's sentences, read without its tags (LINE_TAGS) and a bullet's head (LINE_HEAD); a list's number stays its mark. */
 function lineSentences(line: string): string[] {
   const tagged = line.replace(LINE_TAGS, "");
   return sentencesOf((opensOn(tagged) ? tagged : tagged.replace(LINE_HEAD, "")).trim());
 }
+
 
 export function foldReason(text: string): FoldReason | null {
   const body = text.trim();

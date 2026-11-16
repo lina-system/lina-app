@@ -1549,13 +1549,14 @@ const drivers = {
       check((await detail.getByTestId("card-now").count()) === 0, "the card shows a now line");
       return head + " / " + own + "; " + kind + "; no now line";
     });
-    await step("a worker record's comment rows have no author: they read through the one gate, never as saved (lina-app#230)", async () => {
+    await step("a worker record's comment rows have no author: they read through the one gate, never as saved, whole or folded (lina-app#230, #236)", async () => {
       // k-102's record (r2) holds an agent's English verdict note and a note the core cut inside a word at 300 characters.
       const rows = page.getByTestId("card-comments").getByTestId("history-row");
       await rows.first().waitFor();
       const lines = (await rows.allInnerTexts()).map((line) => line.trim());
-      // The same verdict note on three runs is one line with its count (lina-app#230).
-      check(lines.length === 3 && / · 검토를 마쳤고 병합해도 된다\. ×3$/.test(lines[0]) && / · 위키 문서의 결제 화면 절을 새 문체로 바꿨다\.$/.test(lines[1]) && / · 접힌 댓글$/.test(lines[2]), "k-102's comments read " + JSON.stringify(lines));
+      // The same verdict note on three runs is one line with its count (lina-app#230); the cut note is longer than a whole
+      // line may be and folds with the English one: no sentence of either is drawn (lina-app#236).
+      check(lines.length === 2 && / · 검토를 마쳤고 병합해도 된다\. ×3$/.test(lines[0]) && / · 접힌 댓글 2건$/.test(lines[1]), "k-102's comments read " + JSON.stringify(lines));
       const text = await page.getByTestId("card-comments").innerText();
       check(!/[A-Za-z]|줄였다\. 표/.test(text), "raw record text in the card's comments: " + text.replace(/\s+/g, " "));
       return lines.join(" | ");
@@ -1603,14 +1604,27 @@ const drivers = {
       check(!(await page.locator("article.detail").innerText()).includes("코드 작업"), "k-104 reads 코드 작업");
       return title + " · " + state + "; k-104 " + lines.join(", ");
     });
-    await step("a numbered list in a comment is one line, whole with every item and every sentence, or none of it (lina-app#230)", async () => {
+    await step("a bot's comment is one line drawn whole, or folded: no list, lead-in, part or sentence of it alone (lina-app#236)", async () => {
       const rows = page.getByTestId("card-comments").getByTestId("history-row");
       await rows.first().waitFor();
       const lines = (await rows.allInnerTexts()).map((line) => line.trim().replace(/^(?:어제 )?\d\d:\d\d · /, ""));
-      const whole = ["검토 메모: ① 금액 줄을 오른쪽으로 붙였다. 굵기는 그대로 두었다. ② 환불 줄을 금액 줄 아래로 옮겼다.", "남은 검토 두 가지: (1) 영수증 화면의 금액 줄을 다시 본다. (2) 환불 문구 확인.", "실패 화면 검토 결과: (1) 첫 화면 문구를 새 문체로 맞췄다. (2) 다시 시도 버튼을 아래로 옮겼다. (3) 카드사 이름을 굵게 바꿨다."];
-      // A long amount with its unit is drawn as a number; a digits-only hash folds (lina-app#230).
-      // One time of day with its particle glued after it is a fact; two, or one after a separator, fold.
-      check(JSON.stringify(lines) === JSON.stringify(["접힌 댓글", "영수증 화면은 12:50에 다시 올렸다.", "환불 한도는 12345678원으로 정했다.", "접힌 댓글", ...whole, "접힌 댓글"]), "k-104's comments read " + JSON.stringify(lines));
+      // Newest first: three 검토 통과 in a row are one line; a comment longer than a whole line and a log line fold; a long
+      // amount and one time of day with its particle are facts; the hub's opening stamp is no word of the comment; two
+      // sentences stand with the one they lean on; every list, lead-in and part, and the digits-only hash, fold in one line.
+      const expected = ["검토 통과 ×3", "접힌 댓글 2건", "영수증 화면은 12:50에 다시 올렸다.", "환불 한도는 12345678원으로 정했다.", "금액 줄을 오른쪽으로 붙였다.", "앞 판의 금액 줄이 두 칸 밀려 있었다. 그 줄은 뒤에서 바로잡음.", "접힌 댓글 11건"];
+      check(JSON.stringify(lines) === JSON.stringify(expected), "k-104's comments read " + JSON.stringify(lines));
+      return lines.join(" | ");
+    });
+    await step("rounds of one outcome in a row are one 기록 head with ×n at the newest time; a whole report line stays on its head (lina-app#236)", async () => {
+      // &hub=round23: k-105's worker run r5 holds the hub's long card's record shape, ten rounds, most accepted with an
+      // English report line, so their heads hold the outcome alone.
+      await openApp(page, "#/cards/k-105", "&hub=round23");
+      const heads = page.getByTestId("timeline").locator(".timeline-head");
+      await heads.first().waitFor();
+      const lines = (await heads.allInnerTexts()).map((line) => line.trim().replace(/^(?:어제 )?\d\d:\d\d · /, ""));
+      check(JSON.stringify(lines) === JSON.stringify(["검토 통과 ×3", "중단됨", "검토 통과 · 백업 기록 마지막 달을 다시 살폈다.", "중단됨", "검토 통과 ×4"]), "k-105's 기록 heads read " + JSON.stringify(lines));
+      const text = await page.getByTestId("timeline").innerText();
+      check(!/[A-Za-z]/.test(text), "raw record text in k-105's 기록: " + text.replace(/\s+/g, " "));
       return lines.join(" | ");
     });
     await step("a finished run with no record lists its past events, time · one sentence", async () => {

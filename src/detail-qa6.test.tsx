@@ -287,8 +287,9 @@ test("item 7: a card's history sentences show no ledger, goal, card id or agent-
     .getAllByTestId("history-row")
     .map((row) => (row.textContent ?? "").replace(/^(?:어제 |\d+월 \d+일 )?\d\d:\d\d · /, ""));
   for (const text of texts) expect(text).not.toMatch(ID);
-  // A sentence holding an agent-and-time bracket or an id is not drawn: neither is cut out of it (lina-app#226).
-  expect(texts).toEqual(["목표 없이 열려 있던 카드라서 옮김.", "접힌 댓글 2건"]);
+  // A comment holding a ledger, a goal number or an id in any sentence folds whole: nothing is cut out of it and no
+  // sentence of it is drawn alone (lina-app#226, #236).
+  expect(texts).toEqual(["접힌 댓글 3건"]);
 });
 
 test("item 7: a goal's history sentences show no ids either", async () => {

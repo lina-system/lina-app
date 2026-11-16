@@ -1,9 +1,8 @@
 import { expect, test } from "vitest";
 import type { RecordRound, RunRecord } from "../api/client";
 import type { ItemDetail } from "../api/client";
-import { foldedText } from "./fold";
-import { plainText } from "./plain";
-import { commentHistory, firstSentence, goalHistory, historyLines, isMachineNotice, outcomeOf, timelineBlocks } from "./timeline";
+import { wholeText } from "./fold";
+import { commentHistory, goalHistory, historyLines, isMachineNotice, outcomeOf, timelineBlocks } from "./timeline";
 
 const round = (fields: Partial<RecordRound>): RecordRound => ({ run: 1, startedAt: 100, endedAt: null, endKnown: false, startUnknown: false, result: null, verdict: null, stopped: false, rows: [], ...fields });
 
@@ -19,30 +18,32 @@ test("a round's word: the verdict, then its own end, then going only while it ho
   expect(outcomeOf(round({}), true, true, 50)).toBe("unknown");
 });
 
-test("a history sentence is the first sentence the screens draw whole: no id, path or command is cut out, nothing is shortened (lina-app#226)", () => {
-  expect(firstSentence("커밋 3f2a1c9 반영했어요. 다음은 표로 바꿉니다")).toBe("다음은 표로 바꿉니다");
-  expect(firstSentence("lina-app#128 기준으로 src/app.tsx 정리함\n둘째 줄")).toBeNull();
-  expect(firstSentence("`npm test` 돌려서 통과함! 이어서 배포")).toBeNull();
+test("a history line is a bot's whole text or none: no id, path or command is cut out, no sentence is drawn alone (lina-app#226, #236)", () => {
+  expect(wholeText("커밋 3f2a1c9 반영했어요. 다음은 표로 바꿉니다")).toBeNull();
+  expect(wholeText("lina-app#128 기준으로 src/app.tsx 정리함\n둘째 줄")).toBeNull();
+  expect(wholeText("`npm test` 돌려서 통과함! 이어서 배포")).toBeNull();
   const long = "가".repeat(80);
-  expect(firstSentence(long)).toBe(long);
-  // Nothing a person can read is left: no sentence, the row says so in its own words.
-  expect(firstSentence("https://example.com/a/b deploy.sh --force")).toBeNull();
-  // A quoted passage of two sentences is one sentence: neither half is dropped for its unclosed quote (lina-app#224 review).
-  expect(firstSentence("담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다.")).toBe("담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다.");
-  // Neither sentence has a predicate or 8 Hangul letters: fragments (lina-app#226).
-  expect(firstSentence("실패 건수는 0. 검사는 대기 중.")).toBeNull();
-  expect(firstSentence(null)).toBeNull();
+  expect(wholeText(long)).toBe(long);
+  // Longer than a whole line may be (WHOLE_LETTERS, WHOLE_SENTENCES): folded, never shortened (lina-app#236).
+  expect(wholeText("가".repeat(121))).toBeNull();
+  expect(wholeText("가짜 정리를 마쳤다. 가짜 시험을 마쳤다. 가짜 판을 올렸다.")).toBeNull();
+  expect(wholeText("가짜 정리를 마쳤다. 가짜 시험을 마쳤다.")).toBe("가짜 정리를 마쳤다. 가짜 시험을 마쳤다.");
+  expect(wholeText("https://example.com/a/b deploy.sh --force")).toBeNull();
+  // A quoted passage of two sentences is one sentence (lina-app#224 review).
+  expect(wholeText("담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다.")).toBe("담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다.");
+  // A count's `0.` reads as a list's mark: the text folds.
+  expect(wholeText("실패 건수는 0. 검사는 대기 중.")).toBeNull();
+  expect(wholeText(null)).toBeNull();
 });
 
-// lina-app#197, #226: the shapes the hub's history and comment lines took (round 13, input/ of the brief), the words made
-// up. Each is drawn only whole; else the next one, else none (the row keeps its own word). The card's comments go through
-// the fold first (historyText), a record row straight to firstSentence.
+// lina-app#197, #226, #236: the shapes the hub's history and comment lines took (round 13, input/ of the brief), the words
+// made up. Each text is drawn whole or not at all; no sentence of it is drawn alone.
 test.each([
   // A leading clause fragment: the quoted name before it was code, or the line opens on a particle.
-  ["fake_option' 값은 꺼져 있고 이유 문구가 붙어 있다. 다음 판에서 다시 확인함.", "다음 판에서 다시 확인함."],
-  ["는 꺼져 있고 이유가 붙어 있다. 가상 정리를 마침.", "가상 정리를 마침."],
+  ["fake_option' 값은 꺼져 있고 이유 문구가 붙어 있다. 다음 판에서 다시 확인함.", null],
+  ["는 꺼져 있고 이유가 붙어 있다. 가상 정리를 마침.", null],
   // A dangling bracket and lone punctuation where a link and a hash were.
-  ["실행: [정리 기록](https://fake.example.test/a) (정리 커밋 포함), a1b2c3d4. 남은 일은 없음.", "남은 일은 없음."],
+  ["실행: [정리 기록](https://fake.example.test/a) (정리 커밋 포함), a1b2c3d4. 남은 일은 없음.", null],
   ["실행: [정리 기록](https://fake.example.test/a) (정리 커밋 포함), a1b2c3d4.", null],
   // A subject that was only a link and a hash.
   ["PR: [링크](https://fake.example.test/pull/1) (a1b2c3d4),.", null],
@@ -51,8 +52,7 @@ test.each([
   // Only a fragment, with the hub's `…` or a table's `|` after it.
   ["범위 라 …", null],
   ["가상 문서 정리 |", null],
-  // A list number opens the sentence: the sentence stays, the number goes.
-  // A list of one item whose next sentence is a fragment: the list is not drawn whole, so not at all (lina-app#230).
+  // A list's mark folds the text (lina-app#236).
   ["1) 가상 설정이 긴 답에서 돌았다. 둘째 문장.", null],
   // A long sentence is drawn whole: nothing shortens it (lina-app#226).
   ["완료 조건이 모두 체크됨(가상 일지 두 번, 가상 주간 한 장, 나눠야 할 곳은 나누고 나누면 안 될 곳은 안 나눔)", "완료 조건이 모두 체크됨(가상 일지 두 번, 가상 주간 한 장, 나눠야 할 곳은 나누고 나누면 안 될 곳은 안 나눔)"],
@@ -61,9 +61,8 @@ test.each([
   // A product name is a Latin word too (lina-app#222): no line.
   ["iPhone에서 다시 확인함.", null],
   ["가상 화면 (두 번째 판) 정리를 마침.", "가상 화면 (두 번째 판) 정리를 마침."],
-])("a history line %j reads %j: only a sentence that still reads as one after cleaning (lina-app#197)", (text, shown) => {
-  expect(firstSentence(text)).toBe(shown);
-  expect(firstSentence(foldedText(text))).toBe(shown);
+])("a history line %j reads %j: the whole text or none (lina-app#197, #236)", (text, shown) => {
+  expect(wholeText(text)).toBe(shown);
 });
 
 // lina-app#207, #226: a name inside a sentence left its particle standing alone once it was cut (round 15); a kind word
@@ -76,47 +75,44 @@ test.each([
   ["그 뒤 디스패처가 152번 r3 로 막았다.", null],
   ["`fake_field` 로 막았다.", null],
 ])("a history line %j reads %j: a name inside it is never cut out or stood in for (lina-app#207, #226)", (text, shown) => {
-  expect(firstSentence(text)).toBe(shown);
-  expect(firstSentence(foldedText(text))).toBe(shown);
+  expect(wholeText(text)).toBe(shown);
 });
 
-// lina-app#218, #226: the round 17 shapes, words made up: a lead-in is no line and is never joined to its first item, and
-// a sentence holding a ref gives way to the next one, else to none.
+// lina-app#218, #226, #236: the round 17 shapes, words made up: a lead-in is no line, no item of it is drawn alone, and a
+// sentence holding a ref folds its whole text.
 test.each([
   ["확인할 가짜 결과:\n- 가짜 빌드 통과.\n- 가짜 시험 통과.", null],
-  ["확인할 가짜 결과:\n- 가짜 빌드를 마쳤다.", "가짜 빌드를 마쳤다."],
+  ["확인할 가짜 결과:\n- 가짜 빌드를 마쳤다.", null],
   ["확인할 가짜 결과:", null],
-  ["가짜 끝 조건은 더 새 a1b2c3d4e5로 충족됨. 가짜 시험을 마친 뒤 닫아도 된다.", "가짜 시험을 마친 뒤 닫아도 된다."],
+  ["가짜 끝 조건은 더 새 a1b2c3d4e5로 충족됨. 가짜 시험을 마친 뒤 닫아도 된다.", null],
   ["가짜 끝 조건은 새 lina#12로 충족됨.", null],
-  ["가짜 끝 조건(가짜 값 a1b2c3d4e5)은 더 새 0aa65fe53a로 충족됨. 가짜 시험을 마침.", "가짜 시험을 마침."],
+  ["가짜 끝 조건(가짜 값 a1b2c3d4e5)은 더 새 0aa65fe53a로 충족됨. 가짜 시험을 마침.", null],
 ])("a history line %j reads %j: no lead-in alone and no cut hole (lina-app#218)", (text, shown) => {
-  expect(firstSentence(text)).toBe(shown);
-  expect(firstSentence(foldedText(plainText(text)))).toBe(shown);
+  expect(wholeText(text)).toBe(shown);
 });
 
-// lina-app#222: the round 18 shapes of the real hub's long cards, words made up. A history line is one sentence the
-// fold's rule passes (sentenceMayShow): the next clean sentence of the comment when the first is not, else none.
+// lina-app#222, #236: the round 18 shapes of the real hub's long cards, words made up. A history line is the whole text
+// when every sentence of it passes the rule (sentenceMayShow), else none: never the next clean sentence alone.
 test.each([
   // The split never cuts after a list's number, and a dot inside a number or a version is no sentence end.
   ["가짜 순서는 1. 가짜 빌드를 마친다. 다음 문장.", null],
-  ["가짜 지연이 0.5초 늘었다. 가짜 시험을 마침.", "가짜 지연이 0.5초 늘었다."],
-  ["가짜 판 1.2.3을 깔았다. 가짜 시험을 마침.", "가짜 판 1.2.3을 깔았다."],
-  // A Latin word, a short code, a round label or a product name left in the sentence: the next one.
-  ["가짜 PR 검사를 마쳤다. 가짜 시험을 마침.", "가짜 시험을 마침."],
-  ["가짜 S2는 뒤에 얹는다. 가짜 시험을 마침.", "가짜 시험을 마침."],
-  ["가짜 묶음 N1·N2를 닫았다. 가짜 시험을 마침.", "가짜 시험을 마침."],
-  ["가짜 검사가 rc 0으로 끝남. 가짜 시험을 마침.", "가짜 시험을 마침."],
-  ["Codex가 남긴 가짜 지적을 고쳤다. 가짜 시험을 마침.", "가짜 시험을 마침."],
+  ["가짜 지연이 0.5초 늘었다. 가짜 시험을 마침.", "가짜 지연이 0.5초 늘었다. 가짜 시험을 마침."],
+  ["가짜 판 1.2.3을 깔았다. 가짜 시험을 마침.", "가짜 판 1.2.3을 깔았다. 가짜 시험을 마침."],
+  // A Latin word, a short code, a round label or a product name in one sentence: the whole text folds.
+  ["가짜 PR 검사를 마쳤다. 가짜 시험을 마침.", null],
+  ["가짜 S2는 뒤에 얹는다. 가짜 시험을 마침.", null],
+  ["가짜 묶음 N1·N2를 닫았다. 가짜 시험을 마침.", null],
+  ["가짜 검사가 rc 0으로 끝남. 가짜 시험을 마침.", null],
+  ["Codex가 남긴 가짜 지적을 고쳤다. 가짜 시험을 마침.", null],
   // A particle left after a removed number-like token, a quote left open.
-  ["가짜 판을 v2.97 로 올렸다. 가짜 시험을 마침.", "가짜 시험을 마침."],
-  ['가짜 댓글의 세 번 끊겼다"는 틀렸다. 가짜 시험을 마침.', "가짜 시험을 마침."],
+  ["가짜 판을 v2.97 로 올렸다. 가짜 시험을 마침.", null],
+  ['가짜 댓글의 세 번 끊겼다"는 틀렸다. 가짜 시험을 마침.', null],
   // No clean sentence: no line.
   ["가짜 PR (닫음). 가짜 결함 D1~D7을 모았다.", null],
   // A long sentence is drawn whole, its quote and all (lina-app#226).
   ['가짜 요청은 "가짜 화면을 열 때마다 목록을 통째로 다시 받아 기다리게 하지 말고 지난번 화면을 바로 보여 주기"였다.', '가짜 요청은 "가짜 화면을 열 때마다 목록을 통째로 다시 받아 기다리게 하지 말고 지난번 화면을 바로 보여 주기"였다.'],
-])("a history line %j reads %j: one sentence the rule passes, else the next, else none (lina-app#222)", (text, shown) => {
-  expect(firstSentence(text)).toBe(shown);
-  expect(firstSentence(foldedText(plainText(text)))).toBe(shown);
+])("a history line %j reads %j: the whole text when every sentence passes the rule, else none (lina-app#222, #236)", (text, shown) => {
+  expect(wholeText(text)).toBe(shown);
 });
 
 test("a comment with no clean sentence draws no line of its own: it is one of the folded run (lina-app#222)", () => {
@@ -153,7 +149,7 @@ const REAL_HISTORY: readonly (readonly [string, string, string | null])[] = [
 const IDENTIFIER = /[A-Za-z]+[-_:]?\d|\d+[A-Za-z]|#\d|=|_/;
 
 test.each(REAL_HISTORY)("a real comment by %s, %j, is a whole sentence with no identifier or tag, or no line at all", (author, body, expected) => {
-  const line = isMachineNotice(body, author) ? null : firstSentence(body);
+  const line = isMachineNotice(body, author) ? null : wholeText(body);
   expect(line).toBe(expected);
   if (line === null) return;
   expect(line).not.toMatch(IDENTIFIER);
@@ -164,9 +160,9 @@ test.each(REAL_HISTORY)("a real comment by %s, %j, is a whole sentence with no i
   for (const word of line.replace(/…$/, "").split(/\s+/)) expect(words, word).toContain(word.replace(/[.,!?。:;]+$/, ""));
 });
 
-test("a long sentence is drawn whole, never cut (lina-app#226)", () => {
+test("a long sentence within the whole line's length is drawn whole, never cut (lina-app#226, #236)", () => {
   const body = "배포 전에 바뀐 화면 문구를 하나씩 다시 읽어 보고 어색한 곳을 고쳐서 검토 요청을 올렸고 이어서 남은 화면 두 곳을 맞추는 중";
-  expect(firstSentence(body)).toBe(body);
+  expect(wholeText(body)).toBe(body);
 });
 
 test("history lines read newest first, and a run of entries with nothing left to read is one line with its count", () => {
@@ -233,7 +229,7 @@ const NOISY: readonly (readonly [string, readonly (readonly [number, string])[]]
   ["dropped comments between kept ones", [[10, "G73 / T264."], [20, "rc=1(없음)"], [30, "문구를 고쳤어요."], [40, "vs 20 14 my in '—' 24"], [50, ".5초 무렵"]]],
 ];
 
-test.each(NOISY)("a card's history with %s: no line starts with [, none repeats the previous state word, times only go back", (_case, rows) => {
+test.each(NOISY)("a card's history with %s: no line starts with [, a state word again is counted on the line before it, times only go back", (_case, rows) => {
   const lines = commentHistory(rows.map(([at, body], index) => ({ id: index, at, author: "worker-a", body })));
   expect(lines.length).toBeGreaterThan(0);
   lines.forEach((line, index) => {
@@ -250,9 +246,9 @@ test.each(NOISY)("a card's history with %s: no line starts with [, none repeats 
 });
 
 test("a bracket tag with a role and a time is cut off the sentence; a receipt's one-word tag still makes it a machine notice", () => {
-  expect(firstSentence("[검토자 02:21 결정] 배포는 금요일 오후로 함.")).toBe("배포는 금요일 오후로 함.");
-  expect(firstSentence("[작업자 04:40 코드 반영 끝, 시험 통과]")).toBeNull();
-  expect(firstSentence("22:45 기준으로 문구를 다시 확인함.")).toBeNull();
+  expect(wholeText("[검토자 02:21 결정] 배포는 금요일 오후로 함.")).toBe("배포는 금요일 오후로 함.");
+  expect(wholeText("[작업자 04:40 코드 반영 끝, 시험 통과]")).toBeNull();
+  expect(wholeText("22:45 기준으로 문구를 다시 확인함.")).toBeNull();
   expect(isMachineNotice("[검토자 02:21 결정] 배포는 금요일 오후로 함.", "worker-a")).toBe(false);
   expect(isMachineNotice("[받음] 대화에 들어감", "worker-a")).toBe(true);
 });
@@ -280,10 +276,12 @@ test("a card's record read through several of its worker runs shows each round a
   ]);
 });
 
-// lina-app#230: a record's comment row has no author (a receipt's note, which on the hub an agent writes, cut by the
-// core at 300 characters with no mark): in a round and between rounds it reads through the one gate, never as saved.
-test("a record's comment rows read through the one gate, in a round and between rounds (lina-app#230)", () => {
+// lina-app#230, #236: a record's comment row has no author (a receipt's note, which on the hub an agent writes, cut by
+// the core at 300 characters with no mark): in a round and between rounds it reads through the one gate, never as saved,
+// and a cut one is longer than a whole line may be, so it folds.
+test("a record's comment rows read through the one gate, in a round and between rounds (lina-app#230, #236)", () => {
   const note = "fake diff read, merged via fake PR (fake#12), checked in fake QA rounds".slice(0, 300);
+  const cut = `${"가짜 금액 줄을 다시 확인했다. ".repeat(12)}가짜 환불 안내 문구는 아직 고치는 중이었다.`.slice(0, 300);
   const record = {
     at: 1000,
     cardId: "k-1",
@@ -293,15 +291,16 @@ test("a record's comment rows read through the one gate, in a round and between 
     settingsRevision: null,
     comments: [
       { at: 500, kind: "comment", text: note, count: 1 },
-      { at: 450, kind: "comment", text: "가짜 금액 줄을 다시 확인했다. 가짜 환불 안내 문구는 아직 고치는 중이", count: 1 },
+      { at: 450, kind: "comment", text: cut, count: 1 },
+      { at: 420, kind: "comment", text: "가짜 금액 줄을 다시 확인했다.", count: 1 },
     ],
     rounds: [round({ run: 1, startedAt: 100, endedAt: 400, endKnown: true, rows: [{ at: 200, kind: "comment", text: `가짜 표로 바꿔 주세요. ${note}`, count: 1 }] })],
   } as unknown as RunRecord;
   const blocks = timelineBlocks([{ id: "w1", record }], () => false, 1000);
-  expect(blocks.map((block) => block.rows.map((row) => row.text))).toEqual([[null, "가짜 금액 줄을 다시 확인했다."], ["가짜 표로 바꿔 주세요."]]);
+  expect(blocks.map((block) => block.rows.map((row) => row.text))).toEqual([[null, null, "가짜 금액 줄을 다시 확인했다."], [null]]);
 });
 
-// lina-app#230: on the real hub's long card the same note stood in the 댓글 section nine times. A sentence drawn more than
+// lina-app#230: on the real hub's long card the same note stood in the 댓글 section nine times. A text drawn more than
 // once in one card's comments is one line at its newest time with its count; the folded lines around a repeat it took
 // away read as one.
 test("the same comment line again in one card is one line with its count, at its newest time (lina-app#230)", () => {
@@ -311,7 +310,7 @@ test("the same comment line again in one card is one line with its count, at its
     { id: 2, at: 200, author: "worker-a", body: "fake note" },
     { id: 3, at: 300, author: "worker-a", body: note },
     { id: 4, at: 400, author: "worker-a", body: "fake note again" },
-    { id: 5, at: 500, author: "worker-a", body: `${note} 다음은 표로 바꾼다.` },
+    { id: 5, at: 500, author: "worker-a", body: note },
     { id: 6, at: 600, author: "worker-a", body: "가짜 표를 다시 만들었다." },
   ]);
   expect(lines.map((line) => [line.at, line.text, line.count, line.folded])).toEqual([

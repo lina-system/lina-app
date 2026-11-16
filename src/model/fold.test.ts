@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { drawnSentences, foldedText, foldReason, sentenceMayShow, sentencesOf, withoutLatin, withoutRefs } from "./fold";
+import { foldedText, foldReason, sentenceMayShow, sentencesOf, wholeText, withoutLatin, withoutRefs } from "./fold";
 
 test("a comment shows as it is unless it would show a path, a command, a hash, an issue number, an address or a fragment", () => {
   for (const plain of ["오류 문구 초안을 공유했어요.", "카드 번호는 앞 여섯 자리까지 보여 줄까요?", "1.5배 빨라졌어요."]) expect(foldReason(plain)).toBeNull();
@@ -154,29 +154,24 @@ test.each([
   expect(sentenceMayShow(sentence)).toBe(shows);
 });
 
-// lina-app#228, #230: a list (`(1)`, `1)`, `1.` or `①` marks) is one unit, drawn whole with its lead-in, every item and
-// every sentence of each item, or not at all: on one line or one item a line, its last item running to the end of its
-// line. A list the hub cut (`…`), that skips a number or that does not start at 1 is not drawn.
+// lina-app#228, #230, #236: a comment holding a list (`(1)`, `1)`, `1.` or `①` marks) is folded whole: no list, lead-in or
+// item of it is drawn, however its marks run. A range is no list's mark.
 const LIST = "가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. (2) 버튼을 아래로 옮겼다. (3) 카드사 이름을 굵게 바꿨다.";
 test.each([
-  [LIST, [LIST]],
-  [`${LIST} 다음 문장도 있다.`, [`${LIST} 다음 문장도 있다.`]],
-  ["가짜 순서: 1) 빌드를 마친다. 2) 배포를 한다.", ["가짜 순서: 1) 빌드를 마친다. 2) 배포를 한다."]],
-  ["가짜 순서는 1. 가짜 빌드를 마친다. 2. 가짜 배포를 한다.", ["가짜 순서는 1. 가짜 빌드를 마친다. 2. 가짜 배포를 한다."]],
-  ["가짜 할 일은 둘이다 ① 문구를 고친다 ② 버튼을 옮긴다.", ["가짜 할 일은 둘이다 ① 문구를 고친다 ② 버튼을 옮긴다."]],
-  ["가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. (2) 버튼을 아래로…", []],
-  ["가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. (3) 버튼을 아래로 옮겼다.", []],
-  ["앞의 일은 끝났고 (2) 버튼을 아래로 옮겼다.", []],
-  ["가짜 남은 일: (1) 영수증 금액 줄을 다시 본다.\n(2) 환불 문구 확인.", ["가짜 남은 일: (1) 영수증 금액 줄을 다시 본다. (2) 환불 문구 확인."]],
-  ["가짜 남은 일: (1) 영수증 금액 줄을 다시 본다.\n(2) 환불 안내 문구를 고친다.", ["가짜 남은 일: (1) 영수증 금액 줄을 다시 본다. (2) 환불 안내 문구를 고친다."]],
-  ["(1) 가짜 문구를 맞췄다. (2) 가짜 버튼을 옮겼다.", ["(1) 가짜 문구를 맞췄다. (2) 가짜 버튼을 옮겼다."]],
-  // A range is no list's mark (`11-16)`).
-  ["가짜 보고(검토 기간 11-16) 내용을 고쳤다.", ["가짜 보고(검토 기간 11-16) 내용을 고쳤다."]],
-  // An item of several sentences is the list's too: the list is drawn whole, no sentence of it alone.
-  ["가짜 검토 결과: ① 첫 화면 문구를 맞췄다. 가짜 시안도 함께 고쳤다. ② 버튼을 아래로 옮겼다.", ["가짜 검토 결과: ① 첫 화면 문구를 맞췄다. 가짜 시안도 함께 고쳤다. ② 버튼을 아래로 옮겼다."]],
-  ["가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. 가짜 시안도 함께 고쳤다.\n가짜 새 줄이다. (2) 버튼을 옮겼다.", ["가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. 가짜 시안도 함께 고쳤다. 가짜 새 줄이다. (2) 버튼을 옮겼다."]],
-])("drawnSentences(%j) is %j: a list whole or not at all (lina-app#228)", (text, drawn) => {
-  expect(drawnSentences(text)).toEqual(drawn);
+  [LIST, null],
+  [`${LIST} 다음 문장도 있다.`, null],
+  ["가짜 순서: 1) 빌드를 마친다. 2) 배포를 한다.", null],
+  ["가짜 순서는 1. 가짜 빌드를 마친다. 2. 가짜 배포를 한다.", null],
+  ["가짜 할 일은 둘이다 ① 문구를 고친다 ② 버튼을 옮긴다.", null],
+  ["가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. (3) 버튼을 아래로 옮겼다.", null],
+  ["앞의 일은 끝났고 (2) 버튼을 아래로 옮겼다.", null],
+  ["가짜 남은 일: (1) 영수증 금액 줄을 다시 본다.\n(2) 환불 문구 확인.", null],
+  ["(1) 가짜 문구를 맞췄다. (2) 가짜 버튼을 옮겼다.", null],
+  ["가짜 차례: 2. 금액 칸을 누른다. 1. 목록을 연다.", null],
+  ["(1) 가짜 목록을 연다. ② 금액 칸을 누른다.", null],
+  ["가짜 보고(검토 기간 11-16) 내용을 고쳤다.", "가짜 보고(검토 기간 11-16) 내용을 고쳤다."],
+])("wholeText(%j) is %j: a list folds its comment (lina-app#228, #236)", (text, drawn) => {
+  expect(wholeText(text)).toBe(drawn);
 });
 
 // lina-app#228: a ref or a Latin word cut from between a separator (or the title's start) and the bracket after it
@@ -207,8 +202,8 @@ test.each([
   ["가짜 판을 다시 올렸다 (4815162342).", ["가짜 판을 다시 올렸다."]],
   ["가짜 대기 건수가 123456건으로 늘었다.", ["가짜 대기 건수가 123456건으로 늘었다."]],
   ["가짜 대기 건수가 1,234,567건으로 늘었다.", ["가짜 대기 건수가 1,234,567건으로 늘었다."]],
-])("drawnSentences(%j) is %j: a digits-only hash is never drawn (lina-app#228)", (text, drawn) => {
-  expect(drawnSentences(text)).toEqual(drawn);
+])("wholeText(%j) is %j: a digits-only hash is never drawn (lina-app#228)", (text, drawn) => {
+  expect(wholeText(text)).toBe(drawn[0] ?? null);
 });
 
 // lina-app#230: a sentence holding exactly one time of day with a Korean particle or word glued after it (`12:50에`,
@@ -231,8 +226,8 @@ test.each([
   ["가짜 배포 시각은 12:50.", []],
   ["가짜 배포를 12:50:33에 마쳤다.", []],
   ["가짜 대비는 3.55:1로 올랐다.", ["가짜 대비는 3.55:1로 올랐다."]],
-])("drawnSentences(%j) is %j: one time of day with its particle is a fact (lina-app#230)", (text, drawn) => {
-  expect(drawnSentences(text)).toEqual(drawn);
+])("wholeText(%j) is %j: one time of day with its particle is a fact (lina-app#230)", (text, drawn) => {
+  expect(wholeText(text)).toBe(drawn[0] ?? null);
 });
 
 // lina-app#230: a run of seven digits or more with a unit glued after it (`원`, `건`) or a thousands comma is a number,
@@ -245,8 +240,8 @@ test.each([
   ["가짜 해시 1234567을 지웠다.", []],
   ["가짜 판을 4815162342로 올렸다.", []],
   ["가짜 판은 4815162342.", []],
-])("drawnSentences(%j) is %j: a long number with its unit is a number, not a hash (lina-app#230)", (text, drawn) => {
-  expect(drawnSentences(text)).toEqual(drawn);
+])("wholeText(%j) is %j: a long number with its unit is a number, not a hash (lina-app#230)", (text, drawn) => {
+  expect(wholeText(text)).toBe(drawn[0] ?? null);
   expect(foldReason(text)).toBe(drawn.length ? null : "hash");
 });
 

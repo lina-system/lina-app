@@ -227,7 +227,7 @@ test("names are invented and titles are Korean", () => {
   for (const machine of scene.devices.machines) expect(machine.name).toMatch(/^[가-힣]+$/);
 });
 
-test("the scene carries the text shapes UI QA round 21 met, and no history line draws them (lina-app#228)", () => {
+test("the scene carries the text shapes UI QA rounds 21 to 23 met, and no history line draws a part of them (lina-app#228, #236)", () => {
   const comments = scene.cardDetails["k-104"].comments;
   expect(comments.filter((comment) => /\d{7,}/.test(comment.body))).toHaveLength(2);
   const lines = commentHistory(
@@ -236,11 +236,11 @@ test("the scene carries the text shapes UI QA round 21 met, and no history line 
   ).map((line) => line.text);
   // A run with no unit after it is a hash, never drawn; one with its unit is an amount (lina-app#230).
   for (const line of lines) expect(line ?? "").not.toMatch(/\d{7,}(?![\d원])/);
-  // A list is drawn whole with every item, or not at all: never its lead-in and first item alone; one item a line, its
-  // lines are one entry (lina-app#230).
-  expect(comments.filter((comment) => /\(1\)/.test(comment.body))).toHaveLength(2);
-  const body = (id: number) => comments.find((comment) => comment.id === id)?.body.replaceAll("\n", " ");
-  expect(lines).toEqual([null, body(7), body(6), null, body(4), body(3), body(2), null]);
+  // A comment is drawn whole or folded (lina-app#236): every list, lead-in and part folds, a whole short comment is drawn
+  // as written (its opening stamp left out), and the same state word in a row is one line.
+  expect(comments.filter((comment) => /\(1\)/.test(comment.body))).toHaveLength(4);
+  const body = (id: number) => comments.find((comment) => comment.id === id)?.body;
+  expect(lines).toEqual(["검토 통과", null, body(15), body(14), "금액 줄을 오른쪽으로 붙였다.", body(12), null]);
 });
 
 test("the many-finished scene carries the title shape UI QA round 21 met, and no row draws the bracket its cut left after a colon (lina-app#228)", () => {

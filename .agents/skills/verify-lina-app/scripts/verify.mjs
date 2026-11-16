@@ -3456,6 +3456,25 @@ const drivers = {
       await openApp(page, "#/running");
       return "folded " + before.rows + " + 외 " + before.more + "개, opened " + titles.length + " lines for " + cards + " cards, none twice; grey: " + sub + " · " + time + ", opened " + agents.join(" | ");
     });
+    await step("on the hub's shape (&hub=round24), the grey line's detail speaks of the line: 제목 없는 n건, 완료 · 가장 최근 <time>, 에이전트 n명, never one card's 제목 없음, 소요 or 읽기 전용 (lina-app#242)", async () => {
+      await openApp(page, "#/", "&hub=round24");
+      const group = page.getByTestId("section-finished");
+      await group.locator(".more-row:not([data-testid=fold-hide])").filter({ hasText: /^외 \d+개$/ }).waitFor();
+      const grey = group.locator("li[data-testid=row]").filter({ has: page.locator(".title.is-kind") });
+      const name = (await grey.locator(".title").innerText()).trim();
+      const agents = (await grey.getByTestId("row-sub").innerText()).trim();
+      await grey.getByRole("link").click();
+      const head = page.getByTestId("group-head");
+      await head.waitFor();
+      const detail = page.locator("article.detail", { has: head });
+      const title = (await detail.locator("h1").innerText()).trim();
+      const state = (await head.innerText()).replace(/\s+/g, " ").trim();
+      const who = (await detail.getByTestId("group-agents").innerText()).trim();
+      const text = await detail.innerText();
+      check(title === name && /^완료 · 가장 최근 \d+분 전$/.test(state) && who === agents && !/제목 없음|소요 |읽기 전용/.test(text), "head " + JSON.stringify([title, state, who]) + " for the line " + name + " · " + agents);
+      await openApp(page, "#/running");
+      return title + " / " + state + " / " + who;
+    });
     await step("on the hub's shape (&hub=round20), every planned card is a row of 예정, its head their number, the one with a Latin goal title named by it (lina-app#225)", async () => {
       await openApp(page, "#/", "&hub=round20");
       const group = page.getByTestId("section-planned");

@@ -251,8 +251,12 @@ export function round23Scene(scene: Scene): Scene {
   const todos = [todo("T15", "G7", "가상 시험 앱 주소 정하기"), todo("T16", "G8", "가상 프록시 끊김 재기"), todo("T17", "G9", "가상 결함 목록 맞추기")];
   const detail = scene.itemDetails.G1;
   const details = Object.fromEntries(goals.map((each) => [each.id, { ...detail, ...each, why: null, basis: [], children: todos.filter((row) => row.parent === each.id), comments: [], runs: [], links: [], workCards: [], decision: null, ownerDone: null }]));
+  // The hub serves the detail of a card it keeps history for (no `detail: false`): its row's fields and empty lists.
+  const kept = cards.filter((card) => !("detail" in card));
+  const cardDetails = Object.fromEntries(kept.map((card) => [card.id, { ...card, todos: [], workerRuns: [], runsAwaitingVerdict: [], gates: [], comments: [], runs: [] }]));
   return {
     ...scene,
+    cardDetails: { ...scene.cardDetails, ...cardDetails } as Scene["cardDetails"],
     cards: { ...scene.cards, cards: [...scene.cards.cards.filter((card) => card.state !== "done"), ...cards] },
     items: { ...scene.items, items: [...scene.items.items, ...goals, ...todos] },
     itemDetails: { ...scene.itemDetails, ...details },

@@ -329,7 +329,7 @@ function FinishedSection({ section }: { section: Section<CardRow> }) {
       <SectionHead section={section} />
       <ul class="rows" aria-label={section.title}>
         {shown.map((card) => (
-          <CardRowView key={card.key} card={repeatedLine(card)} />
+          <FinishedLine key={card.key} line={card} />
         ))}
         {hidden > 0 ? (
           <MoreRow
@@ -388,11 +388,16 @@ function LatestLine({ agentId, testid }: { agentId: string; testid: string }) {
 }
 
 /**
- * A finished line that stands for cards whose lines read the same says how many (lina-app#168); the line of the cards
- * nothing names says it in its name already (lina-app#231).
+ * A finished line: one that stands for cards whose titles read the same says how many (lina-app#168); the line of the
+ * cards nothing names says it in its name already (lina-app#231), and wears no one agent's mark or card's time when its
+ * cards are several agents' (lina-app#237): how many agents, and its newest card's time said as such.
  */
-function repeatedLine(card: CardRow): CardRow {
-  return card.repeat && card.title !== null ? { ...card, name: `${card.name} ${W.repeated(card.repeat)}` } : card;
+function FinishedLine({ line }: { line: CardRow }) {
+  const { now } = useApp();
+  if (line.title !== null) return <CardRowView card={line.repeat ? { ...line, name: `${line.name} ${W.repeated(line.repeat)}` } : line} />;
+  const agents = new Set((line.fold ?? [line]).map((card) => card.agent)).size;
+  const when = line.endedAt === null ? null : W.newest(ago(now - line.endedAt));
+  return <CardRowView card={agents > 1 ? { ...line, agent: null, sub: W.agentsCount(agents), when } : { ...line, when }} />;
 }
 
 /**
@@ -424,7 +429,7 @@ export function DoneScreen({ agent }: { agent?: string }) {
       {shown.length ? (
         <ul class="rows" aria-label={W.done}>
           {shown.map((card) => (
-            <CardRowView key={card.key} card={repeatedLine(card)} />
+            <FinishedLine key={card.key} line={card} />
           ))}
         </ul>
       ) : (

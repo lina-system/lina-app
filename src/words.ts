@@ -247,6 +247,12 @@ export const W = {
   untitled: "제목 없음",
   /** The home's one grey line for the work nothing names (lina-app#124). */
   untitledCount: (n: number) => `제목 없는 ${n}건`,
+  /** Whose that grey line's cards are when they are more than one agent's (lina-app#237): how many, no one name. */
+  agentsCount: (n: number) => `에이전트 ${n}명`,
+  /** The time of the newest card a line of many stands for, said as such (lina-app#237). */
+  newest: (time: string) => `가장 최근 ${time}`,
+  /** One agent's share of a line of many, in the detail it opens (lina-app#237). */
+  cardsCount: (n: number) => `${n}건`,
   /** A lone stopped run whose only name is an internal one in Latin, never shown (lina-app#134). */
   unnamedRun: "이름 없는 실행",
   /** A stopped card with no title or goal left once its references go: whose it is (lina-app#148). */

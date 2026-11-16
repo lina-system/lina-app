@@ -27,7 +27,7 @@ import { BANNED_WORDS, CRUMB, KIND_TITLE, ROUND9_WORD, SEP, SOURCE_WORD, STATE_W
 import { href } from "../router";
 import { clockAt } from "../time";
 import { checksView, type ChecksView } from "./checks";
-import { foldedText, foldReason, sentenceMayShow, sentencesOf, withoutLatin, withoutRefs } from "./fold";
+import { foldedText, foldReason, holdsRefsOnly, sentenceMayShow, sentencesOf, withoutLatin, withoutRefs } from "./fold";
 import { cardKind, type CardKind } from "./kind";
 import { ocxView, usageViews, type OcxView, type UsageRangeView } from "./usage";
 
@@ -357,12 +357,30 @@ function cleanTitle(title: string, latin = false): string | null {
 /**
  * A title the row rule refuses, read by its Hangul words (lina-app#214): its refs and Latin words cut (withoutLatin),
  * read when at least four Hangul letters are left and what is left passes the one rule (sentenceMayShow, lina-app#222).
- * A finished card's own title and a record goal's or to-do's title read so (foldTitle), so 제목 없음 holds only what
- * nothing names. Stopped, running and planned rows and an agent's ask keep the row rule.
+ * A record goal's or to-do's title reads so (foldTitle), so 제목 없음 holds only what nothing names. A finished card's
+ * row never does (wholeTitle, lina-app#231); stopped, running and planned rows and an agent's ask keep the row rule.
  */
 function finishedTitle(title: string | null): string | null {
   const cut = title ? withoutLatin(withoutRefs(title)) : "";
   return (cut.match(/\p{Script=Hangul}/gu) ?? []).length >= 4 && sentenceMayShow(cut) ? cut : null;
+}
+
+/** A bracket and the space before it: removed from a title only when what it holds is refs alone (holdsRefsOnly). */
+const BRACKET = /\s*[([]([^()[\]]*)[)\]]/g;
+
+/**
+ * A title exactly as written (lina-app#231): only a bracket that holds nothing but refs, ids or hashes goes, with the
+ * space before it. Null when anything else would have to be cut for it to pass the one rule (sentenceMayShow): a Latin
+ * word, a ref or a hash outside such a bracket, or the debris a cut would leave. A finished card's row reads its titles
+ * so, and a card none of them names is counted in 완료's grey line instead of drawn with a hole.
+ */
+export function wholeTitle(title: string | null | undefined): string | null {
+  if (!title) return null;
+  const whole = title
+    .replace(BRACKET, (bracket, inner: string) => (holdsRefsOnly(inner) ? "" : bracket))
+    .replace(/\s+/g, " ")
+    .trim();
+  return whole && withoutRefs(whole) === whole && sentenceMayShow(whole) ? whole : null;
 }
 
 /** Three Latin words or more in a row: an English phrase, not a product or tool name in a Korean title. */
@@ -483,8 +501,8 @@ export function apart(rows: readonly CardRow[], now: number): CardRow[] {
 /**
  * A finished group's lines (lina-app#168): cards whose lines read the same (the hub's titles that differ only by a hash
  * or a number the screen cuts) are one line, the newest of them, which it opens, with how many it stands for
- * (`repeat`); the cards nothing names are one such line too (lina-app#225). The rows come newest first; the group head
- * counts the cards (cardCount).
+ * (`repeat`); the cards nothing names are one such line too (lina-app#225), named for what it holds and how many, never
+ * by a kind word (lina-app#231). The rows come newest first; the group head counts the cards (cardCount).
  */
 function collapsed(rows: readonly CardRow[]): CardRow[] {
   const lines = new Map<string, CardRow>();
@@ -493,6 +511,8 @@ function collapsed(rows: readonly CardRow[]): CardRow[] {
     const first = lines.get(key);
     lines.set(key, first ? { ...first, repeat: (first.repeat ?? 1) + 1, fold: [...(first.fold ?? [first]), row] } : { ...row, when: null });
   }
+  const unnamed = lines.get("");
+  if (unnamed) lines.set("", { ...unnamed, name: W.untitledCount(unnamed.repeat ?? 1), sub: null });
   return [...lines.values()];
 }
 
@@ -518,8 +538,9 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
   const base = receivedAt - card.elapsedSeconds;
   // A card with no checked title is named by its own title when that may be drawn; its kind is read from that same
   // text, so a card showing its own title is not guessed as code when it is a documents card.
-  // A finished card keeps the sentence rule; a stopped, planned or running one reads its title by the row title rule.
-  const title = card.state === "done" ? cardTitle(card.plain.title, card.title) : (workTitle(card.plain.title) ?? workTitle(card.title));
+  // A finished card reads its checked title by the sentence rule, else its own as written (wholeTitle, lina-app#231); a
+  // stopped, planned or running one reads its title by the row title rule.
+  const title = card.state === "done" ? (cardTitle(card.plain.title, null) ?? wholeTitle(card.title)) : (workTitle(card.plain.title) ?? workTitle(card.title));
   const work = cardKind(title ?? "", cardRuns);
   return {
     key: `card:${card.id}`,
@@ -676,7 +697,8 @@ export function buildModel(input: ModelInput, now: number): Model {
   const retryAsked = (detail: WorkCardDetail | undefined, stoppedAt: number | null): boolean | null =>
     detail ? detail.comments.some((comment) => isRetryRequest(comment, items?.owner?.id) && (stoppedAt === null || comment.createdAt > stoppedAt)) : null;
   // The title of a to-do in the work record (never a goal: a goal names a row last), when it may be drawn.
-  const todoName = (ids: readonly (string | null)[]) => ids.map((id) => (id ? itemMap.get(id) : undefined)).map((item) => (item && item.kind !== "goal" ? plainName(item.title) : null)).find(Boolean) ?? null;
+  const todoName = (ids: readonly (string | null)[], read: (title: string) => string | null = plainName) =>
+    ids.map((id) => (id ? itemMap.get(id) : undefined)).map((item) => (item && item.kind !== "goal" ? read(item.title) : null)).find(Boolean) ?? null;
   const runListRow = (run: RunCard): CardRow => {
     const owner = runOwner.get(run.id);
     const ownerCard = owner ? (cards?.cards ?? []).find((card) => card.id === owner) : undefined;
@@ -699,17 +721,20 @@ export function buildModel(input: ModelInput, now: number): Model {
     ...(cards?.cards ?? []).map((card) => {
       const cardRuns = runsOf(card.id);
       // Its goal's title (the one the core puts on the row first), then its own names (workCardRow), then the to-do
-      // its runs take on.
-      const fallback = todoName(cardRuns.map((run) => run.todo));
-      const goalName = card.state === "done" ? plainName : workTitle;
+      // its runs take on; a finished card's each as written (lina-app#231).
+      const goalName = card.state === "done" ? wholeTitle : workTitle;
+      const fallback = todoName(
+        cardRuns.map((run) => run.todo),
+        card.state === "done" ? wholeTitle : plainName,
+      );
       const goal = goalName((card as CardSummary).goalTitle) ?? goalName(cardGoal.get(card.id)?.title);
       const row = { ...contextRow(workCardRow(card, input.cardDetails[card.id], receivedAt, cardRuns), goal, fallback, false, card), goalTitle: (card as CardSummary).goalTitle ?? cardGoal.get(card.id)?.title ?? null };
       // Every card is a row (lina-app#225). One nothing else names is named by its ask (a stopped card's, lina-app#156),
-      // then by the Hangul words of its own title (lina-app#214); the ask is said after the stop's words, unless it
-      // already names the row. With none, it reads its kind of work, and a finished one is counted in 완료's one line
-      // of the cards nothing names (collapsed), never 제목 없음.
+      // then, unless it is finished, by the Hangul words of its own title (lina-app#214); the ask is said after the stop's
+      // words, unless it already names the row. With none, it reads its kind of work, and a finished one, which no cut
+      // ever names (lina-app#231), is counted in 완료's one line of the cards nothing names (collapsed), never 제목 없음.
       const ask = card.state === "stopped" ? askLine((card as CardSummary).ask) : null;
-      const title = row.title ?? ask ?? finishedTitle(card.title);
+      const title = row.title ?? ask ?? (card.state === "done" ? null : finishedTitle(card.title));
       // An ask that ends in the status word before it says that word once (lina-app#160).
       const said = ask !== null && ask !== title ? withoutRepeat(ask, row.stop?.words ?? "") : null;
       // The whole reason the inbox keeps (lina-app#171): the core cuts its ask at a length, so a cut ask reads from it.

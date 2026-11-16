@@ -18,12 +18,14 @@ const POWER_VARIANTS: readonly string[] = ["stopped", "none"] satisfies PowerVar
  * to-dos (lina-app#141), `&finished=many` one with 40 more finished cards (lina-app#186), `&hub=round18` the hub's 524
  * finished cards and an overdue to-do (lina-app#221), `&hub=round20` the hub's 13 stopped cards, a planned card with a
  * Latin goal title, 46 finished cards in ×n and unnamed lines and a waiting to-do past its due date (lina-app#225),
+ * `&hub=round22` the hub's finished cards with titles drawn whole and titles with every hole shape (lina-app#231),
  * `&talk=busy|down|none` one whose talk turns are refused (429, 503, 409), `&live=down|drop|resync|token|talk` a change
  * stream that refuses every connection, drops once while another device writes, sends one resync, restarts the core with
  * a new session token, or carries another device's message to the first agent, `&push=off` a core without push, `&settings=readonly|empty|stale|race|ocx-down` work settings this
  * device only reads, that were never written, that another device writes just before this page's first write (412) or
  * just after it lands (the changes queued behind it are dropped), whose models OCX did not answer for (the last
- * good list, with an error), or that leave four models warned about.
+ * good list, with an error), or that leave four models warned about, `&records=slow` one where every worker run of k-101
+ * serves the card's one record and each read of it takes 1.5 s (lina-app#232).
  */
 export function chooseSource(location: Pick<Location, "search"> = window.location, flag: string | undefined = import.meta.env.VITE_LINA_SOURCE): Source {
   const params = new URLSearchParams(location.search);
@@ -44,12 +46,14 @@ export function chooseSource(location: Pick<Location, "search"> = window.locatio
       hubRound11: params.get("hub") === "round11",
       hubRound18: params.get("hub") === "round18",
       hubRound20: params.get("hub") === "round20",
+      hubRound22: params.get("hub") === "round22",
       manyFinished: params.get("finished") === "many",
       talk: talk && TALK_REFUSALS.includes(talk) ? (talk as TalkRefusal) : null,
       live: live && STREAM_SCRIPTS.includes(live) ? (live as StreamScript) : "ok",
       pushOff: params.get("push") === "off",
       settings: settings && SETTINGS_SCRIPTS.includes(settings) ? (settings as SettingsScript) : null,
       power: power && POWER_VARIANTS.includes(power) ? (power as PowerVariant) : null,
+      slowRecords: params.get("records") === "slow",
     });
     // verify.mjs reads the synthetic copy after a write to check the record changed, not only the screen.
     if (typeof window !== "undefined") {

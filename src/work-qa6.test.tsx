@@ -58,8 +58,8 @@ describe("work rows keep the readable part of a title (lina-app#156 items 1, 2)"
     expect(sub("k-swap-1")).toBe("가짜 교체 1단계 정리");
     // An abbreviation is a Latin word too (lina-app#222).
     expect(sub("k-swap-2")).toBeNull();
-    // The ref and the particle glued to it go together; the sentence still reads.
-    expect(sub("k-swap-4")).toBe("가짜 교체 판을 올리기");
+    // A hash outside a bracket is never cut out of a finished card's title (lina-app#231): hidden.
+    expect(sub("k-swap-4")).toBeNull();
     // No Hangul, or Latin words: hidden, the goal's title alone.
     expect(sub("k-swap-3")).toBeNull();
     expect(sub("k-swap-5")).toBeNull();
@@ -117,15 +117,19 @@ describe("the side menu's 진행 중인 작업 badge (lina-app#156 item 5)", () 
 });
 
 describe("the goal pane folds like the rows (lina-app#156 item 7)", () => {
-  test("a goal's title and done condition lose their refs, hashes and the particles glued to them", async () => {
+  test("a goal's title loses its refs; its done condition loses a bracket of refs, and one with a ref anywhere else draws no line (lina-app#231)", async () => {
     const scene = generateScene(SYNTHETIC_SEED, { now: now() });
-    const goal = scene.items.items.find((item) => item.kind === "goal");
-    const items = { ...scene.items, items: scene.items.items.map((item) => (item === goal ? { ...item, title: "가짜 목표 정리 (lina#49)", doneCondition: "lina#49 뒤 가짜 조건을 a1b2c3d로 맞춤" } : item)) };
+    const [goal, other] = scene.items.items.filter((item) => item.kind === "goal");
+    const fields = (item: (typeof scene.items.items)[number]) =>
+      item === goal ? { ...item, title: "가짜 목표 정리 (lina#49)", doneCondition: "가짜 조건을 맞춤 (lina#49·a1b2c3d)" } : item === other ? { ...item, doneCondition: "lina#49 뒤 가짜 조건을 a1b2c3d로 맞춤" } : item;
+    const items = { ...scene.items, items: scene.items.items.map(fields) };
     const view = await open("#/goals", new SyntheticSource({ scene: { ...scene, items } }));
-    const row = view.getByTestId("screen-goals").querySelector(`a[href$="/goals/${goal?.id}"]`) as HTMLElement;
-    expect(row.querySelector(".title")?.textContent).toBe("가짜 목표 정리");
-    expect(row.querySelector(".sub")?.textContent).toBe("뒤 가짜 조건을 맞춤");
-    expect(row.textContent).not.toMatch(/#\d+|a1b2c3d/);
+    const row = (id: string) => view.getByTestId("screen-goals").querySelector(`a[href$="/goals/${id}"]`) as HTMLElement;
+    expect(row(goal.id).querySelector(".title")?.textContent).toBe("가짜 목표 정리");
+    expect(row(goal.id).querySelector(".sub.wrap-line")?.textContent).toBe("가짜 조건을 맞춤");
+    // Cut out of the sentence, the ref would leave a hole (`뒤 가짜 조건을 맞춤`): no line.
+    expect(row(other.id).querySelector(".sub.wrap-line")).toBeNull();
+    for (const id of [goal.id, other.id]) expect(row(id).textContent).not.toMatch(/#\d+|a1b2c3d/);
   });
 });
 

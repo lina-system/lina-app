@@ -27,7 +27,7 @@ async function open(hash: string, source: SyntheticSource, wide = true) {
 const now = () => Math.floor(Date.now() / 1000);
 const NO_LINES = { title: null, now: null, result: null };
 const DAY = 86_400;
-const DEPLOY = "가짜 코어를, 앱 빌드를 올리기";
+const DEPLOY = "가짜 코어와 앱 빌드를 올리기";
 const LIVE_GOAL = "가상 앱을 쓸 수 있게";
 
 /**
@@ -40,7 +40,8 @@ function round8Scene() {
   const agent = scene.items.agents[1].id;
   const card = (id: string, fields: Record<string, unknown>) => ({ ...base, id, agent, plain: NO_LINES, reason: null, waitingOn: null, retry: null, ask: null, readOnly: true, goalTitle: null, ...fields });
   const hashes = ["1a2b3c4d", "5e6f7a8b", "9c0d1e2f", "3a4b5c6d", "7e8f9a0b"];
-  const deploys = hashes.map((hash, index) => card(`k-deploy-${index + 1}`, { title: `가짜 코어를 dev ${hash}로, 앱 빌드를 올리기`, state: "done", endedAt: scene.now - 2 * DAY - index * 600 }));
+  // The hash in a bracket of its own: a finished title is drawn as written less a ref-only bracket (lina-app#231).
+  const deploys = hashes.map((hash, index) => card(`k-deploy-${index + 1}`, { title: `${DEPLOY} (${hash})`, state: "done", endedAt: scene.now - 2 * DAY - index * 600 }));
   const live = card("k-live", { title: "가상 앱 쓸 수 있는 수준으로: 세 탭 점검", goalTitle: LIVE_GOAL, state: "in_progress", endedAt: null, elapsedSeconds: DAY, lastHeartbeatAt: scene.now - 60 });
   const goalRow = { ...scene.items.items.find((item) => item.kind === "goal"), id: "G900", parent: null, title: LIVE_GOAL, agent, state: "planned", reason: null, doneCondition: null, due: null, todos: { done: 0, total: 1 } } as (typeof scene.items.items)[number];
   const todoRow = { ...goalRow, id: "T900", kind: "todo", parent: "G900", title: "가상 세 탭 점검과 수정", todos: null } as (typeof scene.items.items)[number];
@@ -67,7 +68,7 @@ describe("finished lines collapse (lina-app#168 item 1)", () => {
     expect(rows[0].querySelector(".title")?.textContent).toBe(`${DEPLOY} ${W.repeated(5)}`);
     expect(rows[0].querySelector("a")?.getAttribute("href")).toMatch(/\/cards\/k-deploy-1$/);
     // The head and the sidebar's 완료 count the cards (lina-app#225): a ×5 line is one row and counts its five.
-    const cards = within(finished).getAllByTestId("row").reduce((sum, row) => sum + Number(/×(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1), 0);
+    const cards = within(finished).getAllByTestId("row").reduce((sum, row) => sum + Number(/(?:×|제목 없는 )(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1), 0);
     expect(cards).toBe(within(finished).getAllByTestId("row").length + 4);
     expect(Number(finished.querySelector("[data-testid=count]")?.textContent)).toBe(cards);
     expect(Number(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")?.textContent)).toBe(cards);

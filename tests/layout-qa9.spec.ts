@@ -49,7 +49,7 @@ test("a goal's wrapped done condition is no defect for the driver, and a cut one
   await serveCore(page);
   await page.goto("/app/#/goals");
   await expect(page.getByTestId("freshness-line")).toHaveText("");
-  const conditions = page.locator(".goal-row .sub");
+  const conditions = page.locator(".goal-row .sub.wrap-line");
   await expect(conditions.first()).toBeVisible();
   const lines = await conditions.evaluateAll((all) => all.map((sub) => sub.getBoundingClientRect().height / parseFloat(getComputedStyle(sub).lineHeight)));
   expect(Math.max(...lines)).toBeGreaterThanOrEqual(2);

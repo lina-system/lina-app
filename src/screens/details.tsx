@@ -2,19 +2,19 @@ import { Fragment, type ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, RecordRow, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
-import { cardTitle, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, runRow, todoState, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
-import { foldedText, foldReason, sentencesOf } from "../model/fold";
+import { cardTitle, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, runRow, todoState, wholeTitle, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
+import { foldedText, foldReason, withoutCutEnd } from "../model/fold";
 import { plainText } from "../model/plain";
 import { holds } from "../model/rounds";
 import { stopReason } from "../model/stop-reason";
 import { answerOf, commentHistory, decisionHistory, firstSentence, goalHistory, historyLines, isMachineNotice, outcomeOf, ownerWrote } from "../model/timeline";
 import type { CardKind } from "../model/kind";
-import { isRunId } from "../data/store";
+import { isRunId, newestRun } from "../data/store";
 import { back, baseOf, href, isFrame, navigate, parse, tabOf } from "../router";
 import { ago, clockAt, dayLabel } from "../time";
 import { useActions } from "../ui/actions";
 import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, itemTime, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, stateWords, useApp } from "../ui/parts";
-import { BANNED_WORDS, DETAIL_WORD, reasonWord, ROUND11_WORD, ROUND9_WORD, RUN_LINE_WORD, SEP, STATE_WORD, stateLabel, W, waitWord } from "../words";
+import { DETAIL_WORD, reasonWord, ROUND11_WORD, ROUND9_WORD, RUN_LINE_WORD, SEP, STATE_WORD, stateLabel, W, waitWord } from "../words";
 import { PastEvents, RunModelLine, Timeline, type PastEvent } from "./timeline";
 import { Comments, SendButton } from "./comments";
 import { Talk } from "./talk";
@@ -128,20 +128,11 @@ function useDecisionRow(id: string): { text: string } | null {
 }
 
 /**
- * A bot's history text as the screens draw it (foldedText: each sentence whole or not at all, lina-app#226), its markdown
- * markers out; a sentence holding a word the screens never use (BANNED_WORDS) is left out too. Empty when nothing is
- * left: the line folds.
+ * A bot's history text as the screens draw it (foldedText: each sentence whole or not at all, lina-app#226; one holding a
+ * word the screens never use left out, lina-app#230), its markdown markers out. Empty when nothing is left: the line folds.
  */
 export function historyText(text: string): string {
-  return foldedText(plainText(text))
-    .split("\n")
-    .map((line) =>
-      sentencesOf(line)
-        .filter((sentence) => !BANNED_WORDS.some((word) => sentence.includes(word)))
-        .join(" "),
-    )
-    .filter(Boolean)
-    .join("\n");
+  return foldedText(plainText(text));
 }
 
 /**
@@ -305,7 +296,10 @@ function HistoryLine({ at, text, kind, who }: { at: number; text: string; kind?:
  */
 function useItemLine(detail: ItemDetail): ItemLine {
   const { model, store } = useApp();
-  return itemLine(model, detail.id, detail.kind === "goal" ? goalState(model, detail, store.get("goals")) : todoState(model, detail), detail.decision, detail.due);
+  // A goal's head reads the fold its rows read, the lists' one snapshot (lina-app#157, #231); only a goal no list holds
+  // folds its detail's own cards.
+  const goal = detail.kind === "goal" ? (model.goals.find((each) => each.id === detail.id) ?? goalState(model, detail, store.get("goals"))) : null;
+  return itemLine(model, detail.id, goal ?? todoState(model, detail), detail.decision, detail.due);
 }
 
 /** A goal's or to-do's state line with its time: its state words, 지남 when it is overdue (itemWords, lina-app#221). */
@@ -428,15 +422,17 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
     owner,
   );
   const decisionRow = useDecisionRow(detail.id);
+  // The sentence its row draws under its name, by the one rule (wholeTitle, lina-app#231): no issue reference shows.
+  const condition = wholeTitle(detail.doneCondition);
   return (
     <article class="detail" data-testid="screen-goal">
       <Header title={itemHead(model, detail)} line={decisionRow?.text}>
         <DoneHead detail={detail} />
       </Header>
       <ItemDecision key={detail.id} detail={detail} headLine={decisionRow?.text} />
-      {detail.doneCondition ? (
+      {condition ? (
         <Box title={W.doneCondition}>
-          <p class="box-text">{detail.doneCondition}</p>
+          <p class="box-text">{condition}</p>
         </Box>
       ) : null}
       {words.length ? (
@@ -653,16 +649,25 @@ function roundGroups(rounds: readonly Round[]): (Round | Round[])[] {
 /**
  * A work card's comments, one history line each, newest first: its time and the owner's words as saved, or a bot's
  * first sentence the screens draw whole (lina-app#142, historyText #157, #226); its author is the line's tooltip. A
- * machine notice is no line, and each run of comments with no sentence is one 접힌 댓글 line with their count
- * (lina-app#149). A comment that was only markdown markers and spaces is no line at all (lina-app#166). `recorded` are
- * the comments only its worker runs' record holds: the owner's words, by the record's own schema (a verdict note, a
- * cancel reason), so they read as the owner's in this box too (lina-app#174, #226).
+ * machine notice is no line, each run of comments with no sentence is one 접힌 댓글 line with their count
+ * (lina-app#149), and a line drawn more than once is one line with `×n` (commentHistory, lina-app#230). A comment that was only markdown markers and spaces is no line at all (lina-app#166). `records` are
+ * the comment rows of its worker runs' records (lina-app#174): each is drawn once, and never when the card holds the
+ * comment it was cut from. A record row has no author: the core makes it from a receipt's note (a verdict note, a cancel
+ * reason, which on the hub an agent writes), joined to one line and cut at 300 characters with no mark, so it goes through
+ * the one gate as any comment whose author is not the owner, less the sentence the cut went through (withoutCutEnd,
+ * lina-app#230). Only a comment whose author is the owner is drawn as saved (lina-app#226).
  */
-function cardCommentLines(comments: WorkCardDetail["comments"], recorded: readonly RecordRow[], owner: string | undefined) {
-  const own = comments.map((comment) => ({ id: String(comment.id), at: comment.createdAt, author: comment.author, body: comment.body }));
-  const fromRecord = recorded.map((row, index) => ({ id: `record:${row.at}:${index}`, at: row.at, author: owner ?? "owner", body: row.text ?? "" }));
+export function cardCommentLines(comments: WorkCardDetail["comments"], records: readonly RecordRow[], owner: string | undefined) {
+  const oneLine = (text: string) => plainText(text).split(/\s+/).join(" ").trim();
+  const held = comments.map((comment) => oneLine(comment.body));
+  const recorded = records.filter((row, index, all) => {
+    const text = oneLine(row.text ?? "");
+    return row.kind === "comment" && !held.some((body) => body.startsWith(text)) && all.findIndex((other) => other.at === row.at && other.text === row.text) === index;
+  });
+  const own = comments.filter((comment) => plainText(comment.body)).map((comment) => ({ id: String(comment.id), at: comment.createdAt, author: comment.author, body: comment.body }));
+  const fromRecord = recorded.filter((row) => plainText(row.text ?? "")).map((row, index) => ({ id: `record:${row.at}:${index}`, at: row.at, author: null, body: withoutCutEnd(row.text ?? "") }));
   return commentHistory(
-    [...own, ...fromRecord].filter((comment) => plainText(comment.body)).map((comment) => ({ ...comment, body: historyComment(comment.body, comment.author, owner) })),
+    [...own, ...fromRecord].map((comment) => ({ ...comment, body: historyComment(comment.body, comment.author, owner) })),
     owner,
   );
 }
@@ -674,7 +679,7 @@ function CardComments({ lines }: { lines: ReturnType<typeof cardCommentLines> })
     <Box title={W.comments} testid="card-comments">
       <ul class="history-rows" aria-label={W.comments}>
         {lines.map((line) => (
-          <HistoryLine key={line.id} at={line.at} text={line.text ?? W.foldedRun(line.folded)} kind="comment" who={line.text ? agentName(model, line.author) : undefined} />
+          <HistoryLine key={line.id} at={line.at} text={line.text === null ? W.foldedRun(line.folded) : line.count > 1 ? `${line.text} ${W.repeated(line.count)}` : line.text} kind="comment" who={line.text ? agentName(model, line.author) : undefined} />
         ))}
       </ul>
     </Box>
@@ -903,9 +908,14 @@ export function CardScreen({ id }: { id: string }) {
   const workerRuns = detail.workerRuns.filter((worker, index, all) => isRunId(worker.id) && all.findIndex((other) => other.id === worker.id) === index);
   const { rounds, outside } = workerRounds({ runs: detail.runs, workerRuns });
   // The history and comments wait for the records of the card's worker runs, read only once its detail named them
-  // (lina-app#217): drawn from the detail alone they read `이전 기록 N건` and then grow when the records land.
-  const reading = drawn.current !== id && workerRuns.some((worker) => store.status("record", worker.id) === "pending");
-  if (!reading) drawn.current = id;
+  // (lina-app#217): drawn from the detail alone they read `이전 기록 N건` and then grow when the records land. The
+  // record of the run seen last is read first (lina-app#232): once it holds a round, the history draws from it while the
+  // others are read and add below it in place; the comments, which take theirs too, wait for them all.
+  const pending = drawn.current !== id && workerRuns.some((worker) => store.status("record", worker.id) === "pending");
+  const newest = newestRun(workerRuns);
+  const filling = pending && newest !== null && Boolean(store.get("record", newest)?.rounds.length);
+  const reading = pending && !filling;
+  if (!pending) drawn.current = id;
   // The state word of a worker run the board does not list: going while it beats, else how its round ended.
   const workerState = (runId: string) => {
     if (runLive(model, runId)) return STATE_WORD.in_progress;
@@ -935,11 +945,8 @@ export function CardScreen({ id }: { id: string }) {
   const reason = row ? row.reason : detail.reason;
   // One 댓글 section (lina-app#174): the card's comments box also holds the comments between rounds that only its worker
   // runs' record has, once each; one the card holds (a machine notice it leaves out too) is never drawn again.
-  const held = new Set(detail.comments.map((comment) => plainText(comment.body).trim()));
-  const recorded = workerRuns
-    .flatMap((worker) => store.get("record", worker.id)?.comments ?? [])
-    .filter((row, index, all) => row.kind === "comment" && !held.has(plainText(row.text ?? "").trim()) && all.findIndex((other) => other.at === row.at && other.text === row.text) === index);
-  const commentLines = cardCommentLines(detail.comments, recorded, store.get("items")?.owner?.id);
+  const records = workerRuns.flatMap((worker) => store.get("record", worker.id)?.comments ?? []);
+  const commentLines = cardCommentLines(detail.comments, records, store.get("items")?.owner?.id);
   const recordFailed = workerRuns.some((worker) => store.status("record", worker.id) === "failed");
   const fold = model.home.finished.rows.find((line) => line.fold?.some((card) => card.id === id))?.fold;
   const askHere = Boolean(ask && !readOnly && !everyQuestion.length && !answering(`answer:${id}`));
@@ -1045,7 +1052,7 @@ export function CardScreen({ id }: { id: string }) {
               ) : null
             }
           />
-          <CardComments lines={commentLines} />
+          {filling ? <Loading /> : <CardComments lines={commentLines} />}
         </>
       )}
     </article>

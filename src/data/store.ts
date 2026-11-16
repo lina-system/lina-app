@@ -23,6 +23,16 @@ export function isRunId(id: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id) && /\d/.test(id);
 }
 
+/**
+ * The worker run of a card seen last, the one whose record holds the card's newest round; the later of two seen at the
+ * same time. A card's detail reads its record first and alone (lina-app#232).
+ */
+export function newestRun(workers: readonly { readonly id: string; readonly lastSeenAt: number }[]): string | null {
+  let newest: { readonly id: string; readonly lastSeenAt: number } | null = null;
+  for (const worker of workers) if (isRunId(worker.id) && (!newest || worker.lastSeenAt >= newest.lastSeenAt)) newest = worker;
+  return newest?.id ?? null;
+}
+
 /** The routes once each, in order, without a record whose id cannot name a run. */
 function distinct(routes: Want): Want {
   const seen = new Set<string>();
@@ -74,10 +84,19 @@ export interface StoreOptions {
   readonly stored?: StoredCopy | null;
 }
 
-/** The cards a kept copy holds: every unfinished card and the first FINISHED_SHOWN finished ones, with the page's total. */
+/**
+ * The cards a kept copy holds: every unfinished card and the newest FINISHED_SHOWN finished ones, as the core's first page
+ * holds them (lina#729), with the page's total. Not the first in the list's order: the hub lists its newest last
+ * (lina-app#231), and a page opened from the copy would show old cards first.
+ */
 function firstPage(view: Routes["cards"], total: number): Routes["cards"] {
-  let finished = 0;
-  const cards = view.cards.filter((card) => card.state !== "done" || ++finished <= FINISHED_SHOWN);
+  const newest = new Set(
+    view.cards
+      .filter((card) => card.state === "done")
+      .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0))
+      .slice(0, FINISHED_SHOWN),
+  );
+  const cards = view.cards.filter((card) => card.state !== "done" || newest.has(card));
   return { ...view, cards, finishedTotal: total };
 }
 

@@ -2667,10 +2667,10 @@ describe("work cards", () => {
     expect(screenText(view.container)).not.toMatch(/코드 작업|문서 작업|기기 작업/);
   });
 
-  test("a card's own title is drawn, stopped or finished, a finished one without its Latin words, and its stop says why it waits (lina-app#156, #222)", async () => {
+  test("a card's own title is drawn, stopped or finished, a finished one less its ref-only bracket, and its stop says why it waits (lina-app#156, #222, #231)", async () => {
     const source = new SyntheticSource({ endedRuns: true });
     const stoppedCard = source.scene.cards.cards.find((card) => card.id === "k-112") as WorkCardSummary;
-    const finished: WorkCardSummary = { ...stoppedCard, id: "k-113", title: "AAS 회차 점검 마무리", state: "done", reason: null, waitingOn: null, endedAt: Math.floor(Date.now() / 1000) - 3600 };
+    const finished: WorkCardSummary = { ...stoppedCard, id: "k-113", title: "회차 점검 마무리 (lina#12)", state: "done", reason: null, waitingOn: null, endedAt: Math.floor(Date.now() / 1000) - 3600 };
     const scene = { ...source.scene, cards: { cards: [...source.scene.cards.cards, finished] } };
     const view = await open("#/", { wide: true, source: new SyntheticSource({ scene }) });
     const screen = view.getByTestId("screen-running");
@@ -2679,9 +2679,9 @@ describe("work cards", () => {
     expect(row?.querySelector(".title")?.textContent).toBe("배포 순서 정하기");
     expect(screenText(view.container)).not.toContain("중단 카드");
     expect(row?.querySelector("[data-testid=state]")?.textContent).toBe("중단됨 · 결정 대기 · 이유 기록 없음");
-    // The finished card is listed by its own title too, its Latin word left out (lina-app#214, #222).
+    // The finished card is listed by its own title too, its ref-only bracket left out (lina-app#231).
     expect(screen.querySelector('a[href="#/cards/k-113"]')?.textContent).toContain("회차 점검 마무리");
-    expect(screen.querySelector('a[href="#/cards/k-113"]')?.textContent).not.toContain("AAS");
+    expect(screen.querySelector('a[href="#/cards/k-113"]')?.textContent).not.toContain("lina");
     expect(view.queryByTestId("home-untitled")).toBeNull();
     expect(view.getByTestId("nav-running").querySelector("[data-testid=nav-stopped]")?.textContent).toBe("7");
   });

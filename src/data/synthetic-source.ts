@@ -117,6 +117,73 @@ export function round20Scene(scene: Scene): Scene {
   };
 }
 
+/** Made-up finished titles drawn as written, or less a bracket of refs only, for round 22 (lina-app#231). */
+export const ROUND22_WHOLE: readonly (readonly [string, string])[] = [
+  ["가상 목록 다듬기", "가상 목록 다듬기"],
+  ["가상 회차 정리 (lina#12·#13)", "가상 회차 정리"],
+  ["가상 앱 반영 (가상 22회차 앞)", "가상 앱 반영 (가상 22회차 앞)"],
+  ["가상 보관함 정리 (a1b2c3d)", "가상 보관함 정리"],
+];
+
+/** Made-up finished titles whose only drawable form is a cut, each leaving a hole shape the hub showed (lina-app#231). */
+export const ROUND22_HOLES: readonly string[] = [
+  "가상 허브를 FakeBoard (추가)",
+  "가상 허브 앱을 v2.4 (포함)로 올리기",
+  "fakeproxy 용 호출자 키 발급·배포",
+  "가상 서버 끊김에도 fakegate·보조 살아 있게",
+  "가상 서버 fakeuser@1000 재시작 정리",
+  "가상 검사 대기 결함 고치기 (PR 667)",
+  "가상 앱 반영: 묶음을 a1b2c3d4e5로 (가상 22회차 앞)",
+];
+
+/**
+ * The hub's shapes UI QA round 22 met (`&hub=round22`, lina-app#231), field by field as its cards list serves them, in
+ * made-up words: finished cards with no checked lines, read-only, the old ones with no history kept (`detail: false`,
+ * no beat) and the newest with no `detail` field and a last beat, some under a goal title. Listed in the hub's order: a
+ * few old ones first, then oldest to newest, then one old one last, so the list's first finished cards are not its
+ * newest. Their titles: some drawn as written or less a bracket of refs (ROUND22_WHOLE, each under round 20's made-up
+ * names too), one whose goal title holds a Latin word over a whole own title, and the hole shapes (ROUND22_HOLES).
+ * And the first agent's goal G6 in the record's shape: waiting for 16 days with 14 of 16 to-dos closed, its two open
+ * to-dos waiting (its agent's own on a hold, another agent's on feedback), two finished cards under its title, and a
+ * done condition that opens on an issue reference and holds a Latin word and a `#3` (ROUND22_CONDITION).
+ */
+export function round22Scene(scene: Scene): Scene {
+  const template = scene.cards.cards.find((card) => card.state === "done");
+  const agents = scene.items.agents.map((agent) => agent.id);
+  if (!template || agents.length < 3) return scene;
+  const now = scene.now;
+  const finished = (index: number, title: string, hoursAgo: number, fields: Partial<SceneCard> = {}): SceneCard => {
+    const recent = hoursAgo < 24;
+    const card = { ...template, id: `k-${600 + index}`, title, goalTitle: null, agent: agents[index % 3], state: "done", reason: null, waitingOn: null, retry: null, ask: null, elapsedSeconds: 600 + index * 60, todoProgress: { done: 0, total: 0 }, now: null, endedAt: now - Math.round(hoursAgo * 3600), lastHeartbeatAt: recent ? now - Math.round(hoursAgo * 3600) : null, plain: { title: null, now: null, result: null }, readOnly: true, detail: false, ...fields } as SceneCard & { detail?: boolean };
+    if (recent) delete card.detail;
+    return card;
+  };
+  const titles = [...ROUND22_WHOLE.map(([title]) => title), ...Array.from({ length: 12 }, (_, index) => round20Title(index)), ...ROUND22_HOLES];
+  // Oldest to newest: 9 days ago to 8 minutes ago.
+  const ages = titles.map((_, index) => 9 * 24 - (index * (9 * 24 - 0.14)) / (titles.length - 1));
+  const listed = titles.map((title, index) => finished(index, title, ages[index]));
+  const goalLatin = finished(titles.length, "가상 묶음 정리 마치기", 5 * 24, { goalTitle: "가상 FakeHub 옮기기" });
+  // The hub lists a few old cards first and one last.
+  const old = [6 * 24, 4 * 24 + 5, 7 * 24].map((hours, index) => finished(titles.length + 1 + index, round20Title(12 + index), hours));
+  const goalCards = [finished(titles.length + 4, "가상 말투 예시 모으기", 3 * 24, { goalTitle: ROUND22_GOAL }), finished(titles.length + 5, "가상 말투 예시 고르기", 2 * 24, { goalTitle: ROUND22_GOAL })];
+  const cards = [...old.slice(0, 2), goalLatin, ...goalCards, ...listed, old[2]];
+  const base = scene.itemDetails.G1;
+  const since = now - 16 * 86_400;
+  const goal = { ...scene.items.items.find((item) => item.id === "G1"), id: "G6", parent: "A1", title: ROUND22_GOAL, agent: agents[0], addedBy: agents[0], mine: false, state: "waiting" as const, reason: null, stateSince: since, lastActivityAt: now - 7 * 86_400, createdAt: now - 20 * 86_400, closedAt: null, due: null, doneCondition: ROUND22_CONDITION, area: "가상 영역", projects: [], todos: { done: 14, total: 16 }, runCount: 6, commentCount: 0 } as Scene["items"]["items"][number];
+  const todo = (id: string, agent: string, title: string, reason: string) => ({ ...goal, id, kind: "todo" as const, parent: "G6", title, agent, addedBy: agent, reason, doneCondition: null, area: null, todos: null, runCount: 1 });
+  const todos = [todo("T13", agents[0], "가상 말투 기준 정하기", "hold"), todo("T14", agents[1], "가상 말투 예시 검토", "feedback")];
+  return {
+    ...scene,
+    cards: { ...scene.cards, cards: [...scene.cards.cards.filter((card) => card.state !== "done"), ...cards] },
+    items: { ...scene.items, items: [...scene.items.items, goal, ...todos] },
+    itemDetails: { ...scene.itemDetails, G6: { ...base, ...goal, why: null, basis: [], children: todos, comments: [], runs: [], links: [], workCards: [], decision: null, ownerDone: null } },
+  };
+}
+
+/** Round 22's goal (lina-app#231): its title, and its done condition with an issue reference, a Latin word and a `#3`. */
+export const ROUND22_GOAL = "가상 말투 키우기";
+export const ROUND22_CONDITION = "lina#77 가상 말투 기준이 맞고 남은 메모가 memory 칸 #3에 들어감";
+
 function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
   switch (name) {
     case "board":
@@ -170,6 +237,12 @@ const NOT_THE_READ: WriteResult<never> = { ok: false, status: 412, detail: null 
 
 /** The owner's done mark can be taken back for ten minutes (lina#149). */
 export const UNDO_SECONDS = 600;
+
+/**
+ * `&records=slow` (lina-app#232): each of k-101's worker runs serves the card's one record (r1's), as the hub's long card
+ * does, and each read of it takes this long, as 300 kB of it does on a phone's link.
+ */
+export const SLOW_RECORD_MS = 1500;
 
 type DueGroup = keyof BoardSnapshot["due"];
 
@@ -439,6 +512,8 @@ export class SyntheticSource implements Source {
   }
   private readonly connections = new Set<Connection>();
   private readonly script: StreamScript;
+  /** `&records=slow`: k-101 read as the hub's long card (lina-app#232); see SLOW_RECORD_MS. */
+  private readonly slowRecords: boolean;
   /** `&error=checks`: the hub's checks route does not answer, while every other route still does. */
   private readonly checksError: boolean;
   private streamDown: boolean;
@@ -470,7 +545,8 @@ export class SyntheticSource implements Source {
   private readonly signing = new Set<string>();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean } = {}) {
+    this.slowRecords = options.slowRecords ?? false;
     this.staleNext = options.settings === "stale";
     this.raceNext = options.settings === "race";
     this.talkRefusal = options.talk ?? null;
@@ -494,7 +570,7 @@ export class SyntheticSource implements Source {
         settings: options.settings === "stale" || options.settings === "race" ? null : options.settings,
         power: options.power,
       });
-    this.scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : generated;
+    this.scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : generated;
   }
 
   async read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {
@@ -504,7 +580,9 @@ export class SyntheticSource implements Source {
     if (this.checksError && name === "checks") return { kind: "failed", offline: false, at };
     this.deliverReplies(at);
     if (name === "devices") this.applySignIns();
-    const body = bodyOf(this.scene, name, id);
+    const longCard = name === "record" && this.slowRecords && this.scene.cardDetails["k-101"]?.workerRuns.some((worker) => worker.id === id);
+    if (longCard) await new Promise((resolve) => setTimeout(resolve, SLOW_RECORD_MS));
+    const body = longCard ? { ...this.scene.records.r1, id: id as string } : bodyOf(this.scene, name, id);
     if (body === undefined) return { kind: "missing", at };
     const key = `${name}:${id ?? ""}`;
     const version = versions.get(this.scene) ?? 0;

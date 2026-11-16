@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { USAGE_RANGES, type Machine, type PersonDevice, type PowerStation, type PowerView, type QuotaAccount, type QuotaService, type RunnerCell, type UsageRange } from "../api/client";
 import type { CardRow, DueRow, GoalRow, InboxRow, Section } from "../model";
-import { agentView, cardCount, doneFor, foldTitle, itemLineOf, itemWords, localDay } from "../model";
+import { agentView, cardCount, doneFor, foldTitle, itemLineOf, itemWords, localDay, wholeTitle } from "../model";
 import type { OpenCheck } from "../model/checks";
 import { stopReason } from "../model/stop-reason";
 import type { UsageLine } from "../model/usage";
@@ -11,7 +11,7 @@ import { FINISHED_SHOWN } from "../data/store";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { useActions } from "../ui/actions";
 import { QuickAddButton, QuickAddForm } from "../ui/quick-add";
-import { AgentMark, agentName, CardRowView, CountPair, Dial, Disclosure, DoneCheck, Empty, ErrorLine, Link, ListSection, SectionHead, useApp } from "../ui/parts";
+import { AgentMark, agentName, CardRowView, CountPair, Dial, Disclosure, DoneCheck, Empty, ErrorLine, itemTime, Link, ListSection, SectionHead, useApp } from "../ui/parts";
 import { glossaryToolName, machineWhy, metricsReason, ROUND11_WORD, serviceName, SEP, STATUS_WORD, toolCommand, versionOf, W } from "../words";
 import { writeError } from "./write-error";
 
@@ -387,9 +387,12 @@ function LatestLine({ agentId, testid }: { agentId: string; testid: string }) {
   );
 }
 
-/** A finished line that stands for cards whose lines read the same says how many (lina-app#168). */
+/**
+ * A finished line that stands for cards whose lines read the same says how many (lina-app#168); the line of the cards
+ * nothing names says it in its name already (lina-app#231).
+ */
 function repeatedLine(card: CardRow): CardRow {
-  return card.repeat ? { ...card, name: `${card.name} ${W.repeated(card.repeat)}` } : card;
+  return card.repeat && card.title !== null ? { ...card, name: `${card.name} ${W.repeated(card.repeat)}` } : card;
 }
 
 /**
@@ -438,13 +441,17 @@ export function goalProgress(goal: Pick<GoalRow, "todosDone" | "todosTotal">): s
 
 /** `count` writes the progress beside the dial as text too, at every width (the 대화 card's goals, lina-app#175). */
 export function GoalLine({ goal, showAgent, count = false }: { goal: GoalRow; showAgent: boolean; count?: boolean }) {
-  const { model, selected } = useApp();
+  const { model, selected, now } = useApp();
   const actions = useActions();
   const closed = goal.allDone;
   const shown = actions.isDone(goal.id, goal.state === "done");
-  // The goal's title and done condition fold as a row's title does (lina-app#156): refs, hashes and ids never show.
+  // The goal's title folds as a row's title does (lina-app#156): refs, hashes and ids never show. Its done condition is
+  // the sentence its page draws, by the one rule (wholeTitle, lina-app#231): as written less a bracket of refs, or none.
   const title = foldTitle(goal.title) ?? W.untitled;
-  const condition = foldTitle(goal.doneCondition);
+  const condition = wholeTitle(goal.doneCondition);
+  // The state line its page's head reads, from the same fold (itemLineOf, lina-app#231): a dial is no state.
+  const line = closed ? null : itemLineOf(model, goal.id);
+  const time = line ? itemTime(line, now) : "";
   // A goal with no to-dos has no progress to show: no 0/0, no empty dial (lina-app#160).
   const progress = goalProgress(goal);
   return (
@@ -459,6 +466,14 @@ export function GoalLine({ goal, showAgent, count = false }: { goal: GoalRow; sh
         {showAgent ? <AgentMark id={goal.agent} /> : null}
         <span class="lines">
           <span class="title wrap-line">{title}</span>
+          {line ? (
+            <span class="sub" data-testid="goal-state">
+              <span class="state" data-state={line.state}>
+                {itemWords(line)}
+              </span>
+              {time ? <span class="time">{`${SEP}${time}`}</span> : null}
+            </span>
+          ) : null}
           {condition ? <span class="sub wrap-line">{condition}</span> : null}
         </span>
         {(count && progress) || goal.runningCount ? (

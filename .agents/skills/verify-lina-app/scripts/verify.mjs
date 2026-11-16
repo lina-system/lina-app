@@ -319,7 +319,7 @@ async function rowNames(list) {
 // A group's rows, one each (a `×n` line too), and the rows its fold `외 n개` holds back (lina-app#221).
 // The cards some rows stand for, a `×n` row counting n (lina-app#225).
 async function cardsOf(rows) {
-  return (await rows.allInnerTexts()).reduce((sum, text) => sum + Number(/×(\d+)/.exec(text)?.[1] ?? 1), 0);
+  return (await rows.allInnerTexts()).reduce((sum, text) => sum + Number(/(?:×|제목 없는 )(\d+)/.exec(text)?.[1] ?? 1), 0);
 }
 
 // The cards a 완료 group's rows and its fold `외 n개` stand for (lina-app#225).
@@ -416,17 +416,16 @@ async function decisionNames(list) {
 const ACCENT = "rgb(0, 122, 255)";
 
 // Text under 4.5:1 that only a palette change clears (lina-app#213): white on the accent fill (a selected row, the
-// current sidebar row), the accent as a text button's colour in light, and the state red and orange as words. The
-// contrast sweep lets these exact pairs through and fails on any other.
+// current sidebar row in light), the accent as a text button's colour in light, and the state red and orange as words.
+// The contrast sweep lets these exact pairs through and fails on any other. In dark the current sidebar row and the
+// sidebar's red counts reach 4.5:1 (lina-app#232), so their pairs are not open.
 const OPEN_CONTRAST = new Set([
   "#ffffff on #007aff",
-  "#ffffff on #0a84ff",
   "#007aff on #ffffff",
   "#007aff on #f2f2f7",
   "#ff3b30 on #ffffff",
   "#ff3b30 on #f2f2f7",
   "#ff3b30 on #efeff4",
-  "#ff453a on #29292b",
   "#ff9500 on #ffffff",
 ]);
 
@@ -516,8 +515,9 @@ export async function rowLines(page) {
       if (cut.length) return [lines.textContent.trim().slice(0, 40) + " (cut)"];
       const tall = children.filter((child) => child.getBoundingClientRect().height > lineHeight(child) * allowed(child) + 1);
       const asks = children.filter((child) => child.getAttribute("data-testid") === "stop-ask").length;
-      // A row whose own card's name differs from its title adds it as its second line (lina-app#148, #152).
-      const subs = children.filter((child) => child.getAttribute("data-testid") === "row-sub").length;
+      // A row whose own card's name differs from its title adds it as its second line (lina-app#148, #152); a goal's done
+      // condition is that line of a goal row, under its state line (lina-app#231).
+      const subs = children.filter((child) => child.getAttribute("data-testid") === "row-sub" || (child.matches(".sub.wrap-line") && Boolean(child.closest(".goal-row")))).length;
       return children.length > 2 + Math.min(asks, 1) + Math.min(subs, 1) || tall.length ? [lines.textContent.trim().slice(0, 40) + " (" + children.length + " lines)"] : [];
     }),
   );
@@ -526,26 +526,35 @@ export async function rowLines(page) {
 // The core's client API answering with the synthetic scene and the first agent's long conversation (tests/long-talk.ts),
 // for a page that loads /app/ without ?source=synthetic. The routes are read in Node through Vite, from the same modules
 // the specs import, so the drive and tests/layout-qa15.spec.ts serve one shape (lina-app#206).
-async function serveLongTalk(page) {
+// `sourceOptions` picks the scene (`{ hubRound22: true }`, lina-app#231); the first page of the finished cards
+// (`finished_limit`, lina#729) and every card's and item's detail are served too, so a page keeps its copy and opens details.
+async function serveScene(page, sourceOptions = {}) {
   const { createServer } = await import("vite");
   const server = await createServer({ root: repo, configFile: false, logLevel: "error", appType: "custom", server: { middlewareMode: true, hmr: false, ws: false }, optimizeDeps: { noDiscovery: true } });
   const bodies = new Map();
   let talk;
   let api;
+  let scene;
   try {
     api = await server.ssrLoadModule("/src/api/client.ts");
     const { SyntheticSource } = await server.ssrLoadModule("/src/data/synthetic-source.ts");
     const { longTalk, LONG_TALK_TURNS } = await server.ssrLoadModule("/tests/long-talk.ts");
-    const source = new SyntheticSource();
+    const source = new SyntheticSource(sourceOptions);
     for (const name of ["board", "items", "goals", "cards", "inbox", "devices", "quota", "modelsState", "checks", "settingsModels"]) {
       const result = await source.read(name);
       if (result.kind === "data") bodies.set(api.routePath(name), result.data);
+    }
+    const details = [["cards", "5"], ...source.scene.cards.cards.map((card) => ["card", card.id]), ...Object.keys(source.scene.itemDetails).map((id) => ["item", id])];
+    for (const [name, id] of details) {
+      const result = await source.read(name, id);
+      if (result.kind === "data") bodies.set(api.routePath(name, id), result.data);
     }
     for (const range of api.USAGE_RANGES) {
       const result = await source.read("usage", range);
       if (result.kind === "data") bodies.set(api.routePath("usage", range), result.data);
     }
     talk = { history: longTalk("ag-1", Math.floor(Date.now() / 1000)), turns: LONG_TALK_TURNS };
+    scene = source.scene;
   } finally {
     await server.close();
   }
@@ -557,8 +566,17 @@ async function serveLongTalk(page) {
     const body = bodies.get(url.pathname + url.search) ?? bodies.get(url.pathname);
     return body === undefined ? route.fulfill({ status: 404, json: { detail: "not found" } }) : route.fulfill({ json: body });
   });
-  await page.routeWebSocket((url) => url.pathname === api.EVENTS_PATH, (socket) => socket.send(JSON.stringify({ cursor: "c1", events: [] })));
-  return talk.turns;
+  // `tail(cursor)` sends the stream's next message with no events, as the hub does between changes: the page writes its
+  // kept copy at that cursor.
+  let stream = null;
+  await page.routeWebSocket(
+    (url) => url.pathname === api.EVENTS_PATH,
+    (socket) => {
+      stream = socket;
+      socket.send(JSON.stringify({ cursor: "c1", events: [] }));
+    },
+  );
+  return { turns: talk.turns, scene, tail: (cursor) => stream?.send(JSON.stringify({ cursor, events: [] })) };
 }
 
 // A context like the drive's, with touch, to send the touches a finger would.
@@ -1139,7 +1157,8 @@ const drivers = {
       await openMenu(page);
       const nav = await sidebarCount(page, "nav-done");
       check(cards === finished && cards === rows + 2 && all.endsWith(" " + cards) && (nav === null || Number(nav) === cards), "완료 says " + nav + " and " + all + ", lists " + rows + " lines standing for " + cards + " cards; the work tab " + finished);
-      check((await page.getByTestId("screen-done").getByText(/×3$/).count()) === 1, "no ×3 line in 완료");
+      // k-131's three cards hold a hash outside a bracket, so they are the grey line that says its three (lina-app#231).
+      check((await page.getByTestId("screen-done").getByText(/(?:×3|제목 없는 3건)$/).count()) === 1, "no ×3 line in 완료");
       return "완료 " + (nav ?? "(phone)") + ", " + rows + " lines, " + cards + " cards, work tab " + finished;
     });
   },
@@ -1494,6 +1513,26 @@ const drivers = {
       check(comments.length === 4 && comments.every((line) => /^(어제 )?\d\d:\d\d · \S[^\n]*$/.test(line.trim())), "expected 4 one-line comments, got " + JSON.stringify(comments));
       return state + "; " + heads.join(", ") + "; " + order.join(", ");
     });
+    // lina-app#232: the hub's long card showed only 불러오는 중 for about 20 s on a phone's first open, while 110 reads of
+    // its one record came. With every record read taking 1.5 s, the head and the newest history stand within 2 s, the
+    // rest fills below one 불러오는 중 line, and the first history row neither moves nor changes when it lands.
+    await step("a card whose records come slowly draws its head and newest history first, then fills below in place", async () => {
+      await openApp(page, "#/running", "&records=slow");
+      const opened = Date.now();
+      await page.getByRole("list", { name: "진행 중인 작업" }).getByRole("link", { name: /릴리스 노트 정리/ }).click();
+      const detail = page.getByTestId("screen-card");
+      const first = detail.getByTestId("timeline").locator("li").first();
+      await first.waitFor({ timeout: 2_000 }).catch(() => check(false, "no history row within 2 s of opening the card"));
+      const drawn = Date.now() - opened;
+      const read = async () => ({ box: await first.boundingBox(), text: (await first.innerText()).trim(), loading: await detail.getByTestId("detail-loading").count(), comments: await detail.getByTestId("card-comments").count(), head: (await detail.locator(".detail-title").innerText()).trim() });
+      await page.waitForTimeout(400);
+      const before = await read();
+      check(before.loading === 1 && before.comments === 0, "while the other records are read: " + JSON.stringify(before));
+      await detail.getByTestId("card-comments").waitFor({ timeout: 10_000 }).catch(() => check(false, "the comments never came"));
+      const after = await read();
+      check(after.loading === 0 && after.text === before.text && after.head === before.head && Math.abs(after.box.y - before.box.y) < 0.5 && Math.abs(after.box.x - before.box.x) < 0.5, "the first row moved or changed: " + JSON.stringify({ before, after }));
+      return "first row in " + drawn + " ms at y " + Math.round(before.box.y * 10) / 10 + ", still " + Math.round(after.box.y * 10) / 10 + " once the comments came";
+    });
     await step("a work card with no checked title: its head reads its row's name, its own title under it, and its kind", async () => {
       await openApp(page, "#/cards/k-102");
       const detail = page.getByTestId("screen-card");
@@ -1509,6 +1548,17 @@ const drivers = {
       check(kind === "문서", "the kind reads " + kind);
       check((await detail.getByTestId("card-now").count()) === 0, "the card shows a now line");
       return head + " / " + own + "; " + kind + "; no now line";
+    });
+    await step("a worker record's comment rows have no author: they read through the one gate, never as saved (lina-app#230)", async () => {
+      // k-102's record (r2) holds an agent's English verdict note and a note the core cut inside a word at 300 characters.
+      const rows = page.getByTestId("card-comments").getByTestId("history-row");
+      await rows.first().waitFor();
+      const lines = (await rows.allInnerTexts()).map((line) => line.trim());
+      // The same verdict note on three runs is one line with its count (lina-app#230).
+      check(lines.length === 3 && / · 검토를 마쳤고 병합해도 된다\. ×3$/.test(lines[0]) && / · 위키 문서의 결제 화면 절을 새 문체로 바꿨다\.$/.test(lines[1]) && / · 접힌 댓글$/.test(lines[2]), "k-102's comments read " + JSON.stringify(lines));
+      const text = await page.getByTestId("card-comments").innerText();
+      check(!/[A-Za-z]|줄였다\. 표/.test(text), "raw record text in the card's comments: " + text.replace(/\s+/g, " "));
+      return lines.join(" | ");
     });
     await step("a run outside any card opens on its own, with its timeline", async () => {
       // r6 is no row (lina-app#141): its page opens from its address, as from its notice.
@@ -1552,6 +1602,16 @@ const drivers = {
       check(lines.length === 1 && /^(어제 )?\d\d:\d\d · 결과 누락$/.test(lines[0]), "k-104's run lines read " + JSON.stringify(lines));
       check(!(await page.locator("article.detail").innerText()).includes("코드 작업"), "k-104 reads 코드 작업");
       return title + " · " + state + "; k-104 " + lines.join(", ");
+    });
+    await step("a numbered list in a comment is one line, whole with every item and every sentence, or none of it (lina-app#230)", async () => {
+      const rows = page.getByTestId("card-comments").getByTestId("history-row");
+      await rows.first().waitFor();
+      const lines = (await rows.allInnerTexts()).map((line) => line.trim().replace(/^(?:어제 )?\d\d:\d\d · /, ""));
+      const whole = ["검토 메모: ① 금액 줄을 오른쪽으로 붙였다. 굵기는 그대로 두었다. ② 환불 줄을 금액 줄 아래로 옮겼다.", "남은 검토 두 가지: (1) 영수증 화면의 금액 줄을 다시 본다. (2) 환불 문구 확인.", "실패 화면 검토 결과: (1) 첫 화면 문구를 새 문체로 맞췄다. (2) 다시 시도 버튼을 아래로 옮겼다. (3) 카드사 이름을 굵게 바꿨다."];
+      // A long amount with its unit is drawn as a number; a digits-only hash folds (lina-app#230).
+      // One time of day with its particle glued after it is a fact; two, or one after a separator, fold.
+      check(JSON.stringify(lines) === JSON.stringify(["접힌 댓글", "영수증 화면은 12:50에 다시 올렸다.", "환불 한도는 12345678원으로 정했다.", "접힌 댓글", ...whole, "접힌 댓글"]), "k-104's comments read " + JSON.stringify(lines));
+      return lines.join(" | ");
     });
     await step("a finished run with no record lists its past events, time · one sentence", async () => {
       await openApp(page, "#/runs/r7");
@@ -2494,6 +2554,23 @@ const drivers = {
       await page.getByTestId("notices").waitFor({ state: "hidden", timeout: 2_000 }).catch(() => check(false, "Escape did not close the notices"));
       return name + ", 7 lines, 2 dimmed";
     });
+    // lina-app#232: the badge covered the middle of the bell at 1280 (about 17x11 px of its 18x18). It sits off the icon's
+    // top right corner at every width: what it covers of the icon lies right of and above the icon's centre, on screen.
+    await step("the badge sits off the bell's top right corner, clear of the icon's centre", async () => {
+      const look = await bell().evaluate((button) => {
+        const box = (element) => {
+          const rect = element.getBoundingClientRect();
+          return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+        };
+        return { icon: box(button.querySelector("svg")), badge: box(button.querySelector("[data-testid=bell-count]")), width: window.innerWidth };
+      });
+      const { icon, badge } = look;
+      const centre = { x: (icon.left + icon.right) / 2, y: (icon.top + icon.bottom) / 2 };
+      const covered = [Math.max(0, Math.min(icon.right, badge.right) - Math.max(icon.left, badge.left)), Math.max(0, Math.min(icon.bottom, badge.bottom) - Math.max(icon.top, badge.top))].map((side) => Math.round(side * 10) / 10);
+      check(badge.left > centre.x && badge.bottom < centre.y, "the badge " + JSON.stringify(badge) + " reaches the icon's centre " + JSON.stringify(centre) + ", covering " + covered.join("x") + " px");
+      check(badge.right <= look.width && badge.top >= 0, "the badge leaves the window: " + JSON.stringify(badge));
+      return "icon " + Math.round(icon.right - icon.left) + "x" + Math.round(icon.bottom - icon.top) + ", badge covers " + covered.join("x") + " px of its top right corner";
+    });
     await step("choosing a notice opens its item and marks it read on the core", async () => {
       await bell().click();
       const first = dialog().locator("li:not(.is-read) a").first();
@@ -3166,16 +3243,16 @@ const drivers = {
       await group.locator(".more-row").getByRole("button").click();
       await group.getByRole("button", { name: "완료 닫기", exact: true }).waitFor();
       const after = await finishedNow(group);
-      const folds = (await group.locator("li[data-testid=row]").allInnerTexts()).map((text) => /×(\d+)/.exec(text)?.[1]).filter(Boolean);
+      const folds = (await group.locator("li[data-testid=row]").allInnerTexts()).map((text) => /(?:×|제목 없는 )(\d+)/.exec(text)?.[1]).filter(Boolean);
       const grey = await group.locator("li[data-testid=row] .title.is-kind").allInnerTexts();
       const untitled = await page.getByTestId("screen-running").getByText("제목 없음").count();
       check(after.head === 524 && after.rows === 514 && after.all === 524 && (after.nav === null || Number(after.nav) === 524), "opened: " + JSON.stringify(after));
-      check(JSON.stringify(folds) === JSON.stringify(["4", "5", "2", "2", "2"]) && JSON.stringify(grey) === JSON.stringify(["작업 ×2"]) && untitled === 0, "folds " + JSON.stringify(folds) + ", grey " + JSON.stringify(grey) + ", 제목 없음 " + untitled);
+      check(JSON.stringify(folds) === JSON.stringify(["4", "5", "2", "2", "2"]) && JSON.stringify(grey) === JSON.stringify(["제목 없는 2건"]) && untitled === 0, "folds " + JSON.stringify(folds) + ", grey " + JSON.stringify(grey) + ", 제목 없음 " + untitled);
       return "before " + before.head + " = " + before.rows + " rows + 외 " + (before.all - before.rows) + "개 (sidebar " + (before.nav ?? "phone") + "); opened " + after.rows + " rows for " + after.all + " cards, head " + after.head + ", sidebar " + (after.nav ?? "phone") + ", folds ×" + folds.join(" ×");
     });
     // lina-app#225 (QA round 20, the real hub): the hub's 525 finished cards read 525 collapsed and 475 opened, a planned card
     // with a Latin goal title was in no list, and a waiting to-do past its due date read only its date.
-    await step("on the hub's shape (&hub=round20), 완료 counts cards in every state: 46 cards read 5 rows and 외 41개, then rows whose ×n add up to 46 with one grey 작업 ×4, the head and the sidebar 46 (lina-app#225)", async () => {
+    await step("on the hub's shape (&hub=round20), 완료 counts cards in every state: 46 cards read 5 rows and 외 41개, then rows whose ×n add up to 46 with one grey 제목 없는 10건 (the six titled alike but for a hash outside a bracket are never cut, lina-app#231), the head and the sidebar 46 (lina-app#225)", async () => {
       await openApp(page, "#/", "&hub=round20");
       const group = page.getByTestId("section-finished");
       const before = await finishedNow(group);
@@ -3186,8 +3263,60 @@ const drivers = {
       const grey = await group.locator("li[data-testid=row] .title.is-kind").allInnerTexts();
       const untitled = await page.getByTestId("screen-running").getByText("제목 없음").count();
       check(after.head === 46 && after.all === 46 && after.rows < 46 && (after.nav === null || Number(after.nav) === 46), "opened: " + JSON.stringify(after));
-      check(JSON.stringify(grey) === JSON.stringify(["작업 ×4"]) && untitled === 0, "grey " + JSON.stringify(grey) + ", 제목 없음 " + untitled);
+      check(JSON.stringify(grey) === JSON.stringify(["제목 없는 10건"]) && untitled === 0, "grey " + JSON.stringify(grey) + ", 제목 없음 " + untitled);
       return "before " + before.head + " = " + before.rows + " rows + 외 " + (before.all - before.rows) + "개 (sidebar " + (before.nav ?? "phone") + "); opened " + after.rows + " rows for " + after.all + " cards, head " + after.head + ", grey " + grey.join("");
+    });
+    // lina-app#231 (QA round 22, the real hub): finished titles read with a hole where a Latin word or a ref was cut.
+    await step("on the hub's shape (&hub=round22), every finished line is a title as written (less a bracket of refs) or the grey line, which stands for the 7 titles with a hole shape; no hole is drawn (lina-app#231)", async () => {
+      await openApp(page, "#/", "&hub=round22");
+      const group = page.getByTestId("section-finished");
+      await group.locator(".more-row").getByRole("button").click();
+      await group.getByRole("button", { name: "완료 닫기", exact: true }).waitFor();
+      const after = await finishedNow(group);
+      const titles = await page.evaluate(() => window.__linaScene.cards.cards.filter((card) => card.state === "done").flatMap((card) => [card.title, card.goalTitle].filter(Boolean)));
+      const cards = await page.evaluate(() => window.__linaScene.cards.cards.filter((card) => card.state === "done").length);
+      const drawn = await group.locator("li[data-testid=row] .title:not(.is-kind)").allInnerTexts();
+      const grey = await group.locator("li[data-testid=row] .title.is-kind").allInnerTexts();
+      const cut = drawn.filter((title) => !titles.some((each) => each === title || each.startsWith(title + " (")));
+      const holes = drawn.filter((title) => /\(\s*\)|\(\d+\)|@|^[·,]|^(용|을|를)\s/.test(title));
+      check(after.head === cards && after.all === cards, "opened: " + JSON.stringify(after) + " of " + cards + " cards");
+      check(cut.length === 0 && holes.length === 0 && JSON.stringify(grey) === JSON.stringify(["제목 없는 7건"]), "cut " + JSON.stringify(cut) + ", holes " + JSON.stringify(holes) + ", grey " + JSON.stringify(grey));
+      return after.rows + " lines for " + after.all + " cards: " + drawn.length + " titles as written, grey " + grey.join("");
+    });
+    await step("on the hub's shape served as the core (round 22, its newest finished cards listed last), 완료's first line opens the newest card on the first read, with the fold opened and closed, after a reload drawn from the kept copy and back from a detail (lina-app#231)", async () => {
+      // Its own context with the service worker blocked: the app's worker passes reads past page.route.
+      const context = await touchContext(page, { serviceWorkers: "block" });
+      try {
+        const own = await context.newPage();
+        const { scene, tail } = await serveScene(own, { hubRound22: true });
+        const newest = scene.cards.cards.filter((card) => card.state === "done").sort((a, b) => b.endedAt - a.endedAt)[0];
+        const group = own.getByTestId("section-finished");
+        const first = async () => (await group.locator("li[data-testid=row] a").first().getAttribute("href")) ?? "";
+        await own.goto("/app/#/");
+        await group.locator("li[data-testid=row]").first().waitFor({ timeout: 10_000 });
+        const seen = { read: await first() };
+        await group.locator(".more-row").getByRole("button").click();
+        await group.getByRole("button", { name: "완료 닫기", exact: true }).click();
+        await group.locator(".more-row:not([data-testid=fold-hide])").waitFor();
+        seen.closed = await first();
+        // The stream's next message: the copy is written from the cards last read, every finished one, and a reload draws
+        // its first page before any read.
+        tail("c2");
+        await own.waitForFunction(() => Object.keys(localStorage).some((key) => (localStorage.getItem(key) ?? "").includes('"cursor":"c2"')));
+        await own.reload();
+        await group.locator("li[data-testid=row]").first().waitFor({ timeout: 10_000 });
+        seen.reload = await first();
+        await group.locator("li[data-testid=row] a").first().click();
+        await own.getByTestId("detail-frame").waitFor();
+        await own.evaluate(() => history.back());
+        await own.getByTestId("detail-frame").waitFor({ state: "detached" });
+        seen.back = await first();
+        const want = "#/cards/" + newest.id;
+        check(Object.values(seen).every((at) => at === want), "the first line opens " + JSON.stringify(seen) + ", the newest is " + want);
+        return "first line " + want + " on the first read, closed, reloaded from the copy and back";
+      } finally {
+        await context.close();
+      }
     });
     await step("on the hub's shape (&hub=round20), every planned card is a row of 예정, its head their number, the one with a Latin goal title named by it (lina-app#225)", async () => {
       await openApp(page, "#/", "&hub=round20");
@@ -3804,7 +3933,7 @@ const drivers = {
         const context = await touchContext(page, { serviceWorkers: "block" });
         try {
           const own = await context.newPage();
-          const turns = await serveLongTalk(own);
+          const { turns } = await serveScene(own);
           await own.goto("/app/#/talk/ag-1");
           await own.getByTestId("talk-reply").nth(turns - 1).waitFor({ timeout: 10_000 });
           const main = own.locator(".phone-main");
@@ -3891,6 +4020,39 @@ const drivers = {
       }
       await page.emulateMedia({ colorScheme: "light" });
       return seen.join(", ") + " texts, none under but the open pairs";
+    });
+    // lina-app#231 (QA round 22, the real hub): a goal's row showed a dial at 14/16 while its page's head read 대기, and
+    // its done condition with a hole while its page showed it with an issue number.
+    await step("on the hub's shape (&hub=round22), a goal's row on the card reads its page head's state line (G6: 14/16, 대기 · 16일 전; G1 진행 중) and the done condition its page draws, by one rule, with no issue reference (lina-app#231)", async () => {
+      const goalRow = async (id) => {
+        await openApp(page, "#/talk/ag-1", "&hub=round22");
+        const card = page.getByTestId("agent-card");
+        const toggle = card.locator(".agent-card-toggle");
+        if ((await toggle.count()) && (await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+        const row = card.locator("[data-testid=row]").filter({ has: page.locator(`a[href$="goal=${id}"]`) });
+        await row.waitFor({ timeout: 5_000 });
+        return row.evaluate((element) => ({
+          state: element.querySelector("[data-testid=goal-state]")?.textContent ?? null,
+          condition: element.querySelector(".sub.wrap-line")?.textContent ?? null,
+          progress: element.querySelector("[data-testid=goal-progress]")?.textContent ?? null,
+        }));
+      };
+      const seen = {};
+      for (const id of ["G6", "G1"]) {
+        const row = await goalRow(id);
+        await openApp(page, "#/talk/ag-1?goal=" + id, "&hub=round22");
+        const detail = page.getByTestId("screen-goal");
+        await detail.waitFor({ timeout: 5_000 });
+        const page_ = await detail.evaluate((element) => ({
+          head: element.querySelector(".detail-head [data-testid=state]")?.closest(".sub")?.textContent ?? null,
+          condition: [...element.querySelectorAll(".box")].find((box) => box.querySelector(".box-head")?.textContent === "완료 조건")?.querySelector(".box-text")?.textContent ?? null,
+          refs: /#\d/.test(element.textContent ?? ""),
+        }));
+        seen[id] = { row, page: page_ };
+        check(row.state === page_.head && row.condition === page_.condition && !page_.refs, id + ": " + JSON.stringify(seen[id]));
+      }
+      check(seen.G6.row.progress === "14/16" && seen.G6.page.head === "대기 · 16일 전" && /^진행 중 · /.test(seen.G1.page.head ?? ""), "G6 " + JSON.stringify(seen.G6) + ", G1 " + JSON.stringify(seen.G1));
+      return Object.entries(seen).map(([id, look]) => id + " row " + look.row.state + " " + (look.row.progress ?? "") + " = head " + look.page.head + ", condition " + JSON.stringify(look.row.condition)).join("; ");
     });
   },
 

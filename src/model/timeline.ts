@@ -1,6 +1,6 @@
 import type { ItemDetail, RecordRound, RecordRow, RunRecord } from "../api/client";
 import { STATE_WORD, stateLabel, W } from "../words";
-import { drawnSentences, STATE_ONLY } from "./fold";
+import { drawnSentences, STATE_ONLY, withoutCutEnd } from "./fold";
 import { holds } from "./rounds";
 
 /** Who writes machine notices on a card (the dispatcher's and the worker's receipts): never a history line. */
@@ -41,6 +41,15 @@ export function commentLine(text: string, author: string | null | undefined, own
 }
 
 /**
+ * A worker run's record comment row as its history line (lina-app#230): the row has no author (the core makes it from a
+ * receipt's note, which on the hub an agent writes, cut at 300 characters with no mark), so it is the first sentence the
+ * one gate draws of its markdown-free words, less the sentence the cut went through (withoutCutEnd). Null when none is.
+ */
+export function recordCommentLine(text: string | null): string | null {
+  return text ? firstSentence(withoutCutEnd(text)) : null;
+}
+
+/**
  * History entries newest first (lina-app#149, the one order of every history; of two at the same time, the one
  * recorded later first): an entry with no sentence left (`text` null) is no line of its own, and each run of them is
  * one line with their count (`folded`). A line that is only the state word of the line before it is no line
@@ -61,10 +70,16 @@ export function historyLines<T extends { readonly at: number; readonly text: str
 /**
  * A work card's comments as history lines, newest first: a machine notice is no line, the owner's comment is its words
  * as saved, a bot's its first sentence the screens draw (commentLine), and a run of comments with none is one 접힌 댓글
- * line (lina-app#149, #153, #226).
+ * line (lina-app#149, #153, #226). A sentence drawn more than once is one line at its newest time with its `count`
+ * (lina-app#230), so the folded lines around a repeat it took away read as one.
  */
-export function commentHistory<T extends { readonly at: number; readonly author: string | null; readonly body: string | null }>(comments: readonly T[], owner?: string | null): (T & { readonly text: string | null; readonly folded: number })[] {
-  return historyLines(comments.filter((comment) => !isMachineNotice(comment.body, comment.author, owner)).map((comment) => ({ ...comment, text: commentLine(comment.body ?? "", comment.author, owner) })));
+export function commentHistory<T extends { readonly at: number; readonly author: string | null; readonly body: string | null }>(comments: readonly T[], owner?: string | null): (T & { readonly text: string | null; readonly count: number; readonly folded: number })[] {
+  const lines = comments.filter((comment) => !isMachineNotice(comment.body, comment.author, owner)).map((comment) => ({ ...comment, text: commentLine(comment.body ?? "", comment.author, owner) }));
+  // A state word alone is an event, no sentence: historyLines drops one that repeats the line before it.
+  const sentence = (text: string | null): text is string => text !== null && !STATE_ONLY.has(text);
+  const newest = new Map<string, (typeof lines)[number]>();
+  for (const line of lines) if (sentence(line.text) && line.at >= (newest.get(line.text)?.at ?? -Infinity)) newest.set(line.text, line);
+  return historyLines(lines.filter((line) => !sentence(line.text) || newest.get(line.text) === line).map((line) => ({ ...line, count: sentence(line.text) ? lines.filter((other) => other.text === line.text).length : 1 })));
 }
 
 /**
@@ -167,6 +182,8 @@ export function outcomeOf(round: RecordRound, newest: boolean, live: boolean, no
 export function timelineBlocks(records: readonly { readonly id: string; readonly record: RunRecord }[], live: (runId: string) => boolean, now: number): TimelineBlock[] {
   // A machine notice is no row; rows read newest first, as every history (lina-app#149).
   const shown = (rows: readonly RecordRow[]) => rows.filter((row) => row.kind !== "comment" || !isMachineNotice(row.text)).sort((a, b) => b.at - a.at);
+  // A comment row is no owner's words: it reads through the one gate, null when none of it may show (lina-app#230).
+  const gated = (rows: readonly RecordRow[]) => shown(rows).map((row) => (row.kind === "comment" ? { ...row, text: recordCommentLine(row.text) } : row));
   const blocks: TimelineBlock[] = [];
   // A card's worker runs may each serve the card's one record: a round or a comment read twice is drawn once
   // (lina-app#153).
@@ -189,11 +206,11 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
         end: round.endedAt,
         startUnknown: round.startUnknown,
         outcome,
-        rows: shown(round.rows),
+        rows: gated(round.rows),
         result: outcome === "going" ? null : round.result,
       });
     });
-    for (const comment of shown(record.comments)) if (first(`comment:${comment.at}:${comment.text}`)) blocks.push({ type: "comment", key: `${id}:c:${comment.at}`, at: comment.at, rows: [comment] });
+    for (const comment of gated(record.comments)) if (first(`comment:${comment.at}:${comment.text}`)) blocks.push({ type: "comment", key: `${id}:c:${comment.at}`, at: comment.at, rows: [comment] });
   }
   // Comments made one after another between rounds are one 댓글 block. A round with nothing in it but the outcome of
   // the round before it is no block (lina-app#153).

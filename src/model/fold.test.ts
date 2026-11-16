@@ -154,29 +154,27 @@ test.each([
   expect(sentenceMayShow(sentence)).toBe(shows);
 });
 
-// lina-app#228: a sentence that carries a list (`(1)`, `1)`, `1.` or `①` marks) is drawn whole with every item or not at all.
-// The split joins an item to the list before it (the same kind of mark, the next number), so a lead-in and its items on
-// one line are one sentence; a list the hub cut (`…`), that goes on to the next line, that skips a number or that does
-// not start at 1 is not drawn, and a line that opens on a list's number and holds its next item is that list whole.
+// lina-app#228, #230: a list (`(1)`, `1)`, `1.` or `①` marks) is one unit, drawn whole with its lead-in, every item and
+// every sentence of each item, or not at all: on one line or one item a line, its last item running to the end of its
+// line. A list the hub cut (`…`), that skips a number or that does not start at 1 is not drawn.
 const LIST = "가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. (2) 버튼을 아래로 옮겼다. (3) 카드사 이름을 굵게 바꿨다.";
 test.each([
   [LIST, [LIST]],
-  [`${LIST} 다음 문장도 있다.`, [LIST, "다음 문장도 있다."]],
-  // A `1)` mark inside a sentence is a bracket closed alone: that list is never drawn.
-  ["가짜 순서: 1) 빌드를 마친다. 2) 배포를 한다.", []],
+  [`${LIST} 다음 문장도 있다.`, [`${LIST} 다음 문장도 있다.`]],
+  ["가짜 순서: 1) 빌드를 마친다. 2) 배포를 한다.", ["가짜 순서: 1) 빌드를 마친다. 2) 배포를 한다."]],
   ["가짜 순서는 1. 가짜 빌드를 마친다. 2. 가짜 배포를 한다.", ["가짜 순서는 1. 가짜 빌드를 마친다. 2. 가짜 배포를 한다."]],
   ["가짜 할 일은 둘이다 ① 문구를 고친다 ② 버튼을 옮긴다.", ["가짜 할 일은 둘이다 ① 문구를 고친다 ② 버튼을 옮긴다."]],
   ["가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. (2) 버튼을 아래로…", []],
   ["가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. (3) 버튼을 아래로 옮겼다.", []],
   ["앞의 일은 끝났고 (2) 버튼을 아래로 옮겼다.", []],
-  ["가짜 남은 일: (1) 영수증 금액 줄을 다시 본다.\n(2) 환불 문구 확인.", []],
-  ["가짜 남은 일: (1) 영수증 금액 줄을 다시 본다.\n(2) 환불 안내 문구를 고친다.", ["환불 안내 문구를 고친다."]],
-  ["(1) 가짜 문구를 맞췄다. (2) 가짜 버튼을 옮겼다.", []],
+  ["가짜 남은 일: (1) 영수증 금액 줄을 다시 본다.\n(2) 환불 문구 확인.", ["가짜 남은 일: (1) 영수증 금액 줄을 다시 본다. (2) 환불 문구 확인."]],
+  ["가짜 남은 일: (1) 영수증 금액 줄을 다시 본다.\n(2) 환불 안내 문구를 고친다.", ["가짜 남은 일: (1) 영수증 금액 줄을 다시 본다. (2) 환불 안내 문구를 고친다."]],
+  ["(1) 가짜 문구를 맞췄다. (2) 가짜 버튼을 옮겼다.", ["(1) 가짜 문구를 맞췄다. (2) 가짜 버튼을 옮겼다."]],
   // A range is no list's mark (`11-16)`).
   ["가짜 보고(검토 기간 11-16) 내용을 고쳤다.", ["가짜 보고(검토 기간 11-16) 내용을 고쳤다."]],
-  // An item of several sentences: its list goes on past the sentence, so neither item is drawn; the sentence between is.
-  ["가짜 검토 결과: ① 첫 화면 문구를 맞췄다. 가짜 시안도 함께 고쳤다. ② 버튼을 아래로 옮겼다.", ["가짜 시안도 함께 고쳤다."]],
-  ["가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. 가짜 시안도 함께 고쳤다.\n가짜 새 줄이다. (2) 버튼을 옮겼다.", ["가짜 시안도 함께 고쳤다.", "가짜 새 줄이다."]],
+  // An item of several sentences is the list's too: the list is drawn whole, no sentence of it alone.
+  ["가짜 검토 결과: ① 첫 화면 문구를 맞췄다. 가짜 시안도 함께 고쳤다. ② 버튼을 아래로 옮겼다.", ["가짜 검토 결과: ① 첫 화면 문구를 맞췄다. 가짜 시안도 함께 고쳤다. ② 버튼을 아래로 옮겼다."]],
+  ["가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. 가짜 시안도 함께 고쳤다.\n가짜 새 줄이다. (2) 버튼을 옮겼다.", ["가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. 가짜 시안도 함께 고쳤다. 가짜 새 줄이다. (2) 버튼을 옮겼다."]],
 ])("drawnSentences(%j) is %j: a list whole or not at all (lina-app#228)", (text, drawn) => {
   expect(drawnSentences(text)).toEqual(drawn);
 });
@@ -213,6 +211,45 @@ test.each([
   expect(drawnSentences(text)).toEqual(drawn);
 });
 
+// lina-app#230: a sentence holding exactly one time of day with a Korean particle or word glued after it (`12:50에`,
+// `12:50경`) is a plain fact, drawn when it is otherwise drawable: the row's own time beside it is another time and both read.
+// Two times, a time with seconds, or one followed by a space (a log line's head), a separator, an end mark or nothing are not drawn.
+test.each([
+  ["가짜 판을 12:50에 배포했다.", ["가짜 판을 12:50에 배포했다."]],
+  ["가짜 검토는 9:05부터 다시 했다.", ["가짜 검토는 9:05부터 다시 했다."]],
+  ["가짜 정리를 14:00까지 마친다.", ["가짜 정리를 14:00까지 마친다."]],
+  ["가짜 배포가 12:50경 끝났다.", ["가짜 배포가 12:50경 끝났다."]],
+  ["가짜 배포가 12:50쯤 끝났다.", ["가짜 배포가 12:50쯤 끝났다."]],
+  ["22:45 기준으로 가짜 문구를 다시 확인함.", []],
+  ["12:50 가짜 배포 시작", []],
+  ["가짜 배포를 12:50에 시작해 13:05에 마쳤다.", []],
+  ["12:50 · 가짜 배포를 마쳤다.", []],
+  ["12:50 — 가짜 배포를 마쳤다.", []],
+  ["12:50 - 가짜 배포를 마쳤다.", []],
+  ["12:50 | 가짜 배포를 마쳤다.", []],
+  ["가짜 배포를 마쳤다 12:50", []],
+  ["가짜 배포 시각은 12:50.", []],
+  ["가짜 배포를 12:50:33에 마쳤다.", []],
+  ["가짜 대비는 3.55:1로 올랐다.", ["가짜 대비는 3.55:1로 올랐다."]],
+])("drawnSentences(%j) is %j: one time of day with its particle is a fact (lina-app#230)", (text, drawn) => {
+  expect(drawnSentences(text)).toEqual(drawn);
+});
+
+// lina-app#230: a run of seven digits or more with a unit glued after it (`원`, `건`) or a thousands comma is a number,
+// drawn as any; with nothing after it, a particle or a space, it stays a hash and its sentence is not drawn.
+test.each([
+  ["가짜 가격은 12345678원으로 정했다.", ["가짜 가격은 12345678원으로 정했다."]],
+  ["가짜 누적 건수가 1234567건을 넘었다.", ["가짜 누적 건수가 1234567건을 넘었다."]],
+  ["가짜 매출은 1234567,890원이다.", ["가짜 매출은 1234567,890원이다."]],
+  ["가짜 판은 아직 1234567 그대로다.", []],
+  ["가짜 해시 1234567을 지웠다.", []],
+  ["가짜 판을 4815162342로 올렸다.", []],
+  ["가짜 판은 4815162342.", []],
+])("drawnSentences(%j) is %j: a long number with its unit is a number, not a hash (lina-app#230)", (text, drawn) => {
+  expect(drawnSentences(text)).toEqual(drawn);
+  expect(foldReason(text)).toBe(drawn.length ? null : "hash");
+});
+
 test("a title holding a digits-only hash passes the sentence rule only once the hash is cut (lina-app#228)", () => {
   expect(sentenceMayShow("가짜 판은 아직 4815162342 그대로다.")).toBe(false);
   expect(withoutRefs("가짜 빌드 4815162342 올리기")).toBe("가짜 빌드 올리기");
@@ -244,7 +281,8 @@ test.each([
 test.each([
   // The lead-in is no sentence and the items have no predicate and fewer than 8 Hangul letters (lina-app#226).
   ["가짜 순서:\n1. 가짜 빌드 통과.\n2. `fake run`\n3. 가짜 화면 확인.", ""],
-  ["가짜 할 일 1. fake build 정리. 가짜 시험을 마침.", "가짜 시험을 마침."],
+  // A list's mark takes the rest of its line into its item: the item may not show, so neither does the list (lina-app#230).
+  ["가짜 할 일 1. fake build 정리. 가짜 시험을 마침.", ""],
   ["가짜 지연이 0.5초 늘었다. 가짜 판 1.2.3을 깔았다.", "가짜 지연이 0.5초 늘었다. 가짜 판 1.2.3을 깔았다."],
   // A quoted passage of two sentences is kept whole by the comment (lina-app#224 review).
   ["가짜 담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다.", "가짜 담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다."],
@@ -360,7 +398,7 @@ test.each([
   ["확인할 가짜 결과:", ""],
   ["가짜 확인을 마침. 확인할 가짜 결과:", "가짜 확인을 마침."],
   ["확인할 가짜 결과:\n- 가짜 빌드 통과.", ""],
-  ["확인할 가짜 결과:\n1. 가짜 빌드 통과.\n2. 가짜 시험 통과.\n3. 가짜 화면 확인.", ""],
+  ["확인할 가짜 결과:\n1. 가짜 빌드 통과.\n2. 가짜 시험 통과.\n3. 가짜 화면 확인.", "확인할 가짜 결과: 1. 가짜 빌드 통과. 2. 가짜 시험 통과. 3. 가짜 화면 확인."],
   ["확인할 가짜 결과:\n- 가짜 빌드를 마쳤다.", "가짜 빌드를 마쳤다."],
 ])("foldedText(%j) draws no lead-in alone: %j (lina-app#218)", (comment, shown) => {
   expect(foldedText(comment)).toBe(shown);

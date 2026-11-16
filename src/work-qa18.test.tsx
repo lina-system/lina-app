@@ -45,7 +45,7 @@ function finished(view: ReturnType<typeof render>) {
   return {
     head: count(view.getByTestId("head-finished")),
     rows: rows.length,
-    cards: rows.reduce((sum, row) => sum + Number(/×(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1), 0),
+    cards: rows.reduce((sum, row) => sum + Number(/(?:×|제목 없는 )(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1), 0),
     fold: Number(/외 (\d+)개/.exec(more?.textContent ?? "")?.[1] ?? 0),
     loading: more?.textContent === W.loading,
     hide: within(group).queryByRole("button", { name: `${W.done} ${W.close}` }) !== null,
@@ -75,8 +75,8 @@ for (const wide of [true, false]) {
     expect(after).toEqual({ head: 524, rows: 514, cards: 524, fold: 0, loading: false, hide: true });
     if (wide) expect(sidebarDone(view)).toBe(524);
     // A fold stays on its row and says how many cards it holds; the two nothing names are the last, grey.
-    expect([...group.querySelectorAll("[data-testid=row]")].map((row) => /×(\d+)/.exec(row.textContent ?? "")?.[1]).filter(Boolean)).toEqual(["4", "5", "2", "2", "2"]);
-    expect([...group.querySelectorAll("[data-testid=row] .title.is-kind")].map((title) => title.textContent)).toEqual([`${W.cards} ${W.repeated(2)}`]);
+    expect([...group.querySelectorAll("[data-testid=row]")].map((row) => /(?:×|제목 없는 )(\d+)/.exec(row.textContent ?? "")?.[1]).filter(Boolean)).toEqual(["4", "5", "2", "2", "2"]);
+    expect([...group.querySelectorAll("[data-testid=row] .title.is-kind")].map((title) => title.textContent)).toEqual([W.untitledCount(2)]);
     expect(view.container.textContent).not.toContain(W.untitled);
     // Hiding restores the collapsed view: the first five rows and one fold for the rest, the head unchanged.
     fireEvent.click(within(group).getByRole("button", { name: `${W.done} ${W.close}` }));

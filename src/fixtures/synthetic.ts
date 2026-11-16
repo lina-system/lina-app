@@ -397,6 +397,14 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
               { id: 1, author: agentId(1), body: "실패 화면 시안은 아직 4815162342 판에 머물러 있다.", createdAt: now - 3 * HOUR + 2 * MIN },
               { id: 2, author: agentId(1), body: "실패 화면 검토 결과: (1) 첫 화면 문구를 새 문체로 맞췄다. (2) 다시 시도 버튼을 아래로 옮겼다. (3) 카드사 이름을 굵게 바꿨다.", createdAt: now - 3 * HOUR + 4 * MIN },
               { id: 3, author: agentId(1), body: "남은 검토 두 가지: (1) 영수증 화면의 금액 줄을 다시 본다.\n(2) 환불 문구 확인.", createdAt: now - 3 * HOUR + 6 * MIN },
+              // Round 22's (lina-app#230): a list whose items hold more than one sentence, and one the hub cut its head from.
+              { id: 4, author: agentId(1), body: "검토 메모: ① 금액 줄을 오른쪽으로 붙였다. 굵기는 그대로 두었다. ② 환불 줄을 금액 줄 아래로 옮겼다.", createdAt: now - 3 * HOUR + 8 * MIN },
+              { id: 5, author: agentId(1), body: "(2) 영수증 머리 줄을 줄였다. 글자 크기는 그대로 두었다.\n(3) 버튼 문구를 고쳤다.", createdAt: now - 3 * HOUR + 10 * MIN },
+              // A long amount with its unit is a number, not a hash (lina-app#230).
+              { id: 6, author: agentId(1), body: "환불 한도는 12345678원으로 정했다.", createdAt: now - 3 * HOUR + 12 * MIN },
+              // One time of day with its particle is a fact; two, or one after a separator (a log line), are not drawn.
+              { id: 7, author: agentId(1), body: "영수증 화면은 12:50에 다시 올렸다.", createdAt: now - 3 * HOUR + 14 * MIN },
+              { id: 8, author: agentId(1), body: "12:50 · 영수증 화면 배포를 시작했다.\n배포는 12:50에 시작해 13:05에 끝났다.", createdAt: now - 3 * HOUR + 16 * MIN },
             ]
           : [],
       runs: rounds[card.id] ?? [
@@ -1156,6 +1164,8 @@ function settingsScene(now: number, variant: SettingsVariant | null): SettingsSc
  * round going now; r9 and r10 (k-101's first two rounds, which r1's record already holds) have none of their own.
  */
 function records(now: number): Record<string, RunRecord> {
+  // What the core keeps of a receipt's note in a record row: its words on one line, cut at 300 characters (record.py).
+  const cutRow = (text: string) => text.split(/\s+/).join(" ").slice(0, 300);
   const row = (at: number, kind: RunRecord["comments"][number]["kind"], text: string | null, count = 1) => ({ at, kind, text, count });
   return {
     r1: {
@@ -1205,7 +1215,14 @@ function records(now: number): Record<string, RunRecord> {
       cardId: "k-102",
       ...modelFields("r2"),
       rounds: [{ run: 1, startedAt: now - 2 * HOUR, endedAt: null, endKnown: false, startUnknown: false, result: null, verdict: null, stopped: false, rows: [] }],
-      comments: [],
+      // The hub's record comment rows (lina-app#230), in made-up words: no author, a receipt's note joined to one line and
+      // cut at 300 characters with no mark, as the core serves it. An agent's English verdict note, and a note cut inside
+      // a word: never drawn as saved. The same verdict note on three runs is one line with its count.
+      comments: [
+        ...[90, 70, 60].map((ago) => row(now - ago * MIN, "comment", "검토를 마쳤고 병합해도 된다.")),
+        row(now - 100 * MIN, "comment", cutRow("review note: diff read, merged via PR (app#12/#13, core#14/#15), checked in the QA rounds at both widths; the worktree stays for the follow-up run and the evidence folder keeps every capture, the report lists what was not run and why, and the next round reads the open points first before it starts on anything else in the list")),
+        row(now - 80 * MIN, "comment", cutRow(`위키 문서의 결제 화면 절을 새 문체로 바꿨다. ${"표 머리 줄과 본문 줄의 간격을 맞추고 그림 설명을 짧게 줄였다. ".repeat(8)}`)),
+      ],
       errors: [],
     },
     r6: {

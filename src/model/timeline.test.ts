@@ -52,7 +52,8 @@ test.each([
   ["범위 라 …", null],
   ["가상 문서 정리 |", null],
   // A list number opens the sentence: the sentence stays, the number goes.
-  ["1) 가상 설정이 긴 답에서 돌았다. 둘째 문장.", "가상 설정이 긴 답에서 돌았다."],
+  // A list of one item whose next sentence is a fragment: the list is not drawn whole, so not at all (lina-app#230).
+  ["1) 가상 설정이 긴 답에서 돌았다. 둘째 문장.", null],
   // A long sentence is drawn whole: nothing shortens it (lina-app#226).
   ["완료 조건이 모두 체크됨(가상 일지 두 번, 가상 주간 한 장, 나눠야 할 곳은 나누고 나누면 안 될 곳은 안 나눔)", "완료 조건이 모두 체크됨(가상 일지 두 번, 가상 주간 한 장, 나눠야 할 곳은 나누고 나누면 안 될 곳은 안 나눔)"],
   // A time of day reads against the row's own time and cannot be cut out: no line (lina-app#153, #226).
@@ -97,7 +98,7 @@ test.each([
 // fold's rule passes (sentenceMayShow): the next clean sentence of the comment when the first is not, else none.
 test.each([
   // The split never cuts after a list's number, and a dot inside a number or a version is no sentence end.
-  ["가짜 순서는 1. 가짜 빌드를 마친다. 다음 문장.", "가짜 순서는 1. 가짜 빌드를 마친다."],
+  ["가짜 순서는 1. 가짜 빌드를 마친다. 다음 문장.", null],
   ["가짜 지연이 0.5초 늘었다. 가짜 시험을 마침.", "가짜 지연이 0.5초 늘었다."],
   ["가짜 판 1.2.3을 깔았다. 가짜 시험을 마침.", "가짜 판 1.2.3을 깔았다."],
   // A Latin word, a short code, a round label or a product name left in the sentence: the next one.
@@ -238,7 +239,8 @@ test.each(NOISY)("a card's history with %s: no line starts with [, none repeats 
   lines.forEach((line, index) => {
     const text = line.text ?? "";
     expect(text).not.toMatch(/^\[/);
-    expect(text).not.toMatch(/\d{1,2}:\d{2}/);
+    // A time of day is drawn only alone in its sentence with its particle glued after it (`21:10에`, lina-app#230).
+    expect(text).not.toMatch(/\d{1,2}:\d{2}(?!\d|\p{Script=Hangul})/u);
     if (index === 0) return;
     const previous = lines[index - 1];
     expect(line.at).toBeLessThanOrEqual(previous.at);
@@ -275,5 +277,46 @@ test("a card's record read through several of its worker runs shows each round a
     ["round", 700],
     ["comment", 500],
     ["round", 400],
+  ]);
+});
+
+// lina-app#230: a record's comment row has no author (a receipt's note, which on the hub an agent writes, cut by the
+// core at 300 characters with no mark): in a round and between rounds it reads through the one gate, never as saved.
+test("a record's comment rows read through the one gate, in a round and between rounds (lina-app#230)", () => {
+  const note = "fake diff read, merged via fake PR (fake#12), checked in fake QA rounds".slice(0, 300);
+  const record = {
+    at: 1000,
+    cardId: "k-1",
+    id: "w1",
+    errors: [],
+    model: null,
+    settingsRevision: null,
+    comments: [
+      { at: 500, kind: "comment", text: note, count: 1 },
+      { at: 450, kind: "comment", text: "가짜 금액 줄을 다시 확인했다. 가짜 환불 안내 문구는 아직 고치는 중이", count: 1 },
+    ],
+    rounds: [round({ run: 1, startedAt: 100, endedAt: 400, endKnown: true, rows: [{ at: 200, kind: "comment", text: `가짜 표로 바꿔 주세요. ${note}`, count: 1 }] })],
+  } as unknown as RunRecord;
+  const blocks = timelineBlocks([{ id: "w1", record }], () => false, 1000);
+  expect(blocks.map((block) => block.rows.map((row) => row.text))).toEqual([[null, "가짜 금액 줄을 다시 확인했다."], ["가짜 표로 바꿔 주세요."]]);
+});
+
+// lina-app#230: on the real hub's long card the same note stood in the 댓글 section nine times. A sentence drawn more than
+// once in one card's comments is one line at its newest time with its count; the folded lines around a repeat it took
+// away read as one.
+test("the same comment line again in one card is one line with its count, at its newest time (lina-app#230)", () => {
+  const note = "가짜 변경을 읽고 병합했다.";
+  const lines = commentHistory([
+    { id: 1, at: 100, author: "worker-a", body: note },
+    { id: 2, at: 200, author: "worker-a", body: "fake note" },
+    { id: 3, at: 300, author: "worker-a", body: note },
+    { id: 4, at: 400, author: "worker-a", body: "fake note again" },
+    { id: 5, at: 500, author: "worker-a", body: `${note} 다음은 표로 바꾼다.` },
+    { id: 6, at: 600, author: "worker-a", body: "가짜 표를 다시 만들었다." },
+  ]);
+  expect(lines.map((line) => [line.at, line.text, line.count, line.folded])).toEqual([
+    [600, "가짜 표를 다시 만들었다.", 1, 0],
+    [500, note, 3, 0],
+    [400, null, 1, 2],
   ]);
 });

@@ -8,7 +8,9 @@ import { W } from "./words";
 // lina-app#217: a card shaped like the hub's (41 comments, 19 worker runs of which 3 are command words, 4 rounds whose
 // own lines are raw text), its detail and its records answered late. The history and comment section is drawn once:
 // while the card's own detail and its worker runs' records are read it shows one placeholder, never the partial
-// history the detail alone gives (the 이전 기록 N건 box) that the records then redraw longer.
+// history the detail alone gives (the 이전 기록 N건 box) that the records then redraw longer. The record of the run
+// seen last is read first (lina-app#232): its round draws above the placeholder while the others are read, and they
+// add below it.
 
 const MIN = 60;
 const CARD = "k-101";
@@ -117,7 +119,7 @@ async function openWork(wide: boolean, source: SyntheticSource) {
 for (const wide of [true, false]) {
   const width = wide ? "1280" : "390";
 
-  test(`a card read late draws its history and comments once: one placeholder until its detail and records are in (${width})`, async () => {
+  test(`a card read late draws its history and comments once: one placeholder until its detail and newest record are in, then only more below (${width})`, async () => {
     const { source, runIds } = hubShapedCard();
     const reads = holdReads(source);
     const { view } = await openWork(wide, source);
@@ -127,15 +129,24 @@ for (const wide of [true, false]) {
     });
     await waitFor(() => expect(reads.held("card")).toHaveLength(1));
     await act(async () => reads.release("card"));
-    // The detail is in; the records it names are asked now and are still out.
-    await waitFor(() => expect(reads.held("record")).toHaveLength(runIds.length));
+    // The detail is in; the record of the run seen last is asked first and alone, the others once it is in.
+    await waitFor(() => expect(reads.held("record").map((read) => read.id)).toEqual([runIds.at(-1)]));
     await act(async () => reads.release("record"));
-    await waitFor(() => expect(view.container.querySelector("[data-testid=detail-frame] [data-testid=timeline]")).not.toBeNull());
+    await waitFor(() => expect(reads.held("record")).toHaveLength(runIds.length - 1));
+    await act(async () => reads.release("record"));
+    await waitFor(() => expect(view.container.querySelector("[data-testid=detail-frame] [data-testid=card-comments]")).not.toBeNull());
     const settled = section(view.container);
     expect(settled).toContain("card-comments:");
     expect(settled).not.toContain(PLACEHOLDER);
-    // Before the frame, the placeholder, then the settled section: nothing shorter in between.
-    expect(states.filter((state) => state !== "" && state !== PLACEHOLDER && state !== settled)).toEqual([]);
+    // Before the frame, the placeholder, the newest round above it, then the settled section: what was drawn of the
+    // history leads it, nothing redrawn shorter or longer above.
+    const between = states.filter((state) => state !== "" && state !== PLACEHOLDER && state !== settled);
+    expect(between.length).toBeGreaterThan(0);
+    for (const state of between) {
+      const [history, placeholder] = state.split("\n");
+      expect(placeholder).toBe(PLACEHOLDER);
+      expect(settled.startsWith(history)).toBe(true);
+    }
     expect(states.at(-1)).toBe(settled);
 
     // Closed and opened again, the section stands at once as it settled.
@@ -152,7 +163,7 @@ for (const wide of [true, false]) {
     expect(again.filter((state) => state !== "" && state !== settled)).toEqual([]);
   });
 
-  test(`one record that lands alone while the others are read keeps the placeholder (${width})`, async () => {
+  test(`one record that lands alone while the others are read adds below and keeps the placeholder (${width})`, async () => {
     const { source, runIds } = hubShapedCard();
     const reads = holdReads(source);
     const { store, view } = await openWork(wide, source);
@@ -161,16 +172,21 @@ for (const wide of [true, false]) {
     });
     await waitFor(() => expect(reads.held("card")).toHaveLength(1));
     await act(async () => reads.release("card"));
-    await waitFor(() => expect(reads.held("record")).toHaveLength(runIds.length));
+    await waitFor(() => expect(reads.held("record")).toHaveLength(1));
+    await act(async () => reads.release("record"));
+    await waitFor(() => expect(reads.held("record")).toHaveLength(runIds.length - 1));
+    await waitFor(() => expect(view.container.querySelector("[data-testid=detail-frame] [data-testid=timeline]")).not.toBeNull());
     const states = watch(view.container);
-    // A change event names one of the records: it is read again on its own and lands before the rest.
+    // A change event names one of the records still out: it is read again on its own and lands before the rest.
     const alone = store.invalidate([["record", runIds[0]]]);
-    await waitFor(() => expect(reads.held("record")).toHaveLength(runIds.length + 1));
+    await waitFor(() => expect(reads.held("record")).toHaveLength(runIds.length));
     reads.releaseLast();
     await act(async () => alone);
     expect(store.status("record", runIds[0])).toBe("ok");
-    expect(states.every((state) => state === PLACEHOLDER)).toBe(true);
+    // Its round adds below what stands; the comments still wait under the placeholder.
+    const [first] = states[0].split("\n");
+    expect(states.every((state) => state.endsWith(PLACEHOLDER) && state.startsWith(first))).toBe(true);
     await act(async () => reads.stop());
-    await waitFor(() => expect(view.container.querySelector("[data-testid=detail-frame] [data-testid=timeline]")).not.toBeNull());
+    await waitFor(() => expect(view.container.querySelector("[data-testid=detail-frame] [data-testid=card-comments]")).not.toBeNull());
   });
 }

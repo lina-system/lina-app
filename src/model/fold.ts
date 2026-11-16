@@ -406,10 +406,24 @@ export function foldedText(text: string): string {
     // The list: this line and each next line that opens on a list's mark, one entry.
     let to = at;
     while (to + 1 < lines.length && opensOn(lines[to + 1])) to += 1;
-    drawn.push(listEntry(lines.slice(at, to + 1).join(" ")));
+    drawn.push(listLine(lines.slice(at, to + 1).join(" ")));
     at = to;
   }
   return drawn.filter(Boolean).join("\n");
+}
+
+/**
+ * A line that holds a list (lina-app#239 review): the sentences before the list's lead-in are each drawn as any other
+ * sentence is (drawnSentence), so a list that is not drawn takes no sentence of its own with it; the list, lead-in and items,
+ * is whole or nothing (listEntry).
+ */
+function listLine(text: string): string {
+  const sentences = sentencesOf(withoutRefBrackets(text));
+  let from = sentences.findIndex((sentence) => listMarks(`${sentence} `).length > 0);
+  if (from < 0) from = 0;
+  else if (from > 0 && /:$/.test(sentences[from - 1])) from -= 1;
+  const before = sentences.slice(0, from).flatMap((sentence) => drawnSentence(sentence) ?? []);
+  return [...before, listEntry(sentences.slice(from).join(" "))].filter(Boolean).join(" ");
 }
 
 /**

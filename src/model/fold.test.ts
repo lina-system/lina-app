@@ -342,6 +342,15 @@ test("a stop reason with two numbered lists on one line draws both (lina-app#239
   expect(foldedText("원인은 둘이다: 1. 설정이 낡았다. 3. 서버가 꺼져 있다.")).toBe("");
 });
 
+// lina-app#239 review: a list that is not drawn takes no independent sentence before it with it.
+test("a sentence before a list that is not drawn stays (lina-app#239)", () => {
+  expect(foldedText("설정 파일이 없어 작업을 중단했다. 남은 일은 둘이다: 1. 설정을 고친다. 3. 서버를 켠다.")).toBe("설정 파일이 없어 작업을 중단했다.");
+  const both = foldedText("설정 파일이 없어 작업을 중단했다. 남은 일은 둘이다: 1. 설정을 고친다. 2. 서버를 켠다.");
+  expect(both).toBe("설정 파일이 없어 작업을 중단했다. 남은 일은 둘이다: 1. 설정을 고친다. 2. 서버를 켠다.");
+  // The lead-in on its own line, the list on the next.
+  expect(foldedText("설정 파일이 없어 작업을 중단했다. 남은 일은 둘이다:\n1. 설정을 고친다.\n3. 서버를 켠다.")).toBe("설정 파일이 없어 작업을 중단했다.");
+});
+
 // lina-app#207, #226: the hub's comments wrote machine times (`안전망 =2026-11-16T03:30+09:00`); rewriting one into a date
 // changed the sentence, so a sentence holding one is not drawn at all.
 test("a comment sentence holding a machine time is not drawn (lina-app#207, #226)", () => {

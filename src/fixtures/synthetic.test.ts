@@ -237,6 +237,14 @@ test("the scene carries the text shapes UI QA round 21 met, and no history line 
   for (const line of lines) expect(line ?? "").not.toMatch(/\d{7,}/);
 });
 
+test("the many-finished scene carries the title shape UI QA round 21 met, and no row draws the bracket its cut left after a colon (lina-app#228)", () => {
+  const many = generateScene(SYNTHETIC_SEED, { now: NOW, manyFinished: true });
+  expect(many.cards.cards.some((card) => card.state === "done" && card.plain.title === null && /:\s*[\w-]+#\d+\(/.test(card.title ?? ""))).toBe(true);
+  for (const row of model(many).cards.values()) {
+    for (const text of Object.values(row)) if (typeof text === "string") expect(text).not.toMatch(/:\s*\(/);
+  }
+});
+
 test("the scene contains no personal-data pattern or configured name", () => {
   expect(scanText(JSON.stringify(scene), "scene.json", process.env.PERSONAL_DATA_NAMES)).toEqual([]);
 });

@@ -127,6 +127,8 @@ export interface SceneOptions {
 }
 
 export const MANY_FINISHED = 40;
+/** Which of them (from the newest) has the hub's holed title (lina-app#228): neither the newest five nor the oldest. */
+const FINISHED_HOLED = 20;
 const FINISHED_WORK = ["문서", "백업", "배포", "점검", "정리", "보고", "목록", "설정"];
 const FINISHED_STEP = ["다듬기", "확인하기", "옮기기", "묶기", "살피기"];
 
@@ -1033,6 +1035,10 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
         const title = `${FINISHED_WORK[index % FINISHED_WORK.length]} ${FINISHED_STEP[Math.floor(index / FINISHED_WORK.length)]}`;
         cardList.cards.push({ ...done, id: `k-${300 + index}`, title, plain: plain(title, null, "끝까지 마쳤음"), endedAt: ended, lastHeartbeatAt: ended });
       }
+      // The title shape UI QA round 21 met on the hub (lina-app#228), in made-up words: no goal and no checked title, and its
+      // own has a Latin word and a ref glued to the bracket after its colon, so cutting them would leave `손보기: (…) 이후`.
+      const holed = cardList.cards.find((card) => card.id === `k-${300 + FINISHED_HOLED}`);
+      if (holed) Object.assign(holed, { title: "정산 Sheet 표 한 번 손보기: lina-app#12(지난 판 되돌림) 이후 마무리", goalTitle: null, plain: NO_LINES });
     }
   }
   if (options.hubRound11) {

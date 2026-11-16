@@ -68,6 +68,11 @@ const PREDICATE_GONE = new RegExp(String.raw`\p{Script=Hangul}(?:은|는|을|를
 /** A run of cuts, spaces and joining marks between two words; a pair mark joins two ends, `·` one list item to the next. */
 const JOINED_RUN = /[\s·~/↔→=+&\uE000\uE001]+/g;
 const PAIR_MARK = /[~/↔→=+&]/g;
+/**
+ * A cut between a separator (or the start) and a bracket that holds Hangul words and has words after it: the bracket
+ * was an aside on the cut token, now on nothing (a bracket the cut emptied goes with it). One that ends the text reads as the colon's aside (tidyFoldedText: `반영: (앞)` reads `반영 (앞)`).
+ */
+const ASIDE_GONE = /(?:^|[:;,·])\s*[\uE000\uE001](?:\s*[\uE000\uE001])*\s*[([][^()[\]]*\p{Script=Hangul}[^()[\]]*[)\]](?!\s*[.!?。]?\s*$)/u;
 const CUT_FIRST = /^\s*[\uE000\uE001]/;
 const CUT_LAST = /[\uE000\uE001]\s*$/;
 
@@ -76,14 +81,15 @@ const CUT_LAST = /[\uE000\uE001]\s*$/;
  * modifier whose noun was cut (`더 새 <hash>로 충족됨`), a topic or an object whose predicate was cut (`새 판은 <hash>.`),
  * or, between two words, a pair mark that lost an end to a cut (cut on both sides, `#12 ↔ t_1`; glued to a cut,
  * `#12~#14는`, `7봇+<name>`; or with only a cut after it to the end, `(값 = <hash>)`) or a list's `·` beside a cut noun
- * (`#12·#13과 파일이`). A cut at either end of a list, a clause after a spaced pair mark that opens on a cut name
+ * (`#12·#13과 파일이`), or a bracket that was an aside on a token cut from between a separator (or the start) and it, so it
+ * would open the clause (`손보기: <ref>(지난 판) 이후`, lina-app#228). A cut at either end of a list, a clause after a spaced pair mark that opens on a cut name
  * (`갱신 + <name> 릴레이 교체`), a ref cut from beside a word it names (`커밋 <hash> 반영`) and a bracket the cut took whole
  * leave none. The rule the title cuts follow (withoutRefs, withoutLatin): a title with one is drawn by none of them. No
  * history line or comment is cut at all (drawnSentence, lina-app#226).
  */
 function cutLeavesHole(marked: string): boolean {
   if (!/[\uE000\uE001]/.test(marked)) return false;
-  if (NOUN_GONE.test(marked) || PREDICATE_GONE.test(marked)) return true;
+  if (NOUN_GONE.test(marked) || PREDICATE_GONE.test(marked) || ASIDE_GONE.test(marked)) return true;
   // A key's `=` goes with the key cut before it (`fake_until=<time>`): it joins nothing.
   const joined = marked.replace(/\uE000=/g, CUT);
   for (const run of joined.matchAll(JOINED_RUN)) {

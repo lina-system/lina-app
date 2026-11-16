@@ -154,6 +154,25 @@ test.each([
   expect(sentenceMayShow(sentence)).toBe(shows);
 });
 
+// lina-app#228: a ref or a Latin word cut from between a separator (or the title's start) and the bracket after it
+// leaves that bracket an aside on nothing (`손보기: (지난 판 되돌림) 이후`): a hole, so the cut gives nothing. A bracket the title
+// itself opens after its colon, with nothing cut, stays; one that ends the title is the colon's aside, its colon gone.
+test.each([
+  ["가짜 정산 표 손보기: lina-app#12(지난 판 되돌림) 이후 마무리", ""],
+  ["가짜 정산 표 손보기: lina#12 (지난 판 되돌림) 이후 마무리", ""],
+  ["가짜 정리 · a1b2c3d(앞 판) 뒤 마무리", ""],
+  ["lina#12(지난 판 되돌림) 이후 마무리", ""],
+  ["가짜 요약: (초안) 문서 정리", "가짜 요약: (초안) 문서 정리"],
+  ["가짜 반영: lina#12 (앞 판)", "가짜 반영 (앞 판)"],
+])("withoutRefs(%j) is %j: no bracket is left after a separator a ref was cut from (lina-app#228)", (title, cut) => {
+  expect(withoutRefs(title)).toBe(cut);
+});
+
+test("a Latin word cut from before a bracket after the colon leaves the same hole (lina-app#228)", () => {
+  expect(withoutLatin("가짜 정산 표 손보기: Sheet(지난 판 되돌림) 이후 마무리")).toBe("");
+  expect(withoutLatin("가짜 정산 Sheet 표 손보기: (지난 판) 이후 마무리")).toBe("가짜 정산 표 손보기: (지난 판) 이후 마무리");
+});
+
 // lina-app#228: a run of seven digits or more is a hash with no letter in it (a short commit hash). A sentence holding
 // it is not drawn, as one holding any code-like token, and a bracket of it alone goes, as one of any hash; six digits and
 // a number with its commas are counts.

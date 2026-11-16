@@ -406,7 +406,7 @@ function LatestLine({ agentId, testid }: { agentId: string; testid: string }) {
  * cards nothing names says it in its name already (lina-app#231), and wears no one agent's mark or card's time when its
  * cards are several agents' (lina-app#237): how many agents, and its newest card's time said as such.
  */
-function FinishedLine({ line }: { line: CardRow }) {
+export function FinishedLine({ line }: { line: CardRow }) {
   const { now } = useApp();
   if (line.title !== null) return <CardRowView card={line.repeat ? { ...line, name: `${line.name} ${W.repeated(line.repeat)}` } : line} />;
   const agents = new Set((line.fold ?? [line]).map((card) => card.agent)).size;

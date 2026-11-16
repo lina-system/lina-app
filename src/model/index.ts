@@ -1096,18 +1096,27 @@ export function agentView(model: Model, agentId: string): AgentView | null {
   };
 }
 
-/** A goal's work cards (kanban goal cards excluded) and the evidence that closed it. */
+/**
+ * A goal's work cards (kanban goal cards excluded) and the evidence that closed it. Its finished cards nothing names are
+ * one line, as in 완료 (collapsed, lina-app#242), where the first of them stood: never rows named by the kind word.
+ */
 export function goalCards(model: Model, detail: ItemDetail, goals: GoalList | undefined): { cards: Section<CardRow>; evidence: { key: string; text: string; at: number | null }[] } {
   const goalCardIds = new Set((goals?.goals ?? []).map((goal) => goal.id));
   // Its detail's cards, then the ones the work tab's fold links to it (lina-app#170): the same rows both tabs show.
   const ids = [...new Set([...detail.workCards.filter((id) => !goalCardIds.has(id)), ...linkedCards(model, goalIds(model, detail.id), [], detail.title).map((card) => card.id)])];
-  const cards = ids.map((id) => model.cards.get(id)).filter((card): card is CardRow => card !== undefined);
+  const cards = apart(
+    ids.map((id) => model.cards.get(id)).filter((card): card is CardRow => card !== undefined),
+    model.now,
+  );
+  const unnamed = cards.filter((card) => card.state === "done" && card.title === null);
+  const grey = unnamed.length ? collapsed([...unnamed].sort(newestFirst((card) => card.endedAt)))[0] : null;
+  const rows = grey ? cards.flatMap((card) => (card === unnamed[0] ? [grey] : unnamed.includes(card) ? [] : [card])) : cards;
   const linked = new Set(detail.workCards);
   const evidence = (goals?.goals ?? [])
     .flatMap((goal) => goal.evidence)
     .filter((entry) => linked.has(entry.cardId) && entry.summary)
     .map((entry) => ({ key: entry.cardId, text: entry.summary ?? "", at: entry.completedAt }));
-  return { cards: section("cards", W.cards, apart(cards, model.now)), evidence };
+  return { cards: section("cards", W.cards, rows), evidence };
 }
 
 type GoalFacts = { readonly id: string; readonly title?: string; readonly state: WorkState; readonly reason: string | null; readonly stateSince: number | null };

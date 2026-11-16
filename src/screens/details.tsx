@@ -17,6 +17,7 @@ import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, itemTime, 
 import { DETAIL_WORD, reasonWord, ROUND11_WORD, ROUND9_WORD, RUN_LINE_WORD, SEP, STATE_WORD, stateLabel, W, waitWord } from "../words";
 import { PastEvents, RunModelLine, Timeline, type PastEvent } from "./timeline";
 import { Comments, SendButton } from "./comments";
+import { FinishedLine } from "./lists";
 import { Talk } from "./talk";
 
 function Missing() {
@@ -429,9 +430,8 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
       {cards.rows.length ? (
         <Box title={W.cards}>
           <ul class="rows" aria-label={W.cards}>
-            {cards.rows.map((card) => (
-              <CardRowView key={card.key} card={card} />
-            ))}
+            {/* The finished cards nothing names are one line, drawn as 완료 draws it (lina-app#242). */}
+            {cards.rows.map((card) => (card.repeat ? <FinishedLine key={card.key} line={card} /> : <CardRowView key={card.key} card={card} />))}
           </ul>
         </Box>
       ) : null}

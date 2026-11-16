@@ -1303,6 +1303,17 @@ const drivers = {
       check(await page.getByRole("textbox", { name: "댓글 달기" }).isVisible(), "the goal page has no comment field");
       return heads.join(", ") + "; cards " + cards.join(" | ");
     });
+    await step("on the hub's shape (&hub=round24), a goal whose title holds a Latin word lists the finished cards nothing names as one grey 제목 없는 n건 line with its agents and newest time, never a row named 작업 (lina-app#242)", async () => {
+      await openApp(page, "#/goals/G10", "&hub=round24");
+      const list = page.getByTestId("screen-goal").getByRole("list", { name: "작업", exact: true });
+      await list.waitFor();
+      const firsts = (await list.locator("li[data-testid=row] .lines > .title").allInnerTexts()).map((title) => title.trim());
+      const grey = list.locator("li[data-testid=row]").filter({ has: page.locator(".title.is-kind") });
+      const sub = (await grey.count()) ? (await grey.getByTestId("row-sub").innerText()).trim() : null;
+      const time = (await grey.count()) ? (await grey.locator(".time").innerText()).replace(/^\s*·\s*/, "").trim() : null;
+      check(!firsts.includes("작업") && firsts.filter((title) => /^제목 없는 \d+건$/.test(title)).length === 1 && firsts.length === 3 && sub === "에이전트 3명" && /^가장 최근 \d+시간 전$/.test(time ?? ""), "rows " + JSON.stringify(firsts) + ", grey " + sub + " · " + time);
+      return firsts.join(" | ") + "; grey " + sub + " · " + time;
+    });
     await step("a done goal's history (기록) reads the evidence that closed it and its close, one line each", async () => {
       await openApp(page, "#/goals/G4");
       const rows = page.getByTestId("goal-history").getByTestId("history-row");

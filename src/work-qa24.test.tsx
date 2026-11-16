@@ -79,4 +79,16 @@ for (const wide of [true, false]) {
     expect(plannedLines.find((line) => line.first === ROUND24.planGoal)?.second).toBeNull();
   });
 
+  test(`a goal's work list counts the finished cards nothing names in one line, never names a row by the kind word (${width})`, async () => {
+    const source = hub();
+    const view = await open("#/goals/G10", source, wide);
+    const list = await waitFor(() => view.getByRole("list", { name: W.cards }));
+    const rows = lines(list);
+    expect(rows.map((row) => row.first).filter((first) => first === W.cards)).toEqual([]);
+    expect(rows.map((row) => row.first).sort()).toEqual([W.untitledCount(ROUND24.workUnnamed.length), ...ROUND24.workNamed].sort());
+    const grey = [...list.querySelectorAll("[data-testid=row]")].find((row) => row.querySelector(".title")?.textContent === W.untitledCount(ROUND24.workUnnamed.length)) as HTMLElement;
+    expect(grey.querySelector(".title")?.classList.contains("is-kind")).toBe(true);
+    expect(grey.textContent).toContain(W.agentsCount(3));
+  });
+
 }

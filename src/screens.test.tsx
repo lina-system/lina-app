@@ -830,6 +830,30 @@ describe("comments", () => {
     expect(view.getAllByTestId("comment")).toHaveLength(2);
   });
 
+  // lina-app#32: what the owner types while a refused comment is still out is theirs; the refused one comes back only
+  // into an empty field, as in the agent's own window.
+  test("a comment refused after the owner typed again keeps the new text in the field (lina-app#32)", async () => {
+    let answer: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (answer = resolve));
+    class HeldRefusal extends RefusingSource {
+      override async comment(id: string, body: { text: string }) {
+        await gate;
+        return super.comment(id, body);
+      }
+    }
+    const view = await open("#/items/T4", { wide: true, source: new HeldRefusal() });
+    const field = view.getByRole("textbox", { name: "댓글 달기" }) as HTMLInputElement;
+    field.value = "가짜 첫 댓글";
+    fireEvent.input(field);
+    fireEvent.submit(field.form as HTMLFormElement);
+    expect(field.value).toBe("");
+    field.value = "가짜 다음 댓글";
+    fireEvent.input(field);
+    answer();
+    await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("저장하지 못함 · 다시 시도"));
+    expect(field.value).toBe("가짜 다음 댓글");
+  });
+
   test("a resolved thread folds to one line with its first words", async () => {
     const view = await open("#/items/T4", { wide: true });
     const resolved = view.getByTestId("resolved") as HTMLDetailsElement;
@@ -2339,6 +2363,33 @@ describe("talk", () => {
     answer();
     await waitFor(() => expect(box.getByTestId("talk-live")).toBeTruthy());
     expect(why()).toBe("답하는 중");
+  });
+
+  // lina-app#32: the field cleared when the reply began, so what the owner typed while the request was out was lost.
+  // Only the sent message leaves the field.
+  test.each([
+    ["replaced", "가짜 다음 질문", "가짜 다음 질문"],
+    ["added to", "가짜 첫 질문\n가짜 덧붙인 줄", "가짜 덧붙인 줄"],
+  ])("text the owner %s while a to-do's talk request is held stays in the field once the reply starts (lina-app#32)", async (_how, typed, kept) => {
+    let answer: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (answer = resolve));
+    class Held extends SyntheticSource {
+      override async talk(id: string, body: { message: string }, signal?: AbortSignal) {
+        await gate;
+        return super.talk(id, body, signal);
+      }
+    }
+    const view = await open("#/items/T4", { wide: true, source: new Held() });
+    const { box, field, send } = talkParts(view);
+    type(field, "가짜 첫 질문");
+    await waitFor(() => expect(send.disabled).toBe(false));
+    fireEvent.click(send);
+    await waitFor(() => expect(send.disabled).toBe(true));
+    type(field, typed);
+    answer();
+    await waitFor(() => expect(box.getByTestId("talk-live")).toBeTruthy());
+    expect(box.getByTestId("talk-mine").textContent).toBe("가짜 첫 질문");
+    expect(field.value).toBe(kept);
   });
 
   test("대화 sits under 댓글; Enter sends, the reply streams with a live mark, then one line says the agent keeps it", async () => {

@@ -1033,8 +1033,10 @@ export function CardScreen({ id }: { id: string }) {
   // title is the line under it when it differs (lina-app#153).
   const own = cardTitle(detail.plain.title, detail.title, detail.state === "stopped") ?? row?.own ?? null;
   // A card opened by its address before the list holds its row: its name is the row's, so the head reads 불러오는 중 until
-  // the list is read, never 제목 없음 (lina-app#253), which stays for a card the board does not know.
-  const unlisted = !row && (store.status("cards") === "pending" || !model.finished.all);
+  // the list is read, never 제목 없음 (lina-app#253), which stays for a card the board does not know. A list read that
+  // failed is no read out: the head falls back to the detail's title instead of waiting for a read nothing repeats.
+  const cardsStatus = store.status("cards");
+  const unlisted = !row && (cardsStatus === "pending" || (!model.finished.all && cardsStatus !== "failed"));
   const title = unlisted ? null : (led?.name ?? row?.title ?? own);
   // The head reads the state of the row that was pressed, the list's snapshot, until the next refresh moves both; the
   // detail read later may already say another (lina-app#157). A card with no row reads its detail's.

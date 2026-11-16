@@ -1,7 +1,7 @@
 import { act, render, waitFor } from "@testing-library/preact";
 import { afterEach, expect, test, vi } from "vitest";
 import { App } from "./app";
-import { RECORDS_AT_ONCE, Store } from "./data/store";
+import { FINISHED_SHOWN, RECORDS_AT_ONCE, Store } from "./data/store";
 import { LONG_CARD, SyntheticSource } from "./data/synthetic-source";
 import { W } from "./words";
 
@@ -240,4 +240,34 @@ test("a drawn long card that gains a newer run keeps its history on screen while
   await act(async () => reads.release("record"));
   await waitFor(() => expect(rows(view.container).length).toBeGreaterThan(drawn.length));
   reads.stop();
+});
+
+test("a long card opened by its address keeps its own title once the full card-list read fails, never 불러오는 중 for good", async () => {
+  const source = new SyntheticSource({ longCard: true, manyFinished: true });
+  // Older than the first page's newest few finished cards: its row is not on that page.
+  const row = source.scene.cards.cards.find((card) => card.id === CARD);
+  if (row) row.endedAt = (row.endedAt ?? 0) - 90 * 24 * 3600;
+  const finished = source.scene.cards.cards.filter((card) => card.state === "done" && card.id !== CARD);
+  expect(finished.filter((card) => (card.endedAt ?? 0) > (row?.endedAt ?? 0)).length).toBeGreaterThan(FINISHED_SHOWN);
+  // A title of its own that may be drawn (LONG_CARD.own holds a Latin word the rule keeps off the screen).
+  const own = "가상 긴 기록 묶음 옮기기";
+  source.scene.cardDetails[CARD].title = own;
+  const read = source.read.bind(source);
+  const asked: (string | undefined)[] = [];
+  source.read = (async (name, id) => {
+    if (name === "cards") {
+      asked.push(id);
+      // The first page comes in; every read without that limit fails, as a core that drops the long list would.
+      if (id !== String(FINISHED_SHOWN)) return { kind: "failed", offline: false, at: Math.floor(Date.now() / 1000) };
+    }
+    return read(name, id);
+  }) as SyntheticSource["read"];
+  setWide(true);
+  window.history.replaceState(null, "", `/app/#/cards/${CARD}`);
+  const view = render(<App store={new Store(source)} />);
+  await waitFor(() => expect(asked.some((id) => id !== String(FINISHED_SHOWN))).toBe(true), { timeout: 5000 });
+  await waitFor(() => expect(head(view.container)).toBeTruthy());
+  await waitFor(() => expect(head(view.container)).not.toBe(W.loading), { timeout: 5000 });
+  expect(head(view.container)).toBe(own);
+  expect(view.container.textContent).not.toContain(W.untitled);
 });

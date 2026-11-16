@@ -127,6 +127,8 @@ export interface SceneOptions {
 }
 
 export const MANY_FINISHED = 40;
+/** Which of them (from the newest) has the hub's holed title (lina-app#228): neither the newest five nor the oldest. */
+const FINISHED_HOLED = 20;
 const FINISHED_WORK = ["문서", "백업", "배포", "점검", "정리", "보고", "목록", "설정"];
 const FINISHED_STEP = ["다듬기", "확인하기", "옮기기", "묶기", "살피기"];
 
@@ -387,6 +389,14 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
               { id: 2, author: OWNER.id, body: "문서만 바뀐 변경은 따로 묶어 주세요.", createdAt: now - 90 * MIN },
               { id: 3, author: OWNER.id, body: "변경마다 한 줄 요약을 붙여 주세요", createdAt: now - 45 * MIN },
               { id: 4, author: OWNER.id, body: "변경 목록은 표로 보여 주세요", createdAt: now - 25 * MIN },
+            ]
+          : card.id === "k-104"
+          ? [
+              // The text shapes UI QA round 21 met on the hub (lina-app#228), in made-up words: a digits-only hash, a lead-in
+              // with its whole list on one line, and a lead-in whose list goes on to the next line.
+              { id: 1, author: agentId(1), body: "실패 화면 시안은 아직 4815162342 판에 머물러 있다.", createdAt: now - 3 * HOUR + 2 * MIN },
+              { id: 2, author: agentId(1), body: "실패 화면 검토 결과: (1) 첫 화면 문구를 새 문체로 맞췄다. (2) 다시 시도 버튼을 아래로 옮겼다. (3) 카드사 이름을 굵게 바꿨다.", createdAt: now - 3 * HOUR + 4 * MIN },
+              { id: 3, author: agentId(1), body: "남은 검토 두 가지: (1) 영수증 화면의 금액 줄을 다시 본다.\n(2) 환불 문구 확인.", createdAt: now - 3 * HOUR + 6 * MIN },
             ]
           : [],
       runs: rounds[card.id] ?? [
@@ -1028,6 +1038,10 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
         const title = `${FINISHED_WORK[index % FINISHED_WORK.length]} ${FINISHED_STEP[Math.floor(index / FINISHED_WORK.length)]}`;
         cardList.cards.push({ ...done, id: `k-${300 + index}`, title, plain: plain(title, null, "끝까지 마쳤음"), endedAt: ended, lastHeartbeatAt: ended });
       }
+      // The title shape UI QA round 21 met on the hub (lina-app#228), in made-up words: no goal and no checked title, and its
+      // own has a Latin word and a ref glued to the bracket after its colon, so cutting them would leave `손보기: (…) 이후`.
+      const holed = cardList.cards.find((card) => card.id === `k-${300 + FINISHED_HOLED}`);
+      if (holed) Object.assign(holed, { title: "정산 Sheet 표 한 번 손보기: lina-app#12(지난 판 되돌림) 이후 마무리", goalTitle: null, plain: NO_LINES });
     }
   }
   if (options.hubRound11) {

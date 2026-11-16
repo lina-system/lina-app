@@ -3,7 +3,8 @@ import { expect, test } from "vitest";
 import { scanText } from "../../scripts/check-personal-data.ts";
 import { buildModel } from "../model";
 import { holds } from "../model/rounds";
-import { generateScene, SCENE_COUNTS, SYNTHETIC_SEED, type Scene } from "./synthetic";
+import { commentHistory } from "../model/timeline";
+import { generateScene, SCENE_COUNTS, SYNTHETIC_OWNER, SYNTHETIC_SEED, type Scene } from "./synthetic";
 
 const NOW = 1_793_700_000;
 const scene = generateScene(SYNTHETIC_SEED, { now: NOW });
@@ -224,6 +225,27 @@ test("names are invented and titles are Korean", () => {
     expect(run.title).not.toBe(run.plain.title);
   }
   for (const machine of scene.devices.machines) expect(machine.name).toMatch(/^[가-힣]+$/);
+});
+
+test("the scene carries the text shapes UI QA round 21 met, and no history line draws them (lina-app#228)", () => {
+  const comments = scene.cardDetails["k-104"].comments;
+  expect(comments.some((comment) => /\d{7,}/.test(comment.body))).toBe(true);
+  const lines = commentHistory(
+    comments.map((comment) => ({ at: comment.createdAt, author: comment.author, body: comment.body })),
+    SYNTHETIC_OWNER.id,
+  ).map((line) => line.text);
+  for (const line of lines) expect(line ?? "").not.toMatch(/\d{7,}/);
+  // A list is drawn whole with every item, or not at all: never its lead-in and first item alone.
+  expect(comments.filter((comment) => /\(1\)/.test(comment.body))).toHaveLength(2);
+  expect(lines).toEqual([null, comments.find((comment) => comment.id === 2)?.body, null]);
+});
+
+test("the many-finished scene carries the title shape UI QA round 21 met, and no row draws the bracket its cut left after a colon (lina-app#228)", () => {
+  const many = generateScene(SYNTHETIC_SEED, { now: NOW, manyFinished: true });
+  expect(many.cards.cards.some((card) => card.state === "done" && card.plain.title === null && /:\s*[\w-]+#\d+\(/.test(card.title ?? ""))).toBe(true);
+  for (const row of model(many).cards.values()) {
+    for (const text of Object.values(row)) if (typeof text === "string") expect(text).not.toMatch(/:\s*\(/);
+  }
 });
 
 test("the scene contains no personal-data pattern or configured name", () => {

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { foldedText, foldReason, sentenceMayShow, sentencesOf, withoutLatin, withoutRefs } from "./fold";
+import { drawnSentences, foldedText, foldReason, sentenceMayShow, sentencesOf, withoutLatin, withoutRefs } from "./fold";
 
 test("a comment shows as it is unless it would show a path, a command, a hash, an issue number, an address or a fragment", () => {
   for (const plain of ["오류 문구 초안을 공유했어요.", "카드 번호는 앞 여섯 자리까지 보여 줄까요?", "1.5배 빨라졌어요."]) expect(foldReason(plain)).toBeNull();
@@ -154,11 +154,79 @@ test.each([
   expect(sentenceMayShow(sentence)).toBe(shows);
 });
 
+// lina-app#228: a sentence that carries a list (`(1)`, `1)`, `1.` or `①` marks) is drawn whole with every item or not at all.
+// The split joins an item to the list before it (the same kind of mark, the next number), so a lead-in and its items on
+// one line are one sentence; a list the hub cut (`…`), that goes on to the next line, that skips a number or that does
+// not start at 1 is not drawn, and a line that opens on a list's number and holds its next item is that list whole.
+const LIST = "가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. (2) 버튼을 아래로 옮겼다. (3) 카드사 이름을 굵게 바꿨다.";
+test.each([
+  [LIST, [LIST]],
+  [`${LIST} 다음 문장도 있다.`, [LIST, "다음 문장도 있다."]],
+  // A `1)` mark inside a sentence is a bracket closed alone: that list is never drawn.
+  ["가짜 순서: 1) 빌드를 마친다. 2) 배포를 한다.", []],
+  ["가짜 순서는 1. 가짜 빌드를 마친다. 2. 가짜 배포를 한다.", ["가짜 순서는 1. 가짜 빌드를 마친다. 2. 가짜 배포를 한다."]],
+  ["가짜 할 일은 둘이다 ① 문구를 고친다 ② 버튼을 옮긴다.", ["가짜 할 일은 둘이다 ① 문구를 고친다 ② 버튼을 옮긴다."]],
+  ["가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. (2) 버튼을 아래로…", []],
+  ["가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. (3) 버튼을 아래로 옮겼다.", []],
+  ["앞의 일은 끝났고 (2) 버튼을 아래로 옮겼다.", []],
+  ["가짜 남은 일: (1) 영수증 금액 줄을 다시 본다.\n(2) 환불 문구 확인.", []],
+  ["가짜 남은 일: (1) 영수증 금액 줄을 다시 본다.\n(2) 환불 안내 문구를 고친다.", ["환불 안내 문구를 고친다."]],
+  ["(1) 가짜 문구를 맞췄다. (2) 가짜 버튼을 옮겼다.", []],
+  // A range is no list's mark (`11-16)`).
+  ["가짜 보고(검토 기간 11-16) 내용을 고쳤다.", ["가짜 보고(검토 기간 11-16) 내용을 고쳤다."]],
+  // An item of several sentences: its list goes on past the sentence, so neither item is drawn; the sentence between is.
+  ["가짜 검토 결과: ① 첫 화면 문구를 맞췄다. 가짜 시안도 함께 고쳤다. ② 버튼을 아래로 옮겼다.", ["가짜 시안도 함께 고쳤다."]],
+  ["가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. 가짜 시안도 함께 고쳤다.\n가짜 새 줄이다. (2) 버튼을 옮겼다.", ["가짜 시안도 함께 고쳤다.", "가짜 새 줄이다."]],
+])("drawnSentences(%j) is %j: a list whole or not at all (lina-app#228)", (text, drawn) => {
+  expect(drawnSentences(text)).toEqual(drawn);
+});
+
+// lina-app#228: a ref or a Latin word cut from between a separator (or the title's start) and the bracket after it
+// leaves that bracket an aside on nothing (`손보기: (지난 판 되돌림) 이후`): a hole, so the cut gives nothing. A bracket the title
+// itself opens after its colon, with nothing cut, stays; one that ends the title is the colon's aside, its colon gone.
+test.each([
+  ["가짜 정산 표 손보기: lina-app#12(지난 판 되돌림) 이후 마무리", ""],
+  ["가짜 정산 표 손보기: lina#12 (지난 판 되돌림) 이후 마무리", ""],
+  ["가짜 정리 · a1b2c3d(앞 판) 뒤 마무리", ""],
+  ["lina#12(지난 판 되돌림) 이후 마무리", ""],
+  ["가짜 요약: (초안) 문서 정리", "가짜 요약: (초안) 문서 정리"],
+  ["가짜 반영: lina#12 (앞 판)", "가짜 반영 (앞 판)"],
+])("withoutRefs(%j) is %j: no bracket is left after a separator a ref was cut from (lina-app#228)", (title, cut) => {
+  expect(withoutRefs(title)).toBe(cut);
+});
+
+test("a Latin word cut from before a bracket after the colon leaves the same hole (lina-app#228)", () => {
+  expect(withoutLatin("가짜 정산 표 손보기: Sheet(지난 판 되돌림) 이후 마무리")).toBe("");
+  expect(withoutLatin("가짜 정산 Sheet 표 손보기: (지난 판) 이후 마무리")).toBe("가짜 정산 표 손보기: (지난 판) 이후 마무리");
+});
+
+// lina-app#228: a run of seven digits or more is a hash with no letter in it (a short commit hash). A sentence holding
+// it is not drawn, as one holding any code-like token, and a bracket of it alone goes, as one of any hash; six digits and
+// a number with its commas are counts.
+test.each([
+  ["가짜 판은 아직 4815162342 그대로다.", []],
+  ["가짜 판은 아직 1234567 그대로다.", []],
+  ["가짜 판을 다시 올렸다 (4815162342).", ["가짜 판을 다시 올렸다."]],
+  ["가짜 대기 건수가 123456건으로 늘었다.", ["가짜 대기 건수가 123456건으로 늘었다."]],
+  ["가짜 대기 건수가 1,234,567건으로 늘었다.", ["가짜 대기 건수가 1,234,567건으로 늘었다."]],
+])("drawnSentences(%j) is %j: a digits-only hash is never drawn (lina-app#228)", (text, drawn) => {
+  expect(drawnSentences(text)).toEqual(drawn);
+});
+
+test("a title holding a digits-only hash passes the sentence rule only once the hash is cut (lina-app#228)", () => {
+  expect(sentenceMayShow("가짜 판은 아직 4815162342 그대로다.")).toBe(false);
+  expect(withoutRefs("가짜 빌드 4815162342 올리기")).toBe("가짜 빌드 올리기");
+});
+
 // lina-app#222: the split never cuts after a list's number, so neither half of `순서는 1. 빌드` is a sentence alone; a dot
 // inside a number, a version or a file name has no space after it and never splits.
 test.each([
   ["가짜 순서는 1. 가짜 빌드를 마친다. 다음 문장.", ["가짜 순서는 1. 가짜 빌드를 마친다.", "다음 문장."]],
   ["2. 가짜 시험 통과.", ["2. 가짜 시험 통과."]],
+  // An item stays with the list before it: the same kind of mark, the next number (lina-app#228).
+  ["가짜 결과: (1) 문구를 맞췄다. (2) 버튼을 옮겼다. 다음 문장.", ["가짜 결과: (1) 문구를 맞췄다. (2) 버튼을 옮겼다.", "다음 문장."]],
+  ["가짜 순서는 1. 가짜 빌드를 마친다. 2. 가짜 배포를 한다. 다음 문장.", ["가짜 순서는 1. 가짜 빌드를 마친다. 2. 가짜 배포를 한다.", "다음 문장."]],
+  ["가짜 결과: (1) 문구를 맞췄다. 2) 버튼을 옮겼다.", ["가짜 결과: (1) 문구를 맞췄다.", "2) 버튼을 옮겼다."]],
   // A count at the end of a sentence is no list's number, so the next sentence stays its own (lina-app#224 review).
   ["가짜 실패 건수는 0. 가짜 검사는 대기 중.", ["가짜 실패 건수는 0.", "가짜 검사는 대기 중."]],
   ["가짜 대기는 3. 가짜 검사는 대기 중.", ["가짜 대기는 3.", "가짜 검사는 대기 중."]],

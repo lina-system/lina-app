@@ -3076,14 +3076,31 @@ describe("the run's own timeline", () => {
     fireEvent.click(link);
     await waitFor(() => expect(view.queryByTestId("screen-run")).not.toBeNull());
     await waitFor(() => expect(view.getByTestId("screen-run").querySelector("[data-testid=timeline]")).not.toBeNull());
-    expect(view.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("릴리스 변경 목록 정리");
+    // Its card's row name, its goal's title first, as the card's head reads it (lina-app#248).
+    expect(view.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("릴리스 노트 정리");
     expect(view.getByTestId("screen-run").querySelector('a[href="#/cards/k-101"]')).not.toBeNull();
     view.unmount();
     // Opened on its own, before its card: the run's record names its card, which the page reads and shows.
     const run = await open("#/runs/r1", { wide: true });
     await waitFor(() => expect(run.getByTestId("timeline")).toBeTruthy());
-    expect(run.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("릴리스 변경 목록 정리");
+    expect(run.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("릴리스 노트 정리");
     expect(run.getByTestId("screen-run").querySelector('a[href="#/cards/k-101"]')).not.toBeNull();
+  });
+
+  test("a to-do's run line reads the name its card's worker run page reads, its card's row name, once the card is known (lina-app#248)", async () => {
+    // k-101's own title made-up with Latin words in it and nothing checked: no row rule draws it, its goal's title names it.
+    const goal = "가상 목록 다시 묶기";
+    const { scene } = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
+    const retitle = <C extends { id: string; title: string; plain: { title: string | null } }>(card: C): C => (card.id === "k-101" ? { ...card, title: "가상 fake sync tool 옮기기", plain: { ...card.plain, title: null } } : card);
+    const cards = scene.cards.cards.map((card) => (card.id === "k-101" ? { ...retitle(card), goalTitle: goal } : card));
+    const source = new SyntheticSource({ scene: { ...scene, cards: { cards }, cardDetails: { ...scene.cardDetails, "k-101": retitle(scene.cardDetails["k-101"]) } } });
+    const view = await open("#/cards/k-101", { wide: true, source });
+    window.location.hash = "#/items/T1";
+    const runs = await waitFor(() => view.getByRole("list", { name: "실행" }));
+    const names = [...runs.querySelectorAll(".title")].map((title) => title.textContent);
+    expect(names).toEqual([goal, goal, goal]);
+    window.location.hash = "#/runs/r1";
+    await waitFor(() => expect(view.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe(goal));
   });
 
   test("a worker change event refetches that run's record in place: the new line shows, the blocks and their open state stay", async () => {
@@ -3525,12 +3542,12 @@ describe("a card's detail (lina-app#128)", () => {
     expect(rows).toEqual(["완료변경 목록 모으기", "모은 변경 확인", "공지 문구 확인"]);
   });
 
-  test("a card's worker run reads its work's title and a state word, never 코드 작업, on its page and on the card's lines", async () => {
+  test("a card's worker run reads its card's name and a state word, never 코드 작업, on its page and on the card's lines", async () => {
     const run = await open("#/runs/r1", { wide: true });
     await waitFor(() => expect(run.getByTestId("timeline")).toBeTruthy());
-    expect(run.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("릴리스 변경 목록 정리");
+    expect(run.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe("릴리스 노트 정리");
     expect(run.getByTestId("run-state").textContent).toBe("진행 중");
-    expect(run.getByTestId("detail-pane").getAttribute("aria-label")).toBe("릴리스 변경 목록 정리");
+    expect(run.getByTestId("detail-pane").getAttribute("aria-label")).toBe("릴리스 노트 정리");
     expect(screenText(run.container)).not.toContain("코드 작업");
     run.unmount();
     // k-104's worker run r4 has no record: 실행 stands, one line per run with its time and state word; the card's

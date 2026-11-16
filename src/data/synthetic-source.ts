@@ -449,6 +449,11 @@ export const ROUND24 = {
   /** The card whose worker runs each serve their own record, numbered from 1 (lina-app#245), and its title. */
   runsCard: "k-450",
   runsTitle: "가상 목록 정리 묶음",
+  /** A finished card whose own title no rule draws (Latin words in it), under a goal's title, with one worker run (lina-app#248). */
+  latinCard: "k-830",
+  latinOwn: "가상 fake sync tool 옮기기",
+  latinGoal: "가상 기록 화면 다듬기",
+  latinRun: "w-8301",
 } as const;
 
 /**
@@ -459,7 +464,8 @@ export const ROUND24 = {
  * of two agents under one goal title, one titled as the goal (scheduled), one with a title of its own (in triage). And the
  * first agent's goal G10 as the item list serves it (waiting, 9 of 10 to-dos closed), whose title holds a Latin word, over
  * finished cards that carry that title as theirs (`goalTitle`): five whose own titles no rule draws, every agent's, and
- * two drawn as written; the hub links them to the goal by that title alone.
+ * two drawn as written; the hub links them to the goal by that title alone. And k-830 (lina-app#248), a finished card
+ * whose own title no rule draws, under a goal's title, whose one worker run serves its record.
  */
 export function round24Scene(scene: Scene): Scene {
   const next = round23ListScene(round24RecordScene(scene));
@@ -487,10 +493,16 @@ export function round24Scene(scene: Scene): Scene {
   const detail = { ...next.itemDetails.G1, ...goal, why: null, basis: [], children: [], comments: [], runs: [], links: [], workCards: [], decision: null, ownerDone: null };
   // The hub serves the detail of every open card: its row's fields and empty lists.
   const cardDetails = Object.fromEntries([...stopped, ...planned].map((card) => [card.id, { ...card, todos: [], workerRuns: [], runsAwaitingVerdict: [], gates: [], comments: [], runs: [] }]));
+  // lina-app#248: its worker run's page reads the card's row name, the goal's title, never 제목 없음.
+  const latinEnd = now - 2 * 3600;
+  const latin = row(R.latinCard, { title: R.latinOwn, goalTitle: R.latinGoal, agent: agents[0], state: "done", elapsedSeconds: 40 * 60, endedAt: latinEnd, lastHeartbeatAt: latinEnd });
+  const latinDetail = { ...latin, todos: [], workerRuns: [{ id: R.latinRun, kind: "lina-worker", firstSeenAt: latinEnd - 40 * 60, lastSeenAt: latinEnd }], runsAwaitingVerdict: [], gates: [], comments: [], runs: [] };
+  const latinRecord: RunRecord = { ...next.records.r9, id: R.latinRun, cardId: R.latinCard, rounds: [{ run: 1, startedAt: latinEnd - 40 * 60, endedAt: latinEnd, endKnown: true, startUnknown: false, result: "가상 기록 화면을 다듬었다.", verdict: "accepted", stopped: false, rows: [] }], comments: [], errors: [] };
   return {
     ...next,
-    cardDetails: { ...next.cardDetails, ...cardDetails } as Scene["cardDetails"],
-    cards: { ...next.cards, cards: [...next.cards.cards, ...stopped, ...planned, ...finished] },
+    cardDetails: { ...next.cardDetails, ...cardDetails, [R.latinCard]: latinDetail } as Scene["cardDetails"],
+    cards: { ...next.cards, cards: [...next.cards.cards, ...stopped, ...planned, ...finished, latin] },
+    records: { ...next.records, [R.latinRun]: latinRecord },
     inbox: { ...next.inbox, blocked: [...next.inbox.blocked, ...stopped.map((card) => ({ cardId: card.id, title: card.title, agent: card.agent, state: "stopped" as const, reason: card.reason, blockKind: null, blockReason: `가상 관문은 켜 두었다. ${card.ask}을 정해 주세요.` }))] },
     items: { ...next.items, items: [...next.items.items, goal] },
     itemDetails: { ...next.itemDetails, G10: detail },

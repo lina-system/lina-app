@@ -5,6 +5,9 @@ import { App } from "./app";
 import { HttpSource } from "./data/http-source";
 import { FINISHED_SHOWN, Store } from "./data/store";
 import { SyntheticSource } from "./data/synthetic-source";
+import { buildModel } from "./model";
+import { workerTitle } from "./screens/details";
+import { KIND_TITLE } from "./words";
 
 /** As many work cards as the hub listed when the first screen took a minute (lina-app#100). */
 const CARDS = 229;
@@ -276,4 +279,48 @@ test("the lists draw while a card's detail takes 30 seconds; the open card shows
   });
   expect(view.getByTestId("screen-card").querySelector("[data-testid=detail-loading]")).toBeNull();
   expect(view.getByTestId("screen-card").textContent).toContain("지난 한 달 백업이 모두 끝까지 돌았음");
+});
+
+/** A made-up own title with Latin words in it: no row rule draws it, so the card has no own name (lina-app#248). */
+const LATIN_OWN = "가상 fake sync tool 옮기기";
+
+/** The synthetic scene with k-101's own title made LATIN_OWN, nothing checked, and the goal title `goal` on its row. */
+function latinOwnCard(goal: string): SyntheticSource {
+  const { scene } = new SyntheticSource();
+  const retitle = <C extends { id: string; title: string; plain: { title: string | null } }>(card: C): C => (card.id === "k-101" ? { ...card, title: LATIN_OWN, plain: { ...card.plain, title: null } } : card);
+  const cards = scene.cards.cards.map((card) => (card.id === "k-101" ? { ...retitle(card), goalTitle: goal } : card));
+  return new SyntheticSource({ scene: { ...scene, cards: { cards }, cardDetails: { ...scene.cardDetails, "k-101": retitle(scene.cardDetails["k-101"]) } } });
+}
+
+test("a worker run of a card whose own title has Latin words reads its card's row name, its goal's title, on its page (lina-app#248)", async () => {
+  const goal = "가상 목록 다시 묶기";
+  const core = fakeCore(latinOwnCard(goal));
+  const { view } = mount("#/runs/r1", core);
+  await waitFor(() => expect(view.getByTestId("screen-run").querySelector('a[href="#/cards/k-101"]')).not.toBeNull());
+  const head = view.getByTestId("screen-run").querySelector(".detail-title");
+  expect(head?.textContent).toBe(goal);
+  expect(head?.classList.contains("is-kind")).toBe(false);
+});
+
+test("a worker run's name is its card's row name: the goal's title, else the card's own, else its kind word; 제목 없음 only when the board does not know the card (lina-app#248)", () => {
+  const card = (id: string, title: string, plainTitle: string | null, goalTitle: string | null, state: "in_progress" | "done" = "in_progress") => ({
+    id,
+    title,
+    agent: null,
+    state,
+    reason: null,
+    elapsedSeconds: 60,
+    todoProgress: { done: 0, total: 0 },
+    now: null,
+    plain: { title: plainTitle, now: null, result: null },
+    goalTitle,
+  });
+  const cards = [card("k-1", LATIN_OWN, null, "가상 화면 다시 묶기"), card("k-2", "fake sync tool 정리", null, null), card("k-3", "가상 목록 칸 고치기", "가상 목록 칸 고치기", null), card("k-4", LATIN_OWN, null, "가상 화면 다시 묶기", "done")];
+  const model = buildModel({ cards: { cards }, cardDetails: {}, failed: [] }, 1_793_700_000);
+  expect(workerTitle(model, "k-1")).toBe("가상 화면 다시 묶기");
+  expect(workerTitle(model, "k-2")).toBe(KIND_TITLE.code);
+  expect(workerTitle(model, "k-3")).toBe("가상 목록 칸 고치기");
+  expect(workerTitle(model, "k-4")).toBe("가상 화면 다시 묶기");
+  expect(workerTitle(model, "k-9")).toBe("제목 없음");
+  expect(workerTitle(model, null)).toBe("제목 없음");
 });

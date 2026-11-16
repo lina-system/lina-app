@@ -415,17 +415,16 @@ async function decisionNames(list) {
 const ACCENT = "rgb(0, 122, 255)";
 
 // Text under 4.5:1 that only a palette change clears (lina-app#213): white on the accent fill (a selected row, the
-// current sidebar row), the accent as a text button's colour in light, and the state red and orange as words. The
-// contrast sweep lets these exact pairs through and fails on any other.
+// current sidebar row in light), the accent as a text button's colour in light, and the state red and orange as words.
+// The contrast sweep lets these exact pairs through and fails on any other. In dark the current sidebar row and the
+// sidebar's red counts reach 4.5:1 (lina-app#232), so their pairs are not open.
 const OPEN_CONTRAST = new Set([
   "#ffffff on #007aff",
-  "#ffffff on #0a84ff",
   "#007aff on #ffffff",
   "#007aff on #f2f2f7",
   "#ff3b30 on #ffffff",
   "#ff3b30 on #f2f2f7",
   "#ff3b30 on #efeff4",
-  "#ff453a on #29292b",
   "#ff9500 on #ffffff",
 ]);
 

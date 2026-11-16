@@ -164,3 +164,20 @@ test.each([
     }
   }
 });
+
+// lina-app#232: in dark the current sidebar row's white words on the accent measured 3.65:1 and an agent row's red 12 px
+// count 4.09:1 on the sidebar (over the window's bg). The current row is filled with --accent-fill and the sidebar's red
+// counts are drawn in --red-text: 4.5:1 in dark on the sidebar over either page, each the hue of its colour within 5
+// degrees. Light keeps its colours.
+test("the current sidebar row and the sidebar's red counts reach 4.5:1 in dark, light unchanged", () => {
+  const fill = parse(token(dark, "accent-fill"));
+  expect(contrast(parse(schemeToken(dark, "on-accent")), fill)).toBeGreaterThanOrEqual(4.5);
+  expect(hueGap(fill, parse(token(dark, "accent"))), "--accent-fill hue").toBeLessThanOrEqual(5);
+  for (const page of ["bg", "bg-2"]) {
+    const sidebar = over(parse(token(dark, "sidebar")), over(parse(token(dark, page)), parse("#000000")));
+    expect(contrast(parse(token(dark, "red-text")), sidebar), page).toBeGreaterThanOrEqual(4.5);
+  }
+  expect(hueGap(parse(token(dark, "red-text")), parse(token(dark, "red"))), "--red-text hue").toBeLessThanOrEqual(5);
+  expect(token(light, "accent-fill")).toBe(token(light, "accent"));
+  expect(token(light, "red-text")).toBe(token(light, "red"));
+});

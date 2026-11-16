@@ -12,7 +12,11 @@
   --bar: rgba(249, 249, 251, 0.86);
   --accent: #007aff;
   --on-accent: #ffffff;
+  /* The current sidebar row's fill behind white words, and the sidebar's red counts: the accent and the red in light,
+     a shade that reaches 4.5:1 in dark (lina-app#232; src/design/contrast.test.ts). */
+  --accent-fill: #007aff;
   --red: #ff3b30;
+  --red-text: #ff3b30;
   /* Red behind white words (the bell's count, the stopped pills): the state red's hue, dark enough for 4.5:1, the
      same in dark (lina-app#213; src/design/contrast.test.ts). */
   --red-fill: #e0201b;
@@ -76,7 +80,9 @@
     --sidebar: rgba(44, 44, 46, 0.82);
     --bar: rgba(30, 30, 32, 0.86);
     --accent: #0a84ff;
+    --accent-fill: #0071e3;
     --red: #ff453a;
+    --red-text: #ff6961;
     --orange: #ff9f0a;
     --tab-track: rgba(120, 120, 128, 0.12);
     --tab-current: #737377;

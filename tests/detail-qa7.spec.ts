@@ -13,7 +13,8 @@ const DETAILS: readonly { name: string; query: string; hash: string; prepare?: (
     query: "",
     hash: "#/cards/k-102",
     prepare: async (page) => {
-      await page.getByTestId("card-own-title").evaluate((line, title) => {
+      // The head reads the card's own name (lina-app#242), so it is the line the hub's long titles cut.
+      await page.locator("[data-frame] .detail-title").evaluate((line, title) => {
         line.textContent = title;
       }, LONG_OWN_TITLE);
     },

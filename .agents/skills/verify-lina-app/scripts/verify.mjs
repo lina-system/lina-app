@@ -1739,12 +1739,14 @@ const drivers = {
       await openApp(page, "#/cards/k-102");
       const detail = page.getByTestId("screen-card");
       await detail.waitFor();
-      // The head reads the row's name (its goal) and the card's own title is the line under it (lina-app#153).
+      // The head reads the row's name: its own, for its goal's title is a 완료 line on the work tab, and the goal is the line
+      // under it; no second line repeats the own title (lina-app#153, #242).
       await detail.getByTestId("detail-loading").waitFor({ state: "detached", timeout: 10_000 }).catch(() => null);
       const head = (await detail.locator(".detail-title").innerText()).trim();
-      check(head === "결제 화면 개편", "the card head reads " + head);
-      const own = (await detail.getByTestId("card-own-title").innerText()).trim();
-      check(own === "위키: 결제 화면 문서 정리", "the card's own title line reads " + own);
+      check(head === "위키: 결제 화면 문서 정리", "the card head reads " + head);
+      check((await detail.getByTestId("card-own-title").count()) === 0, "the card draws its own title again under a head that reads it");
+      const goal = (await detail.getByTestId("card-goal").innerText()).trim();
+      check(goal.includes("결제 화면 개편"), "the card's goal line reads " + goal);
       check((await detail.locator(".detail-title.is-kind").count()) === 0, "the head shows a kind word instead of the title");
       const kind = (await detail.getByTestId("kind").innerText()).trim();
       check(kind === "문서", "the kind reads " + kind);
@@ -3766,12 +3768,14 @@ const drivers = {
       await settled(page);
       const detail = page.getByTestId("screen-card");
       await detail.waitFor();
-      // The head reads the name of the row that was tapped; the card's own title is the line under it (lina-app#153).
+      // The head reads the name of the row that was tapped: its own, for its goal's title is a 완료 line, and the goal is the
+      // line under it (lina-app#153, #242).
       await detail.getByTestId("detail-loading").waitFor({ state: "detached", timeout: 10_000 }).catch(() => null);
       const head = (await detail.locator(".detail-title").innerText()).trim();
-      check(head === "결제 화면 개편", "the detail is named " + head);
-      const own = (await detail.getByTestId("card-own-title").innerText()).trim();
-      check(own === "위키: 결제 화면 문서 정리", "the detail's own title line reads " + own);
+      check(head === "위키: 결제 화면 문서 정리", "the detail is named " + head);
+      check((await detail.getByTestId("card-own-title").count()) === 0, "the detail draws its own title again under a head that reads it");
+      const goal = (await detail.getByTestId("card-goal").innerText()).trim();
+      check(goal.includes("결제 화면 개편"), "the detail's goal line reads " + goal);
       check((await detail.locator(".detail-title.is-kind").count()) === 0, "the detail draws a kind word in place of its title");
       const kind = (await detail.getByTestId("kind").innerText()).trim();
       check(kind === "문서", "the kind reads " + kind);

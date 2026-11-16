@@ -271,3 +271,50 @@ test("a long card opened by its address keeps its own title once the full card-l
   expect(head(view.container)).toBe(own);
   expect(view.container.textContent).not.toContain(W.untitled);
 });
+
+test("a card off the first page reads its goal's title once the full card-list read fails, 불러오는 중 while pending, 제목 없음 when nothing names it", async () => {
+  // lina-app#258: an own title with a Latin word, which the drawn-title rule keeps off the screen, as real cards have.
+  const own = "fake route check (a-mac·b-mac)";
+  const goalTitle = "가상 목표";
+  const scene = (mode: "failed" | "pending" | "unknown") => {
+    const source = new SyntheticSource({ longCard: true, manyFinished: true });
+    const cards = source.scene.cards.cards;
+    const row = cards.find((card) => card.id === CARD)!;
+    row.endedAt = (row.endedAt ?? 0) - 90 * 24 * 3600;
+    source.scene.cardDetails[CARD].title = own;
+    if (mode === "unknown") cards.splice(cards.indexOf(row), 1);
+    else source.scene.goals.goals.push({ ...source.scene.goals.goals[0], id: "kg-fake", title: goalTitle, workCards: [row] });
+    const read = source.read.bind(source);
+    source.read = (async (name, id) => {
+      // The first page comes in; with `failed` every read without that limit fails.
+      if (mode === "failed" && name === "cards" && id !== String(FINISHED_SHOWN)) return { kind: "failed", offline: false, at: Math.floor(Date.now() / 1000) };
+      return read(name, id);
+    }) as SyntheticSource["read"];
+    return source;
+  };
+  const open = (source: SyntheticSource) => {
+    setWide(true);
+    window.history.replaceState(null, "", `/app/#/cards/${CARD}`);
+    const store = new Store(source);
+    return { store, view: render(<App store={store} />) };
+  };
+
+  const failed = open(scene("failed"));
+  await waitFor(() => expect(failed.store.status("cards")).toBe("failed"), { timeout: 5000 });
+  await waitFor(() => expect(head(failed.view.container)).toBe(goalTitle), { timeout: 5000 });
+  expect(failed.view.container.textContent).not.toContain(W.untitled);
+  failed.view.unmount();
+
+  const held = scene("pending");
+  const reads = holdReads(held, ["cards"]);
+  const pending = open(held);
+  await waitFor(() => expect(head(pending.view.container)).toBeTruthy());
+  expect(reads.held("cards").length).toBeGreaterThan(0);
+  expect(head(pending.view.container)).toBe(W.loading);
+  reads.stop();
+  pending.view.unmount();
+
+  const unknown = open(scene("unknown"));
+  await waitFor(() => expect(unknown.store.status("cards")).toBe("ok"), { timeout: 5000 });
+  await waitFor(() => expect(head(unknown.view.container)).toBe(W.untitled), { timeout: 5000 });
+}, 30_000);

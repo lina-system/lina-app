@@ -211,6 +211,30 @@ test.each([
   expect(drawnSentences(text)).toEqual(drawn);
 });
 
+// lina-app#230: a sentence holding exactly one time of day with a Korean particle or word glued after it (`12:50에`,
+// `12:50경`) is a plain fact, drawn when it is otherwise drawable: the row's own time beside it is another time and both read.
+// Two times, a time with seconds, or one followed by a space (a log line's head), a separator, an end mark or nothing are not drawn.
+test.each([
+  ["가짜 판을 12:50에 배포했다.", ["가짜 판을 12:50에 배포했다."]],
+  ["가짜 검토는 9:05부터 다시 했다.", ["가짜 검토는 9:05부터 다시 했다."]],
+  ["가짜 정리를 14:00까지 마친다.", ["가짜 정리를 14:00까지 마친다."]],
+  ["가짜 배포가 12:50경 끝났다.", ["가짜 배포가 12:50경 끝났다."]],
+  ["가짜 배포가 12:50쯤 끝났다.", ["가짜 배포가 12:50쯤 끝났다."]],
+  ["22:45 기준으로 가짜 문구를 다시 확인함.", []],
+  ["12:50 가짜 배포 시작", []],
+  ["가짜 배포를 12:50에 시작해 13:05에 마쳤다.", []],
+  ["12:50 · 가짜 배포를 마쳤다.", []],
+  ["12:50 — 가짜 배포를 마쳤다.", []],
+  ["12:50 - 가짜 배포를 마쳤다.", []],
+  ["12:50 | 가짜 배포를 마쳤다.", []],
+  ["가짜 배포를 마쳤다 12:50", []],
+  ["가짜 배포 시각은 12:50.", []],
+  ["가짜 배포를 12:50:33에 마쳤다.", []],
+  ["가짜 대비는 3.55:1로 올랐다.", ["가짜 대비는 3.55:1로 올랐다."]],
+])("drawnSentences(%j) is %j: one time of day with its particle is a fact (lina-app#230)", (text, drawn) => {
+  expect(drawnSentences(text)).toEqual(drawn);
+});
+
 // lina-app#230: a run of seven digits or more with a unit glued after it (`원`, `건`) or a thousands comma is a number,
 // drawn as any; with nothing after it, a particle or a space, it stays a hash and its sentence is not drawn.
 test.each([

@@ -239,7 +239,8 @@ test.each(NOISY)("a card's history with %s: no line starts with [, none repeats 
   lines.forEach((line, index) => {
     const text = line.text ?? "";
     expect(text).not.toMatch(/^\[/);
-    expect(text).not.toMatch(/\d{1,2}:\d{2}/);
+    // A time of day is drawn only alone in its sentence with its particle glued after it (`21:10에`, lina-app#230).
+    expect(text).not.toMatch(/\d{1,2}:\d{2}(?!\d|\p{Script=Hangul})/u);
     if (index === 0) return;
     const previous = lines[index - 1];
     expect(line.at).toBeLessThanOrEqual(previous.at);

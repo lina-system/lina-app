@@ -321,10 +321,26 @@ const LINE_TAGS = /^(?:\s*\[[^\]\n]*\])*\s*/;
 const LINE_HEAD = /^(?:[-•·*]|\(?\d{1,2}[.)])\s+/;
 /**
  * Marks no drawn sentence holds (lina-app#226): a slash (a path, an `a/b` list), an arrow, a code mark (`\``, `=`, `\\`), a
- * table's `|`, the hub's own cut (`…`, `...`) anywhere in it, and a time of day, which reads against the row's own
- * time (lina-app#153) and cannot be cut out.
+ * table's `|` and the hub's own cut (`…`, `...`) anywhere in it.
  */
-const NEVER_DRAWN = /[/\\`=|→←↔⇒⇄…]|->|\.\.\.|\d{1,2}:\d{2}/;
+const NEVER_DRAWN = /[/\\`=|→←↔⇒⇄…]|->|\.\.\./;
+/** A time of day (`12:50`, `9:05`, with seconds `12:50:33`); a ratio (`3.55:1`) is none. */
+const CLOCK = /(?<![\d:.])\d{1,2}:\d{2}(?::\d{2})?(?!\d)/g;
+
+/**
+ * Whether a sentence holds what no drawn sentence holds (NEVER_DRAWN), or a time of day that reads as a log's (lina-app#153,
+ * #230): two or more, one with seconds, or one with no Korean particle or word glued after it (`12:50 · 시작`, `… 12:50`,
+ * `12:50.`, `12:50 배포 시작`, a log line's head). Exactly one time with a particle or word glued after it (`12:50에`,
+ * `9:05부터`, `12:50경`, `12:50쯤`) is a plain fact: the row's own time beside it is another time, and the two read side by
+ * side.
+ */
+function holdsNeverDrawn(sentence: string): boolean {
+  if (NEVER_DRAWN.test(sentence)) return true;
+  const times = [...sentence.matchAll(CLOCK)];
+  if (!times.length) return false;
+  const [time] = times;
+  return times.length > 1 || time[0].split(":").length > 2 || !/^\p{Script=Hangul}/u.test(sentence.slice(time.index + time[0].length));
+}
 /** A sentence that opens on a word tying it to the one before it: it does not read alone. */
 const CONTINUES = /^(?:그러나|하지만|그래서|그리고|따라서|그런데|즉|및|또는|혹은|다만)(?=[\s,]|$)/;
 /** How many Hangul letters a sentence with no predicate needs to be one: fewer is a fragment (`원인 둘.`, `반영 단계.`). */
@@ -351,7 +367,7 @@ export function drawnSentence(sentence: string): string | null {
   const text = withoutRefBrackets(sentence);
   if (STATE_ONLY.has(text)) return text;
   if (BANNED_WORDS.some((word) => text.includes(word))) return null;
-  if (!sentenceMayShow(text) || NEVER_DRAWN.test(text) || CONTINUES.test(text) || /^\(?\d{1,2}[.)]\s/.test(text)) return null;
+  if (!sentenceMayShow(text) || holdsNeverDrawn(text) || CONTINUES.test(text) || /^\(?\d{1,2}[.)]\s/.test(text)) return null;
   // A list's marks run 1, 2, 3 from its first item: one that skips or starts later is a list cut (lina-app#228).
   if (listMarks(text).some((mark, index) => mark.n !== index + 1)) return null;
   if (!endsOnPredicate(text) && (text.match(/\p{Script=Hangul}/gu) ?? []).length < FRAGMENT_BELOW) return null;
@@ -433,7 +449,7 @@ function listUnits(placed: readonly Placed[]): ListUnit[] {
 
 /** Whether a list's lead-in or a piece of one of its items reads (lina-app#230): the sentence checks bar the fragment rule. */
 function pieceReads(piece: string): boolean {
-  return sentenceMayShow(piece) && !NEVER_DRAWN.test(piece) && !BANNED_WORDS.some((word) => piece.includes(word));
+  return sentenceMayShow(piece) && !holdsNeverDrawn(piece) && !BANNED_WORDS.some((word) => piece.includes(word));
 }
 
 /**

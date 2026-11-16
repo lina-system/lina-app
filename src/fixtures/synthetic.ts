@@ -402,6 +402,9 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
               { id: 5, author: agentId(1), body: "(2) 영수증 머리 줄을 줄였다. 글자 크기는 그대로 두었다.\n(3) 버튼 문구를 고쳤다.", createdAt: now - 3 * HOUR + 10 * MIN },
               // A long amount with its unit is a number, not a hash (lina-app#230).
               { id: 6, author: agentId(1), body: "환불 한도는 12345678원으로 정했다.", createdAt: now - 3 * HOUR + 12 * MIN },
+              // One time of day with its particle is a fact; two, or one after a separator (a log line), are not drawn.
+              { id: 7, author: agentId(1), body: "영수증 화면은 12:50에 다시 올렸다.", createdAt: now - 3 * HOUR + 14 * MIN },
+              { id: 8, author: agentId(1), body: "12:50 · 영수증 화면 배포를 시작했다.\n배포는 12:50에 시작해 13:05에 끝났다.", createdAt: now - 3 * HOUR + 16 * MIN },
             ]
           : [],
       runs: rounds[card.id] ?? [

@@ -150,14 +150,17 @@ function tidyFoldedText(text: string): string {
     .replace(/^[\s·,:;\-\u2013\u2014]+|[\s·,:;\-\u2013\u2014]+$/g, "");
 }
 
+/** A word that only leans on the refs beside it in a bracket (`lina#456 뒷일`, `#12 관련 건`): it names nothing once they are cut (lina-app#246). */
+const LEANS_ON_REF = /^(?:뒷일|후속|관련|건)$/u;
+
 /** An emptied bracket, the spaces before it, and the particle glued after it ahead. */
 const EMPTY_BEFORE_PARTICLE = new RegExp(String.raw`\s*[([]\s*[·,:;]*\s*[)\]](?=(?:${PARTICLES})(?![\p{Script=Hangul}]))`, "gu");
 
 /**
  * The text with its issue references, card and goal ids, commit hashes, code-looking names and bots' time stamps cut
  * (lina-app#148, #152, #156, #160). Each ref goes with the particle glued to it; a bracket left with nothing readable
- * (no Hangul, or one letter) or with a hole (cutLeavesHole) goes whole, and one left with words keeps them where they
- * stood. The debris left goes too (tidyFoldedText). Empty when nothing else was there, or when the cut left the text a
+ * (no Hangul, or one letter), with only words that leaned on its refs (LEANS_ON_REF, lina-app#246) or with a hole
+ * (cutLeavesHole) goes whole, and one left with words keeps them where they stood. The debris left goes too (tidyFoldedText). Empty when nothing else was there, or when the cut left the text a
  * hole (lina-app#218).
  */
 export function withoutRefs(text: string): string {
@@ -169,7 +172,8 @@ export function withoutRefs(text: string): string {
         if (!new RegExp(REF, "u").test(inner)) return whole;
         const left = afterCut(`(${inner.replace(ref, cutMark)})`).replace(/^\(|\)$/g, "");
         // An emptied bracket stays `()` until tidied, so the particle glued after it finds its word (lina-app#218).
-        return HANGUL.test(left) && left.replace(SEPARATORS, "").length > 1 ? `(${left})` : "()";
+        const words = left.split(SEPARATORS).filter(Boolean);
+        return HANGUL.test(left) && left.replace(SEPARATORS, "").length > 1 && !words.every((word) => LEANS_ON_REF.test(word)) ? `(${left})` : "()";
       })
       .replace(ref, cutMark),
   );

@@ -23,7 +23,7 @@ test("a comment shows as it is unless it would show a path, a command, a hash, a
 });
 
 test("a title loses its issue references and commit hashes, brackets and all, and keeps its words (lina-app#148)", () => {
-  expect(withoutRefs("가상 빌드에 새 판(dev ed0972f8ce) 고정: 기기가 돌아오면 (lina#456·#454 뒷일)")).toBe("가상 빌드에 새 판 고정: 기기가 돌아오면 (뒷일)");
+  expect(withoutRefs("가상 빌드에 새 판(dev ed0972f8ce) 고정: 기기가 돌아오면 (lina#456·#454 뒷일)")).toBe("가상 빌드에 새 판 고정: 기기가 돌아오면");
   expect(withoutRefs("가짜 정리 #12 · a1b2c3d")).toBe("가짜 정리");
   expect(withoutRefs("(lina#9) a1b2c3d4e5")).toBe("");
   expect(withoutRefs("1.5배 빨라진 정리")).toBe("1.5배 빨라진 정리");
@@ -34,7 +34,7 @@ test("a title loses its issue references and commit hashes, brackets and all, an
 test.each([
   ["가짜 허브 앱 빌드를 a6687ba로 올리기", "가짜 허브 앱 빌드를 올리기"],
   ["가짜 코어를 dev 0aa65fe53a로 올리기 (lina#575 게이트 반영)", "가짜 코어를 올리기 (게이트 반영)"],
-  ["가짜 정리 (lina#49·#50 뒷일)", "가짜 정리 (뒷일)"],
+  ["가짜 정리 (lina#49·#50 뒷일)", "가짜 정리"],
   ["t_ab12cd34 가짜 1주 측정", "가짜 1주 측정"],
   ["[모래 16:52] 가짜 점검 정리", "가짜 점검 정리"],
   ["#12를 먼저 닫고 가짜 정리", "먼저 닫고 가짜 정리"],
@@ -311,6 +311,21 @@ test.each([
   ["가짜 설정 고침 + t_ab12cd34 목록 정리", "가짜 설정 고침 + 목록 정리"],
   ["가짜 조건 (가짜 값 = a1b2c3d4e5).", "가짜 조건."],
 ])("withoutRefs(%j) leaves no particle apart and no colon before a lone bracket: %j (lina-app#218)", (title, cut) => {
+  expect(withoutRefs(title)).toBe(cut);
+});
+
+// lina-app#246: a bracket that held refs and is left with only a word that leans on them (뒷일, 후속, 관련, 건) goes with
+// them; one that keeps a clause of its own stays. The words made up.
+test.each([
+  ["가짜 정리 (lina#49 뒷일)", "가짜 정리"],
+  ["가짜 정리 (lina#49·#50 후속)", "가짜 정리"],
+  ["가짜 정리 (#12, 관련 건) 마무리", "가짜 정리 마무리"],
+  ["가짜 판 고정: 기기가 돌아오면 (lina#456·#454 뒷일)", "가짜 판 고정: 기기가 돌아오면"],
+  ["가짜 관문(lina#12 건)을 옮기기", "가짜 관문을 옮기기"],
+  ["가짜 정리 (lina#49 끝나면 바로 시작)", "가짜 정리 (끝나면 바로 시작)"],
+  ["가짜 정리 (#12 사건 정리)", "가짜 정리 (사건 정리)"],
+  ["가짜 정리 (뒷일)", "가짜 정리 (뒷일)"],
+])("withoutRefs(%j) drops a bracket left with a word that leaned on its refs, and keeps one with a clause: %j (lina-app#246)", (title, cut) => {
   expect(withoutRefs(title)).toBe(cut);
 });
 

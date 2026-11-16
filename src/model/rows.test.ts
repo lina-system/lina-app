@@ -357,7 +357,7 @@ test("every stopped card is a row: a reference and a hash are cut from its title
   expect(model.home.stopped.stopped).toBe(model.home.stopped.rows.length);
   expect(model.counts.stopped).toBe(stoppedCards.length);
   // The title keeps its words once the reference and the hash are cut, and a bracket keeps its own words (lina-app#156).
-  expect(model.cards.get("s4")?.name).toBe("가상 빌드에 새 판 고정: 빌드 기기가 돌아오면 (뒷일)");
+  expect(model.cards.get("s4")?.name).toBe("가상 빌드에 새 판 고정: 빌드 기기가 돌아오면");
   // Nothing is left, no goal and no ask: its kind of work, never 제목 없음 (lina-app#225) or whose stopped card it is.
   expect(model.cards.get("s5")?.name).toBe(KIND_TITLE.code);
 });

@@ -18,6 +18,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { failingPairs, readTextLayers } from "./contrast.mjs";
 import { previewReady } from "./preview-log.mjs";
+import { watchWorker } from "./worker-notes.mjs";
 
 const skillDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repo = path.resolve(skillDir, "..", "..", "..");
@@ -3512,38 +3513,41 @@ const drivers = {
         const registration = new Promise((resolve) => cdp.on("ServiceWorker.workerRegistrationUpdated", (event) => event.registrations.length && resolve(event.registrations[0].registrationId)));
         await cdp.send("ServiceWorker.enable");
         const registrationId = await registration;
-        const notes = () => tab.evaluate(async () => (await (await navigator.serviceWorker.getRegistration()).getNotifications()).map((note) => ({ tag: note.tag, title: note.title, body: note.body, data: note.data })));
-        // waitForFunction takes a promise as truthy, so the notifications are read until they are the ones expected (5 s at most).
-        const settle = async (done) => {
-          for (let tries = 0; tries < 50 && !done(await notes()); tries += 1) await tab.waitForTimeout(100);
-          return notes();
-        };
-        const push = async (message, done) => {
+        const watched = await watchWorker(context.serviceWorkers()[0] ?? (await context.waitForEvent("serviceworker")));
+        // One read once the worker's push handler settled: a read while its show is pending deletes it (worker-notes.mjs).
+        const push = async (message) => {
+          const before = await watched.settled();
           await cdp.send("ServiceWorker.deliverPushMessage", { origin, registrationId, data: JSON.stringify(message) });
-          return settle(done);
+          await watched.until(before + 1);
+          return watched.read();
         };
         const scene = await tab.evaluate(() => window.__linaScene);
         const key = scene.board.notices.find((notice) => !notice.read).key;
         const ask = { v: 1, type: "show", tag: key, kind: "ask", target: "T2", at: 0, title: "배포 순서 정하기", body: "오늘 저녁에 배포할까요?" };
-        let seen = await push(ask, (all) => all.length === 1);
+        let seen = await push(ask);
         check(seen.length === 1 && seen[0].title === ask.title && seen[0].body === "결정 필요\n" + ask.body && seen[0].tag === key, "after show: " + JSON.stringify(seen));
-        seen = await push({ ...ask, body: "src/app.tsx 고쳤어요" }, (all) => all.length === 1 && all[0].body === "결정 필요");
+        seen = await push({ ...ask, body: "src/app.tsx 고쳤어요" });
         check(seen.length === 1 && seen[0].body === "결정 필요", "the same tag again did not replace it with the kind line only: " + JSON.stringify(seen));
-        seen = await push({ v: 1, type: "show", tag: "reply:T4:n1", kind: "reply", target: "T4", at: 0, title: "입력 폼 정리", body: "간격 맞췄어요." }, (all) => all.length === 2);
+        seen = await push({ v: 1, type: "show", tag: "reply:T4:n1", kind: "reply", target: "T4", at: 0, title: "입력 폼 정리", body: "간격 맞췄어요." });
         check(seen.length === 2, "a second item did not get its own notification: " + JSON.stringify(seen));
-        seen = await push({ v: 1, type: "close", tag: "reply:T4:n1" }, (all) => all.length === 1);
+        seen = await push({ v: 1, type: "close", tag: "reply:T4:n1" });
         check(seen.length === 1 && seen[0].tag === key, "close left " + JSON.stringify(seen));
-        seen = await push({ v: 1, type: "close", tag: "question:k-102:7" }, (all) => all.length !== 1);
+        seen = await push({ v: 1, type: "close", tag: "question:k-102:7" });
         check(seen.length === 1, "a close with nothing to close changed " + JSON.stringify(seen));
         const unread = scene.board.notices.filter((notice) => !notice.read).map((notice) => notice.key);
-        for (const [index, tag] of unread.entries()) seen = await push({ ...ask, tag }, (all) => all.length === index + 1);
+        for (const tag of unread) seen = await push({ ...ask, tag });
         check(seen.length === unread.length, "one notification per unread notice: " + seen.length + " of " + unread.length);
+        // The read mark asks the worker to close the notice's tag (one lina-close message).
+        const marked = await watched.settled();
         await bell(tab).click();
         await tab.getByRole("dialog", { name: "알림" }).locator("a[href]").filter({ has: tab.locator(".notice-dot.is-unread") }).first().click();
         await tab.waitForFunction((count) => window.__linaScene.board.notices.filter((notice) => !notice.read).length === count, unread.length - 1, { timeout: 5_000 });
         const left = (await tab.evaluate(() => window.__linaScene)).board.notices.filter((notice) => !notice.read).map((notice) => notice.key).sort();
-        seen = await settle((all) => all.length === left.length);
+        await watched.until(marked + 1);
+        seen = await watched.read();
         check(JSON.stringify(seen.map((note) => note.tag).sort()) === JSON.stringify(left), "after reading one notice the device shows " + JSON.stringify(seen.map((note) => note.tag)) + ", the unread are " + JSON.stringify(left));
+        const overlaps = await watched.overlaps();
+        check(!overlaps.length, "a notification read began while a show was pending, which deletes it: " + JSON.stringify(overlaps));
         await cdp.detach();
         await context.close();
         return "show, replace by tag, a second tag, close, an empty close, and the read mark closing it here";
@@ -3553,17 +3557,23 @@ const drivers = {
         await tab.reload();
         await tab.waitForFunction(async () => Boolean((await navigator.serviceWorker.getRegistration())?.active), null, { timeout: 15_000 });
         const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent("serviceworker"));
+        const watched = await watchWorker(worker);
         const routes = [];
         for (const [kind, target, hash] of [["ask", "T2", "#/inbox"], ["reply", "T4", "#/items/T4"], ["blocked", "k-101", "#/cards/k-101"]]) {
           // A notification the worker drew, then a click on it; a click sent from a script may not focus, so only the route is read.
+          const before = await watched.settled();
           await worker.evaluate(async ({ kind, target }) => {
             await self.registration.showNotification("항목", { tag: kind + ":" + target, body: "", data: { kind, target } });
             const [note] = await self.registration.getNotifications({ tag: kind + ":" + target });
             self.dispatchEvent(new NotificationEvent("notificationclick", { notification: note }));
           }, { kind, target });
           await tab.waitForFunction((hash) => location.hash === hash, hash, { timeout: 5_000 }).catch(() => check(false, kind + " opened " + new URL(tab.url()).hash + ", not " + hash));
+          // The opened reply is read-marked, and the worker's close of its tag reads the notifications: the next show waits for it.
+          if (kind === "reply") await watched.until(before + 1);
           routes.push(kind + " -> " + hash);
         }
+        const overlaps = await watched.overlaps();
+        check(!overlaps.length, "a notification read began while a show was pending, which deletes it: " + JSON.stringify(overlaps));
         await context.close();
         return routes.join(", ");
       });
@@ -3572,6 +3582,7 @@ const drivers = {
         await tab.reload();
         await tab.waitForFunction(async () => Boolean((await navigator.serviceWorker.getRegistration())?.active), null, { timeout: 15_000 });
         const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent("serviceworker"));
+        const watched = await watchWorker(worker);
         // A successful read mark is what asks this device to close the tag; the synthetic core accepted the key.
         await worker.evaluate(() => {
           self.__closes = [];
@@ -3590,14 +3601,12 @@ const drivers = {
           );
         };
         const closes = () => worker.evaluate(() => self.__closes);
+        const before = await watched.settled();
         await click("reply", "T4", "reply:T4:n1");
         await tab.waitForFunction(() => location.hash === "#/items/T4", null, { timeout: 5_000 }).catch(() => check(false, "the reply opened " + new URL(tab.url()).hash));
-        let seen = [];
-        for (let tries = 0; tries < 50; tries += 1) {
-          seen = await closes();
-          if (seen.some((message) => (message.tags || []).includes("reply:T4:n1"))) break;
-          await tab.waitForTimeout(100);
-        }
+        // The read mark's close settled in the worker before the next show (its read would delete a pending one).
+        await watched.until(before + 1).catch((error) => check(false, "the reply's read mark sent no close: " + error.message));
+        let seen = await closes();
         check(seen.length === 1 && JSON.stringify(seen[0].tags) === JSON.stringify(["reply:T4:n1"]), "the reply's read mark closed " + JSON.stringify(seen));
         for (const [kind, target, tag, hash] of [
           ["ask", "T2", "ask:T2:1", "#/inbox"],
@@ -3610,6 +3619,8 @@ const drivers = {
         await tab.waitForTimeout(1000);
         seen = await closes();
         check(seen.length === 1 && JSON.stringify(seen[0].tags) === JSON.stringify(["reply:T4:n1"]), "a decision, a stopped card or a question read-marked " + JSON.stringify(seen));
+        const overlaps = await watched.overlaps();
+        check(!overlaps.length, "a notification read began while a show was pending, which deletes it: " + JSON.stringify(overlaps));
         await context.close();
         return "reply:T4:n1 read once; ask, blocked and question sent nothing";
       });

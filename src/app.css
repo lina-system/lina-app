@@ -3505,6 +3505,7 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   background: none;
   color: var(--label-2);
   font: inherit;
+  font-size: var(--text-small);
   text-align: left;
   cursor: pointer;
 }
@@ -3532,6 +3533,14 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   justify-items: start;
   gap: 8px;
   margin: 4px 0 0 12px;
+  font-size: var(--text-small);
+}
+
+/* 접기 reads in the grey of the line it closes: the accent on the sheet's grey is under 4.5:1 at this size. */
+.fold-held > .fold-close {
+  min-height: var(--hit, 28px);
+  color: var(--label-2);
+  font-size: var(--text-small);
 }
 
 .held-list {

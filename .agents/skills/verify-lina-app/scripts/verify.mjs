@@ -2534,6 +2534,23 @@ const drivers = {
       await page.getByTestId("notices").waitFor({ state: "hidden", timeout: 2_000 }).catch(() => check(false, "Escape did not close the notices"));
       return name + ", 7 lines, 2 dimmed";
     });
+    // lina-app#232: the badge covered the middle of the bell at 1280 (about 17x11 px of its 18x18). It sits off the icon's
+    // top right corner at every width: what it covers of the icon lies right of and above the icon's centre, on screen.
+    await step("the badge sits off the bell's top right corner, clear of the icon's centre", async () => {
+      const look = await bell().evaluate((button) => {
+        const box = (element) => {
+          const rect = element.getBoundingClientRect();
+          return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+        };
+        return { icon: box(button.querySelector("svg")), badge: box(button.querySelector("[data-testid=bell-count]")), width: window.innerWidth };
+      });
+      const { icon, badge } = look;
+      const centre = { x: (icon.left + icon.right) / 2, y: (icon.top + icon.bottom) / 2 };
+      const covered = [Math.max(0, Math.min(icon.right, badge.right) - Math.max(icon.left, badge.left)), Math.max(0, Math.min(icon.bottom, badge.bottom) - Math.max(icon.top, badge.top))].map((side) => Math.round(side * 10) / 10);
+      check(badge.left > centre.x && badge.bottom < centre.y, "the badge " + JSON.stringify(badge) + " reaches the icon's centre " + JSON.stringify(centre) + ", covering " + covered.join("x") + " px");
+      check(badge.right <= look.width && badge.top >= 0, "the badge leaves the window: " + JSON.stringify(badge));
+      return "icon " + Math.round(icon.right - icon.left) + "x" + Math.round(icon.bottom - icon.top) + ", badge covers " + covered.join("x") + " px of its top right corner";
+    });
     await step("choosing a notice opens its item and marks it read on the core", async () => {
       await bell().click();
       const first = dialog().locator("li:not(.is-read) a").first();

@@ -179,10 +179,12 @@ button:disabled {
   color: var(--label-3);
 }
 
+/* The badge sits off the bell's top right corner at every width, so a two-digit count leaves the bell readable: what it
+   covers of the 18 px icon lies right of and above its centre (lina-app#152, #232). */
 .badge {
   position: absolute;
-  top: 0;
-  right: 1px;
+  top: -4px;
+  left: calc(50% + 5px);
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
@@ -2456,11 +2458,9 @@ html:has(.stack) body {
   height: var(--hit);
 }
 
-/* The badge sits off the bell's top right corner, so a two-digit count leaves the bell readable (lina-app#152). */
+/* The phone's 44 pt button: the same corner of its icon, a larger badge. */
 .stack .badge {
   top: 2px;
-  left: calc(50% + 5px);
-  right: auto;
   min-width: 18px;
   height: 18px;
   border-radius: 9px;

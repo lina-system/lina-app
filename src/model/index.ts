@@ -262,8 +262,9 @@ export interface Home {
   readonly waiting: Section<CardRow>;
   /**
    * 완료 (lina-app#186): the finished lines the page read, the last 24 hours first, each part newest first. Its count is
-   * cards (lina-app#225): the cards its lines stand for (cardCount) and the finished cards not read yet, the number the
-   * sidebar shows, the same collapsed, reading and opened.
+   * cards (lina-app#225): the cards its lines stand for (cardCount) and the finished cards not read yet, the same
+   * collapsed and opened. It is drawn, and the sidebar's `counts.done` is it, only once every finished card is read
+   * (lina-app#242).
    */
   readonly finished: Section<CardRow>;
 }
@@ -986,7 +987,9 @@ export function buildModel(input: ModelInput, now: number): Model {
       running: running.length,
       stopped: stopped.length,
       due: dueRows.length,
-      done: finishedCount,
+      // No number while only the first page is read (lina-app#242): the core counts its total apart from the cards its
+      // full read sends, so it is no sum of lines.
+      done: (input.finished?.all ?? true) ? finishedCount : 0,
       goals: goals.length,
       notices: notices.length,
       unread: (board?.counts.unread ?? allNotices.filter((notice) => !notice.read).length) - hiddenUnread,

@@ -189,7 +189,7 @@ test("finished cards whose visible lines are equal collapse to one line with the
 
 // lina-app#196: the hub's finished cards, more than the first page, some with no name the screen may draw (an English
 // own title and no goal) and those only past the first page, as in the hub's reply.
-test("the 완료 head is every finished card on the first page and once every one is read: what has no name is one line that counts them (lina-app#196, #225)", () => {
+test("the 완료 count is every finished card, drawn once every one is read: what has no name is one line that counts them (lina-app#196, #225, #242)", () => {
   const named = Array.from({ length: 8 }, (_, index) => row(`n${index + 1}`, `가짜 정리 ${index + 1}단계 마치기`, "done", { endedAt: NOW - (index + 1) * 600 }));
   const unnamed = Array.from({ length: 3 }, (_, index) => row(`u${index + 1}`, `fake cleanup pass ${index + 1}`, "done", { endedAt: NOW - 2 * DAY - index * 600 }));
   const every = [...named, ...unnamed];
@@ -202,7 +202,8 @@ test("the 완료 head is every finished card on the first page and once every on
   expect(first.home.finished.rows).toHaveLength(5);
   expect(first.finished.more).toBe(6);
   expect(first.home.finished.count).toBe(11);
-  expect(first.counts.done).toBe(11);
+  // The sidebar draws no number while the page holds the first page alone (lina-app#242).
+  expect(first.counts.done).toBe(0);
   // Opened, the head, the sidebar and the cards the rows stand for are the same number: the three nothing names are one
   // grey line ×3 (lina-app#225), never 제목 없음.
   expect(opened.home.finished.rows).toHaveLength(9);

@@ -271,7 +271,7 @@ function MineSection({ section }: { section: Section<InboxRow> }) {
 export function RunningScreen() {
   const { model, store } = useApp();
   const { home } = model;
-  if (!home.decisions && !home.review.rows.length && !home.mine.rows.length && !model.running.rows.length && !home.planned.rows.length && !home.waiting.rows.length && !model.counts.done) {
+  if (!home.decisions && !home.review.rows.length && !home.mine.rows.length && !model.running.rows.length && !home.planned.rows.length && !home.waiting.rows.length && !home.finished.count) {
     // Nothing yet, but the owner can still write the first to-do (lina-app#95); while loading, only the loading line.
     if (store.version === 0 || store.unread()) return <Empty />;
     return (
@@ -317,8 +317,9 @@ export function RunningScreen() {
  * 완료 on the work tab (lina-app#186, #225, #237). Its head is every finished card, the sidebar's number; a line standing
  * for cards whose titles read the same says how many on its row (lina-app#168). Its fold `외 n개` counts the lines it
  * opens, as every group's fold counts its rows, so the lines drawn and its n are the lines opened. The page reads the
- * newest few first and the group reads the rest right after: until they are in, the fold says it is reading, never a
- * number counted from a part of the list; a read that failed is read again from the fold.
+ * newest few first and the group reads the rest right after: until they are in, the fold says it is reading and the
+ * head and the sidebar draw no number (lina-app#242), never a number counted from a part of the list or the core's total;
+ * a read that failed is read again from the fold.
  */
 function FinishedSection({ section }: { section: Section<CardRow> }) {
   const { model, store } = useApp();
@@ -336,7 +337,14 @@ function FinishedSection({ section }: { section: Section<CardRow> }) {
   const failed = partial && asked && !store.finished().loading;
   return (
     <section class="list-section" data-testid={`section-${section.id}`}>
-      <SectionHead section={section} />
+      {/* No number until every finished card is read: the core's total is no sum of lines (lina-app#242). */}
+      {partial ? (
+        <h2 class="section-head" data-testid={`head-${section.id}`}>
+          <span>{section.title}</span>
+        </h2>
+      ) : (
+        <SectionHead section={section} />
+      )}
       <ul class="rows" aria-label={section.title}>
         {shown.map((card) => (
           <FinishedLine key={card.key} line={card} />
@@ -421,7 +429,7 @@ export function FinishedLine({ line }: { line: CardRow }) {
  */
 export function DoneScreen({ agent }: { agent?: string }) {
   const { model } = useApp();
-  if (!model.counts.done) return <Empty />;
+  if (!model.home.finished.count) return <Empty />;
   if (!model.finished.all) return <p class="empty">{W.loading}</p>;
   const shown = doneFor(model, agent);
   const choose = (id?: string) => navigate(id ? { name: "done", agent: id } : { name: "done" }, { replace: true, direction: "none" });

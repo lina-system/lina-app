@@ -67,8 +67,9 @@ for (const wide of [true, false]) {
     const before = finished(view);
     expect(before).toEqual({ head: 524, rows: 5, cards: 5, fold: 509, loading: false, hide: false });
     if (wide) expect(sidebarDone(view)).toBe(524);
-    // At every moment the head is 524, and the fold says it reads or the 509 lines it holds back, never a part's count.
-    for (const state of states) expect(state.head).toBe(524);
+    // The head is 524 once every card is in and no number while the rest is read (lina-app#242), and the fold says it
+    // reads or the 509 lines it holds back, never a part's count.
+    for (const state of states) expect(state.head, JSON.stringify(state)).toBe(state.loading ? 0 : 524);
     for (const state of states) expect(state.loading || state.fold === 509, JSON.stringify(state)).toBe(true);
     fireEvent.click(group.querySelector(".more-row button") as HTMLElement);
     const after = finished(view);

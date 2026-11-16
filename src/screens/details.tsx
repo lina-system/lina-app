@@ -7,7 +7,7 @@ import { foldReason, wholeText } from "../model/fold";
 import { plainText } from "../model/plain";
 import { holds } from "../model/rounds";
 import { stopReason } from "../model/stop-reason";
-import { answerOf, commentHistory, decisionHistory, goalHistory, historyLines, isMachineNotice, outcomeOf, ownerWrote } from "../model/timeline";
+import { answerOf, commentHistory, decisionHistory, goalHistory, historyLines, isMachineNotice, outcomeOf, ownerWrote, roundSentence, type RoundNote } from "../model/timeline";
 import type { CardKind } from "../model/kind";
 import { isRunId, newestFirst, type Store } from "../data/store";
 import { back, baseOf, href, isFrame, navigate, parse, tabOf, type Route } from "../router";
@@ -609,20 +609,24 @@ export function roundHead(round: Round, now: number): string {
   return [span, state].filter(Boolean).join(SEP);
 }
 
-/** A round's own line as history reads it, whole or not at all (wholeText, lina-app#157, #236). */
-function roundLine(line: string): string | null {
-  return wholeText(line);
+/**
+ * Each round's own line as history reads it, newest first (lina-app#157, #236, criterion 2): its line whole (wholeText),
+ * else the one sentence it or the bots' notes made as it ended read (roundSentence), else none.
+ */
+function roundLines(rounds: readonly Round[], notes: readonly RoundNote[]): Map<Round, string | null> {
+  const used = new Set<string>();
+  return new Map(rounds.map((round) => [round, (round.line === null ? null : wholeText(round.line)) ?? roundSentence({ result: round.line, said: [], end: round.endedAt }, notes, used)]));
 }
 
 /**
  * The rounds in order, each run of rounds whose own line may not show gathered into one group (lina-app#161): it is one
  * 이전 기록 N건 row, not one row per round.
  */
-function roundGroups(rounds: readonly Round[]): (Round | Round[])[] {
+function roundGroups(rounds: readonly Round[], lines: Map<Round, string | null>): (Round | Round[])[] {
   const groups: (Round | Round[])[] = [];
   for (const round of rounds) {
     const last = groups.at(-1);
-    if (round.line === null || roundLine(round.line) !== null) groups.push(round);
+    if (round.line === null || lines.get(round)) groups.push(round);
     else if (Array.isArray(last)) last.push(round);
     else groups.push([round]);
   }
@@ -1046,8 +1050,12 @@ export function CardScreen({ id }: { id: string }) {
   // One 댓글 section (lina-app#174): the card's comments box also holds the comments between rounds that only its worker
   // runs' record has, once each; one the card holds (a machine notice it leaves out too) is never drawn again.
   const records = workerRuns.flatMap((worker) => store.get("record", worker.id)?.comments ?? []);
-  const commentLines = cardCommentLines(detail.comments, records, store.get("items")?.owner?.id);
+  const ownerId = store.get("items")?.owner?.id;
+  const commentLines = cardCommentLines(detail.comments, records, ownerId);
   const recordFailed = workerRuns.some((worker) => store.status("record", worker.id) === "failed");
+  // The bots' comments on the card, which a closed round's line may read its sentence from (criterion 2).
+  const notes: RoundNote[] = detail.comments.filter((comment) => !ownerWrote(comment.author, ownerId) && !isMachineNotice(comment.body, comment.author, ownerId)).map((comment) => ({ at: comment.createdAt, text: comment.body }));
+  const lines = roundLines(rounds, notes);
   const foldLine = model.home.finished.rows.find((line) => line.fold?.some((card) => card.id === id));
   const fold = foldLine?.fold;
   const askHere = Boolean(ask && !readOnly && !everyQuestion.length && !answering(`answer:${id}`));
@@ -1128,6 +1136,7 @@ export function CardScreen({ id }: { id: string }) {
           <Timeline
             runs={workerRuns.map((worker) => worker.id).filter((runId) => !pending || landed.has(runId))}
             boxed
+            notes={notes}
             live={(runId) => runLive(model, runId)}
             link={(runId, n, at) => workerLink(roundRun(runId, n, at))}
             modelRun={roundRun}
@@ -1136,7 +1145,7 @@ export function CardScreen({ id }: { id: string }) {
                 <Box title={recordFailed ? undefined : W.record} testid="worker-runs">
                   {/* A round's own line is its content, its ids cut; rounds whose line would show a path or a command are no
                       comment: each run of them is one folded 이전 기록 N건 row, their worker runs inside (lina-app#157, #161). */}
-                  {roundGroups(rounds).map((group) =>
+                  {roundGroups(rounds, lines).map((group) =>
                     Array.isArray(group) ? (
                       <details key={`fold:${group[0].n}`} class="round-fold" data-testid="round-fold">
                         <summary class="round-head">{DETAIL_WORD.earlierRecords(group.length)}</summary>
@@ -1145,7 +1154,7 @@ export function CardScreen({ id }: { id: string }) {
                         ))}
                       </details>
                     ) : (
-                      <RoundSection key={group.n} round={group} line={group.line} workers={group.workers.length ? <WorkerRows ids={group.workers} model={model} seen={seen} state={workerState} link={workerLink} /> : null} />
+                      <RoundSection key={group.n} round={group} line={lines.get(group) ?? null} workers={group.workers.length ? <WorkerRows ids={group.workers} model={model} seen={seen} state={workerState} link={workerLink} /> : null} />
                     ),
                   )}
                   {outside.length ? <WorkerRows ids={outside} model={model} seen={seen} state={workerState} link={workerLink} /> : null}
@@ -1168,7 +1177,7 @@ function RoundSection({ round, line, workers }: { round: Round; line: string | n
       <h3 class="round-head">{roundHead(round, now)}</h3>
       {line ? (
         <p class="round-line" data-testid="round-line">
-          {roundLine(line)}
+          {line}
         </p>
       ) : null}
       {workers}

@@ -5,7 +5,7 @@ import type { Source, TalkResult } from "../data/source";
 import { KoreanInput } from "../korean-input";
 import { Markdown, plainLine } from "../markdown";
 import { agentView, foldTitle } from "../model";
-import { href } from "../router";
+import { href, linkClick } from "../router";
 import { clock } from "../time";
 import { AgentMark, agentName, Box, Disclosure, ErrorLine, Link, ListSection, useApp } from "../ui/parts";
 import { SEP, W } from "../words";
@@ -853,7 +853,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
         <p class="empty">
           {W.talkMissing}
           <br />
-          <a class="text-button" href={href({ name: "talks" })}>
+          <a class="text-button" href={href({ name: "talks" })} onClick={linkClick}>
             {W.talk}
           </a>
         </p>

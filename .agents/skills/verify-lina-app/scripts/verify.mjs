@@ -1509,6 +1509,16 @@ const drivers = {
       check((await detail.getByTestId("card-now").count()) === 0, "the card shows a now line");
       return head + " / " + own + "; " + kind + "; no now line";
     });
+    await step("a worker record's comment rows have no author: they read through the one gate, never as saved (lina-app#230)", async () => {
+      // k-102's record (r2) holds an agent's English verdict note and a note the core cut inside a word at 300 characters.
+      const rows = page.getByTestId("card-comments").getByTestId("history-row");
+      await rows.first().waitFor();
+      const lines = (await rows.allInnerTexts()).map((line) => line.trim());
+      check(lines.length === 2 && / · 위키 문서의 결제 화면 절을 새 문체로 바꿨다\.$/.test(lines[0]) && / · 접힌 댓글$/.test(lines[1]), "k-102's comments read " + JSON.stringify(lines));
+      const text = await page.getByTestId("card-comments").innerText();
+      check(!/[A-Za-z]|줄였다\. 표/.test(text), "raw record text in the card's comments: " + text.replace(/\s+/g, " "));
+      return lines.join(" | ");
+    });
     await step("a run outside any card opens on its own, with its timeline", async () => {
       // r6 is no row (lina-app#141): its page opens from its address, as from its notice.
       await openApp(page, "#/runs/r6");

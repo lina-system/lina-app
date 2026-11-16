@@ -1,4 +1,4 @@
-import { STATE_WORDS, W } from "../words";
+import { BANNED_WORDS, STATE_WORDS, W } from "../words";
 
 /**
  * Whether a comment's sentence can show as it is. A comment that would show a path, a command, a hash, an issue
@@ -339,8 +339,8 @@ function endsOnPredicate(sentence: string): boolean {
  * only refs, ids or hashes (with the space before it); a state word alone (STATE_ONLY) is one. Null for a sentence the
  * checks of sentenceMayShow fail (a lead-in ends on its colon there), one that holds a mark of NEVER_DRAWN, opens on a word
  * that continues the one before it, holds a list whose marks do not run from 1 (lina-app#228), or is a fragment: no
- * predicate and fewer than FRAGMENT_BELOW Hangul letters (`원인 둘.`, a bare label such as `직접 확인한 것`). Nothing else is ever
- * cut out.
+ * predicate and fewer than FRAGMENT_BELOW Hangul letters (`원인 둘.`, a bare label such as `직접 확인한 것`), or holds a word the
+ * screens never use (BANNED_WORDS: the one gate leaves it out, lina-app#230). Nothing else is ever cut out.
  */
 export function drawnSentence(sentence: string): string | null {
   const text = sentence
@@ -348,11 +348,23 @@ export function drawnSentence(sentence: string): string | null {
     .replace(/\s+/g, " ")
     .trim();
   if (STATE_ONLY.has(text)) return text;
+  if (BANNED_WORDS.some((word) => text.includes(word))) return null;
   if (!sentenceMayShow(text) || NEVER_DRAWN.test(text) || CONTINUES.test(text) || /^\(?\d{1,2}[.)]\s/.test(text)) return null;
   // A list's marks run 1, 2, 3 from its first item: one that skips or starts later is a list cut (lina-app#228).
   if (listMarks(text).some((mark, index) => mark.n !== index + 1)) return null;
   if (!endsOnPredicate(text) && (text.match(/\p{Script=Hangul}/gu) ?? []).length < FRAGMENT_BELOW) return null;
   return text;
+}
+
+/**
+ * A text the core cut at a fixed length with no mark, less the sentence the cut went through (lina-app#230): a worker
+ * run's record row is a receipt's note joined to one line and cut at 300 characters (hermes_cli/worker/record.py), so
+ * its last sentence counts only when it ends on an end mark or a predicate (`확인했다`, `마침`); `고치는 중이` does not.
+ */
+export function withoutCutEnd(text: string): string {
+  const sentences = sentencesOf(text.trim());
+  const last = sentences.at(-1) ?? "";
+  return /[.!?。]["'\u201d\u2019)\]]*$/.test(last) || endsOnPredicate(last) ? text : sentences.slice(0, -1).join(" ");
 }
 
 /**

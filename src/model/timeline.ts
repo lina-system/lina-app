@@ -1,6 +1,7 @@
 import type { ItemDetail, RecordRound, RecordRow, RunRecord } from "../api/client";
 import { STATE_WORD, stateLabel, W } from "../words";
-import { drawnSentences, STATE_ONLY } from "./fold";
+import { drawnSentences, STATE_ONLY, withoutCutEnd } from "./fold";
+import { plainText } from "./plain";
 import { holds } from "./rounds";
 
 /** Who writes machine notices on a card (the dispatcher's and the worker's receipts): never a history line. */
@@ -38,6 +39,15 @@ export function firstSentence(text: string | null | undefined): string | null {
 export function commentLine(text: string, author: string | null | undefined, owner?: string | null): string | null {
   if (ownerWrote(author, owner)) return text.trim() ? text : null;
   return firstSentence(text);
+}
+
+/**
+ * A worker run's record comment row as its history line (lina-app#230): the row has no author (the core makes it from a
+ * receipt's note, which on the hub an agent writes, cut at 300 characters with no mark), so it is the first sentence the
+ * one gate draws of its markdown-free words, less the sentence the cut went through (withoutCutEnd). Null when none is.
+ */
+export function recordCommentLine(text: string | null): string | null {
+  return text ? firstSentence(plainText(withoutCutEnd(text))) : null;
 }
 
 /**
@@ -167,6 +177,8 @@ export function outcomeOf(round: RecordRound, newest: boolean, live: boolean, no
 export function timelineBlocks(records: readonly { readonly id: string; readonly record: RunRecord }[], live: (runId: string) => boolean, now: number): TimelineBlock[] {
   // A machine notice is no row; rows read newest first, as every history (lina-app#149).
   const shown = (rows: readonly RecordRow[]) => rows.filter((row) => row.kind !== "comment" || !isMachineNotice(row.text)).sort((a, b) => b.at - a.at);
+  // A comment row is no owner's words: it reads through the one gate, null when none of it may show (lina-app#230).
+  const gated = (rows: readonly RecordRow[]) => shown(rows).map((row) => (row.kind === "comment" ? { ...row, text: recordCommentLine(row.text) } : row));
   const blocks: TimelineBlock[] = [];
   // A card's worker runs may each serve the card's one record: a round or a comment read twice is drawn once
   // (lina-app#153).
@@ -189,11 +201,11 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
         end: round.endedAt,
         startUnknown: round.startUnknown,
         outcome,
-        rows: shown(round.rows),
+        rows: gated(round.rows),
         result: outcome === "going" ? null : round.result,
       });
     });
-    for (const comment of shown(record.comments)) if (first(`comment:${comment.at}:${comment.text}`)) blocks.push({ type: "comment", key: `${id}:c:${comment.at}`, at: comment.at, rows: [comment] });
+    for (const comment of gated(record.comments)) if (first(`comment:${comment.at}:${comment.text}`)) blocks.push({ type: "comment", key: `${id}:c:${comment.at}`, at: comment.at, rows: [comment] });
   }
   // Comments made one after another between rounds are one 댓글 block. A round with nothing in it but the outcome of
   // the round before it is no block (lina-app#153).

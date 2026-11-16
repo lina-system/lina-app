@@ -277,3 +277,24 @@ test("a card's record read through several of its worker runs shows each round a
     ["round", 400],
   ]);
 });
+
+// lina-app#230: a record's comment row has no author (a receipt's note, which on the hub an agent writes, cut by the
+// core at 300 characters with no mark): in a round and between rounds it reads through the one gate, never as saved.
+test("a record's comment rows read through the one gate, in a round and between rounds (lina-app#230)", () => {
+  const note = "fake diff read, merged via fake PR (fake#12), checked in fake QA rounds".slice(0, 300);
+  const record = {
+    at: 1000,
+    cardId: "k-1",
+    id: "w1",
+    errors: [],
+    model: null,
+    settingsRevision: null,
+    comments: [
+      { at: 500, kind: "comment", text: note, count: 1 },
+      { at: 450, kind: "comment", text: "가짜 금액 줄을 다시 확인했다. 가짜 환불 안내 문구는 아직 고치는 중이", count: 1 },
+    ],
+    rounds: [round({ run: 1, startedAt: 100, endedAt: 400, endKnown: true, rows: [{ at: 200, kind: "comment", text: `가짜 표로 바꿔 주세요. ${note}`, count: 1 }] })],
+  } as unknown as RunRecord;
+  const blocks = timelineBlocks([{ id: "w1", record }], () => false, 1000);
+  expect(blocks.map((block) => block.rows.map((row) => row.text))).toEqual([[null, "가짜 금액 줄을 다시 확인했다."], ["가짜 표로 바꿔 주세요."]]);
+});

@@ -178,6 +178,23 @@ test("the current sidebar row and the sidebar's red counts reach 4.5:1 in dark, 
     expect(contrast(parse(token(dark, "red-text")), sidebar), page).toBeGreaterThanOrEqual(4.5);
   }
   expect(hueGap(parse(token(dark, "red-text")), parse(token(dark, "red"))), "--red-text hue").toBeLessThanOrEqual(5);
-  expect(token(light, "accent-fill")).toBe(token(light, "accent"));
   expect(token(light, "red-text")).toBe(token(light, "red"));
+});
+
+// lina-app#242: the owner's chat bubble and the selected range and filter chips are white 15 px words on the accent,
+// 3.65:1 in dark (4.02:1 in light). Each is filled with --accent-fill, which reaches 4.5:1 under white in light and dark
+// and keeps the accent's hue within 5 degrees.
+test.each([
+  ["light", light],
+  ["dark", dark],
+])("the owner's bubble and the selected chips fill with --accent-fill, 4.5:1 under white words (%s)", (_scheme, block) => {
+  const app = readFileSync("src/app.css", "utf8");
+  for (const selector of ['.is-mine .talk-bubble', '.usage-range .choice[aria-pressed="true"]', '.filter .choice[aria-pressed="true"]']) {
+    const start = app.indexOf(`\n${selector} {`);
+    expect(start, selector).toBeGreaterThan(-1);
+    expect(app.slice(start, app.indexOf("}", start)), selector).toContain("background: var(--accent-fill);");
+  }
+  const fill = parse(schemeToken(block, "accent-fill"));
+  expect(contrast(MARK_LETTER, fill)).toBeGreaterThanOrEqual(4.5);
+  expect(hueGap(fill, parse(schemeToken(block, "accent"))), "--accent-fill hue").toBeLessThanOrEqual(5);
 });

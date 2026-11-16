@@ -619,7 +619,7 @@ button:disabled {
 }
 
 .filter .choice[aria-pressed="true"] {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: #fff;
 }
 
@@ -1201,7 +1201,7 @@ button:disabled {
 }
 
 .usage-range .choice[aria-pressed="true"] {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--on-accent);
 }
 
@@ -1569,7 +1569,7 @@ button:disabled {
 }
 
 .is-mine .talk-bubble {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--on-accent);
   white-space: pre-wrap;
 }

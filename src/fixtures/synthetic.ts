@@ -388,6 +388,11 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
               { id: 3, author: OWNER.id, body: "변경마다 한 줄 요약을 붙여 주세요", createdAt: now - 45 * MIN },
               { id: 4, author: OWNER.id, body: "변경 목록은 표로 보여 주세요", createdAt: now - 25 * MIN },
             ]
+          : card.id === "k-104"
+          ? [
+              // The text shapes UI QA round 21 met on the hub (lina-app#228), in made-up words: a digits-only hash.
+              { id: 1, author: agentId(1), body: "실패 화면 시안은 아직 4815162342 판에 머물러 있다.", createdAt: now - 3 * HOUR + 2 * MIN },
+            ]
           : [],
       runs: rounds[card.id] ?? [
         {

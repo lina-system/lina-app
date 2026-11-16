@@ -193,8 +193,11 @@ const NUMBER_ALONE = /^\(?\d+(?:[.,]\d+)*\)?\s*\p{Script=Hangul}{0,2}[.!?。…]
 const PARTICLE_APART = /\s(?:(?:으로|에서|을|를|은|는|의|로|와|과)(?=[\s.,!?。:;)…]|$)|(?:이|가|도|만|에)(?=[.,!?。:;)…]|$))/u;
 /** A modifier with no noun after it, at the end of a clause (`설정은 노출된.`, `묶음은 이.`). */
 const MODIFIER_ALONE = new RegExp(String.raw`${MODIFIER}\s*(?:[.,!?。:;)…]|$)`, "u");
-/** A Latin letter (an English word, a product name, a round label `S2`, a code `rc 0`) or a ref's `#12`. */
-const LATIN_OR_CODE = /[A-Za-z]|#\d/;
+/**
+ * A Latin letter (an English word, a product name, a round label `S2`, a code `rc 0`), a ref's `#12`, or a run of seven
+ * digits or more: a hash with no letter in it (lina-app#228).
+ */
+const LATIN_OR_CODE = /[A-Za-z]|#\d|\d{7}/;
 
 const count = (text: string, mark: string) => text.split(mark).length - 1;
 
@@ -209,7 +212,8 @@ function closes(text: string): boolean {
  * inside another one (a separator, a closing quote, a particle alone, a bare number with its unit, a list's number),
  * (b) ends open (`:`, `|`, a separator, a particle alone, a bracket or quote left open or closed alone), (c) has a hole
  * (an empty bracket, punctuation alone or doubled, a particle apart from its noun, a modifier with no noun), (d) holds a
- * Latin letter or a ref (`PR`, a product name, `S2`, `D1~D7`, `rc 0`, `#12`), or has no Hangul.
+ * Latin letter, a ref or a digits-only hash (`PR`, a product name, `S2`, `D1~D7`, `rc 0`, `#12`, `4815162342`), or has
+ * no Hangul.
  */
 export function sentenceMayShow(sentence: string): boolean {
   // A list's number before the sentence is no part of it (`1) 가상 설정이 돌았다.`, `2. 빌드 통과.`).

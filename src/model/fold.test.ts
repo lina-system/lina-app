@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { foldedText, foldReason, sentenceMayShow, sentencesOf, withoutLatin, withoutRefs } from "./fold";
+import { drawnSentences, foldedText, foldReason, sentenceMayShow, sentencesOf, withoutLatin, withoutRefs } from "./fold";
 
 test("a comment shows as it is unless it would show a path, a command, a hash, an issue number, an address or a fragment", () => {
   for (const plain of ["오류 문구 초안을 공유했어요.", "카드 번호는 앞 여섯 자리까지 보여 줄까요?", "1.5배 빨라졌어요."]) expect(foldReason(plain)).toBeNull();
@@ -152,6 +152,24 @@ test.each([
   ["12:30", false],
 ])("sentenceMayShow(%j) is %s (lina-app#222)", (sentence, shows) => {
   expect(sentenceMayShow(sentence)).toBe(shows);
+});
+
+// lina-app#228: a run of seven digits or more is a hash with no letter in it (a short commit hash). A sentence holding
+// it is not drawn, as one holding any code-like token, and a bracket of it alone goes, as one of any hash; six digits and
+// a number with its commas are counts.
+test.each([
+  ["가짜 판은 아직 4815162342 그대로다.", []],
+  ["가짜 판은 아직 1234567 그대로다.", []],
+  ["가짜 판을 다시 올렸다 (4815162342).", ["가짜 판을 다시 올렸다."]],
+  ["가짜 대기 건수가 123456건으로 늘었다.", ["가짜 대기 건수가 123456건으로 늘었다."]],
+  ["가짜 대기 건수가 1,234,567건으로 늘었다.", ["가짜 대기 건수가 1,234,567건으로 늘었다."]],
+])("drawnSentences(%j) is %j: a digits-only hash is never drawn (lina-app#228)", (text, drawn) => {
+  expect(drawnSentences(text)).toEqual(drawn);
+});
+
+test("a title holding a digits-only hash passes the sentence rule only once the hash is cut (lina-app#228)", () => {
+  expect(sentenceMayShow("가짜 판은 아직 4815162342 그대로다.")).toBe(false);
+  expect(withoutRefs("가짜 빌드 4815162342 올리기")).toBe("가짜 빌드 올리기");
 });
 
 // lina-app#222: the split never cuts after a list's number, so neither half of `순서는 1. 빌드` is a sentence alone; a dot

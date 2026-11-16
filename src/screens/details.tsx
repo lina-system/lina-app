@@ -2,7 +2,7 @@ import { Fragment, type ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, RecordRow, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
-import { cardTitle, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, runRow, todoState, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
+import { cardTitle, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, runRow, todoState, wholeTitle, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
 import { foldedText, foldReason, withoutCutEnd } from "../model/fold";
 import { plainText } from "../model/plain";
 import { holds } from "../model/rounds";
@@ -296,7 +296,10 @@ function HistoryLine({ at, text, kind, who }: { at: number; text: string; kind?:
  */
 function useItemLine(detail: ItemDetail): ItemLine {
   const { model, store } = useApp();
-  return itemLine(model, detail.id, detail.kind === "goal" ? goalState(model, detail, store.get("goals")) : todoState(model, detail), detail.decision, detail.due);
+  // A goal's head reads the fold its rows read, the lists' one snapshot (lina-app#157, #231); only a goal no list holds
+  // folds its detail's own cards.
+  const goal = detail.kind === "goal" ? (model.goals.find((each) => each.id === detail.id) ?? goalState(model, detail, store.get("goals"))) : null;
+  return itemLine(model, detail.id, goal ?? todoState(model, detail), detail.decision, detail.due);
 }
 
 /** A goal's or to-do's state line with its time: its state words, 지남 when it is overdue (itemWords, lina-app#221). */
@@ -419,15 +422,17 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
     owner,
   );
   const decisionRow = useDecisionRow(detail.id);
+  // The sentence its row draws under its name, by the one rule (wholeTitle, lina-app#231): no issue reference shows.
+  const condition = wholeTitle(detail.doneCondition);
   return (
     <article class="detail" data-testid="screen-goal">
       <Header title={itemHead(model, detail)} line={decisionRow?.text}>
         <DoneHead detail={detail} />
       </Header>
       <ItemDecision key={detail.id} detail={detail} headLine={decisionRow?.text} />
-      {detail.doneCondition ? (
+      {condition ? (
         <Box title={W.doneCondition}>
-          <p class="box-text">{detail.doneCondition}</p>
+          <p class="box-text">{condition}</p>
         </Box>
       ) : null}
       {words.length ? (

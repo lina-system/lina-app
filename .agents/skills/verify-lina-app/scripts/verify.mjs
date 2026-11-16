@@ -3234,12 +3234,13 @@ const drivers = {
       await group.locator(".more-row").getByRole("button").click();
       await group.getByRole("button", { name: "완료 닫기", exact: true }).waitFor();
       const after = await finishedNow(group);
-      const titles = await page.evaluate(() => window.__linaScene.cards.cards.filter((card) => card.state === "done").map((card) => card.title));
+      const titles = await page.evaluate(() => window.__linaScene.cards.cards.filter((card) => card.state === "done").flatMap((card) => [card.title, card.goalTitle].filter(Boolean)));
+      const cards = await page.evaluate(() => window.__linaScene.cards.cards.filter((card) => card.state === "done").length);
       const drawn = await group.locator("li[data-testid=row] .title:not(.is-kind)").allInnerTexts();
       const grey = await group.locator("li[data-testid=row] .title.is-kind").allInnerTexts();
       const cut = drawn.filter((title) => !titles.some((each) => each === title || each.startsWith(title + " (")));
       const holes = drawn.filter((title) => /\(\s*\)|\(\d+\)|@|^[·,]|^(용|을|를)\s/.test(title));
-      check(after.head === titles.length && after.all === titles.length, "opened: " + JSON.stringify(after) + " of " + titles.length + " cards");
+      check(after.head === cards && after.all === cards, "opened: " + JSON.stringify(after) + " of " + cards + " cards");
       check(cut.length === 0 && holes.length === 0 && JSON.stringify(grey) === JSON.stringify(["제목 없는 7건"]), "cut " + JSON.stringify(cut) + ", holes " + JSON.stringify(holes) + ", grey " + JSON.stringify(grey));
       return after.rows + " lines for " + after.all + " cards: " + drawn.length + " titles as written, grey " + grey.join("");
     });
@@ -3970,6 +3971,39 @@ const drivers = {
       }
       await page.emulateMedia({ colorScheme: "light" });
       return seen.join(", ") + " texts, none under but the open pairs";
+    });
+    // lina-app#231 (QA round 22, the real hub): a goal's row showed a dial at 14/16 while its page's head read 대기, and
+    // its done condition with a hole while its page showed it with an issue number.
+    await step("on the hub's shape (&hub=round22), a goal's row on the card reads its page head's state line (G6: 14/16, 대기 · 16일 전; G1 진행 중) and the done condition its page draws, by one rule, with no issue reference (lina-app#231)", async () => {
+      const goalRow = async (id) => {
+        await openApp(page, "#/talk/ag-1", "&hub=round22");
+        const card = page.getByTestId("agent-card");
+        const toggle = card.locator(".agent-card-toggle");
+        if ((await toggle.count()) && (await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+        const row = card.locator("[data-testid=row]").filter({ has: page.locator(`a[href$="goal=${id}"]`) });
+        await row.waitFor({ timeout: 5_000 });
+        return row.evaluate((element) => ({
+          state: element.querySelector("[data-testid=goal-state]")?.textContent ?? null,
+          condition: element.querySelector(".sub.wrap-line")?.textContent ?? null,
+          progress: element.querySelector("[data-testid=goal-progress]")?.textContent ?? null,
+        }));
+      };
+      const seen = {};
+      for (const id of ["G6", "G1"]) {
+        const row = await goalRow(id);
+        await openApp(page, "#/talk/ag-1?goal=" + id, "&hub=round22");
+        const detail = page.getByTestId("screen-goal");
+        await detail.waitFor({ timeout: 5_000 });
+        const page_ = await detail.evaluate((element) => ({
+          head: element.querySelector(".detail-head [data-testid=state]")?.closest(".sub")?.textContent ?? null,
+          condition: [...element.querySelectorAll(".box")].find((box) => box.querySelector(".box-head")?.textContent === "완료 조건")?.querySelector(".box-text")?.textContent ?? null,
+          refs: /#\d/.test(element.textContent ?? ""),
+        }));
+        seen[id] = { row, page: page_ };
+        check(row.state === page_.head && row.condition === page_.condition && !page_.refs, id + ": " + JSON.stringify(seen[id]));
+      }
+      check(seen.G6.row.progress === "14/16" && seen.G6.page.head === "대기 · 16일 전" && /^진행 중 · /.test(seen.G1.page.head ?? ""), "G6 " + JSON.stringify(seen.G6) + ", G1 " + JSON.stringify(seen.G1));
+      return Object.entries(seen).map(([id, look]) => id + " row " + look.row.state + " " + (look.row.progress ?? "") + " = head " + look.page.head + ", condition " + JSON.stringify(look.row.condition)).join("; ");
     });
   },
 

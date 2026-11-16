@@ -143,6 +143,9 @@ export const ROUND22_HOLES: readonly string[] = [
  * few old ones first, then oldest to newest, then one old one last, so the list's first finished cards are not its
  * newest. Their titles: some drawn as written or less a bracket of refs (ROUND22_WHOLE, each under round 20's made-up
  * names too), one whose goal title holds a Latin word over a whole own title, and the hole shapes (ROUND22_HOLES).
+ * And the first agent's goal G6 in the record's shape: waiting for 16 days with 14 of 16 to-dos closed, its two open
+ * to-dos waiting (its agent's own on a hold, another agent's on feedback), two finished cards under its title, and a
+ * done condition that opens on an issue reference and holds a Latin word and a `#3` (ROUND22_CONDITION).
  */
 export function round22Scene(scene: Scene): Scene {
   const template = scene.cards.cards.find((card) => card.state === "done");
@@ -162,9 +165,24 @@ export function round22Scene(scene: Scene): Scene {
   const goalLatin = finished(titles.length, "가상 묶음 정리 마치기", 5 * 24, { goalTitle: "가상 FakeHub 옮기기" });
   // The hub lists a few old cards first and one last.
   const old = [6 * 24, 4 * 24 + 5, 7 * 24].map((hours, index) => finished(titles.length + 1 + index, round20Title(12 + index), hours));
-  const cards = [...old.slice(0, 2), goalLatin, ...listed, old[2]];
-  return { ...scene, cards: { ...scene.cards, cards: [...scene.cards.cards.filter((card) => card.state !== "done"), ...cards] } };
+  const goalCards = [finished(titles.length + 4, "가상 말투 예시 모으기", 3 * 24, { goalTitle: ROUND22_GOAL }), finished(titles.length + 5, "가상 말투 예시 고르기", 2 * 24, { goalTitle: ROUND22_GOAL })];
+  const cards = [...old.slice(0, 2), goalLatin, ...goalCards, ...listed, old[2]];
+  const base = scene.itemDetails.G1;
+  const since = now - 16 * 86_400;
+  const goal = { ...scene.items.items.find((item) => item.id === "G1"), id: "G6", parent: "A1", title: ROUND22_GOAL, agent: agents[0], addedBy: agents[0], mine: false, state: "waiting" as const, reason: null, stateSince: since, lastActivityAt: now - 7 * 86_400, createdAt: now - 20 * 86_400, closedAt: null, due: null, doneCondition: ROUND22_CONDITION, area: "가상 영역", projects: [], todos: { done: 14, total: 16 }, runCount: 6, commentCount: 0 } as Scene["items"]["items"][number];
+  const todo = (id: string, agent: string, title: string, reason: string) => ({ ...goal, id, kind: "todo" as const, parent: "G6", title, agent, addedBy: agent, reason, doneCondition: null, area: null, todos: null, runCount: 1 });
+  const todos = [todo("T13", agents[0], "가상 말투 기준 정하기", "hold"), todo("T14", agents[1], "가상 말투 예시 검토", "feedback")];
+  return {
+    ...scene,
+    cards: { ...scene.cards, cards: [...scene.cards.cards.filter((card) => card.state !== "done"), ...cards] },
+    items: { ...scene.items, items: [...scene.items.items, goal, ...todos] },
+    itemDetails: { ...scene.itemDetails, G6: { ...base, ...goal, why: null, basis: [], children: todos, comments: [], runs: [], links: [], workCards: [], decision: null, ownerDone: null } },
+  };
 }
+
+/** Round 22's goal (lina-app#231): its title, and its done condition with an issue reference, a Latin word and a `#3`. */
+export const ROUND22_GOAL = "가상 말투 키우기";
+export const ROUND22_CONDITION = "lina#77 가상 말투 기준이 맞고 남은 메모가 memory 칸 #3에 들어감";
 
 function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
   switch (name) {

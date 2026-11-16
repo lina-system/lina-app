@@ -239,7 +239,7 @@ test("the scene carries the text shapes UI QA round 21 met, and no history line 
   // A list is drawn whole with every item, or not at all: never its lead-in and first item alone; one item a line, its
   // lines are one entry (lina-app#230).
   expect(comments.filter((comment) => /\(1\)/.test(comment.body))).toHaveLength(2);
-  const body = (id: number) => comments.find((comment) => comment.id === id)?.body.replace("\n", " ");
+  const body = (id: number) => comments.find((comment) => comment.id === id)?.body.replaceAll("\n", " ");
   expect(lines).toEqual([null, body(7), body(6), null, body(4), body(3), body(2), null]);
 });
 

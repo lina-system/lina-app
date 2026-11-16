@@ -1267,6 +1267,25 @@ const drivers = {
       check(names.length === 5, "expected 5 goals, got " + names.length);
       return names.join(" | ");
     });
+    // lina-app#237 (QA round 23, the real hub): goals the record closed at 0/1 and 4/16, and one planned whose cards were done.
+    await step("on the hub's shape (&hub=round23), a goal whose record state and to-do count or cards disagree keeps the record's words and says why in one line", async () => {
+      await openApp(page, "#/goals", "&hub=round23");
+      const list = page.getByRole("list", { name: "목표" });
+      await list.waitFor();
+      const read = async (title) => {
+        const row = list.locator(".goal-row").filter({ has: page.locator(".title", { hasText: new RegExp("^" + title + "$") }) });
+        const text = async (selector) => ((await row.locator(selector).count()) ? (await row.locator(selector).first().innerText()).trim() : null);
+        return { state: await text("[data-testid=goal-state] .state"), why: await text("[data-testid=goal-why]"), label: await row.getByRole("link").getAttribute("aria-label") };
+      };
+      const early = await read("가상 시험 앱 따로 띄우기");
+      const four = await read("가상 프록시 교체 시험");
+      const planned = await read("가상 결함 여덟 가지 고치기");
+      check(early.state === "완료" && early.why === "할 일 1개 남음" && / 0\/1$/.test(early.label ?? ""), "closed at 0/1: " + JSON.stringify(early));
+      check(four.state === "완료" && four.why === "할 일 12개 남음" && / 4\/16$/.test(four.label ?? ""), "closed at 4/16: " + JSON.stringify(four));
+      check(planned.state === "예정" && planned.why === "작업 2건 완료", "planned with its cards done: " + JSON.stringify(planned));
+      await openApp(page, "#/goals");
+      return [early, four, planned].map((goal) => goal.state + " · " + goal.why).join(" | ");
+    });
     await step("open a goal and read its boxes", async () => {
       await page.getByRole("list", { name: "목표" }).getByRole("link", { name: /결제 화면 개편/ }).click();
       await page.locator(".detail-title").waitFor();

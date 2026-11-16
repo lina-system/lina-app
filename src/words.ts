@@ -253,6 +253,10 @@ export const W = {
   newest: (time: string) => `가장 최근 ${time}`,
   /** One agent's share of a line of many, in the detail it opens (lina-app#237). */
   cardsCount: (n: number) => `${n}건`,
+  /** A goal the record closed with to-dos still open, in its own count: how many (lina-app#237). */
+  todosLeft: (n: number) => `할 일 ${n}개 남음`,
+  /** A goal the record still plans while every card under it is finished: how many (lina-app#237). */
+  workDone: (n: number) => `작업 ${n}건 완료`,
   /** A lone stopped run whose only name is an internal one in Latin, never shown (lina-app#134). */
   unnamedRun: "이름 없는 실행",
   /** A stopped card with no title or goal left once its references go: whose it is (lina-app#148). */

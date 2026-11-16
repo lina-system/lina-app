@@ -493,6 +493,12 @@ export function GoalLine({ goal, showAgent, count = false }: { goal: GoalRow; sh
               {time ? <span class="time">{`${SEP}${time}`}</span> : null}
             </span>
           ) : null}
+          {/* The record's words stay; when they disagree with its count or its cards, one line says how (lina-app#237). */}
+          {line && goal.why ? (
+            <span class="sub" data-testid="goal-why">
+              {goal.why}
+            </span>
+          ) : null}
           {condition ? <span class="sub wrap-line">{condition}</span> : null}
         </span>
         {(count && progress) || goal.runningCount ? (

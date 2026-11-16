@@ -112,12 +112,13 @@ function wantsFor(route: Route, store: Store): Want {
 }
 
 /**
- * Screens that list or count every finished card (완료, 오늘, an agent and its 대화 card, a goal's or to-do's cards, a
- * finished card's fold) read them all; the work tab reads the newest few (lina-app#186). A card the list does not hold may
- * be a finished one not read yet.
+ * Screens that list or count every finished card (완료, 오늘, an agent and its 대화 card, a goal's or to-do's cards, the
+ * goals whose lines fold their cards (lina-app#237), a finished card's fold) read them all; the work tab reads the newest
+ * few (lina-app#186). A card the list does not hold may be a finished one not read yet.
  */
 function readsEveryFinished(route: Route, store: Store): boolean {
   switch (route.name) {
+    case "goals":
     case "done":
     case "today":
     case "agent":

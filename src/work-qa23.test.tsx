@@ -110,4 +110,35 @@ for (const wide of [true, false]) {
     expect(rows.reduce((sum, row) => sum + Number(/(\d+)건$/.exec(row.textContent ?? "")?.[1] ?? 0), 0)).toBe(unnamed.length);
     expect(box.querySelectorAll("[data-testid=fold-member]")).toHaveLength(0);
   });
+
+  // The data disagrees with itself: the goal record says done while its own to-do count is open, or planned while every
+  // card under its title is finished. The row keeps the record's words and says in one line what disagrees.
+  test(`a goal whose record state and progress disagree says why in one line in the 대화 goal view (${width})`, async () => {
+    const source = hub();
+    const agent = source.scene.items.agents[0].id;
+    const view = await open(`#/talk/${agent}`, source, wide);
+    const card = await waitFor(() => view.getByTestId("agent-card"));
+    const toggle = card.querySelector(".agent-card-toggle");
+    if (toggle && toggle.getAttribute("aria-expanded") === "false") fireEvent.click(toggle);
+    const rows = [...view.getByTestId("agent-card").querySelectorAll(".goal-row")].map((row) => ({
+      title: row.querySelector(".title")?.textContent ?? "",
+      state: row.querySelector("[data-testid=goal-state] .state")?.getAttribute("data-state") ?? null,
+      progress: row.querySelector("[data-testid=goal-progress]")?.textContent ?? null,
+      why: row.querySelector("[data-testid=goal-why]")?.textContent ?? null,
+    }));
+    const row = (title: string) => rows.find((each) => each.title === title);
+    expect(row(ROUND23.closedEarly)).toEqual({ title: ROUND23.closedEarly, state: "done", progress: "0/1", why: W.todosLeft(1) });
+    expect(row(ROUND23.closedAtFour)).toEqual({ title: ROUND23.closedAtFour, state: "done", progress: "4/16", why: W.todosLeft(12) });
+    expect(row(ROUND23.plannedDone)).toEqual({ title: ROUND23.plannedDone, state: "planned", progress: "0/1", why: W.workDone(ROUND23.plannedDoneOwn.length) });
+    view.unmount();
+    // 목표 opened first reads the same: its rows fold the goal's cards, every finished one read.
+    const list = await open("#/goals", hub(), wide);
+    await waitFor(() => expect(within(list.getByRole("list", { name: W.goals })).getAllByTestId("goal-why").map((why) => why.textContent)).toEqual(expect.arrayContaining([W.todosLeft(1), W.todosLeft(12), W.workDone(ROUND23.plannedDoneOwn.length)])));
+    // No other goal shows a state its own progress contradicts without that line.
+    for (const each of rows) {
+      const [done, total] = (each.progress ?? "0/0").split("/").map(Number);
+      if (each.state === "done" && done < total) expect(each.why, each.title).toBe(W.todosLeft(total - done));
+      if (each.why === null) expect(each.state === "done" && done < total).toBe(false);
+    }
+  });
 }

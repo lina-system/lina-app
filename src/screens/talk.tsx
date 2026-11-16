@@ -143,12 +143,12 @@ function SendButton({ disabled, onSend }: { disabled: boolean; onSend: () => voi
 }
 
 /**
- * Why 보내기 is off, in the words 댓글 and 답 use (lina-app#200): the reply coming in, the turn going out, or an empty
- * field. An off 보내기 always says why, as the decision's 답 and 댓글 do (lina-app#238). It sits beside 보내기 on the
- * field's row, so the bar keeps its height and the field its place.
+ * Why 보내기 is off, in the words 댓글 and 답 use (lina-app#200): the reply coming in or the turn going out. An empty
+ * field says nothing: the owner took 글 입력 대기 out of the chat as noise (11-15), and a dim 보내기 on an empty field
+ * needs no reason. It sits beside 보내기 on the field's row, so the bar keeps its height and the field its place.
  */
-function SendWhy({ replying, sending, empty }: { replying: boolean; sending: boolean; empty: boolean }) {
-  const why = replying ? W.replying : sending ? W.sendWhyBusy : empty ? W.sendWhyEmpty : null;
+function SendWhy({ replying, sending }: { replying: boolean; sending: boolean }) {
+  const why = replying ? W.replying : sending ? W.sendWhyBusy : null;
   if (!why) return null;
   return (
     <span class="send-why" data-testid="send-why">
@@ -370,7 +370,7 @@ export function Talk({ detail }: { detail: ItemDetail }) {
       ) : null}
       <div class="comment-form talk-form">
         <KoreanInput label={W.talkField} value={text} onValue={setText} onEnter={() => void send()} inline multiline />
-        <SendWhy replying={last?.state === "streaming"} sending={busy} empty={!text.trim()} />
+        <SendWhy replying={last?.state === "streaming"} sending={busy} />
         <SendButton disabled={busy || !text.trim()} onSend={() => void send()} />
       </div>
       <ErrorLine line={error ?? undefined} />
@@ -880,7 +880,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
       </div>
       <div class="comment-form talk-form agent-talk-form">
         <KoreanInput label={W.talkField} value={text} onValue={setText} onEnter={() => void send()} inline multiline />
-        <SendWhy replying={box.turns.some((turn) => turn.state === "streaming")} sending={sending} empty={!text.trim()} />
+        <SendWhy replying={box.turns.some((turn) => turn.state === "streaming")} sending={sending} />
         <SendButton disabled={sending || !text.trim()} onSend={() => void send()} />
         {/* Inside the field's bar: on a phone the bar is sticky and would cover a line drawn after it (lina-app#158). */}
         <ErrorLine line={error ?? undefined} />

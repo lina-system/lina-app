@@ -1,3 +1,4 @@
+import { plainText } from "./plain";
 import { BANNED_WORDS, STATE_WORDS, W } from "../words";
 
 /**
@@ -383,9 +384,11 @@ export function drawnSentence(sentence: string): string | null {
  * its last sentence counts only when it ends on an end mark or a predicate (`확인했다`, `마침`); `고치는 중이` does not.
  */
 export function withoutCutEnd(text: string): string {
-  const sentences = sentencesOf(text.trim());
+  // The end is read on the words with their markdown markers out: a trailing `**` hides the full stop (lina-app#233 review).
+  const plain = plainText(text);
+  const sentences = sentencesOf(plain);
   const last = sentences.at(-1) ?? "";
-  if (/[.!?。]["'\u201d\u2019)\]]*$/.test(last) || endsOnPredicate(last)) return text;
+  if (/[.!?。]["'\u201d\u2019)\]]*$/.test(last) || endsOnPredicate(last)) return plain;
   // A cut inside a numbered list takes the whole list with it: the items before it would read as a list that ends there (lina-app#233).
   const placed = sentences.map((sentence) => ({ sentence, line: 0, marks: listMarks(sentence) }));
   const unit = listUnits(placed).find((candidate) => candidate.to >= sentences.length - 1);

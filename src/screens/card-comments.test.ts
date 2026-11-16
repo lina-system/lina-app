@@ -41,3 +41,8 @@ test("a comment by a profile name or another agent on the owner's card goes thro
   );
   expect(texts(lines)).toEqual(["G2 먼저 보고 T3는 내일 본다", "가짜 검토를 마쳤다.", "가짜 판을 올렸다."]);
 });
+
+test("a record row whose last sentence ends in markdown markers is drawn whole (lina-app#233 review)", () => {
+  const lines = cardCommentLines([], [recordRow(100, "**가짜 금액 줄과 환불 문구 모두 점검 완료.**")], OWNER);
+  expect(texts(lines)).toEqual(["가짜 금액 줄과 환불 문구 모두 점검 완료."]);
+});

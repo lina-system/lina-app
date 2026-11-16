@@ -131,3 +131,11 @@ test("a number with its unit is no hash in a whole title, a bare run of digits s
   expect(wholeTitle("가짜 판은 아직 4815162342 그대로다.")).toBeNull();
   expect(withoutRefs("가짜 빌드 4815162342 올리기")).toBe("가짜 빌드 올리기");
 });
+
+test("a sentence's end is read without its markdown markers (lina-app#233 review)", () => {
+  // a closing `**` hides the full stop, and the sentence ends on a noun: it is whole, not cut
+  expect(withoutCutEnd("**가짜 금액 줄과 환불 문구 모두 점검 완료.**")).toBe("가짜 금액 줄과 환불 문구 모두 점검 완료.");
+  expect(withoutCutEnd("가짜 남은 일: (1) 첫 화면 문구를 고쳤다. (2) **환불 문구 확인.**")).toBe("가짜 남은 일: (1) 첫 화면 문구를 고쳤다. (2) 환불 문구 확인.");
+  // a cut sentence is still cut when it carries markers
+  expect(withoutCutEnd("가짜 정리를 마쳤다. **가짜 시안을 고치는 중이**")).toBe("가짜 정리를 마쳤다.");
+});

@@ -1,7 +1,6 @@
 import type { ItemDetail, RecordRound, RecordRow, RunRecord } from "../api/client";
 import { STATE_WORD, stateLabel, W } from "../words";
 import { drawnSentences, STATE_ONLY, withoutCutEnd } from "./fold";
-import { plainText } from "./plain";
 import { holds } from "./rounds";
 
 /** Who writes machine notices on a card (the dispatcher's and the worker's receipts): never a history line. */
@@ -47,7 +46,7 @@ export function commentLine(text: string, author: string | null | undefined, own
  * one gate draws of its markdown-free words, less the sentence the cut went through (withoutCutEnd). Null when none is.
  */
 export function recordCommentLine(text: string | null): string | null {
-  return text ? firstSentence(plainText(withoutCutEnd(text))) : null;
+  return text ? firstSentence(withoutCutEnd(text)) : null;
 }
 
 /**

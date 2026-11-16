@@ -165,7 +165,7 @@ test("no two rows of a group read the same: line 1 is the goal's title, line 2 t
 const deploy = (id: string, hash: string, endedAt: number) => row(id, `가짜 코어를 dev ${hash}로, 앱 빌드를 올리기 (가짜 반영 · #12 · · FAKE_KEY 확인)`, "done", { endedAt });
 const DEPLOY = "가짜 코어를, 앱 빌드를 올리기 (가짜 반영 · 확인)";
 
-test("finished cards whose visible lines are equal collapse to one line with their count and the newest time; the head counts the cards (lina-app#168, #186)", () => {
+test("finished cards whose visible lines are equal collapse to one line with their count and the newest time; the head counts the lines (lina-app#168, #186, #221)", () => {
   const older = ["1a2b3c4d", "5e6f7a8b", "9c0d1e2f", "3a4b5c6d", "7e8f9a0b"].map((hash, index) => deploy(`h${index + 1}`, hash, NOW - 2 * DAY - index * 600));
   const recent = [deploy("r1", "aa11bb22", NOW - 1800), deploy("r2", "cc33dd44", NOW - 600), row("r3", "가짜 다른 정리", "done", { endedAt: NOW - 900 })];
   const model = realModel([...older, ...recent]);
@@ -175,9 +175,9 @@ test("finished cards whose visible lines are equal collapse to one line with the
     ["r3", 1],
   ]);
   expect(model.home.finished.rows[0]).toMatchObject({ name: DEPLOY, endedAt: NOW - 600, when: null });
-  // The head, the sidebar's 완료 and the 완료 screen count the cards behind these same lines (lina-app#179, #186).
-  expect(model.home.finished.count).toBe(8);
-  expect(model.counts.done).toBe(8);
+  // The head, the sidebar's 완료 and the 완료 screen count these same lines, one each (lina-app#179, #221).
+  expect(model.home.finished.count).toBe(2);
+  expect(model.counts.done).toBe(2);
   expect(doneFor(model).map((each) => [each.id, each.repeat ?? 1])).toEqual([
     ["r2", 7],
     ["r3", 1],
@@ -187,30 +187,32 @@ test("finished cards whose visible lines are equal collapse to one line with the
 
 // lina-app#196: the hub's finished cards, more than the first page, some with no name the screen may draw (an English
 // own title and no goal) and those only past the first page, as in the hub's reply.
-test("the 완료 head counts the same cards on the first page and once every finished card is read: what has no name is one counted line (lina-app#196)", () => {
+test("the 완료 head is its rows and the cards not read yet on the first page, its rows once every finished card is read: what has no name is no row (lina-app#196, #221)", () => {
   const named = Array.from({ length: 8 }, (_, index) => row(`n${index + 1}`, `가짜 정리 ${index + 1}단계 마치기`, "done", { endedAt: NOW - (index + 1) * 600 }));
   const unnamed = Array.from({ length: 3 }, (_, index) => row(`u${index + 1}`, `fake cleanup pass ${index + 1}`, "done", { endedAt: NOW - 2 * DAY - index * 600 }));
   const every = [...named, ...unnamed];
   // The core's first page: the five newest finished cards and the total of every one it holds (lina#729).
   const firstPage = (rows: readonly RealRow[]) => buildModel({ board, items, cards: { cards: rows.slice(0, 5), finishedTotal: rows.length } as WorkCardList, cardsAt: NOW, cardDetails: {}, failed: [], finished: { total: rows.length, all: false } }, NOW);
-  const lineCards = (rows: readonly CardRow[]) => rows.reduce((sum, line) => sum + (line.repeat ?? 1), 0);
   const first = firstPage(every);
   const opened = buildModel({ board, items, cards: { cards: every, finishedTotal: every.length } as WorkCardList, cardsAt: NOW, cardDetails: {}, failed: [], finished: { total: every.length, all: true } }, NOW);
 
+  // The first page's five rows and the six cards not read yet, each of which may be a row.
+  expect(first.home.finished.rows).toHaveLength(5);
+  expect(first.finished.more).toBe(6);
   expect(first.home.finished.count).toBe(11);
   expect(first.counts.done).toBe(11);
-  expect(lineCards(first.home.finished.rows) + first.finished.more).toBe(11);
-  // Opened, the head, the sidebar and the rows are the same number: the three with no name are one line ×3.
-  expect(opened.home.finished.count).toBe(11);
-  expect(opened.counts.done).toBe(11);
-  expect(lineCards(opened.home.finished.rows)).toBe(11);
-  expect(lineCards(doneFor(opened))).toBe(11);
-  expect(opened.home.finished.rows.at(-1)).toMatchObject({ id: "u1", name: W.untitled, repeat: 3 });
+  // Opened, the head, the sidebar and the rows are the same number: the three nothing names are no row (lina-app#221).
+  expect(opened.home.finished.rows).toHaveLength(8);
+  expect(opened.finished.more).toBe(0);
+  expect(opened.home.finished.count).toBe(8);
+  expect(opened.counts.done).toBe(8);
+  expect(doneFor(opened)).toHaveLength(8);
+  expect(opened.home.finished.rows.some((each) => each.name === W.untitled)).toBe(false);
 });
 
 // lina-app#214: the hub's finished cards in no goal whose own titles the row rule refuses only for their English words
 // or references. Each reads by the Hangul words left; one with fewer than four Hangul letters left stays 제목 없음.
-test("a finished card the title rule refuses for its Latin words or refs reads by its Hangul words; with too few left it is 제목 없음 (lina-app#214)", () => {
+test("a finished card the title rule refuses for its Latin words or refs reads by its Hangul words; with too few left it is no row (lina-app#214, #221)", () => {
   const named = "가짜 회차 점검 정리";
   const finished = [
     row("f1", "가짜 회차 점검 fake worker run 정리", "done", { endedAt: NOW - 600 }),
@@ -231,14 +233,13 @@ test("a finished card the title rule refuses for its Latin words or refs reads b
   for (const id of ["f2", "f7", "f8"]) expect(model.cards.get(id)?.name, id).toBe(named);
   expect(model.cards.get("f3")?.name).toBe("다시 돌리기");
   for (const id of ["f4", "f5", "f6"]) expect(model.cards.get(id)?.name, id).toBe(W.untitled);
-  // Named cards group with the equal-named ones; the 제목 없음 line holds only the cards nothing names.
+  // Named cards group with the equal-named ones; the cards nothing names are no row and no count (lina-app#221).
   expect(doneFor(model).map((each) => [each.id, each.name, each.repeat ?? 1])).toEqual([
     ["f1", named, 4],
     ["f3", "다시 돌리기", 1],
-    ["f4", W.untitled, 3],
   ]);
-  expect(model.home.finished.count).toBe(8);
-  expect(model.counts.done).toBe(model.home.finished.rows.reduce((sum, line) => sum + (line.repeat ?? 1), 0));
+  expect(model.home.finished.count).toBe(2);
+  expect(model.counts.done).toBe(model.home.finished.rows.length);
 
   expect(model.home.stopped.rows.find((each) => each.id === "s1")?.name).toBe(W.untitled);
   expect(model.cards.get("a1")?.title).toBeNull();

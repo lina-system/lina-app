@@ -2,7 +2,7 @@ import { Fragment, type ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, RecordRow, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
-import { cardTitle, goalCards, goalState, isRetryRequest, itemContext, itemLine, runRow, todoState, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
+import { cardTitle, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, runRow, todoState, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
 import { foldedText, foldReason } from "../model/fold";
 import { plainText } from "../model/plain";
 import { holds } from "../model/rounds";
@@ -311,7 +311,19 @@ function HistoryLine({ at, text, kind, who }: { at: number; text: string; kind?:
  */
 function useItemLine(detail: ItemDetail): ItemLine {
   const { model, store } = useApp();
-  return itemLine(model, detail.id, detail.kind === "goal" ? goalState(model, detail, store.get("goals")) : todoState(model, detail), detail.decision);
+  return itemLine(model, detail.id, detail.kind === "goal" ? goalState(model, detail, store.get("goals")) : todoState(model, detail), detail.decision, detail.due);
+}
+
+/** A goal's or to-do's state line with its time: its state words, 지남 when it is overdue (itemWords, lina-app#221). */
+function ItemState({ line, time }: { line: ItemLine; time: string }) {
+  return (
+    <span class="sub">
+      <span class="state" data-state={line.state} data-testid="state">
+        {itemWords(line)}
+      </span>
+      {time ? <span class="time">{`${SEP}${time}`}</span> : null}
+    </span>
+  );
 }
 
 /** The head's check box with its state line, 되돌리기 while the owner's mark can be taken back, and a goal's question. */
@@ -342,7 +354,7 @@ function DoneHead({ detail }: { detail: ItemDetail }) {
             {answer ? <span class="time">{`${SEP}${ago(now - answer.at)}`}</span> : null}
           </span>
         ) : (
-          <StateTime state={line.state} reason={line.reason} time={itemTime(line, now)} />
+          <ItemState line={line} time={itemTime(line, now)} />
         )}
         {showUndo ? (
           <button type="button" class="text-button head-undo" disabled={actions.busy(`done:${detail.id}`)} onClick={() => void actions.undoDone(detail.id, withIds)}>
@@ -390,14 +402,14 @@ function TodoLine({ todo }: { todo: ItemSummary }) {
   const actions = useActions();
   const { model, now } = useApp();
   const shown = actions.isDone(todo.id, todo.state === "done");
-  const line = itemLine(model, todo.id, todoState(model, todo));
+  const line = itemLine(model, todo.id, todoState(model, todo), undefined, todo.due);
   return (
     <li class={`row check-row${shown ? " is-checked" : ""}`} data-testid="row">
       <DoneCheck id={todo.id} title={todo.title} done={todo.state === "done"} />
-      <Link href={href({ name: "item", id: todo.id })} label={[todo.title, stateLabel(line.state, line.reason)].join(SEP)}>
+      <Link href={href({ name: "item", id: todo.id })} label={[todo.title, itemWords(line)].join(SEP)}>
         <span class="lines">
           <span class="title one-line">{todo.title}</span>
-          <StateTime state={line.state} reason={line.reason} time={itemTime(line, now)} />
+          <ItemState line={line} time={itemTime(line, now)} />
         </span>
       </Link>
       <ErrorLine line={actions.error(`done:${todo.id}`)?.line} />

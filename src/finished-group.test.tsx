@@ -5,8 +5,8 @@ import { FINISHED_SHOWN, Store } from "./data/store";
 import { SyntheticSource } from "./data/synthetic-source";
 import { W } from "./words";
 
-// lina-app#186: the work tab reads its first finished cards only; the 완료 head, the sidebar's 완료 and the rows (each
-// `×n` line counting n, the fold its `외 n개`) are one number before and after the fold opens the rest.
+// lina-app#186: the work tab reads its first finished cards only; the 완료 head, the sidebar's 완료 and the rows (one each,
+// a `×n` line too, and the fold its `외 n개`, lina-app#221) are one number before and after the fold opens the rest.
 
 function setWide(wide: boolean) {
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: wide, media: query, addEventListener() {}, removeEventListener() {} }));
@@ -30,12 +30,13 @@ afterEach(() => {
 
 const sidebarDone = (view: ReturnType<typeof render>) => Number(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")?.textContent ?? "0");
 const headDone = (view: ReturnType<typeof render>) => Number(view.getByTestId("head-finished").querySelector("[data-testid=count]")?.textContent);
-/** The cards the group's rows stand for: one per line, n for a `×n` line, and the fold's `외 n개`. */
+/** The fold under the rows while it holds any back: `외 n개`, or 불러오는 중 while it reads them (not the opened fold's 닫기). */
+const FOLD = ".more-row:not([data-testid=fold-hide])";
+/** The rows the group stands for: the lines drawn, one each, and the fold's `외 n개`. */
 function rowCards(group: HTMLElement): { lines: number; fold: number; cards: number } {
-  const lines = [...group.querySelectorAll("[data-testid=row]")];
-  const repeated = lines.reduce((sum, line) => sum + Number(/×(\d+)/.exec(line.textContent ?? "")?.[1] ?? 1), 0);
-  const fold = Number(/외 (\d+)개/.exec(group.querySelector(".more-row")?.textContent ?? "")?.[1] ?? 0);
-  return { lines: lines.length, fold, cards: repeated + fold };
+  const lines = group.querySelectorAll("[data-testid=row]").length;
+  const fold = Number(/외 (\d+)개/.exec(group.querySelector(FOLD)?.textContent ?? "")?.[1] ?? 0);
+  return { lines, fold, cards: lines + fold };
 }
 
 test("collapsed: the 완료 head, the sidebar's 완료 and the rows with their fold are one number", async () => {
@@ -61,7 +62,7 @@ test("opened: the fold loads the rest with a loading line in its place, and no n
   expect(loading?.getAttribute("aria-busy")).toBe("true");
   expect(headDone(view)).toBe(total);
   expect(sidebarDone(view)).toBe(total);
-  await waitFor(() => expect(group.querySelector(".more-row")).toBeNull());
+  await waitFor(() => expect(group.querySelector(FOLD)).toBeNull());
   expect(headDone(view)).toBe(total);
   expect(sidebarDone(view)).toBe(total);
   expect(rowCards(group)).toEqual({ lines: total, fold: 0, cards: total });
@@ -69,7 +70,8 @@ test("opened: the fold loads the rest with a loading line in its place, and no n
 
 // lina-app#217: the finished count moves while the fold reads the rest. The read of every finished card counts its total
 // apart from its list, at another moment: `lags` counted before four more cards finished, `leads` after the list was
-// cut. The head is the lines and the fold at every moment, and once the rest is in, the cards that read sent.
+// cut. The head is the lines and the fold at every moment, and once the rest is in, the lines of the cards that read
+// sent, each of its own (lina-app#221).
 for (const wide of [true, false]) {
   test.each([
     ["lags", 4, 0],
@@ -83,7 +85,7 @@ for (const wide of [true, false]) {
     let holding = true;
     const release = () => {
       holding = false;
-      for (let index = 0; index < finishing && template; index++) source.scene.cards.cards.push({ ...template, id: `k-${900 + index}`, endedAt: now(), lastHeartbeatAt: now() });
+      for (let index = 0; index < finishing && template; index++) source.scene.cards.cards.push({ ...template, id: `k-${900 + index}`, plain: { ...template.plain, title: `${template.plain.title} ${index + 1}` }, endedAt: now(), lastHeartbeatAt: now() });
       for (const go of held.splice(0)) go();
     };
     const read = source.read.bind(source);
@@ -105,11 +107,11 @@ for (const wide of [true, false]) {
     fireEvent.click(group.querySelector(".more-row button") as HTMLElement);
     await waitFor(() => expect(group.querySelector(".more-row")?.textContent).toBe(W.loading));
     release();
-    await waitFor(() => expect(group.querySelector(".more-row")).toBeNull());
+    await waitFor(() => expect(group.querySelector(FOLD)).toBeNull());
     const sent = before.head + finishing;
-    // While the rest is read nothing moves; every other moment the head is the cards its lines and fold stand for.
+    // While the rest is read nothing moves; every other moment the head is its lines and its fold.
     for (const state of states) expect(state.loading ? { head: state.head, lines: state.lines } : state.head).toEqual(state.loading ? { head: before.head, lines: before.lines } : state.cards);
-    expect(rowCards(group)).toEqual({ lines: expect.any(Number), fold: 0, cards: sent });
+    expect(rowCards(group)).toEqual({ lines: sent, fold: 0, cards: sent });
     expect(headDone(view)).toBe(sent);
     if (wide) expect(sidebarDone(view)).toBe(sent);
   });

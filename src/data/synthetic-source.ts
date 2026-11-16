@@ -1,5 +1,6 @@
 import { SETTINGS_HISTORY, type ActionResult, type AddItemRequest, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type BoardSnapshot, type ChangeEvent, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemDetail, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type Settings, type SettingsAuditLine, type SettingsModel, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest, type WorkState } from "../api/client";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type PowerVariant, type Scene, type SettingsVariant } from "../fixtures/synthetic";
+import { localDay } from "../model";
 import { mergePatch } from "../model/settings";
 import { currentSettings, historyView, invalidDetail, modelsView, revisionOf, settingsView, validate, writeRevision } from "./synthetic-settings";
 import { base64UrlBytes, type PushManagerLike, type PushSubscriptionLike } from "../push";
@@ -9,6 +10,40 @@ import { nowSeconds, type AgentTalkResult, type ChangeHandlers, type ChangeSocke
 function finishedPage(list: Scene["cards"], limit: number): Routes["cards"] {
   const finished = list.cards.filter((card) => card.state === "done").sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0));
   return { ...list, cards: [...list.cards.filter((card) => card.state !== "done"), ...finished.slice(0, limit)], finishedTotal: finished.length };
+}
+
+const ROUND18_FIRST = ["가상", "임시", "연습", "예시", "모의", "시험", "가짜", "보기", "샘플"];
+const ROUND18_SECOND = ["화면", "문서", "목록", "설정", "기록", "알림", "검색", "계정"];
+const ROUND18_THIRD = ["정리하기", "고치기", "살피기", "옮기기", "맞추기", "줄이기", "늘리기", "묶기"];
+/** A made-up title of three Hangul words, a different one for every index under 576. */
+const round18Title = (index: number) => `${ROUND18_FIRST[index % 9]} ${ROUND18_SECOND[Math.floor(index / 9) % 8]} ${ROUND18_THIRD[Math.floor(index / 72) % 8]}`;
+
+/**
+ * The hub's shapes UI QA round 18 met (`&hub=round18`, lina-app#221), in made-up words: 524 finished cards in its finished
+ * row shape (no checked title, result or now line, no goal title, read-only), 509 titled apart, then 4, 5, 2 and 2 titled
+ * alike (one `×n` line each) and 2 whose titles keep no Hangul, in no goal and with no history kept (`detail: false`):
+ * 514 lines as the hub folds them, 513 with the line nothing names gone. And the owner's planned to-do T3 due three days
+ * before the clock.
+ */
+export function round18Scene(scene: Scene): Scene {
+  const template = scene.cards.cards.find((card) => card.state === "done");
+  if (!template) return scene;
+  const shape = (index: number, title: string, extra: { detail?: boolean } = {}): Scene["cards"]["cards"][number] => {
+    const ended = scene.now - (2 + index) * 3600;
+    return { ...template, id: `k-${1000 + index}`, title, goalTitle: null, ask: null, now: null, reason: null, plain: { title: null, now: null, result: null }, todoProgress: { done: 0, total: 0 }, readOnly: true, endedAt: ended, lastHeartbeatAt: ended, ...extra } as Scene["cards"]["cards"][number];
+  };
+  const titles = [...Array.from({ length: 509 }, (_, index) => round18Title(index)), ...[4, 5, 2, 2].flatMap((count, group) => Array.from({ length: count }, () => round18Title(509 + group)))];
+  const finished = [...titles.map((title, index) => shape(index, title)), shape(titles.length, "fix a9c2 (#12)", { detail: false }), shape(titles.length + 1, "fix b7e1 (#12)", { detail: false })];
+  const due = localDay(scene.now - 3 * 86_400);
+  const dated = <T extends { id: string; due: string | null }>(row: T): T => (row.id === "T3" ? { ...row, due } : row);
+  const goal = scene.itemDetails.G1;
+  return {
+    ...scene,
+    cards: { ...scene.cards, cards: [...scene.cards.cards.filter((card) => card.state !== "done"), ...finished] },
+    items: { ...scene.items, items: scene.items.items.map(dated) },
+    itemDetails: { ...scene.itemDetails, T3: dated(scene.itemDetails.T3), G1: { ...goal, children: goal.children.map(dated) } },
+    board: { ...scene.board, inbox: { ...scene.board.inbox, mine: scene.board.inbox.mine.map(dated) } },
+  };
 }
 
 function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
@@ -364,7 +399,7 @@ export class SyntheticSource implements Source {
   private readonly signing = new Set<string>();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null } = {}) {
     this.staleNext = options.settings === "stale";
     this.raceNext = options.settings === "race";
     this.talkRefusal = options.talk ?? null;
@@ -372,7 +407,7 @@ export class SyntheticSource implements Source {
     this.script = options.live ?? "ok";
     this.checksError = options.checksError ?? false;
     this.streamDown = this.script === "down";
-    this.scene =
+    const generated =
       options.scene ??
       generateScene(options.seed ?? SYNTHETIC_SEED, {
         now: Math.floor(options.now ?? nowSeconds()),
@@ -388,6 +423,7 @@ export class SyntheticSource implements Source {
         settings: options.settings === "stale" || options.settings === "race" ? null : options.settings,
         power: options.power,
       });
+    this.scene = options.hubRound18 && !options.scene ? round18Scene(generated) : generated;
   }
 
   async read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {

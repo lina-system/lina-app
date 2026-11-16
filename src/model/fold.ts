@@ -469,7 +469,8 @@ export function wholeText(text: string | null | undefined): string | null {
   if (STATE_ONLY.has(whole)) return whole;
   const sentences = sentencesOf(whole);
   if (sentences.length > WHOLE_SENTENCES || [...whole].length > WHOLE_LETTERS || listMarks(`${whole} `).length) return null;
-  return !CONTINUES.test(whole) && !isFragment(whole) && sentences.every(sentenceReads) ? whole : null;
+  // Each sentence is checked on its own: a whole sentence must not mask a cut-off one beside it (lina-app#239 review).
+  return !CONTINUES.test(whole) && sentences.every((sentence) => sentenceReads(sentence) && !isFragment(sentence)) ? whole : null;
 }
 
 /** Whether a bracket's inside is refs, ids or hashes and their separators alone: no word, so cutting it leaves no hole (lina-app#233). */

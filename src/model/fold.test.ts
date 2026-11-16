@@ -423,3 +423,11 @@ test.each([
 ])("foldedText(%j) draws no lead-in alone: %j (lina-app#218)", (comment, shown) => {
   expect(foldedText(comment)).toBe(shown);
 });
+
+test.each([
+  ["설정 파일을 고쳤다. 고치는 중이", null],
+  ["고치는 중이. 설정 파일을 고쳤다.", null],
+  ["설정 파일을 고쳤다. 서버를 켰다.", "설정 파일을 고쳤다. 서버를 켰다."],
+])("wholeText(%j) is %j: a complete sentence does not mask a cut-off one (lina-app#239 review)", (text, drawn) => {
+  expect(wholeText(text)).toBe(drawn);
+});

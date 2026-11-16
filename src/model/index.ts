@@ -504,17 +504,19 @@ const movedAt = (row: CardRow) => row.endedAt ?? row.startedAt ?? row.stateAt;
  * apart (lina-app#242): such a row with a name of its own leads with it, the goal's title its line 2, unless `lead` is
  * off (완료, whose rows of one title are one line, collapsed). A line 1 the same screen draws in another group
  * (`elsewhere`: a goal's title over a stopped card and over its finished ones) is shared the same way, so a title is one
- * group's line 1 on the screen and no card leaves its group.
+ * group's line 1 on the screen and no card leaves its group. A row never leads with an own name another open group
+ * draws (`taken`); a finished line it meets gives way instead (buildModel).
  */
-export function apart(rows: readonly CardRow[], now: number, lead = true, elsewhere: readonly string[] = []): CardRow[] {
+export function apart(rows: readonly CardRow[], now: number, lead = true, elsewhere: readonly string[] = [], taken: readonly string[] = []): CardRow[] {
   // Line 1 by the title order (the goal's title first), read from `title`, which apart never changes: so rows already
   // apart read the same when a list of some of them is told apart again (an agent's, a goal's).
   const first = (row: CardRow) => row.title ?? row.name;
   const shared = new Map<string, number>();
   for (const line of [...rows.map(first), ...elsewhere]) shared.set(line, (shared.get(line) ?? 0) + 1);
+  const drawn = new Set(taken);
   const named = rows.map((row) => {
     const own = row.ownName && row.ownName !== first(row) ? row.ownName : null;
-    return lead && own && (shared.get(first(row)) ?? 0) > 1 ? { ...row, name: own, sub: first(row), when: null } : { ...row, name: first(row), sub: own, when: null };
+    return lead && own && !drawn.has(own) && (shared.get(first(row)) ?? 0) > 1 ? { ...row, name: own, sub: first(row), when: null } : { ...row, name: first(row), sub: own, when: null };
   });
   const key = (row: CardRow) => [row.name, row.sub ?? "", row.stop?.words ?? ""].join("\n");
   const seen = new Map<string, number>();
@@ -790,6 +792,9 @@ export function buildModel(input: ModelInput, now: number): Model {
   // open group's rows are told apart from the work tab's other groups too, 완료's lines among them, so no title is two
   // groups' line 1; a finished card whose line 1 an open row still draws then leads with its own name, the title its
   // line 2, or with none is counted in the grey line. Every card stays in its group, which its head and the sidebar count.
+  // The open groups are told apart in one pass: a title any other group draws is shared, and a row leads with its own
+  // name only when no other open group draws it, by the names the groups before it draw in the end and the titles of
+  // those after it, so promoting a name never makes a line 1 two groups share.
   const finishedRows = apart(allCards.filter((card) => card.state === "done").sort(newestFirst((card) => card.endedAt)), now, false);
   const open = [
     allCards.filter((card) => card.state === "stopped").sort(stoppedOrder),
@@ -800,9 +805,13 @@ export function buildModel(input: ModelInput, now: number): Model {
   const finishedLines = doneLines(finishedRows, now)
     .filter((line) => line.title !== null)
     .map((line) => line.name);
-  const [stopped, running, planned, waiting] = open.map((rows) =>
-    apart(rows, now, true, [...finishedLines, ...open.filter((other) => other !== rows).flatMap((other) => other.map((card) => card.title ?? card.name))]),
-  );
+  const resolved: CardRow[][] = [];
+  for (const [index, rows] of open.entries()) {
+    const titles = (groups: readonly CardRow[][]) => groups.flatMap((other) => other.map((card) => card.title ?? card.name));
+    const taken = [...resolved.flat().map((row) => row.name), ...titles(open.slice(index + 1))];
+    resolved.push(apart(rows, now, true, [...finishedLines, ...titles(open.filter((other) => other !== rows))], taken));
+  }
+  const [stopped, running, planned, waiting] = resolved;
   const openLines = new Set([stopped, running, planned, waiting].flat().map((row) => row.name));
   const done = finishedRows.map((row) => {
     if (row.title === null || !openLines.has(row.name)) return row;

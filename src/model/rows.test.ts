@@ -528,3 +528,21 @@ test("a title one group draws is no other group's line 1: the open row leads wit
   expect(model.counts.done).toBe(cardCount(model.home.finished.rows));
   expect(cardCount(doneFor(model))).toBe(5);
 });
+
+// PR #260 review: an open row that leads with its own name checks it against what the other groups finally draw, so
+// promoting it never makes a new line 1 two groups share. A stopped card under a goal its finished card shares, whose
+// own name is a running card's goal, keeps the goal's title; the finished card then leads with its own name.
+test("an open row's own name is not promoted onto a line 1 another group draws", () => {
+  const model = realModel([
+    row("x1", "가상 저장소 정리", "stopped", { goalTitle: "가상 관문 정리", lastHeartbeatAt: NOW - 100 }),
+    row("x2", "가상 목록 고치기", "in_progress", { goalTitle: "가상 저장소 정리" }),
+    row("y1", "가상 관문 문서 마무리", "done", { goalTitle: "가상 관문 정리", endedAt: NOW - 600 }),
+  ]);
+  const groups: Section<CardRow>[] = [model.home.active, model.home.stopped, model.home.planned, model.home.waiting, model.home.finished];
+  const where = new Map<string, string[]>();
+  for (const group of groups) for (const each of group.rows) where.set(each.name, [...(where.get(each.name) ?? []), group.id]);
+  expect([...where].filter(([, ids]) => new Set(ids).size > 1)).toEqual([]);
+  expect(model.home.stopped.rows.find((each) => each.id === "x1")).toMatchObject({ name: "가상 관문 정리", sub: "가상 저장소 정리" });
+  expect(model.home.active.rows.find((each) => each.id === "x2")).toMatchObject({ name: "가상 저장소 정리", sub: "가상 목록 고치기" });
+  expect(model.home.finished.rows.map((each) => [each.name, each.sub ?? null])).toEqual([["가상 관문 문서 마무리", "가상 관문 정리"]]);
+});

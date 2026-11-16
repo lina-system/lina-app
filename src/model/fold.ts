@@ -10,10 +10,18 @@ export type FoldReason = "path" | "command" | "hash" | "issue" | "address" | "fr
 /** Latin words the core's checked lines allow (hermes_cli/lina_board_plain.py ALLOWED_LATIN); any other is raw text. */
 const ALLOWED_LATIN = new Set(["LINA", "Honcho", "GitHub", "macOS", "iPhone", "Telegram", "Codex"]);
 
+/** The particles a ref or a bracket carries glued after it (`<hash>로`, `#12를`, `(…)을`). */
+const PARTICLES = "으로|에서|까지|부터|로|를|을|이|가|은|는|와|과|의|에|도|만";
+/**
+ * A run of seven digits or more: a hash with no letter in it (lina-app#228), unless a unit is glued after it (`12345678원`,
+ * `1234567건`; a particle is no unit) or a thousands comma (`1234567,890`), which make it a number (lina-app#230).
+ */
+const DIGIT_HASH = String.raw`(?<![\d.,])\d{7,}(?!\d|\.\d|,\d{3}(?!\d)|(?!(?:${PARTICLES})(?!\p{Script=Hangul}))\p{Script=Hangul})`;
+
 const RULES: readonly (readonly [FoldReason, RegExp])[] = [
   ["address", /https?:|www\./i],
   ["issue", /(?<![0-9A-Za-z])(?:[\w.-]+\/[\w.-]+)?#\d+/],
-  ["hash", /\b[0-9a-f]{7,40}\b/],
+  ["hash", new RegExp(String.raw`\b(?=[0-9]*[a-f])[0-9a-f]{7,40}\b|${DIGIT_HASH}`, "u")],
   ["path", /[\w-]\.[A-Za-z][A-Za-z0-9]{0,4}\b|[\w.-]+\/[\w.-]+|(?:^|[\s(])(?:~|\.{1,2})?\/[\w.-]|\\[\w.-]/],
   ["command", /`|(?:^|\s)--?[A-Za-z]|(?:^|\s)\$\s|\s(?:\||&&|>>?|<)\s/],
   ["fragment", /(?:…|\.\.\.)\s*$/],
@@ -34,8 +42,6 @@ const CAMEL_NAMES = ["macOS", "iPhone", "iPad", "iOS"];
  * names stay.
  */
 const CODE = String.raw`(?:(?<![0-9A-Za-z_./-])(?:(?=[\w.]*(?:_|[a-z][A-Z]))[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+|_*[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+|(?!(?:${CAMEL_NAMES.join("|")})(?![A-Za-z0-9]))[a-z]+[A-Z][A-Za-z0-9]*)(?![0-9A-Za-z_])|(?:(?:표지\s*)?카드|\b[Cc]ard)\s*\d+(?![\d\p{Script=Hangul}]))`;
-/** The particles a ref or a bracket carries glued after it (`<hash>로`, `#12를`, `(…)을`). */
-const PARTICLES = "으로|에서|까지|부터|로|를|을|이|가|은|는|와|과|의|에|도|만";
 /** The particle glued to a ref: it goes with the ref, or the sentence keeps a stray particle. */
 const PARTICLE = String.raw`(?:(?:${PARTICLES})(?![\p{Script=Hangul}]))?`;
 /** A ref, a call's empty brackets after a code name (`fake_owner()`) and the particle glued to it. */
@@ -199,11 +205,8 @@ const NUMBER_ALONE = /^\(?\d+(?:[.,]\d+)*\)?\s*\p{Script=Hangul}{0,2}[.!?。…]
 const PARTICLE_APART = /\s(?:(?:으로|에서|을|를|은|는|의|로|와|과)(?=[\s.,!?。:;)…]|$)|(?:이|가|도|만|에)(?=[.,!?。:;)…]|$))/u;
 /** A modifier with no noun after it, at the end of a clause (`설정은 노출된.`, `묶음은 이.`). */
 const MODIFIER_ALONE = new RegExp(String.raw`${MODIFIER}\s*(?:[.,!?。:;)…]|$)`, "u");
-/**
- * A Latin letter (an English word, a product name, a round label `S2`, a code `rc 0`), a ref's `#12`, or a run of seven
- * digits or more: a hash with no letter in it (lina-app#228).
- */
-const LATIN_OR_CODE = /[A-Za-z]|#\d|\d{7}/;
+/** A Latin letter (an English word, a product name, a round label `S2`, a code `rc 0`), a ref's `#12`, or a DIGIT_HASH. */
+const LATIN_OR_CODE = new RegExp(String.raw`[A-Za-z]|#\d|${DIGIT_HASH}`, "u");
 
 const count = (text: string, mark: string) => text.split(mark).length - 1;
 

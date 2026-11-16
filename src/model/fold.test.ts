@@ -211,6 +211,21 @@ test.each([
   expect(drawnSentences(text)).toEqual(drawn);
 });
 
+// lina-app#230: a run of seven digits or more with a unit glued after it (`원`, `건`) or a thousands comma is a number,
+// drawn as any; with nothing after it, a particle or a space, it stays a hash and its sentence is not drawn.
+test.each([
+  ["가짜 가격은 12345678원으로 정했다.", ["가짜 가격은 12345678원으로 정했다."]],
+  ["가짜 누적 건수가 1234567건을 넘었다.", ["가짜 누적 건수가 1234567건을 넘었다."]],
+  ["가짜 매출은 1234567,890원이다.", ["가짜 매출은 1234567,890원이다."]],
+  ["가짜 판은 아직 1234567 그대로다.", []],
+  ["가짜 해시 1234567을 지웠다.", []],
+  ["가짜 판을 4815162342로 올렸다.", []],
+  ["가짜 판은 4815162342.", []],
+])("drawnSentences(%j) is %j: a long number with its unit is a number, not a hash (lina-app#230)", (text, drawn) => {
+  expect(drawnSentences(text)).toEqual(drawn);
+  expect(foldReason(text)).toBe(drawn.length ? null : "hash");
+});
+
 test("a title holding a digits-only hash passes the sentence rule only once the hash is cut (lina-app#228)", () => {
   expect(sentenceMayShow("가짜 판은 아직 4815162342 그대로다.")).toBe(false);
   expect(withoutRefs("가짜 빌드 4815162342 올리기")).toBe("가짜 빌드 올리기");

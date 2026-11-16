@@ -229,17 +229,18 @@ test("names are invented and titles are Korean", () => {
 
 test("the scene carries the text shapes UI QA round 21 met, and no history line draws them (lina-app#228)", () => {
   const comments = scene.cardDetails["k-104"].comments;
-  expect(comments.some((comment) => /\d{7,}/.test(comment.body))).toBe(true);
+  expect(comments.filter((comment) => /\d{7,}/.test(comment.body))).toHaveLength(2);
   const lines = commentHistory(
     comments.map((comment) => ({ at: comment.createdAt, author: comment.author, body: comment.body })),
     SYNTHETIC_OWNER.id,
   ).map((line) => line.text);
-  for (const line of lines) expect(line ?? "").not.toMatch(/\d{7,}/);
+  // A run with no unit after it is a hash, never drawn; one with its unit is an amount (lina-app#230).
+  for (const line of lines) expect(line ?? "").not.toMatch(/\d{7,}(?![\d원])/);
   // A list is drawn whole with every item, or not at all: never its lead-in and first item alone; one item a line, its
   // lines are one entry (lina-app#230).
   expect(comments.filter((comment) => /\(1\)/.test(comment.body))).toHaveLength(2);
   const body = (id: number) => comments.find((comment) => comment.id === id)?.body.replace("\n", " ");
-  expect(lines).toEqual([null, body(4), body(3), body(2), null]);
+  expect(lines).toEqual([body(6), null, body(4), body(3), body(2), null]);
 });
 
 test("the many-finished scene carries the title shape UI QA round 21 met, and no row draws the bracket its cut left after a colon (lina-app#228)", () => {

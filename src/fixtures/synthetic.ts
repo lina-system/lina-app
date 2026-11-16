@@ -400,6 +400,8 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
               // Round 22's (lina-app#230): a list whose items hold more than one sentence, and one the hub cut its head from.
               { id: 4, author: agentId(1), body: "검토 메모: ① 금액 줄을 오른쪽으로 붙였다. 굵기는 그대로 두었다. ② 환불 줄을 금액 줄 아래로 옮겼다.", createdAt: now - 3 * HOUR + 8 * MIN },
               { id: 5, author: agentId(1), body: "(2) 영수증 머리 줄을 줄였다. 글자 크기는 그대로 두었다.\n(3) 버튼 문구를 고쳤다.", createdAt: now - 3 * HOUR + 10 * MIN },
+              // A long amount with its unit is a number, not a hash (lina-app#230).
+              { id: 6, author: agentId(1), body: "환불 한도는 12345678원으로 정했다.", createdAt: now - 3 * HOUR + 12 * MIN },
             ]
           : [],
       runs: rounds[card.id] ?? [

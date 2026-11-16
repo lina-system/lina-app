@@ -359,8 +359,12 @@ export function sentenceMayShow(sentence: string): boolean {
   return !PARTICLE_APART.test(text) && !MODIFIER_ALONE.test(text) && closes(text);
 }
 
-/** A list's number as the last word of a piece (`순서는 1.`, `2.`): the item it numbers follows it. */
-const ENDS_ON_LIST_MARK = /(?:^|\s)\(?\d{1,2}[.)]$/;
+/**
+ * A list's number as the last word of a piece: the item it numbers follows it. A piece that is only the mark (`2.`,
+ * `(3)`) always is one; after other words only the first number (`순서는 1.`) is, because a list starts at 1 and a
+ * sentence may end on any other count (`실패 건수는 0.`, `대기 3.`), which stays a sentence of its own.
+ */
+const ENDS_ON_LIST_MARK = /^\(?\d{1,2}[.)]$|\s\(?1[.)]$/;
 
 /**
  * A line's sentences (lina-app#222): split after `.`, `!`, `?` or `。` with a space after it, never after a list's number

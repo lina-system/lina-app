@@ -159,6 +159,9 @@ test.each([
 test.each([
   ["가짜 순서는 1. 가짜 빌드를 마친다. 다음 문장.", ["가짜 순서는 1. 가짜 빌드를 마친다.", "다음 문장."]],
   ["2. 가짜 시험 통과.", ["2. 가짜 시험 통과."]],
+  // A count at the end of a sentence is no list's number, so the next sentence stays its own (lina-app#224 review).
+  ["가짜 실패 건수는 0. 가짜 검사는 대기 중.", ["가짜 실패 건수는 0.", "가짜 검사는 대기 중."]],
+  ["가짜 대기는 3. 가짜 검사는 대기 중.", ["가짜 대기는 3.", "가짜 검사는 대기 중."]],
   ["가짜 지연이 0.5초 늘었다. 가짜 판 1.2.3을 깔았다. 가짜 notes.md를 고쳤다.", ["가짜 지연이 0.5초 늘었다.", "가짜 판 1.2.3을 깔았다.", "가짜 notes.md를 고쳤다."]],
 ])("sentencesOf(%j) is %j (lina-app#222)", (line, sentences) => {
   expect(sentencesOf(line)).toEqual(sentences);

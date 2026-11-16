@@ -5,8 +5,9 @@ import { FINISHED_SHOWN, Store } from "./data/store";
 import { SyntheticSource } from "./data/synthetic-source";
 import { W } from "./words";
 
-// lina-app#186: the work tab reads its first finished cards only; the 완료 head, the sidebar's 완료 and the rows (one each,
-// a `×n` line too, and the fold its `외 n개`, lina-app#221) are one number before and after the fold opens the rest.
+// lina-app#186: the work tab reads its first finished cards only, and its 완료 group reads the rest right after
+// (lina-app#237). The 완료 head and the sidebar's 완료 count the cards (a `×n` line counts n, lina-app#225); the fold
+// `외 n개` counts the lines it opens, never a number counted from a part of the list.
 
 function setWide(wide: boolean) {
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: wide, media: query, addEventListener() {}, removeEventListener() {} }));
@@ -30,57 +31,59 @@ afterEach(() => {
 
 const sidebarDone = (view: ReturnType<typeof render>) => Number(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")?.textContent ?? "0");
 const headDone = (view: ReturnType<typeof render>) => Number(view.getByTestId("head-finished").querySelector("[data-testid=count]")?.textContent);
-/** The fold under the rows while it holds any back: `외 n개`, or 불러오는 중 while it reads them (not the opened fold's 닫기). */
+/** The fold under the rows while it holds any back: `외 n개`, or 불러오는 중 while the rest is read (not the opened fold's 닫기). */
 const FOLD = ".more-row:not([data-testid=fold-hide])";
-/** The rows the group stands for: the lines drawn, one each, and the fold's `외 n개`. */
-function rowCards(group: HTMLElement): { lines: number; fold: number; cards: number } {
-  const lines = group.querySelectorAll("[data-testid=row]").length;
-  const fold = Number(/외 (\d+)개/.exec(group.querySelector(FOLD)?.textContent ?? "")?.[1] ?? 0);
-  return { lines, fold, cards: lines + fold };
+/** What the group draws: its lines, the cards they stand for (a `×n` line counts n), its fold's text and its n. */
+function drawn(group: HTMLElement): { lines: number; cards: number; fold: string | null; more: number } {
+  const rows = [...group.querySelectorAll("[data-testid=row]")];
+  const fold = group.querySelector(FOLD)?.textContent ?? null;
+  const cards = rows.reduce((sum, row) => sum + Number(/(?:×|제목 없는 )(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1), 0);
+  return { lines: rows.length, cards, fold, more: Number(/^외 (\d+)개$/.exec(fold ?? "")?.[1] ?? 0) };
 }
 
-test("collapsed: the 완료 head, the sidebar's 완료 and the rows with their fold are one number", async () => {
+test("collapsed: the 완료 head and the sidebar count the cards; the fold counts the lines it opens", async () => {
   const view = await open("#/", new SyntheticSource({ now: now(), manyFinished: true }));
   const group = view.getByTestId("section-finished");
+  await waitFor(() => expect(drawn(group).more).toBeGreaterThan(0));
   const total = headDone(view);
   expect(total).toBeGreaterThan(10);
   expect(sidebarDone(view)).toBe(total);
-  const shown = rowCards(group);
-  expect(shown.cards).toBe(total);
-  expect(shown.lines).toBeLessThan(total);
-  expect(shown.fold).toBeGreaterThan(0);
-  expect(within(group).getByRole("button", { name: `${W.done} ${W.more(shown.fold)}` }).getAttribute("aria-expanded")).toBe("false");
+  const shown = drawn(group);
+  expect(shown.lines).toBe(FINISHED_SHOWN);
+  expect(within(group).getByRole("button", { name: `${W.done} ${W.more(shown.more)}` }).getAttribute("aria-expanded")).toBe("false");
+  fireEvent.click(group.querySelector(`${FOLD} button`) as HTMLElement);
+  expect(drawn(group)).toEqual({ lines: shown.lines + shown.more, cards: total, fold: null, more: 0 });
 });
 
-test("opened: the fold loads the rest with a loading line in its place, and no number moves", async () => {
+test("first load: the rest is read with a loading line in the fold's place, and no number moves", async () => {
   const view = await open("#/", new SyntheticSource({ now: now(), manyFinished: true }));
   const group = view.getByTestId("section-finished");
   const total = headDone(view);
-  fireEvent.click(group.querySelector(".more-row button") as HTMLElement);
-  const loading = group.querySelector(".more-row");
-  expect(loading?.textContent).toBe(W.loading);
-  expect(loading?.getAttribute("aria-busy")).toBe("true");
+  const states: ReturnType<typeof drawn>[] = [drawn(group)];
+  const watch = new MutationObserver(() => states.push(drawn(group)));
+  watch.observe(group, { subtree: true, childList: true, characterData: true });
+  await waitFor(() => expect(drawn(group).more).toBeGreaterThan(0));
+  watch.disconnect();
+  expect(states.some((state) => state.fold === W.loading)).toBe(true);
+  const settled = drawn(group);
+  for (const state of states) expect(state.fold === W.loading || state.more === settled.more, JSON.stringify(state)).toBe(true);
   expect(headDone(view)).toBe(total);
   expect(sidebarDone(view)).toBe(total);
-  await waitFor(() => expect(group.querySelector(FOLD)).toBeNull());
-  expect(headDone(view)).toBe(total);
-  expect(sidebarDone(view)).toBe(total);
-  expect(rowCards(group)).toEqual({ lines: total, fold: 0, cards: total });
 });
 
-// lina-app#217: the finished count moves while the fold reads the rest. The read of every finished card counts its total
+// lina-app#217: the finished count moves while the group reads the rest. The read of every finished card counts its total
 // apart from its list, at another moment: `lags` counted before four more cards finished, `leads` after the list was
-// cut. The head is the lines and the fold at every moment, and once the rest is in, the lines of the cards that read
-// sent, each of its own (lina-app#221).
+// cut. While the rest is read the head stays and the fold says it reads; once it is in, the head is the cards that read
+// sent, and the fold the lines it opens (lina-app#237).
 for (const wide of [true, false]) {
   test.each([
     ["lags", 4, 0],
     ["leads", 0, 4],
-  ] as const)(`a count that %s the cards the read sends: the ${W.done} head, the fold and the lines are one number at every moment (${wide ? "1280" : "390"})`, async (_case, finishing, ahead) => {
+  ] as const)(`a count that %s the cards the read sends: the ${W.done} head stays while the rest is read, then is the cards sent, and the fold the lines it opens (${wide ? "1280" : "390"})`, async (_case, finishing, ahead) => {
     const source = new SyntheticSource({ now: now(), manyFinished: true });
     const counted = source.scene.cards.cards.filter((card) => card.state === "done").length;
     const template = source.scene.cards.cards.find((card) => card.state === "done");
-    // Every read without a limit waits for release: a refresh already queued reads them all too once the fold is open.
+    // Every read without a limit waits for release: the group's read of the rest, and a refresh queued behind it.
     const held: (() => void)[] = [];
     let holding = true;
     const release = () => {
@@ -100,20 +103,20 @@ for (const wide of [true, false]) {
     const view = render(<App store={new Store(source)} />);
     await waitFor(() => expect(view.getByTestId("freshness").hasAttribute("data-quiet")).toBe(true));
     const group = view.getByTestId("section-finished");
-    const before = { head: headDone(view), ...rowCards(group) };
-    expect(before.cards).toBe(before.head);
-    const states: { head: number; loading: boolean; lines: number; cards: number }[] = [];
-    new MutationObserver(() => states.push({ head: headDone(view), loading: group.querySelector(".more-row")?.textContent === W.loading, ...rowCards(group) })).observe(group, { subtree: true, childList: true, characterData: true });
-    fireEvent.click(group.querySelector(".more-row button") as HTMLElement);
-    await waitFor(() => expect(group.querySelector(".more-row")?.textContent).toBe(W.loading));
+    await waitFor(() => expect(drawn(group).fold).toBe(W.loading));
+    const before = { head: headDone(view), ...drawn(group) };
+    const states: { head: number; fold: string | null; more: number }[] = [];
+    new MutationObserver(() => states.push({ head: headDone(view), ...drawn(group) })).observe(group, { subtree: true, childList: true, characterData: true });
     release();
-    await waitFor(() => expect(group.querySelector(FOLD)).toBeNull());
-    const sent = before.head + finishing;
-    // While the rest is read nothing moves; every other moment the head is its lines and its fold.
-    for (const state of states) expect(state.loading ? { head: state.head, lines: state.lines } : state.head).toEqual(state.loading ? { head: before.head, lines: before.lines } : state.cards);
-    expect(rowCards(group)).toEqual({ lines: sent, fold: 0, cards: sent });
+    await waitFor(() => expect(drawn(group).more).toBeGreaterThan(0));
+    const sent = counted + finishing;
+    const settled = drawn(group);
+    // While the rest is read the head is what it was; every other moment it is the cards sent, and the fold one number.
+    for (const state of states) expect(state.fold === W.loading ? state.head : { head: state.head, more: state.more }).toEqual(state.fold === W.loading ? before.head : { head: sent, more: settled.more });
     expect(headDone(view)).toBe(sent);
     if (wide) expect(sidebarDone(view)).toBe(sent);
+    fireEvent.click(group.querySelector(`${FOLD} button`) as HTMLElement);
+    expect(drawn(group)).toEqual({ lines: settled.lines + settled.more, cards: sent, fold: null, more: 0 });
   });
 }
 

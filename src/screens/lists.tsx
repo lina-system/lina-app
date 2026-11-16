@@ -130,8 +130,8 @@ const STOPPED_SHOWN = 5;
  * The one fold under a capped group: `외 n개`, the rows it holds; choosing it opens them in place. While they are read
  * (`loading`), the same line says 불러오는 중, so nothing above it moves.
  */
-function MoreRow({ title, hidden, onOpen, loading = false }: { title: string; hidden: number; onOpen: (event: Event) => void; loading?: boolean }) {
-  const line = loading ? W.loading : W.more(hidden);
+function MoreRow({ title, hidden, onOpen, loading = false, line: said }: { title: string; hidden: number; onOpen: (event: Event) => void; loading?: boolean; line?: string }) {
+  const line = loading ? W.loading : (said ?? W.more(hidden));
   return (
     <li class="row more-row" aria-busy={loading ? "true" : undefined}>
       <button type="button" class="row-button" aria-expanded={false} aria-label={`${title} ${line}`} disabled={loading} onClick={onOpen}>
@@ -314,16 +314,26 @@ export function RunningScreen() {
 }
 
 /**
- * 완료 on the work tab (lina-app#186, #225): one unit, cards. Its head is every finished card and its fold `외 n개`, the
- * cards its drawn lines do not stand for; a line standing for cards whose lines read the same says how many on its row
- * (lina-app#168). The page reads the newest few; the fold reads the rest, and once read, opens and closes in place.
+ * 완료 on the work tab (lina-app#186, #225, #237). Its head is every finished card, the sidebar's number; a line standing
+ * for cards whose titles read the same says how many on its row (lina-app#168). Its fold `외 n개` counts the lines it
+ * opens, as every group's fold counts its rows, so the lines drawn and its n are the lines opened. The page reads the
+ * newest few first and the group reads the rest right after: until they are in, the fold says it is reading, never a
+ * number counted from a part of the list; a read that failed is read again from the fold.
  */
 function FinishedSection({ section }: { section: Section<CardRow> }) {
   const { model, store } = useApp();
   const { open, expand, hide } = useFold();
+  const partial = !model.finished.all;
+  const [asked, setAsked] = useState(false);
+  useEffect(() => {
+    if (!partial || !section.count) return;
+    setAsked(true);
+    void store.showFinished(true);
+  }, [partial, section.count > 0]);
   if (!section.count) return null;
   const shown = open ? section.rows : section.rows.slice(0, FINISHED_SHOWN);
-  const hidden = section.count - cardCount(shown);
+  const hidden = partial ? 1 : section.rows.length - shown.length;
+  const failed = partial && asked && !store.finished().loading;
   return (
     <section class="list-section" data-testid={`section-${section.id}`}>
       <SectionHead section={section} />
@@ -335,10 +345,14 @@ function FinishedSection({ section }: { section: Section<CardRow> }) {
           <MoreRow
             title={section.title}
             hidden={hidden}
-            loading={model.finished.more > 0 && store.finished().loading}
+            loading={partial && !failed}
+            line={failed ? W.retry : undefined}
             onOpen={(event) => {
+              if (partial) {
+                void store.showFinished();
+                return;
+              }
               expand(event);
-              if (model.finished.more > 0) void store.showFinished();
             }}
           />
         ) : null}

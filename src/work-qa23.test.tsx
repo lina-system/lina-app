@@ -32,8 +32,8 @@ async function open(hash: string, source: SyntheticSource, wide: boolean) {
 /** Every finished line with the fold opened: its title less its `×n`, and the cards it says it stands for. */
 async function finishedLines(view: ReturnType<typeof render>) {
   const group = view.getByTestId("section-finished");
-  const fold = group.querySelector(".more-row:not([data-testid=fold-hide]) button");
-  if (fold) fireEvent.click(fold);
+  await waitFor(() => expect(group.querySelector(".more-row:not([data-testid=fold-hide])")?.textContent).toMatch(/^외 \d+개$/));
+  fireEvent.click(group.querySelector(".more-row:not([data-testid=fold-hide]) button") as HTMLElement);
   await waitFor(() => expect(within(group).queryByRole("button", { name: `${W.done} ${W.close}` })).not.toBeNull());
   return [...group.querySelectorAll("[data-testid=row]")].map((row) => {
     const title = row.querySelector(".title")?.textContent ?? "";
@@ -41,8 +41,36 @@ async function finishedLines(view: ReturnType<typeof render>) {
   });
 }
 
+/** The 완료 group as a person counts it: its head, the lines drawn and the number its fold says it holds back. */
+function counted(view: ReturnType<typeof render>) {
+  const group = view.getByTestId("section-finished");
+  const fold = group.querySelector(".more-row:not([data-testid=fold-hide])")?.textContent ?? null;
+  return { head: Number(group.querySelector("[data-testid=head-finished] [data-testid=count]")?.textContent), lines: group.querySelectorAll("[data-testid=row]").length, fold, more: fold === null ? 0 : Number(/^외 (\d+)개$/.exec(fold)?.[1] ?? NaN) };
+}
+
 for (const wide of [true, false]) {
   const width = wide ? "1280" : "390";
+
+  test(`외 n개 counts the lines the fold opens, on first load and later, and opened they are all the group's lines (${width})`, async () => {
+    const source = hub();
+    const view = await open("#/", source, wide);
+    const total = source.scene.cards.cards.filter((card) => card.state === "done").length;
+    // Never a number counted from the few finished cards the page read first: it reads the rest, then counts lines.
+    const seen: ReturnType<typeof counted>[] = [];
+    const group = view.getByTestId("section-finished");
+    new MutationObserver(() => seen.push(counted(view))).observe(group, { subtree: true, childList: true, characterData: true });
+    seen.push(counted(view));
+    await waitFor(() => expect(counted(view).fold).toMatch(/^외 \d+개$/));
+    const first = counted(view);
+    for (const state of seen) expect(state.fold === null || state.fold === W.loading || state.more === first.more, JSON.stringify(state)).toBe(true);
+    expect(first.head).toBe(total);
+    const lines = await finishedLines(view);
+    expect(first.lines + first.more).toBe(lines.length);
+    expect(lines.reduce((sum, line) => sum + line.cards, 0)).toBe(first.head);
+    // Folded again, the same lines and the same number.
+    fireEvent.click(within(group).getByRole("button", { name: `${W.done} ${W.close}` }));
+    expect(counted(view)).toEqual(first);
+  });
 
   test(`a title is one line in 완료, its ×n counting every card under it (${width})`, async () => {
     const source = hub();

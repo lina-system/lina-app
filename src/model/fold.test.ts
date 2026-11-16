@@ -431,3 +431,13 @@ test.each([
 ])("wholeText(%j) is %j: a complete sentence does not mask a cut-off one (lina-app#239 review)", (text, drawn) => {
   expect(wholeText(text)).toBe(drawn);
 });
+
+// lina-app#239 review: every list mark of a sentence is set aside before its prose is checked, not the first alone.
+test("a stop reason list with `1)` marks is drawn whole (lina-app#239)", () => {
+  const list = "남은 일: 1) 목록을 연다. 2) 금액 칸을 누른다.";
+  expect(foldedText(list)).toBe(list);
+  const paren = "남은 일: (1) 목록을 연다. (2) 금액 칸을 누른다.";
+  expect(foldedText(paren)).toBe(paren);
+  // A list whose marks skip is still not drawn.
+  expect(foldedText("남은 일: 1) 목록을 연다. 3) 금액 칸을 누른다.")).toBe("");
+});

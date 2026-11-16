@@ -426,6 +426,17 @@ function listLine(text: string): string {
   return [...before, listEntry(sentences.slice(from).join(" "))].filter(Boolean).join(" ");
 }
 
+/** A text with every list mark of it set aside, so the prose rules see no mark's bracket or number (lina-app#239 review). */
+function withoutListMarks(text: string): string {
+  let out = "";
+  let from = 0;
+  for (const mark of listMarks(`${text} `)) {
+    out += text.slice(from, mark.at);
+    from = Math.min(mark.end, text.length);
+  }
+  return `${out}${text.slice(from)}`.replace(/\s+/g, " ").trim();
+}
+
 /**
  * A list in a stop's reason, its lead-in and items joined: whole less a bracket of refs only, when its marks run 1, 2, 3
  * (each list on the line on its own) and every sentence reads once its mark is set aside (readsAsWritten), a sentence after the items whole (drawnSentence); else empty.
@@ -441,9 +452,7 @@ function listEntry(text: string): string {
   if (!numbered) return "";
   // A sentence that holds a mark is the lead-in and its items (a noun phrase may be one); one that holds none follows them and must be whole (drawnSentence) (lina-app#239 review).
   const reads = (sentence: string) =>
-    listMarks(`${sentence} `).length
-      ? readsAsWritten(sentence.replace(/^(?:\(?\d{1,2}[.)]|[\u2460-\u2473])\s*/u, ""))
-      : drawnSentence(sentence) !== null;
+    listMarks(`${sentence} `).length ? readsAsWritten(withoutListMarks(sentence)) : drawnSentence(sentence) !== null;
   return sentencesOf(whole).every(reads) ? whole : "";
 }
 

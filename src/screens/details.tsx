@@ -995,7 +995,8 @@ export function CardScreen({ id }: { id: string }) {
   // (lina-app#217): drawn from the detail alone they read `이전 기록 N건` and then grow when the records land. The
   // records are read newest run first (lina-app#232, #253): once those in so far, up to the first still out, hold a round,
   // the history draws from them, and each later one adds below in place (an older run's rounds are older, and the history
-  // is newest first); the comments, which take theirs too, wait for them all.
+  // is newest first); the comments, which take theirs too, wait for them all. Only that first draw holds back the runs
+  // not yet landed: a card already drawn that gains a newer run keeps every record on screen while the new one is read.
   const pending = drawn.current !== id && workerRuns.some((worker) => store.status("record", worker.id) === "pending");
   const order = newestFirst(workerRuns);
   const out = order.findIndex((runId) => store.status("record", runId) === "pending");
@@ -1122,7 +1123,7 @@ export function CardScreen({ id }: { id: string }) {
       ) : (
         <>
           <Timeline
-            runs={workerRuns.map((worker) => worker.id).filter((runId) => landed.has(runId))}
+            runs={workerRuns.map((worker) => worker.id).filter((runId) => !pending || landed.has(runId))}
             boxed
             live={(runId) => runLive(model, runId)}
             link={(runId, n, at) => workerLink(roundRun(runId, n, at))}

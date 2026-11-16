@@ -210,3 +210,34 @@ test("a worker run's page opened while the long card's records are read has its 
   expect(reads.asked[asked]).toBe(runId(1));
   reads.stop();
 });
+
+test("a drawn long card that gains a newer run keeps its history on screen while that run's record is read", async () => {
+  const source = new SyntheticSource({ longCard: true });
+  const store = new Store(source);
+  setWide(true);
+  window.history.replaceState(null, "", `/app/#/cards/${CARD}`);
+  const view = render(<App store={store} />);
+  await waitFor(() => expect(comments(view.container)).not.toBeNull(), { timeout: 5000 });
+  const drawn = rows(view.container);
+  expect(drawn.length).toBeGreaterThan(0);
+  // A live update names one more run, seen after all the others, whose record is not in yet.
+  const fresh = runId(LONG_CARD.runs + 1);
+  const detail = source.scene.cardDetails[CARD];
+  const seen = Math.max(...detail.workerRuns.map((worker) => worker.lastSeenAt ?? 0)) + 60;
+  detail.workerRuns = [...detail.workerRuns, { id: fresh, kind: "lina-worker", firstSeenAt: seen, lastSeenAt: seen }];
+  const base = source.scene.records[runId(1)];
+  const start = seen;
+  source.scene.records[fresh] = { ...base, id: fresh, comments: [], rounds: base.rounds.map((round) => ({ ...round, startedAt: start, endedAt: start + 60, result: "가상 새 묶음을 정리했다.", rows: [{ at: start + 30, kind: "said", text: "가상 새 묶음의 줄을 읽었다.", count: 1 }] })) };
+  (source as unknown as { changed(): void }).changed();
+  const reads = holdReads(source, ["record"]);
+  await act(async () => {
+    void store.invalidate([["card", CARD]]);
+  });
+  await waitFor(() => expect(reads.held("record")).toHaveLength(1));
+  expect(reads.asked).toEqual([fresh]);
+  expect(rows(view.container)).toEqual(drawn);
+  expect(comments(view.container)).not.toBeNull();
+  await act(async () => reads.release("record"));
+  await waitFor(() => expect(rows(view.container).length).toBeGreaterThan(drawn.length));
+  reads.stop();
+});

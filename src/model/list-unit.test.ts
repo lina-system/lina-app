@@ -80,6 +80,10 @@ test.each([
   ["(2) 상태 탭은 그다음이다. 기준 7에 넣는다.\n(3) 설정 탭은 마지막이다.", []],
   // A bracket closed after a number is no `6)` mark: the sentence and the one after it are drawn as any.
   ["가짜 화면을 두 폭(넓은 폭 각 6) 기준으로 맞췄다. 가짜 표를 다시 고쳤다.", ["가짜 화면을 두 폭(넓은 폭 각 6) 기준으로 맞췄다.", "가짜 표를 다시 고쳤다."]],
+  // Two lists on one line stay two units: the first does not take the second's lead-in as the rest of its item (lina-app#233 review).
+  ["가짜 남은 일: (1) 첫 화면 문구를 고쳤다. (2) 환불 문구를 고쳤다. 가짜 다음 일: (1) 금액 줄을 확인했다. (2) 카드 이름을 확인했다.", ["가짜 남은 일: (1) 첫 화면 문구를 고쳤다. (2) 환불 문구를 고쳤다.", "가짜 다음 일: (1) 금액 줄을 확인했다. (2) 카드 이름을 확인했다."]],
+  // The same, the second list opening on a lead-in sentence of its own.
+  ["가짜 남은 일: (1) 첫 화면 문구를 고쳤다. (2) 환불 문구를 고쳤다. 가짜 다음 일:\n(1) 금액 줄을 확인했다. (2) 카드 이름을 확인했다.", ["가짜 남은 일: (1) 첫 화면 문구를 고쳤다. (2) 환불 문구를 고쳤다.", "가짜 다음 일: (1) 금액 줄을 확인했다. (2) 카드 이름을 확인했다."]],
   // A list's lead-in alone on its line before an item that may not show is not drawn either; the prose after it is.
   ["가짜 남은 일:\n1) fake 화면을 본다.\n가짜 검토는 여기까지 했다.", ["가짜 검토는 여기까지 했다."]],
 ])("drawnSentences(%j) is %j: a list is one unit (lina-app#230)", (text, drawn) => {

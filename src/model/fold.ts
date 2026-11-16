@@ -439,17 +439,22 @@ function listUnits(placed: readonly Placed[]): ListUnit[] {
     if (first === undefined) continue;
     const numbers: number[] = [];
     let to = at;
+    // Where the next list opens (its lead-in sentence, when one stands alone before its first mark): the unit's later sentences stop short of it.
+    let stop = placed.length;
     for (let next = at; next < placed.length; next += 1) {
       const own = placed[next].marks.filter((mark) => mark.kind === first.kind);
       // A lower number, or a lead-in before the mark (on its sentence, or a sentence ending on a colon), opens a new list.
       const leadsIn = own.length > 0 && (own[0].at > 0 || /:\s*$/.test(placed[next - 1]?.sentence ?? ""));
-      if (next > at && own.length && (own[0].n <= numbers[numbers.length - 1] || leadsIn)) break;
+      if (next > at && own.length && (own[0].n <= numbers[numbers.length - 1] || leadsIn)) {
+        stop = own[0].at === 0 && /:\s*$/.test(placed[next - 1].sentence) ? Math.max(next - 1, to + 1) : next;
+        break;
+      }
       if (own.length) {
         numbers.push(...own.map((mark) => mark.n));
         to = next;
       }
     }
-    while (to + 1 < placed.length && placed[to + 1].line === placed[to].line) to += 1;
+    while (to + 1 < stop && placed[to + 1].line === placed[to].line) to += 1;
     const lead = at - 1 > (units.at(-1)?.to ?? -1) && first.at === 0 && /:\s*$/.test(placed[at - 1].sentence);
     units.push({ from: lead ? at - 1 : at, to, kind: first.kind, runs: numbers.every((n, index) => n === index + 1) });
     at = to;

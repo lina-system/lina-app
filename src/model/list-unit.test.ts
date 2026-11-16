@@ -84,6 +84,10 @@ test.each([
   ["가짜 남은 일: (1) 첫 화면 문구를 고쳤다. (2) 환불 문구를 고쳤다. 가짜 다음 일: (1) 금액 줄을 확인했다. (2) 카드 이름을 확인했다.", ["가짜 남은 일: (1) 첫 화면 문구를 고쳤다. (2) 환불 문구를 고쳤다.", "가짜 다음 일: (1) 금액 줄을 확인했다. (2) 카드 이름을 확인했다."]],
   // The same, the second list opening on a lead-in sentence of its own.
   ["가짜 남은 일: (1) 첫 화면 문구를 고쳤다. (2) 환불 문구를 고쳤다. 가짜 다음 일:\n(1) 금액 줄을 확인했다. (2) 카드 이름을 확인했다.", ["가짜 남은 일: (1) 첫 화면 문구를 고쳤다. (2) 환불 문구를 고쳤다.", "가짜 다음 일: (1) 금액 줄을 확인했다. (2) 카드 이름을 확인했다."]],
+  // A next list opening on another marker style ends the first list too; only the second, which does not run from 1, is dropped (lina-app#233 review).
+  ["가짜 남은 일: (1) 첫 화면 문구를 고쳤다. 가짜 다음 일: ② 금액 줄을 확인했다.", ["가짜 남은 일: (1) 첫 화면 문구를 고쳤다."]],
+  // The same with the second list's lead-in standing alone before its first mark.
+  ["가짜 남은 일: (1) 첫 화면 문구를 고쳤다. 가짜 다음 일:\n① 금액 줄을 확인했다. ② 카드 이름을 확인했다.", ["가짜 남은 일: (1) 첫 화면 문구를 고쳤다.", "가짜 다음 일: ① 금액 줄을 확인했다. ② 카드 이름을 확인했다."]],
   // A list's lead-in alone on its line before an item that may not show is not drawn either; the prose after it is.
   ["가짜 남은 일:\n1) fake 화면을 본다.\n가짜 검토는 여기까지 했다.", ["가짜 검토는 여기까지 했다."]],
 ])("drawnSentences(%j) is %j: a list is one unit (lina-app#230)", (text, drawn) => {

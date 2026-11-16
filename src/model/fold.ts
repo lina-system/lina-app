@@ -443,10 +443,12 @@ function listUnits(placed: readonly Placed[]): ListUnit[] {
     let stop = placed.length;
     for (let next = at; next < placed.length; next += 1) {
       const own = placed[next].marks.filter((mark) => mark.kind === first.kind);
+      // The sentence's marks of any kind: a list that opens on another marker style ends this one as well (lina-app#233).
+      const head = own.length > 0 ? own : placed[next].marks;
       // A lower number, or a lead-in before the mark (on its sentence, or a sentence ending on a colon), opens a new list.
-      const leadsIn = own.length > 0 && (own[0].at > 0 || /:\s*$/.test(placed[next - 1]?.sentence ?? ""));
-      if (next > at && own.length && (own[0].n <= numbers[numbers.length - 1] || leadsIn)) {
-        stop = own[0].at === 0 && /:\s*$/.test(placed[next - 1].sentence) ? Math.max(next - 1, to + 1) : next;
+      const leadsIn = head.length > 0 && (head[0].at > 0 || /:\s*$/.test(placed[next - 1]?.sentence ?? ""));
+      if (next > at && head.length && ((own.length > 0 && own[0].n <= numbers[numbers.length - 1]) || leadsIn)) {
+        stop = head[0].at === 0 && /:\s*$/.test(placed[next - 1].sentence) ? Math.max(next - 1, to + 1) : next;
         break;
       }
       if (own.length) {

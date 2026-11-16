@@ -1005,8 +1005,13 @@ export function CardScreen({ id }: { id: string }) {
   const seen = (runId: string) => workerRuns.find((worker) => worker.id === runId)?.firstSeenAt ?? null;
   // A stop that waits on the owner's answer has the place to answer right here (lina-app#142).
   const ask = row ? stopReason(row).ask : undefined;
-  // The worker run a round was: the same run its head opens. A card's 기록 holds several runs' rounds in one record.
-  const roundRun = (runId: string, n: number) => rounds.find((round) => round.n === n)?.workers[0] ?? runId;
+  // The worker run a record block was, the same run its head opens (lina-app#245): the run whose record holds it. Each
+  // run's record numbers its rounds from 1; only when the card round of the same number and time holds other runs and
+  // not this one does the block stand for that round's run (one run serving the card's one record, lina-app#153).
+  const roundRun = (runId: string, n: number, at: number) => {
+    const round = rounds.find((candidate) => candidate.n === n && holds({ start: candidate.startedAt, end: candidate.endedAt }, at));
+    return round?.workers.length && !round.workers.includes(runId) ? round.workers[0] : runId;
+  };
   const workerLink = (runId: string) => workerHref(detail, runId);
   // The goal (project) the card serves, in its head; a goal title that would show raw text is left out.
   const goal = store.get("goals")?.goals.find((candidate) => candidate.workCards.some((card) => card.id === id));
@@ -1109,7 +1114,7 @@ export function CardScreen({ id }: { id: string }) {
             runs={workerRuns.map((worker) => worker.id)}
             boxed
             live={(runId) => runLive(model, runId)}
-            link={(runId, n) => workerHref(detail, roundRun(runId, n))}
+            link={(runId, n, at) => workerLink(roundRun(runId, n, at))}
             modelRun={roundRun}
             fallback={
               workerRuns.length ? (

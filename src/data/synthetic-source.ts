@@ -1,4 +1,4 @@
-import { SETTINGS_HISTORY, type ActionResult, type AddItemRequest, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type BoardSnapshot, type ChangeEvent, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemDetail, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type RunRecord, type Settings, type SettingsAuditLine, type SettingsModel, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest, type WorkState } from "../api/client";
+import { SETTINGS_HISTORY, type ActionResult, type AddItemRequest, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type BoardSnapshot, type ChangeEvent, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemDetail, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type RunRecord, type Settings, type SettingsAuditLine, type SettingsModel, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest, type WorkCardDetail, type WorkState } from "../api/client";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type PowerVariant, type Scene, type SettingsVariant } from "../fixtures/synthetic";
 import { localDay, type CardSummary } from "../model";
 import { mergePatch } from "../model/settings";
@@ -341,7 +341,9 @@ export function round23Scene(scene: Scene): Scene {
  * report lines in English with refs or in Korean. Four stopped cards whose inbox reason is the typed field a bot wrote
  * for the owner, each with a short ask the row says: one line that stands whole, a long one in Korean alone, one with
  * Latin words and the question last, and one of the core's internal start words. T4's thread holds the same state word
- * twice in a row, a sentence cut off before its verb and a report with refs.
+ * twice in a row, a sentence cut off before its verb and a report with refs. And k-450 (lina-app#245), a done card with no
+ * list row whose four worker runs each serve their own record, as the hub serves them: each record numbers its rounds from
+ * 1, one run has two rounds, and each run stands in a card round of its own.
  */
 export function round24RecordScene(scene: Scene): Scene {
   const now = scene.now;
@@ -371,6 +373,42 @@ export function round24RecordScene(scene: Scene): Scene {
     round(2, 6 * hour, { result: "`fake/notes.md`: 가짜 17곳(s1~s17).", verdict: "accepted", stopped: false }, "가짜 정리를 마쳤다."),
     round(1, 7 * hour, { result: null, verdict: null, stopped: true }, "~26초 걸리던 가짜 첫 화면이(213개 중 84개) 빨라졌고, 가짜 30~34번째 줄은 '…'로 끝난다."),
   ];
+  const day = 24 * hour;
+  // k-450's worker runs, oldest first: when each starts and its rounds' results, the record's newest round first.
+  const runs = [
+    { id: "w-4501", start: now - 4 * day, results: ["가상 목록 첫 판을 모았다."] },
+    { id: "w-4502", start: now - 3 * day, results: ["가상 목록의 빈칸을 채웠다."] },
+    { id: "w-4503", start: now - 2 * day, results: ["가상 목록을 다시 묶었다.", "가상 목록의 순서를 바꿨다."] },
+    { id: "w-4504", start: now - day, results: ["가상 목록을 마무리했다."] },
+  ];
+  const runRecords = runs.map(({ id, start, results }): RunRecord => ({
+    ...scene.records.r9,
+    id,
+    cardId: ROUND24.runsCard,
+    rounds: results.map((result, index) => {
+      const place = results.length - index;
+      return { run: place, startedAt: start + (place - 1) * hour, endedAt: start + (place - 1) * hour + 40 * 60, endKnown: true, startUnknown: false, result, verdict: "accepted", stopped: false, rows: [] };
+    }),
+    comments: [],
+    errors: [],
+  }));
+  const runsCard: WorkCardDetail = {
+    ...card,
+    id: ROUND24.runsCard,
+    title: ROUND24.runsTitle,
+    plain: { title: ROUND24.runsTitle, now: null, result: null },
+    state: "done",
+    reason: null,
+    now: null,
+    todoProgress: { done: 0, total: 0 },
+    todos: [],
+    comments: [],
+    readOnly: true,
+    endedAt: now - day + 2 * hour,
+    lastHeartbeatAt: now - day + 2 * hour,
+    workerRuns: runs.map(({ id, start }) => ({ id, kind: "lina-worker", firstSeenAt: start, lastSeenAt: start + hour })),
+    runs: runs.map(({ start, results }, index) => ({ id: 4501 + index, profile: null, status: "done", outcome: "completed", startedAt: start - 60, endedAt: start + results.length * hour, lastHeartbeatAt: null, summary: null, live: false })),
+  };
   const template = scene.cards.cards.find((card) => card.state === "stopped");
   const detail = template ? scene.cardDetails[template.id] : undefined;
   if (!template || !detail) return scene;
@@ -387,8 +425,8 @@ export function round24RecordScene(scene: Scene): Scene {
   return {
     ...scene,
     cards: { ...scene.cards, cards: [...scene.cards.cards, ...stoppedCards] },
-    cardDetails: { ...scene.cardDetails, "k-101": { ...card, comments: [...comments, ...card.comments] }, ...stoppedDetails },
-    records: { ...scene.records, r9: { ...scene.records.r9, rounds } },
+    cardDetails: { ...scene.cardDetails, "k-101": { ...card, comments: [...comments, ...card.comments] }, ...stoppedDetails, [ROUND24.runsCard]: runsCard },
+    records: { ...scene.records, r9: { ...scene.records.r9, rounds }, ...Object.fromEntries(runRecords.map((record) => [record.id, record])) },
     inbox: { ...scene.inbox, blocked: [...scene.inbox.blocked, ...stops.map((stop, index) => ({ cardId: stop.id, title: stop.title, agent: stoppedCards[index].agent, state: "stopped" as const, reason: stop.reason, blockKind: null, blockReason: stop.blockReason }))] },
     itemDetails: { ...scene.itemDetails, T4: { ...thread, comments: [...thread.comments, reply("q24-1", "진행 중", 3 * hour), reply("q24-2", "진행 중", 3 * hour - 60), reply("q24-3", "가짜 문구를 고쳤고 그 뒤에 세부를", 2 * hour), reply("q24-4", "가짜 문구 정리는 fake-app#124에 묶었다.", 2 * hour - 60)] } },
   };
@@ -408,6 +446,9 @@ export const ROUND24 = {
   workUnnamed: ["가상 1단계: Fake 카드에서 worker run 받기 + fake-task 고침 옮기기 (fake#27·#28)", "가상 2단계: 허브를 node로 돌려 fake-task 바꾸기 (fake#35)", "가상 선행: fake gate 열기 fake#31", "가상 3단계 fake-drift 흡수", "가상 4단계: fake 묶음 sync 옮기기 (fake#38)"],
   /** Its finished cards with titles of their own. */
   workNamed: ["가상 기억 칸 나누기", "가상 저장소 하나로 합치기"],
+  /** The card whose worker runs each serve their own record, numbered from 1 (lina-app#245), and its title. */
+  runsCard: "k-450",
+  runsTitle: "가상 목록 정리 묶음",
 } as const;
 
 /**

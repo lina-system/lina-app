@@ -3,11 +3,11 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, RecordRow, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
 import { cardTitle, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, runRow, todoState, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
-import { foldedText, foldReason } from "../model/fold";
+import { foldedText, foldReason, sentencesOf } from "../model/fold";
 import { plainText } from "../model/plain";
 import { holds } from "../model/rounds";
 import { stopReason } from "../model/stop-reason";
-import { answerOf, commentHistory, decisionHistory, firstSentence, goalHistory, historyLines, isMachineNotice, outcomeOf } from "../model/timeline";
+import { answerOf, commentHistory, decisionHistory, firstSentence, goalHistory, historyLines, isMachineNotice, outcomeOf, ownerWrote } from "../model/timeline";
 import type { CardKind } from "../model/kind";
 import { isRunId } from "../data/store";
 import { back, baseOf, href, isFrame, navigate, parse, tabOf } from "../router";
@@ -127,51 +127,45 @@ function useDecisionRow(id: string): { text: string } | null {
   return shown ?? (answering(`decide:${id}`) && pressed.current?.id === id ? pressed.current.row : null);
 }
 
-/** A bracket with a time of day in a sentence (`(에이전트 16:5x)`, who wrote it and when): no part of what a history line reads. */
-const WHO_WHEN = /\([^()]*\d{1,2}:\d[\dx][^()]*\)/g;
-/** The bracketed tags that open a line (`[에이전트 · t 1a2b3c4d]`). */
-const LEADING_TAGS = /^(?:\s*\[[^\]\n]*\])+\s*/;
-
 /**
- * A history text through the fold comments go through (foldedText: withoutRefs, and a sentence left as debris dropped,
- * lina-app#157, #161): its card, goal and to-do ids,
- * references and hashes cut, and its leading tags and who-and-when brackets cut; a sentence holding a word the screens
- * never use (BANNED_WORDS) is left out. fold.ts has no export for the brackets or the sentences, so they are cut here.
- * Empty when nothing is left: the line folds.
+ * A bot's history text as the screens draw it (foldedText: each sentence whole or not at all, lina-app#226), its markdown
+ * markers out; a sentence holding a word the screens never use (BANNED_WORDS) is left out too. Empty when nothing is
+ * left: the line folds.
  */
 export function historyText(text: string): string {
-  return plainText(text)
+  return foldedText(plainText(text))
     .split("\n")
     .map((line) =>
-      foldedText(line.replace(LEADING_TAGS, "").replace(WHO_WHEN, " "))
-        .split(/(?<=[.!?。])\s+/)
+      sentencesOf(line)
         .filter((sentence) => !BANNED_WORDS.some((word) => sentence.includes(word)))
-        .join(" ")
-        .replace(/\s+([.!?,])/g, "$1"),
+        .join(" "),
     )
     .filter(Boolean)
     .join("\n");
 }
 
-/** A comment's text for its history line: a machine notice keeps its own text, so it is still known as one and left out. */
-function historyComment(text: string, author: string | null): string {
-  return isMachineNotice(text, author) ? text : historyText(text);
+/**
+ * A comment's text for its history line: the owner's words and a machine notice keep their own text (the owner's drawn
+ * as saved, lina-app#226; a notice still known as one and left out), a bot's goes through historyText.
+ */
+function historyComment(text: string, author: string | null, owner: string | null | undefined): string {
+  return ownerWrote(author, owner) || isMachineNotice(text, author, owner) ? text : historyText(text);
 }
 
 /**
- * The item with its comments' markdown markers out (plainText): a comment that was only markers and spaces, with no
- * reply, is no comment at all, never an empty or folded row (lina-app#166).
+ * The item with its comments' markdown markers out (plainText), the owner's left as saved (lina-app#226): a comment that
+ * was only markers and spaces, with no reply, is no comment at all, never an empty or folded row (lina-app#166).
  */
-function plainItem(detail: ItemDetail): ItemDetail {
-  const plain = <T extends { readonly text: string }>(entries: readonly T[]) => entries.map((entry) => ({ ...entry, text: plainText(entry.text) }));
+function plainItem(detail: ItemDetail, owner: string | null | undefined): ItemDetail {
+  const plain = <T extends { readonly text: string; readonly by: string }>(entries: readonly T[]) => entries.map((entry) => ({ ...entry, text: ownerWrote(entry.by, owner) ? (entry.text.trim() ? entry.text : "") : plainText(entry.text) }));
   return { ...detail, comments: plain(detail.comments).map((comment) => ({ ...comment, replies: plain(comment.replies).filter((reply) => reply.text) })).filter((comment) => comment.text || comment.replies.length) };
 }
 
-/** The item with its comments' and its decision's text as history reads them (historyText), for its 기록 lines. */
-function historyItem(detail: ItemDetail): ItemDetail {
+/** The item with its comments' and its decision's text as history reads them (historyComment), for its 기록 lines. */
+function historyItem(detail: ItemDetail, owner: string | null | undefined): ItemDetail {
   return {
     ...detail,
-    comments: detail.comments.map((comment) => ({ ...comment, text: historyComment(comment.text, comment.by), replies: comment.replies.map((reply) => ({ ...reply, text: historyComment(reply.text, reply.by) })) })),
+    comments: detail.comments.map((comment) => ({ ...comment, text: historyComment(comment.text, comment.by, owner), replies: comment.replies.map((reply) => ({ ...reply, text: historyComment(reply.text, reply.by, owner) })) })),
     decision: detail.decision ? { ...detail.decision, text: historyText(detail.decision.text) } : null,
   };
 }
@@ -423,13 +417,15 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
     goals: detail.workCards.map((id) => store.get("goal", id)).filter((goal) => goal !== undefined),
   });
   const words = [detail.why, ...detail.basis.map((basis) => basis.text)].filter((text, index, all): text is string => Boolean(text) && all.indexOf(text) === index);
-  // Its merges (the finished cards' evidence), question, runs, comments and close, one line each, ids cut. An open
+  // Its merges (the finished cards' evidence), question, runs, comments and close, one line each. An open
   // question is the box and the head above, so it is no history line until it is answered (lina-app#161).
   const open = detail.decision && !detail.decision.answered;
-  const plain = plainItem(detail);
+  const owner = store.get("items")?.owner?.id;
+  const plain = plainItem(detail, owner);
   const history = goalHistory(
-    open ? { ...historyItem(plain), decision: null } : historyItem(plain),
+    open ? { ...historyItem(plain, owner), decision: null } : historyItem(plain, owner),
     evidence.map((entry) => ({ ...entry, text: historyText(entry.text) })),
+    owner,
   );
   const decisionRow = useDecisionRow(detail.id);
   return (
@@ -499,10 +495,11 @@ function talkWindowOpen(wide: boolean): boolean {
 }
 
 function TodoBody({ detail }: { detail: ItemDetail }) {
-  const { model, wide } = useApp();
+  const { model, store, wide } = useApp();
   // An answered decision's question and answer are history (lina-app#153); an open one is its box above.
-  const plain = plainItem(detail);
-  const history = detail.decision?.answered ? historyLines(decisionHistory(historyItem(plain))) : [];
+  const owner = store.get("items")?.owner?.id;
+  const plain = plainItem(detail, owner);
+  const history = detail.decision?.answered ? historyLines(decisionHistory(historyItem(plain, owner))) : [];
   const decisionRow = useDecisionRow(detail.id);
   return (
     <article class="detail" data-testid="screen-item">
@@ -654,16 +651,20 @@ function roundGroups(rounds: readonly Round[]): (Round | Round[])[] {
 }
 
 /**
- * A work card's comments, one history line each, newest first: its time and its first sentence a person may read,
- * with any id, hash, path or command taken out (lina-app#142, historyText #157); its author is the line's tooltip. A
- * machine notice is no line, and each run of comments with no sentence left is one 접힌 댓글 line with their count
+ * A work card's comments, one history line each, newest first: its time and the owner's words as saved, or a bot's
+ * first sentence the screens draw whole (lina-app#142, historyText #157, #226); its author is the line's tooltip. A
+ * machine notice is no line, and each run of comments with no sentence is one 접힌 댓글 line with their count
  * (lina-app#149). A comment that was only markdown markers and spaces is no line at all (lina-app#166). `recorded` are
- * the comments only its worker runs' record holds, with no author: they read in this box too (lina-app#174).
+ * the comments only its worker runs' record holds: the owner's words, by the record's own schema (a verdict note, a
+ * cancel reason), so they read as the owner's in this box too (lina-app#174, #226).
  */
-function cardCommentLines(comments: WorkCardDetail["comments"], recorded: readonly RecordRow[]) {
+function cardCommentLines(comments: WorkCardDetail["comments"], recorded: readonly RecordRow[], owner: string | undefined) {
   const own = comments.map((comment) => ({ id: String(comment.id), at: comment.createdAt, author: comment.author, body: comment.body }));
-  const fromRecord = recorded.map((row, index) => ({ id: `record:${row.at}:${index}`, at: row.at, author: null, body: row.text ?? "" }));
-  return commentHistory([...own, ...fromRecord].filter((comment) => plainText(comment.body)).map((comment) => ({ ...comment, body: historyComment(comment.body, comment.author) })));
+  const fromRecord = recorded.map((row, index) => ({ id: `record:${row.at}:${index}`, at: row.at, author: owner ?? "owner", body: row.text ?? "" }));
+  return commentHistory(
+    [...own, ...fromRecord].filter((comment) => plainText(comment.body)).map((comment) => ({ ...comment, body: historyComment(comment.body, comment.author, owner) })),
+    owner,
+  );
 }
 
 function CardComments({ lines }: { lines: ReturnType<typeof cardCommentLines> }) {
@@ -938,7 +939,7 @@ export function CardScreen({ id }: { id: string }) {
   const recorded = workerRuns
     .flatMap((worker) => store.get("record", worker.id)?.comments ?? [])
     .filter((row, index, all) => row.kind === "comment" && !held.has(plainText(row.text ?? "").trim()) && all.findIndex((other) => other.at === row.at && other.text === row.text) === index);
-  const commentLines = cardCommentLines(detail.comments, recorded);
+  const commentLines = cardCommentLines(detail.comments, recorded, store.get("items")?.owner?.id);
   const recordFailed = workerRuns.some((worker) => store.status("record", worker.id) === "failed");
   const fold = model.home.finished.rows.find((line) => line.fold?.some((card) => card.id === id))?.fold;
   const askHere = Boolean(ask && !readOnly && !everyQuestion.length && !answering(`answer:${id}`));

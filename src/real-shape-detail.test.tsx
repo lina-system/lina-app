@@ -126,7 +126,8 @@ test("a card's comments read newest first, one whole sentence each; machine noti
   await frame(view);
   const rows = within(view.getByTestId("card-comments")).getAllByTestId("history-row");
   const texts = rows.map((row) => (row.textContent ?? "").replace(LINE, ""));
-  expect(texts).toEqual(["배포 순서를 정해 주시면 이어서 진행합니다.", "첫 화면 문구를 짧게 고쳤어요.", "접힌 댓글", "레스큐 봇 확인함.", "접힌 댓글 3건"]);
+  // A comment holding an id is not drawn, never drawn without it (lina-app#226): it joins the folded run.
+  expect(texts).toEqual(["배포 순서를 정해 주시면 이어서 진행합니다.", "첫 화면 문구를 짧게 고쳤어요.", "접힌 댓글 5건"]);
   for (const row of rows) expect(row.textContent).toMatch(LINE);
   const text = view.getByTestId("card-comments").textContent ?? "";
   expect(text).not.toMatch(/\[|\]|G73|T264|t_\d|rc=|OT-|vs 20|\.5초/);

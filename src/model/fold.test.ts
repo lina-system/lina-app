@@ -1,6 +1,5 @@
 import { expect, test } from "vitest";
-import { dateClock } from "../time";
-import { foldedText, foldReason, sentenceMayShow, sentencesOf, tidyFoldedText, withoutLatin, withoutRefs } from "./fold";
+import { foldedText, foldReason, sentenceMayShow, sentencesOf, withoutLatin, withoutRefs } from "./fold";
 
 test("a comment shows as it is unless it would show a path, a command, a hash, an issue number, an address or a fragment", () => {
   for (const plain of ["오류 문구 초안을 공유했어요.", "카드 번호는 앞 여섯 자리까지 보여 줄까요?", "1.5배 빨라졌어요."]) expect(foldReason(plain)).toBeNull();
@@ -78,11 +77,12 @@ test.each([
   expect(withoutRefs(title)).toBe(cut);
 });
 
-test("tidyFoldedText collapses the debris itself, so another fold can reuse it (lina-app#160)", () => {
-  expect(tidyFoldedText("가짜 착지 ,, 전환 · · 문서 () [] \"\" 끝 ,")).toBe("가짜 착지, 전환 · 문서 끝");
-  expect(tidyFoldedText("( · 가짜 · )")).toBe("(가짜)");
-  expect(tidyFoldedText("1.5배 빨라진 정리 - 가짜")).toBe("1.5배 빨라진 정리 - 가짜");
-  expect(tidyFoldedText("")).toBe("");
+// The tidy step is the title cut's own now (lina-app#226): a title with no ref goes through it alone.
+test("a title cut collapses the debris itself (lina-app#160)", () => {
+  expect(withoutRefs("가짜 착지 ,, 전환 · · 문서 () [] \"\" 끝 ,")).toBe("가짜 착지, 전환 · 문서 끝");
+  expect(withoutRefs("( · 가짜 · )")).toBe("(가짜)");
+  expect(withoutRefs("1.5배 빨라진 정리 - 가짜")).toBe("1.5배 빨라진 정리 - 가짜");
+  expect(withoutRefs("")).toBe("");
 });
 
 // lina-app#160: code-looking tokens are cut from a title like a ref, with the particle glued to them and a bracket that
@@ -171,17 +171,18 @@ test.each([
   expect(sentencesOf(line)).toEqual(sentences);
 });
 
-// lina-app#222: comment sentences in the round 18 shapes, the words made up. A sentence that fails the rule is not drawn;
-// the comment keeps the sentences that pass, and a list item whose content was cut leaves no bare number.
+// lina-app#222, #226: comment sentences in the round 18 shapes, the words made up. A sentence that fails the rule is not
+// drawn; the comment keeps the sentences that pass, whole, and nothing is cut out of one.
 test.each([
-  ["가짜 순서:\n1. 가짜 빌드 통과.\n2. `fake run`\n3. 가짜 화면 확인.", "가짜 순서: 가짜 빌드 통과.\n3. 가짜 화면 확인."],
+  // The lead-in is no sentence and the items have no predicate and fewer than 8 Hangul letters (lina-app#226).
+  ["가짜 순서:\n1. 가짜 빌드 통과.\n2. `fake run`\n3. 가짜 화면 확인.", ""],
   ["가짜 할 일 1. fake build 정리. 가짜 시험을 마침.", "가짜 시험을 마침."],
   ["가짜 지연이 0.5초 늘었다. 가짜 판 1.2.3을 깔았다.", "가짜 지연이 0.5초 늘었다. 가짜 판 1.2.3을 깔았다."],
   // A quoted passage of two sentences is kept whole by the comment (lina-app#224 review).
   ["가짜 담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다.", "가짜 담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다."],
-  // A file name is cut as a history line cuts it (lina-app#142), the sentence kept; an English word is not.
-  ["가짜 설정 notes.md를 고쳤다. 가짜 시험을 마침.", "가짜 설정 고쳤다. 가짜 시험을 마침."],
-  ["copy/fake.json 키 12개를 바꿈 (3f2a1c9)", "키 12개를 바꿈"],
+  // A sentence with a file name or a path is not drawn at all: it is never cut to what is left (lina-app#226).
+  ["가짜 설정 notes.md를 고쳤다. 가짜 시험을 마침.", "가짜 시험을 마침."],
+  ["copy/fake.json 키 12개를 바꿈 (3f2a1c9)", ""],
   ["가짜 수정이 merged 되었다. 가짜 시험을 마침.", "가짜 시험을 마침."],
   ["가짜 판을 v2.97 로 올렸다. 가짜 시험을 마침.", "가짜 시험을 마침."],
   ['가짜 댓글의 세 번 끊겼다"는 틀렸다. 가짜 시험을 마침.', "가짜 시험을 마침."],
@@ -191,52 +192,52 @@ test.each([
   expect(foldedText(comment)).toBe(shown);
 });
 
-// lina-app#161 item 6: comment sentences in the hub's real shapes. withoutRefs cuts the ref and leaves the words around
-// it; a sentence left as debris (a lone particle, a bare label, a label whose value was the ref) goes whole. A ref inside
-// a sentence with its particle written apart reads as the kind of thing it names instead (lina-app#207). The address
-// host is an example name in place of the real one.
+// lina-app#161 item 6, #226: comment sentences in the hub's real shapes. A sentence holding a ref, an id or a hash outside
+// a bracket of its own is not drawn: no ref is cut out of it and no kind word stands in for it (the lina-app#207 stand-in
+// is gone). A label with nothing but a mark after it is a fragment. The address host is an example name in place of the
+// real one.
 test.each([
-  ["백업 대체는 t_e6e0f90a 가 맡는다.", "백업 대체는 카드가 맡는다."],
-  ["남은 범위 lina#718 라 카드 완료 금지.", "남은 범위 이슈라 카드 완료 금지."],
+  ["백업 대체는 t_e6e0f90a 가 맡는다.", ""],
+  ["남은 범위 lina#718 라 카드 완료 금지.", ""],
   ["주소: (lina-system/lina#12), (hermes-ops#277)", ""],
   ["주소: http://hub.example.com:8080/ 되돌릴 커밋: e37e43f", ""],
-  ["Codex 리뷰 요청함. 남은 범위 lina#718 라 카드 완료 금지.", "남은 범위 이슈라 카드 완료 금지."],
-  ["t_e6e0f90a 카드에서 이어서 확인함.", "카드에서 이어서 확인함."],
+  ["Codex 리뷰 요청함. 남은 범위 lina#718 라 카드 완료 금지.", ""],
+  ["t_e6e0f90a 카드에서 이어서 확인함.", ""],
   ["그 일은 오늘 가 볼 예정.", "그 일은 오늘 가 볼 예정."],
-  ["#196은 이 경로를 건드리지 않는다.", "이 경로를 건드리지 않는다."],
-  ["lina#206 이 카드가 쉬는 동안 합쳐졌다.", "이 카드가 쉬는 동안 합쳐졌다."],
+  ["#196은 이 경로를 건드리지 않는다.", ""],
+  ["lina#206 이 카드가 쉬는 동안 합쳐졌다.", ""],
   ["주소: 아직 정하지 않음.", "주소: 아직 정하지 않음."],
   ["(…)", ""],
   ["(…), (…)", ""],
   ["…", ""],
-  ["결과: 배포 성공, 커밋: a1b2c3d", "결과: 배포 성공"],
-  ["커밋: a1b2c3d, 결과: 배포 성공", "결과: 배포 성공"],
-  ["결과: ✅", "결과: ✅"],
-  ["확인: 👍", "확인: 👍"],
-  ["결과: ✅, 커밋: a1b2c3d", "결과: ✅"],
-  ["주소: (…) 결과: 배포 성공", "결과: 배포 성공"],
+  ["결과: 배포 성공, 커밋: a1b2c3d", ""],
+  ["커밋: a1b2c3d, 결과: 배포 성공", ""],
+  ["결과: ✅", ""],
+  ["확인: 👍", ""],
+  ["결과: ✅, 커밋: a1b2c3d", ""],
+  ["주소: (…) 결과: 배포 성공", ""],
   ["커밋: a1b2c3d.", ""],
-  ["결과: 배포 성공, 커밋: a1b2c3d.", "결과: 배포 성공."],
-  ["결과: ✅, 커밋: a1b2c3d.", "결과: ✅."],
-  ["결과: 배포 성공, 커밋: a1b2c3d. 정리함.", "결과: 배포 성공. 정리함."],
-  ["결과: 배포 성공, 커밋: a1b2c3d! 확인함.", "결과: 배포 성공! 확인함."],
+  ["결과: 배포 성공, 커밋: a1b2c3d.", ""],
+  ["결과: ✅, 커밋: a1b2c3d.", ""],
+  ["결과: 배포 성공, 커밋: a1b2c3d. 정리함.", "정리함."],
+  ["결과: 배포 성공, 커밋: a1b2c3d! 확인함.", "확인함."],
   // lina-app#197: a cut that leaves lone punctuation or opens on a closing quote is no sentence; one that reads stays.
   ["실행: [정리 기록](https://fake.example.test/a) (정리 커밋 포함), a1b2c3d4. 남은 일은 없음.", "남은 일은 없음."],
   ["fake_option' 값은 꺼져 있다. 다음 판에서 다시 확인함.", "다음 판에서 다시 확인함."],
-  ["가상 화면 a1b2c3d4 정리를 마침.", "가상 화면 정리를 마침."],
-  // lina-app#207: a name in backticks cut inside a sentence, its particle apart; one that opens the sentence goes whole.
-  ["그 뒤 디스패처가 152번 `fake_field` 로 막았다.", "그 뒤 디스패처가 152번 항목으로 막았다."],
+  ["가상 화면 a1b2c3d4 정리를 마침.", ""],
+  // lina-app#207, #226: a name in backticks inside a sentence: the sentence is not drawn, wherever the name stands.
+  ["그 뒤 디스패처가 152번 `fake_field` 로 막았다.", ""],
   ["`fake_field` 로 막았다.", ""],
 ])("foldedText(%j) keeps only what still reads: %j (lina-app#161)", (comment, shown) => {
   expect(foldedText(comment)).toBe(shown);
 });
 
-// lina-app#207: the hub's comments wrote machine times (`안전망 =2026-11-16T03:30+09:00`, `백업 =2026-11-16T00:30+09:00`); a
-// comment reads them as every time on the screens, with the `=` its cut key left gone.
-test("an ISO time inside a comment reads as a date and a time of day, with no = left (lina-app#207)", () => {
-  expect(foldedText("안전망 =2026-11-16T03:30+09:00")).toBe(`안전망 ${dateClock(Date.UTC(2026, 10, 15, 18, 30) / 1000)}`);
-  expect(foldedText("백업 =2026-11-16T00:30+09:00")).toBe(`백업 ${dateClock(Date.UTC(2026, 10, 15, 15, 30) / 1000)}`);
-  expect(foldedText("안전망 fake_until=2026-11-16T03:30 이후 확인.")).toBe("안전망 11월 16일 03:30 이후 확인.");
+// lina-app#207, #226: the hub's comments wrote machine times (`안전망 =2026-11-16T03:30+09:00`); rewriting one into a date
+// changed the sentence, so a sentence holding one is not drawn at all.
+test("a comment sentence holding a machine time is not drawn (lina-app#207, #226)", () => {
+  expect(foldedText("안전망 =2026-11-16T03:30+09:00")).toBe("");
+  expect(foldedText("백업 =2026-11-16T00:30+09:00")).toBe("");
+  expect(foldedText("안전망 fake_until=2026-11-16T03:30 이후 확인.")).toBe("");
 });
 
 // lina-app#218: the shapes the hub's comments and titles took after a cut (round 17), the words made up. A particle glued
@@ -286,12 +287,13 @@ test("the round 17 comment shape: the dangling particle and the cut modifier nev
   expect(foldedText("이 가짜 카드의 끝 조건(가짜 값 = a1b2c3d4e5f6)은 더 새 dev 0aa65fe53a로 충족됨.")).toBe("");
 });
 
-// lina-app#218: a line that leads a list in (it ends in `:`) reads with its first item, or not at all when none follows.
+// lina-app#218, #226: a line that leads a list in (it ends in `:`) is never drawn, and is never joined to its first item.
 test.each([
   ["확인할 가짜 결과:", ""],
   ["가짜 확인을 마침. 확인할 가짜 결과:", "가짜 확인을 마침."],
-  ["확인할 가짜 결과:\n- 가짜 빌드 통과.", "확인할 가짜 결과: 가짜 빌드 통과."],
-  ["확인할 가짜 결과:\n1. 가짜 빌드 통과.\n2. 가짜 시험 통과.\n3. 가짜 화면 확인.", "확인할 가짜 결과: 가짜 빌드 통과.\n2. 가짜 시험 통과.\n3. 가짜 화면 확인."],
+  ["확인할 가짜 결과:\n- 가짜 빌드 통과.", ""],
+  ["확인할 가짜 결과:\n1. 가짜 빌드 통과.\n2. 가짜 시험 통과.\n3. 가짜 화면 확인.", ""],
+  ["확인할 가짜 결과:\n- 가짜 빌드를 마쳤다.", "가짜 빌드를 마쳤다."],
 ])("foldedText(%j) draws no lead-in alone: %j (lina-app#218)", (comment, shown) => {
   expect(foldedText(comment)).toBe(shown);
 });

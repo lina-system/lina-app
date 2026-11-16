@@ -158,7 +158,8 @@ test("item 4: a card's history is in time order, with no bracket tags, no repeat
     .getAllByTestId("history-row")
     .map((row) => row.textContent ?? "");
   const texts = lines.map((line) => line.replace(LINE, ""));
-  expect(texts).toEqual(["기준으로 문구를 다시 확인함.", "완료", "배포는 금요일 오후로 함.", "접힌 댓글 2건", "두 번째 화면도 같이 맞췄어요.", "첫 화면 문구를 짧게 고쳤어요."]);
+  // A sentence holding a time of day is not drawn, never drawn without its time (lina-app#226): it folds.
+  expect(texts).toEqual(["접힌 댓글", "완료", "배포는 금요일 오후로 함.", "접힌 댓글 2건", "두 번째 화면도 같이 맞췄어요.", "첫 화면 문구를 짧게 고쳤어요."]);
   for (let index = 1; index < lines.length; index += 1) expect(clock(lines[index]), lines.join(" | ")).toBeLessThanOrEqual(clock(lines[index - 1]));
   for (const text of texts) expect(text).not.toMatch(/^\[|\d\d:\d\d/);
 });

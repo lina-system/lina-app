@@ -154,7 +154,8 @@ describe("history rows (lina-app#123)", () => {
       "새 가이드를 문서 사이트에 올리고 첫 화면에 연결함",
       "완료",
       "질문: 가이드를 문서 사이트 첫 화면에 걸지 결정 필요",
-      "첫 화면 문구는 짧게 해 주세요.",
+      // The owner's comment is drawn as saved (lina-app#226).
+      "첫 화면 문구는 짧게 해 주세요. 자세한 건 docs/guide.md 참고",
     ]);
   });
 });

@@ -3294,15 +3294,15 @@ const drivers = {
       check(finished.length > 0 && finished.every((line) => /^완료 · \d+(분|시간|일) 전$/.test(line)), "finished cards read " + finished.join(", "));
       return words + " " + grey + " / " + red + "; " + finished.join(", ");
     });
-    await step("a comment with a path, a hash or a cut-off fragment reads its first sentence with those left out, one line", async () => {
+    await step("a comment with a path, a hash or the hub's own cut is no line of its own: it folds, never cut to what is left", async () => {
       await openApp(page, "#/cards/k-103");
       const rows = page.getByTestId("card-comments").getByTestId("history-row");
       await rows.first().waitFor();
       const lines = (await rows.allInnerTexts()).map((line) => line.trim());
-      check(lines.length === 3 && lines.every((line) => /^(어제 )?\d\d:\d\d · \S[^\n]*$/.test(line)), "the comments read " + JSON.stringify(lines));
-      check(/ · 키 12개를 바꿈$/.test(lines[1]), "the comment with a path and a hash reads " + lines[1]);
+      check(lines.length === 2 && lines.every((line) => /^(어제 )?\d\d:\d\d · \S[^\n]*$/.test(line)), "the comments read " + JSON.stringify(lines));
+      check(/ · 접힌 댓글 2건$/.test(lines[0]) && / · 오류 문구 초안을 공유했어요\.$/.test(lines[1]), "the comments read " + JSON.stringify(lines));
       const text = await page.getByTestId("screen-card").innerText();
-      check(!/errors\.json|3f2a1c9|접힌 댓글/.test(text), "raw text or a folded entry in the card");
+      check(!/errors\.json|3f2a1c9|키 12개를 바꿈|카드사별로/.test(text), "raw text or a cut sentence in the card");
       return lines.join(" | ");
     });
     await step("a round with no start on record is one dim line when it holds content; an end alone shows nothing", async () => {

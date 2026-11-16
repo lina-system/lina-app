@@ -287,7 +287,8 @@ test("item 7: a card's history sentences show no ledger, goal, card id or agent-
     .getAllByTestId("history-row")
     .map((row) => (row.textContent ?? "").replace(/^(?:어제 |\d+월 \d+일 )?\d\d:\d\d · /, ""));
   for (const text of texts) expect(text).not.toMatch(ID);
-  expect(texts).toEqual(["목표 없이 열려 있던 카드라서 옮김.", "화면 문구를 다시 맞춤.", "카드에서 이어서 확인함."]);
+  // A sentence holding an agent-and-time bracket or an id is not drawn: neither is cut out of it (lina-app#226).
+  expect(texts).toEqual(["목표 없이 열려 있던 카드라서 옮김.", "접힌 댓글 2건"]);
 });
 
 test("item 7: a goal's history sentences show no ids either", async () => {

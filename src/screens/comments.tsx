@@ -2,6 +2,7 @@ import { useState } from "preact/hooks";
 import type { ItemComment, ItemDetail } from "../api/client";
 import { KoreanInput } from "../korean-input";
 import { foldedText } from "../model/fold";
+import { ownerWrote } from "../model/timeline";
 import { ago } from "../time";
 import { agentName, Box, useApp } from "../ui/parts";
 import { DETAIL_WORD, REPLY_RESULT, SEP, W } from "../words";
@@ -10,6 +11,11 @@ import { writeError } from "./write-error";
 export function firstWords(text: string, count = 4): string {
   const words = text.trim().split(/\s+/);
   return words.length > count ? `${words.slice(0, count).join(" ")}…` : words.join(" ");
+}
+
+/** A comment's text in the thread: the owner's as saved (lina-app#226), a bot's each sentence the screens draw (foldedText). */
+function shownText(text: string, by: string, owner: string): string {
+  return ownerWrote(by, owner) ? text : foldedText(text);
 }
 
 function waitsOnAgent(comment: ItemComment, owner: string): boolean {
@@ -21,7 +27,7 @@ function CommentBody({ comment, agent, owner }: { comment: ItemComment; agent: s
   const pending = waitsOnAgent(comment, owner) && comment.status === "open";
   return (
     <>
-      <p class="comment-text">{foldedText(comment.text) || DETAIL_WORD.foldedRecords(1)}</p>
+      <p class="comment-text">{shownText(comment.text, comment.by, owner) || DETAIL_WORD.foldedRecords(1)}</p>
       <span class="sub" data-testid={pending ? "comment-pending" : undefined}>
         {pending ? [W.sentTo(agent), ago(now - comment.at)].join(SEP) : [agentName(model, comment.by), ago(now - comment.at)].filter(Boolean).join(SEP)}
       </span>
@@ -29,7 +35,7 @@ function CommentBody({ comment, agent, owner }: { comment: ItemComment; agent: s
         <ul class="replies">
           {comment.replies.map((reply, index) => (
             <li key={index} class="comment reply" data-testid="reply">
-              <p class="comment-text">{foldedText(reply.text) || DETAIL_WORD.foldedRecords(1)}</p>
+              <p class="comment-text">{shownText(reply.text, reply.by, owner) || DETAIL_WORD.foldedRecords(1)}</p>
               <span class="sub">{[agentName(model, reply.by), ago(now - reply.at), reply.result ? REPLY_RESULT[reply.result] : null].filter(Boolean).join(SEP)}</span>
             </li>
           ))}
@@ -39,17 +45,17 @@ function CommentBody({ comment, agent, owner }: { comment: ItemComment; agent: s
   );
 }
 
-/** A comment with no reply and nothing left once folded (foldedText): no sentence of its own to show. */
-function nothingLeft(comment: ItemComment): boolean {
-  return !comment.replies.length && !foldedText(comment.text);
+/** A comment with no reply and nothing left once folded (shownText): no sentence of its own to show. */
+function nothingLeft(comment: ItemComment, owner: string): boolean {
+  return !comment.replies.length && !shownText(comment.text, comment.by, owner).trim();
 }
 
 /** The comments in order, each run of comments with nothing left counted as one entry (lina-app#161). */
-function threadEntries(comments: readonly ItemComment[]): (ItemComment | { readonly folded: number; readonly key: string })[] {
+function threadEntries(comments: readonly ItemComment[], owner: string): (ItemComment | { readonly folded: number; readonly key: string })[] {
   const entries: (ItemComment | { folded: number; key: string })[] = [];
   for (const comment of comments) {
     const last = entries.at(-1);
-    if (!nothingLeft(comment)) entries.push(comment);
+    if (!nothingLeft(comment, owner)) entries.push(comment);
     else if (last && "folded" in last) last.folded += 1;
     else entries.push({ folded: 1, key: `folded:${comment.cid}` });
   }
@@ -61,7 +67,7 @@ export function Thread({ comments, agent }: { comments: readonly ItemComment[]; 
   const owner = store.get("items")?.owner?.id ?? "";
   return (
     <ul class="thread" aria-label={W.comments}>
-      {threadEntries(comments).map((comment) =>
+      {threadEntries(comments, owner).map((comment) =>
         "folded" in comment ? (
           <li key={comment.key} class="comment folded-records sub" data-testid="folded-records">
             {DETAIL_WORD.foldedRecords(comment.folded)}
@@ -69,7 +75,7 @@ export function Thread({ comments, agent }: { comments: readonly ItemComment[]; 
         ) : comment.status === "resolved" ? (
           <li key={comment.cid} class="comment" data-testid="comment">
             <details class="fold resolved" data-testid="resolved">
-              <summary class="sub">{`${W.resolved}${SEP}${firstWords(foldedText(comment.text))}`}</summary>
+              <summary class="sub">{`${W.resolved}${SEP}${firstWords(shownText(comment.text, comment.by, owner))}`}</summary>
               <CommentBody comment={comment} agent={agent} owner={owner} />
             </details>
           </li>

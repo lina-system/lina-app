@@ -1,6 +1,4 @@
-import { timesInText } from "../time";
-import { ROUND15_WORD } from "../words";
-import { withLeadIns } from "./plain";
+import { STATE_WORDS, W } from "../words";
 
 /**
  * Whether a comment's sentence can show as it is. A comment that would show a path, a command, a hash, an issue
@@ -56,7 +54,7 @@ const NOUN_CUT = "\uE001";
 const CUTS = /[\uE000\uE001]/g;
 
 /** The mark a cut token leaves: NOUN_CUT when the particle glued to it went with it, else CUT. */
-export function cutMark(token: string): string {
+function cutMark(token: string): string {
   return /\p{Script=Hangul}$/u.test(token) ? NOUN_CUT : CUT;
 }
 
@@ -80,11 +78,10 @@ const CUT_LAST = /[\uE000\uE001]\s*$/;
  * `#12~#14는`, `7봇+<name>`; or with only a cut after it to the end, `(값 = <hash>)`) or a list's `·` beside a cut noun
  * (`#12·#13과 파일이`). A cut at either end of a list, a clause after a spaced pair mark that opens on a cut name
  * (`갱신 + <name> 릴레이 교체`), a ref cut from beside a word it names (`커밋 <hash> 반영`) and a bracket the cut took whole
- * leave none. The one rule every cut follows: withoutRefs and withoutLatin
- * (titles, folded comments, history lines through the fold) and a history line's own cut (firstSentence) draw no
- * sentence that has one; a comment shows its next sentence, a title none.
+ * leave none. The rule the title cuts follow (withoutRefs, withoutLatin): a title with one is drawn by none of them. No
+ * history line or comment is cut at all (drawnSentence, lina-app#226).
  */
-export function cutLeavesHole(marked: string): boolean {
+function cutLeavesHole(marked: string): boolean {
   if (!/[\uE000\uE001]/.test(marked)) return false;
   if (NOUN_GONE.test(marked) || PREDICATE_GONE.test(marked)) return true;
   // A key's `=` goes with the key cut before it (`fake_until=<time>`): it joins nothing.
@@ -114,10 +111,9 @@ function afterCut(marked: string): string {
  * of separators (`,,`, `· · ·`, `: ,`) down to its first, a separator just inside a bracket, double spaces, a space
  * before a comma or the sentence end, and any separator or dash left at either end. An emptied bracket with a particle glued after it gives
  * the particle to the word before it (`관문(…)을` reads `관문을`: the bracket was an aside on that word, lina-app#218), and a
- * colon with only a bracket after it goes (`반영: (앞)` reads `반영 (앞)`). The one place every fold of a hub sentence
- * tidies.
+ * colon with only a bracket after it goes (`반영: (앞)` reads `반영 (앞)`). What the title cuts leave, tidied.
  */
-export function tidyFoldedText(text: string): string {
+function tidyFoldedText(text: string): string {
   let out = text.replace(/(["'`\u201c\u2018])\s*(["'`\u201d\u2019])/g, " ");
   for (let before = ""; before !== out; ) {
     before = out;
@@ -178,143 +174,8 @@ export function withoutLatin(text: string): string {
   return afterCut(text.replace(new RegExp(LATIN_WORD, "gu"), cutMark)).replace(/^→\s*|\s*→$/g, "");
 }
 
-/**
- * The text with each word that is an identifier (isIdentifier: a path, a command, a key with its value, a short id) cut,
- * its sentence end kept, and the debris left tidied: what a history line leaves out of a sentence (firstSentence), so a
- * folded comment keeps the same sentence (`copy/a.json 키 12개를 바꿈` reads `키 12개를 바꿈`, lina-app#142, #222). Empty when
- * the cut left a hole (cutLeavesHole).
- */
-function withoutIdentifiers(text: string): string {
-  return afterCut(text.split(/\s+/).map((word) => (isIdentifier(wordCore(word)) ? cutMark(wordCore(word)) + (/[.!?。]$/.exec(word)?.[0] ?? "") : word)).join(" "));
-}
-
 /** A Korean particle standing as its own word: a ref written apart from its particle (`t_e6e0f90a 가`) leaves it alone. */
 const LONE_PARTICLE = String.raw`(?:으로|에서|까지|부터|이라|라고|가|은|는|을|를|라|로|와|과|도|의|만|에)(?=[\s.,!?。]|$)`;
-/** A particle's two forms, after a noun with a final consonant and after one without (을/를, 이/가, 은/는, 과/와, 이라/라). */
-const PARTICLE_FORMS: readonly (readonly [string, string])[] = [
-  ["을", "를"],
-  ["이", "가"],
-  ["은", "는"],
-  ["과", "와"],
-  ["으로", "로"],
-  ["이라고", "라고"],
-  ["이라", "라"],
-];
-
-/** The particle in the form the noun before it takes: `항목으로`, `파일로` (ㄹ takes 로), `폴더를`. */
-export function withParticle(noun: string, particle: string): string {
-  const code = noun.charCodeAt(noun.length - 1) - 0xac00;
-  const coda = code >= 0 && code < 11172 ? code % 28 : 0;
-  const pair = PARTICLE_FORMS.find((forms) => forms.includes(particle));
-  if (!pair) return noun + particle;
-  const consonant = pair[0] === "으로" ? coda !== 0 && coda !== 8 : coda !== 0;
-  return noun + (consonant ? pair[0] : pair[1]);
-}
-
-/**
- * What kind of thing a name a person does not read names (ROUND15_WORD.nameKind), said where it stood (lina-app#207); null
- * for a time of day, which has no noun to stand in.
- */
-export function nameKind(name: string): string | null {
-  const kind = ROUND15_WORD.nameKind;
-  const core = name.replace(/^[`'"\u201c\u2018]+|[`'"\u201d\u2019]+$/g, "");
-  const whole = (pattern: string) => new RegExp(`^(?:${pattern})$`, "u").test(core);
-  if (/^\d{1,2}:\d{2}/.test(core)) return null;
-  if (whole(ISSUE_REF)) return kind.issue;
-  if (/^G\d+$/.test(core)) return kind.goal;
-  if (/^T\d+$/.test(core)) return kind.todo;
-  if (whole(CARD_ID) || /^(?:(?:표지\s*)?카드|[Cc]ard)\s*\d+$/u.test(core)) return kind.card;
-  if (whole(HASH)) return kind.commit;
-  if (core.includes("=")) return kind.value;
-  const reason = foldReason(core);
-  if (reason === "address") return kind.address;
-  if (reason === "path" || core.endsWith("/")) return /\.[A-Za-z][A-Za-z0-9]{0,4}$/.test(core) ? kind.file : kind.folder;
-  return kind.item;
-}
-
-/** A time of day at the start of a word (22:45, 22:45에). */
-export const CLOCK = /^\d{1,2}:\d{2}(?!\d)/;
-
-/** A word without the brackets and quotes around it and the punctuation after it: what isIdentifier and nameKind read. */
-export function wordCore(word: string): string {
-  return word.replace(/^[(\["'“‘]+|[)\]"'”’.,!?。:;…]+$/g, "");
-}
-
-/**
- * An identifier a person does not read: a card, run or to-do id (G73, T264, t_27363156, OT-QAX1113), a key with its
- * value (rc=1), a time of day, and every kind of raw text the fold rule names but an English word (a path, a command, a
- * hash, an issue number, an address).
- */
-export function isIdentifier(core: string): boolean {
-  if (CLOCK.test(core) || /^[A-Za-z]{1,3}\d+$/.test(core) || /[A-Za-z][\w]*[-_:][\w-]*\d/.test(core) || /#\d/.test(core) || core.includes("=")) return true;
-  const reason = foldReason(core);
-  return reason !== null && reason !== "latin" && reason !== "fragment";
-}
-
-/**
- * An identifier inside a sentence with its particle written apart (`152번 a_b 로`, `번들 \`dist/\` 를`), as the kind of thing
- * it names with that particle (`152번 항목으로`, `번들 폴더를`, lina-app#207): the sentence keeps its meaning and no particle
- * stands alone, so the one rule passes it (lina-app#222). One that opens the sentence has no words of its own around it:
- * withoutRefs and leftAsDebris take that sentence whole.
- */
-function withKinds(sentence: string): string {
-  const named = new RegExp(String.raw`(?<=\S\s+)(\S+)\s+(${LONE_PARTICLE})`, "gu");
-  return sentence.replace(named, (whole: string, name: string, particle: string) => {
-    const noun = isIdentifier(wordCore(name)) ? nameKind(name) : null;
-    return noun ? withParticle(noun, particle) : whole;
-  });
-}
-
-/** A label: a word ending in `:` before a space or the end (`주소:`, never the `http:` of an address). */
-const LABEL = /\S+:(?=\s|$)/g;
-
-/** A field value that held refs or fold markers and nothing else once they are cut: `✅` or `네` never counts. */
-function fieldEmptied(value: string): boolean {
-  if (/…|\.\.\./.test(value) && ONLY_FOLD_MARKERS.test(value)) return true;
-  // What a cut ref leaves of the sentence end (`a1b2c3d.` leaves `.`) is not a value either.
-  return new RegExp(REF, "u").test(value) && !withoutRefs(value).replace(/[\s.,;:·!?。\-]+/g, "");
-}
-
-/**
- * The sentence without its labelled fields whose value was nothing but refs (`커밋: a1b2c3d`): the label alone says
- * nothing. A field with words in it stays, and so does every other field of the sentence. Null when such a label sits
- * inside a phrase rather than starting a field: that sentence is debris whole (lina-app#161).
- */
-function withoutEmptyFields(whole: string): string | null {
-  // The sentence end belongs to the sentence, not to its last field: it stays when that field goes.
-  const end = /[.!?。]+\s*$/.exec(whole)?.[0].trim() ?? "";
-  const sentence = end ? whole.slice(0, whole.lastIndexOf(end)) : whole;
-  const labels = [...sentence.matchAll(LABEL)];
-  let out = sentence;
-  let cut = false;
-  for (const [index, label] of [...labels.entries()].reverse()) {
-    const fieldEnd = labels[index + 1]?.index ?? sentence.length;
-    const value = sentence.slice(label.index + label[0].length, fieldEnd);
-    if (!value.trim() || !fieldEmptied(value)) continue;
-    // A label standing inside a phrase (`되돌릴 커밋: <hash>`) has no field of its own to cut: the sentence goes.
-    if (!/(?:^|[,;·.!?。/+-])\s*$/.test(sentence.slice(0, label.index))) return null;
-    out = out.slice(0, label.index) + " " + out.slice(fieldEnd);
-    cut = true;
-  }
-  if (!cut) return whole;
-  const kept = out.replace(/[\s·,:;\-\u2013\u2014]+$/, "");
-  return kept && end ? kept + end : kept;
-}
-
-/** A sentence of nothing but the hub's fold markers (`(…)`, `…`, `...`) and the brackets and separators around them. */
-const ONLY_FOLD_MARKERS = /^[\s()[\]….,·:;]*$/;
-
-/**
- * Whether what withoutRefs left of a sentence is debris (lina-app#161): a particle the cut ref stood before, or one
- * bare word with no sentence end where more words stood. A sentence that lost no ref is never debris.
- */
-function leftAsDebris(sentence: string, cut: string): boolean {
-  if (cut === tidyFoldedText(sentence)) return false;
-  if (!cut) return true;
-  if (new RegExp(`(?:${REF})\\s+${LONE_PARTICLE}`, "u").test(sentence)) return true;
-  return !/\s/.test(cut) && !/[.!?。]$/.test(cut) && /\s/.test(sentence.trim());
-}
-
 /** A start inside another sentence: a closing quote or bracket, a separator, an arrow, or a particle alone (never `만 원`). */
 const STARTS_INSIDE = new RegExp(String.raw`^(?:[.,:;·…|)\]}\-\u2013\u2014→]|['"\u2019\u201d](?:\s|$)|(?!만\s)${LONE_PARTICLE})`, "u");
 /** An end outside a sentence: a separator, an opening bracket or a particle alone, with or without the hub's `…`. */
@@ -343,13 +204,12 @@ function closes(text: string): boolean {
 }
 
 /**
- * The one rule a sentence passes to be drawn (lina-app#197, #222): every history line (firstSentence), every sentence of
- * a folded comment (foldedText) and every title (index.ts: cleanTitle, finishedTitle, plainLine). It fails a sentence
- * that (a) starts inside another one (a separator, a closing quote, a particle alone, a bare number with its unit, a
- * list's number), (b) ends open (`:`, `|`, a separator, a particle alone, a bracket or quote left open or closed alone),
- * (c) has a hole (an empty bracket, punctuation alone or doubled, a particle apart from its noun, a modifier with no
- * noun), (d) holds a Latin letter or a ref (`PR`, a product name, `S2`, `D1~D7`, `rc 0`, `#12`), or has no Hangul. A
- * comment draws its next sentence that passes, a title the row's next name; nothing that fails is ever drawn.
+ * The checks a sentence passes to be drawn (lina-app#197, #222): every title (index.ts: cleanTitle, finishedTitle,
+ * plainLine), and every history line and folded comment through drawnSentence. It fails a sentence that (a) starts
+ * inside another one (a separator, a closing quote, a particle alone, a bare number with its unit, a list's number),
+ * (b) ends open (`:`, `|`, a separator, a particle alone, a bracket or quote left open or closed alone), (c) has a hole
+ * (an empty bracket, punctuation alone or doubled, a particle apart from its noun, a modifier with no noun), (d) holds a
+ * Latin letter or a ref (`PR`, a product name, `S2`, `D1~D7`, `rc 0`, `#12`), or has no Hangul.
  */
 export function sentenceMayShow(sentence: string): boolean {
   // A list's number before the sentence is no part of it (`1) 가상 설정이 돌았다.`, `2. 빌드 통과.`).
@@ -399,34 +259,68 @@ export function sentencesOf(line: string): string[] {
   return sentences;
 }
 
+/** A bracket that holds only refs, ids or hashes (`(lina#12)`, `(#123·#124)`, `(t_ab12cd34)`, `(a1b2c3d)`), with the space before it. */
+const REF_BRACKET = /\s*[([]([^()[\]]*)[)\]]/g;
+const ONE_REF = new RegExp(String.raw`${ISSUE_REF}|${CARD_ID}|${HASH}`, "gu");
+/** What a line opens with that is no sentence of it: the bracketed tags of who wrote it and when, and a list's mark. */
+const LINE_HEAD = /^(?:\s*\[[^\]\n]*\])*\s*(?:(?:[-•·*]|\(?\d{1,2}[.)])\s+)?/;
 /**
- * A comment or history text as the screens show it (lina-app#161): each sentence through withoutRefs, and a sentence
- * left as debris (leftAsDebris) dropped whole, an empty labelled field cut alone (withoutEmptyFields), so `가 맡는다`,
- * `범위 라 …` or a bare `주소` never shows. A sentence of only fold markers goes too, and so does one whose cut left a hole
- * (withoutRefs, lina-app#218); a list's lead-in line reads with its first item (withLeadIns). A sentence left that the
- * one rule fails (sentenceMayShow, lina-app#222) goes too: the comment keeps the ones that pass. Empty when nothing is
- * left.
+ * Marks no drawn sentence holds (lina-app#226): a slash (a path, an `a/b` list), an arrow, a code mark (`\``, `=`, `\\`), a
+ * table's `|`, the hub's own cut (`…`, `...`) anywhere in it, and a time of day, which reads against the row's own
+ * time (lina-app#153) and cannot be cut out.
  */
+const NEVER_DRAWN = /[/\\`=|→←↔⇒⇄…]|->|\.\.\.|\d{1,2}:\d{2}/;
+/** A sentence that opens on a word tying it to the one before it: it does not read alone. */
+const CONTINUES = /^(?:그러나|하지만|그래서|그리고|따라서|그런데|즉|및|또는|혹은|다만)(?=[\s,]|$)/;
+/** How many Hangul letters a sentence with no predicate needs to be one: fewer is a fragment (`원인 둘.`, `반영 단계.`). */
+export const FRAGMENT_BELOW = 8;
+/** A line that is a state word and nothing else (완료, 진행 중, 검토 통과): an event of a known kind, read as that word. */
+export const STATE_ONLY = new Set<string>([...STATE_WORDS, ...Object.values(W.outcome)]);
+
+/** Whether a sentence ends on a predicate: `-다`, `-요`, `-까`, `-죠`, `-네`, `-자`, or a nominalised one (`-ㅁ`: 함, 됨, 마침). */
+function endsOnPredicate(sentence: string): boolean {
+  const last = sentence.replace(/[^\p{Script=Hangul}]+$/u, "").at(-1) ?? "";
+  const code = last.charCodeAt(0) - 0xac00;
+  return /[다요까죠네자]/.test(last) || (code >= 0 && code < 11172 && code % 28 === 16);
+}
+
+/**
+ * One sentence as the screens draw it, whole or not at all (lina-app#226): exactly as written, less a bracket that holds
+ * only refs, ids or hashes (with the space before it); a state word alone (STATE_ONLY) is one. Null for a sentence the
+ * checks of sentenceMayShow fail (a lead-in ends on its colon there), one that holds a mark of NEVER_DRAWN, opens on a word
+ * that continues the one before it, or is a fragment: no predicate and fewer than FRAGMENT_BELOW Hangul letters (`원인 둘.`,
+ * a bare label such as `직접 확인한 것`). Nothing else is ever cut out.
+ */
+export function drawnSentence(sentence: string): string | null {
+  const text = sentence
+    .replace(REF_BRACKET, (whole, inner: string) => (inner.trim() && !inner.replace(ONE_REF, "").replace(/[\s·,]+/g, "") ? "" : whole))
+    .replace(/\s+/g, " ")
+    .trim();
+  if (STATE_ONLY.has(text)) return text;
+  if (!sentenceMayShow(text) || NEVER_DRAWN.test(text) || CONTINUES.test(text) || /^\(?\d{1,2}[.)]\s/.test(text)) return null;
+  if (!endsOnPredicate(text) && (text.match(/\p{Script=Hangul}/gu) ?? []).length < FRAGMENT_BELOW) return null;
+  return text;
+}
+
+/**
+ * The sentences of a text the screens draw (drawnSentence), in order: each line read without its head (LINE_HEAD), split
+ * into sentences (sentencesOf). The one reading of every history line, folded comment and stop reason.
+ */
+export function drawnSentences(text: string): string[] {
+  return text.split("\n").flatMap((line) => drawnOfLine(line));
+}
+
+function drawnOfLine(line: string): string[] {
+  return sentencesOf(line.replace(LINE_HEAD, "").trim())
+    .map(drawnSentence)
+    .filter((sentence): sentence is string => sentence !== null);
+}
+
+/** A comment or history text as the screens show it: each line's drawn sentences (drawnSentence), empty when none is. */
 export function foldedText(text: string): string {
-  return withLeadIns(text)
+  return text
     .split("\n")
-    .map((line) =>
-      sentencesOf(line)
-        .map((whole) => {
-          if (/…|\.\.\./.test(whole) && ONLY_FOLD_MARKERS.test(whole)) return "";
-          const fields = withoutEmptyFields(whole);
-          if (fields === null) return "";
-          const sentence = withKinds(fields);
-          // Its ISO times read as every time on the screens once the refs go, so a cut key leaves no `=` (lina-app#207).
-          const cut = timesInText(withoutRefs(sentence));
-          if (leftAsDebris(timesInText(sentence), cut)) return "";
-          if (sentenceMayShow(cut)) return cut;
-          const bare = withoutIdentifiers(cut);
-          return bare !== cut && sentenceMayShow(bare) ? bare : "";
-        })
-        .filter(Boolean)
-        .join(" "),
-    )
+    .map((line) => drawnOfLine(line).join(" "))
     .filter(Boolean)
     .join("\n");
 }

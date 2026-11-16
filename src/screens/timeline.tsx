@@ -36,10 +36,11 @@ function clean(text: string | null): text is string {
 
 /**
  * A block with the markdown markers out of its result and its rows (plainText): a row that was only markers and spaces
- * is no row, and a comment block left with none is no block (lina-app#166).
+ * is no row, and a comment block left with none is no block (lina-app#166). A comment row is the owner's words (the
+ * record's schema) and keeps them as saved (lina-app#226).
  */
 function plainBlock(block: TimelineBlock): TimelineBlock | null {
-  const rows = block.rows.flatMap((row) => (row.text === null ? [row] : plainText(row.text) ? [{ ...row, text: plainText(row.text) }] : []));
+  const rows = block.rows.flatMap((row) => (row.text === null ? [row] : !plainText(row.text) ? [] : row.kind === "comment" ? [row] : [{ ...row, text: plainText(row.text) }]));
   if (block.type === "comment") return rows.length ? { ...block, rows } : null;
   return { ...block, rows, result: block.result === null ? null : plainText(block.result) || null };
 }
@@ -58,9 +59,9 @@ function Row({ row, owner, folded }: { row: RecordRow; owner: string; folded: nu
       </li>
     );
   if (row.kind === "comment") {
-    // The owner's comment is its first sentence on one line, as in the comments box; its author is the tooltip. A run of
-    // comments with no sentence left is one dim line with their count.
-    const text = folded ? null : firstSentence(row.text);
+    // The owner's comment is its words as saved on one line, as in the comments box (lina-app#226); its author is the
+    // tooltip. A run of comments with no words is one dim line with their count.
+    const text = folded ? null : row.text;
     return (
       <li class={text ? "timeline-row is-comment" : "timeline-row is-comment is-dim"} data-kind="comment" title={owner || undefined}>
         <span class="timeline-text">{timed(row.at, text ?? W.foldedRun(folded || 1), now)}</span>
@@ -96,7 +97,7 @@ function Block({ block, owner, link, modelRun }: { block: TimelineBlock; owner: 
   const { now } = useApp();
   const [open, setOpen] = useState(true);
   // A sentence or a result line that would show raw text is left out; the round still shows its head.
-  const rows = historyLines(block.rows.filter((row) => row.kind !== "said" || clean(row.text)).map((row) => ({ row, at: row.at, text: row.kind === "comment" ? firstSentence(row.text) : "" })));
+  const rows = historyLines(block.rows.filter((row) => row.kind !== "said" || clean(row.text)).map((row) => ({ row, at: row.at, text: row.kind === "comment" ? row.text : "" })));
   const title = head(block, now);
   return (
     <details class="timeline-block" open={open} onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)} data-testid="timeline-block" data-outcome={block.type === "round" ? block.outcome : "comment"}>

@@ -2596,6 +2596,43 @@ const drivers = {
       check(badge.right <= look.width && badge.top >= 0, "the badge leaves the window: " + JSON.stringify(badge));
       return "icon " + Math.round(icon.right - icon.left) + "x" + Math.round(icon.bottom - icon.top) + ", badge covers " + covered.join("x") + " px of its top right corner";
     });
+    // lina-app#238: on the hub the head's tools (the install chip and the bell) drew 92 px in an 87 px box at 390: the
+    // badge stood past the bell's right edge. The box holds the chip, the bell and its badge, with one digit or two.
+    await step("the head's tools hold the install chip, the bell and its badge on every tab, also with the hub's 61 (&hub=round23)", async () => {
+      const context = await touchContext(page);
+      try {
+        const own = await context.newPage();
+        await own.addInitScript(() => {
+          window.__LINA_APP_LABEL__ = { text: "실제", kind: "real" };
+        });
+        const seen = [];
+        for (const query of ["", "&hub=round23"]) {
+          await openApp(own, "#/", query);
+          for (const hash of ["#/", "#/talk", "#/status"]) {
+            await own.evaluate((to) => (location.hash = to), hash);
+            await own.getByTestId("install-label").first().waitFor();
+            const look = await own.evaluate(() =>
+              [...document.querySelectorAll(".toolbar-tools")]
+                .filter((box) => box.getClientRects().length)
+                .map((box) => {
+                  const badge = box.querySelector("[data-testid=bell-count]")?.getBoundingClientRect();
+                  const icon = box.querySelector("[data-testid=bell] svg")?.getBoundingClientRect();
+                  return { box: box.clientWidth, content: box.scrollWidth, badge: box.querySelector("[data-testid=bell-count]")?.textContent ?? "", past: badge ? Math.round((badge.right - box.getBoundingClientRect().right) * 10) / 10 : null, clear: badge && icon ? badge.left > (icon.left + icon.right) / 2 && badge.bottom < (icon.top + icon.bottom) / 2 : null };
+                }),
+            );
+            check(look.length > 0, hash + query + ": no head tools drawn");
+            for (const tools of look) {
+              check(tools.content <= tools.box && (tools.past === null || tools.past <= 0), hash + query + ": the tools draw " + tools.content + " px in a " + tools.box + " px box, the badge " + tools.badge + " ends " + tools.past + " px past it");
+              check(tools.clear !== false, hash + query + ": the badge " + tools.badge + " reaches the icon's centre");
+            }
+            seen.push((query ? "round23 " : "") + hash + " " + look.map((tools) => tools.badge + " " + tools.content + "/" + tools.box + " px").join(", "));
+          }
+        }
+        return seen.join("; ");
+      } finally {
+        await context.close();
+      }
+    });
     await step("choosing a notice opens its item and marks it read on the core", async () => {
       await bell().click();
       const first = dialog().locator("li:not(.is-read) a").first();

@@ -214,13 +214,26 @@ const LATIN_OR_CODE = new RegExp(String.raw`[A-Za-z]|#\d|${DIGIT_HASH}`, "u");
 
 const count = (text: string, mark: string) => text.split(mark).length - 1;
 
-/** A list's mark that closes a bracket it never opened (`1)`, `2)` with a space after it): no bracket of the text. */
-const LIST_PAREN = /(?<!\S)\d{1,2}\)(?=\s)/gu;
+/**
+ * A list's mark (`1)`, `2)` with a space after it), or a round bracket. The mark is no bracket of the text unless it
+ * closes one opened before it (`가짜 묶음(항목 각 6) 기준`, lina-app#244).
+ */
+const LIST_PAREN = /((?<!\S)\d{1,2}\)(?=\s))|[()]/gu;
+
+/** Whether every round bracket the text opens it also closes, a list's mark closing none it did not open. */
+function parensClose(text: string): boolean {
+  let opened = 0;
+  let closed = 0;
+  for (const [paren, mark] of text.matchAll(LIST_PAREN)) {
+    if (paren === "(") opened += 1;
+    else if (!mark || opened > closed) closed += 1;
+  }
+  return opened === closed;
+}
 
 /** Whether every bracket and quote the text opens it also closes. */
 function closes(text: string): boolean {
-  const unmarked = text.replace(LIST_PAREN, "");
-  return count(text, "(") === count(unmarked, ")") && count(text, "[") === count(text, "]") && count(text, "\u201c") === count(text, "\u201d") && count(text, "\u2018") === count(text, "\u2019") && count(text, '"') % 2 === 0 && count(text, "'") % 2 === 0;
+  return parensClose(text) && count(text, "[") === count(text, "]") && count(text, "\u201c") === count(text, "\u201d") && count(text, "\u2018") === count(text, "\u2019") && count(text, '"') % 2 === 0 && count(text, "'") % 2 === 0;
 }
 
 /**

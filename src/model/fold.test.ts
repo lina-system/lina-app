@@ -129,6 +129,13 @@ test.each([
   ["2.", false],
   ["2) → 가짜 대기로 고침.", false],
   ["1) 가짜 설정이 돌았다.", true],
+  // A number and `)` that close a bracket opened before them are that bracket's (lina-app#244); a list's mark closes none.
+  ["가짜 묶음(항목 각 6) 기준을 확인했다.", true],
+  ["가짜 묶음 (항목 6) 기준을 확인했다.", true],
+  ["가짜 묶음 (겉 칸 (속 칸 2) 끝 칸 3) 정리함.", true],
+  ["가짜 순서: 1) 빌드를 마친다. 2) 배포를 한다.", true],
+  ["가짜 묶음 (항목 6) 다음은 2) 배포를 한다.", true],
+  ["가짜 묶음 (겉 칸 (속 칸 2) 끝을 정리함.", false],
   // (b) an open end: a colon, a table's bar, an open bracket or quote.
   ["가짜 순서:", false],
   ["가짜 표 칸 |", false],
@@ -275,6 +282,7 @@ test.each([
   ["확인할 가짜 결과:\n1. 가짜 빌드 통과.\n2. 가짜 시험 통과.\n3. 가짜 화면 확인.", true],
   ["남은 일: 1. 설정을 고친다. 2. 서버를 켠다. 고치는 중이", false],
   ["남은 일: 1) 목록을 연다. 3) 금액 칸을 누른다.", true],
+  ["가짜 묶음(항목 각 6) 기준을 확인했다.", true],
   ["가짜 금액 줄을 다시 붙였고 그 뒤에 세부를", false],
   ["가짜 항목을 하나 추가.", true],
 ])("unitMayShow(unitOf(%j)) is %s: the gate reads the unit whole (lina-app#241)", (text, shows) => {

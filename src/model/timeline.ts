@@ -178,6 +178,8 @@ export interface RoundNote {
   readonly text: string;
   /** The core cut it at its length (a record row): its last piece may be a part of a sentence. */
   readonly cut?: boolean;
+  /** The worker run whose record holds it: only that run's rounds read it. A comment on the card has none. */
+  readonly run?: string;
 }
 
 /** How long after a round's end a note still speaks of it. */
@@ -187,11 +189,12 @@ const NOTE_AFTER = 30 * 60;
  * The one sentence a closed round's line reads when its report line does not stand whole (criterion 2): the first whole
  * sentence that says what came of it (historySentences) and that no newer round reads (`used`, filled newest first):
  * its report line's, then its said rows' (tails the core kept of longer texts), then those of the notes made from a
- * minute before its end to half an hour after it, oldest first. Null when none stands: the line reads its outcome alone.
+ * minute before its end to half an hour after it, oldest first: a comment on the card, or its own run's record note
+ * (`run`), never another run's. Null when none stands: the line reads its outcome alone.
  */
-export function roundSentence(round: { readonly result: string | null; readonly said: readonly (string | null)[]; readonly end: number | null }, notes: readonly RoundNote[], used: Set<string>): string | null {
+export function roundSentence(round: { readonly result: string | null; readonly said: readonly (string | null)[]; readonly end: number | null; readonly run?: string }, notes: readonly RoundNote[], used: Set<string>): string | null {
   const end = round.end;
-  const near = end === null ? [] : notes.filter((note) => note.at >= end - 60 && note.at <= end + NOTE_AFTER).sort((a, b) => a.at - b.at);
+  const near = end === null ? [] : notes.filter((note) => (note.run === undefined || note.run === round.run) && note.at >= end - 60 && note.at <= end + NOTE_AFTER).sort((a, b) => a.at - b.at);
   const sentences = [...historySentences(round.result), ...round.said.flatMap((text) => historySentences(text, { opens: true, ends: true })), ...near.flatMap((note) => historySentences(note.text, { ends: note.cut }))];
   const sentence = sentences.find((each) => !used.has(each)) ?? null;
   if (sentence) used.add(sentence);
@@ -226,7 +229,8 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
   const gated = (rows: readonly RecordRow[], ended = false): TimelineRow[] =>
     shown(rows).map((row) => (row.kind === "tools" ? { ...row, source: null } : { ...row, text: ended && row.kind === "said" ? null : wholeText(row.text), source: row.text }));
   const blocks: TimelineBlock[] = [];
-  // What a closed round whose report line does not stand whole left to read its sentence from, and every note.
+  // What a closed round whose report line does not stand whole left to read its sentence from, and every note: the
+  // card's comments, and each record's notes kept with the run whose record holds them.
   const sources = new Map<TimelineBlock, Parameters<typeof roundSentence>[0]>();
   const every: RoundNote[] = [...notes];
   // A card's worker runs may each serve the card's one record: a round or a comment read twice is drawn once
@@ -258,9 +262,9 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
         count: 1,
       };
       blocks.push(block);
-      if (outcome !== "going" && result === null) sources.set(block, { result: round.result, said: round.rows.filter((row) => row.kind === "said").map((row) => row.text), end: round.endedAt ?? round.startedAt });
+      if (outcome !== "going" && result === null) sources.set(block, { result: round.result, said: round.rows.filter((row) => row.kind === "said").map((row) => row.text), end: round.endedAt ?? round.startedAt, run: id });
     });
-    every.push(...record.comments.filter((row) => row.text && !isMachineNotice(row.text)).map((row) => ({ at: row.at, text: row.text ?? "", cut: true })));
+    every.push(...record.comments.filter((row) => row.text && !isMachineNotice(row.text)).map((row) => ({ at: row.at, text: row.text ?? "", cut: true, run: id })));
     for (const comment of gated(record.comments)) if (first(`comment:${comment.at}:${comment.source}`)) blocks.push({ type: "comment", key: `${id}:c:${comment.at}`, at: comment.at, rows: [comment] });
   }
   // Comments made one after another between rounds are one 댓글 block. A round with nothing drawn in it but the outcome

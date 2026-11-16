@@ -319,3 +319,24 @@ test("the same comment line again in one card is one line with its count, at its
     [400, null, 1, 2],
   ]);
 });
+
+// PR #260 review: a record's note belongs to the worker run whose record holds it. With worker A ending at 1000,
+// worker B ending at 1100 and only A noting its result at 1150, the sentence is A's line, never B's, and A's round
+// stays a block of its own.
+test("a record's note is read only by its own run's round, never by another run's that ended near it", () => {
+  const base = { at: 2000, cardId: "k-1", errors: [], model: null, settingsRevision: null };
+  const a = { ...base, id: "wa", comments: [{ at: 1150, kind: "comment", text: "가짜 검사를 통과했다.", count: 1 }], rounds: [round({ run: 1, startedAt: 900, endedAt: 1000, endKnown: true })] } as unknown as RunRecord;
+  const b = { ...base, id: "wb", comments: [], rounds: [round({ run: 1, startedAt: 1050, endedAt: 1100, endKnown: true })] } as unknown as RunRecord;
+  const blocks = timelineBlocks(
+    [
+      { id: "wa", record: a },
+      { id: "wb", record: b },
+    ],
+    () => false,
+    3000,
+  );
+  expect(blocks.flatMap((block) => (block.type === "round" ? [[block.runId, block.at, block.result, block.count]] : []))).toEqual([
+    ["wb", 1100, null, 1],
+    ["wa", 1000, "가짜 검사를 통과했다.", 1],
+  ]);
+});

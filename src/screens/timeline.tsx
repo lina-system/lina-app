@@ -4,6 +4,7 @@ import type { Settings } from "../api/client";
 import { plainText } from "../model/plain";
 import { runModelLine } from "../model/settings";
 import { historyLines, timelineBlocks, type TimelineBlock, type TimelineRow } from "../model/timeline";
+import { linkClick } from "../router";
 import { clockAt } from "../time";
 import { agentName, Box, useApp } from "../ui/parts";
 import { DETAIL_WORD, SEP, W } from "../words";
@@ -107,7 +108,7 @@ function Block({ block, owner, link, modelRun }: { block: TimelineBlock; owner: 
     <details class="timeline-block" open={open} onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)} data-testid="timeline-block" data-outcome={block.type === "round" ? block.outcome : "comment"}>
       <summary class="timeline-head">
         {link ? (
-          <a class="timeline-link" href={link} data-testid="timeline-link">
+          <a class="timeline-link" href={link} onClick={linkClick} data-testid="timeline-link">
             {title}
           </a>
         ) : (

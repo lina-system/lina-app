@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/preact";
+import { act, fireEvent, render, waitFor } from "@testing-library/preact";
 import { afterEach, expect, test, vi } from "vitest";
 import { App } from "./app";
 import { Store } from "./data/store";
@@ -39,5 +39,28 @@ for (const wide of [true, false]) {
     const run = await open(`${card}/runs/3`, wide);
     await waitFor(() => expect(run.getByTestId("screen-run").querySelectorAll("[data-testid=timeline-block]")).toHaveLength(2));
     expect([...run.getByTestId("screen-run").querySelectorAll(".timeline-head")].map((head) => head.textContent)).toEqual(heads.slice(1, 3));
+  });
+}
+
+// lina-app#252 (QA round 27, the real hub): a record block's link to its worker run is an in-app link like every other:
+// it pushes our own history entry, so back returns to the card with the pane's scroll.
+for (const wide of [true, false]) {
+  test(`a record block's link pushes our history entry and back restores the card's scroll (${wide ? "1280" : "390"})`, async () => {
+    const card = `#/cards/${ROUND24.runsCard}`;
+    const view = await open(card, wide);
+    await waitFor(() => expect(view.getAllByTestId("timeline-link")).toHaveLength(5));
+    const pane = (view.container.querySelector(".detail-pane, .sheet, [data-testid=detail-frame]")?.closest(".detail-pane, .sheet") ?? view.container.querySelector("main")) as HTMLElement;
+    pane.scrollTop = 321;
+    fireEvent.click(view.getAllByTestId("timeline-link")[1]);
+    await waitFor(() => expect(window.location.hash).toBe(`${card}/runs/3`));
+    expect((window.history.state as { stack: string[] } | null)?.stack).toEqual([card, `${card}/runs/3`]);
+    await act(async () => {
+      window.history.back();
+      await new Promise((resolve) => window.addEventListener("popstate", resolve, { once: true }));
+    });
+    await waitFor(() => expect(view.getAllByTestId("timeline-link")).toHaveLength(5));
+    expect(window.location.hash).toBe(card);
+    expect((window.history.state as { scroll: Record<string, number> }).scroll).toMatchObject({});
+    expect(Object.values((window.history.state as { scroll: Record<string, number> }).scroll)).toContain(321);
   });
 }

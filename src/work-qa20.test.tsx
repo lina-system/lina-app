@@ -65,7 +65,8 @@ for (const wide of [true, false]) {
     await waitFor(() => expect(finished(view).fold).toBeGreaterThan(0));
     watch.disconnect();
     expect(states.some((state) => state.loading)).toBe(true);
-    for (const state of states) expect(state.head).toBe(total);
+    // No number while the rest is read (lina-app#242): the head reads NaN here.
+    for (const state of states) expect(state.head, JSON.stringify(state)).toBe(state.loading ? Number.NaN : total);
     const before = finished(view);
     for (const state of states) if (!state.loading) expect(state.fold).toBe(before.fold);
     expect(before).toMatchObject({ head: total, rows: FINISHED_SHOWN, loading: false });

@@ -56,9 +56,11 @@ test("collapsed: the 완료 head and the sidebar count the cards; the fold count
 });
 
 test("first load: the rest is read with a loading line in the fold's place, and no number moves", async () => {
-  const view = await open("#/", new SyntheticSource({ now: now(), manyFinished: true }));
+  const source = new SyntheticSource({ now: now(), manyFinished: true });
+  const view = await open("#/", source);
   const group = view.getByTestId("section-finished");
-  const total = headDone(view);
+  // The head draws no number while the rest is read (lina-app#242): the cards, once they are in.
+  const total = source.scene.cards.cards.filter((card) => card.state === "done").length;
   const states: ReturnType<typeof drawn>[] = [drawn(group)];
   const watch = new MutationObserver(() => states.push(drawn(group)));
   watch.observe(group, { subtree: true, childList: true, characterData: true });
@@ -119,6 +121,50 @@ for (const wide of [true, false]) {
     expect(drawn(group)).toEqual({ lines: settled.lines + settled.more, cards: sent, fold: null, more: 0 });
   });
 }
+
+// lina-app#242: on the hub the head read 535 while the first page was in and 532 after: the core's total of finished cards
+// is counted apart from the cards its full read sends. Until the page holds every finished card, the head and the
+// sidebar draw no number; from then on both are the cards the group's lines stand for, the first page, the full read and
+// a later read alike. The full read is held, as a slow core's, until released.
+test("while the first page is in, the 완료 head and the sidebar draw no number; once every card is in, both are the cards its lines stand for, also after a later read", async () => {
+  const source = new SyntheticSource({ now: now(), manyFinished: true });
+  const counted = source.scene.cards.cards.filter((card) => card.state === "done").length;
+  const held: (() => void)[] = [];
+  let holding = true;
+  const read = source.read.bind(source);
+  source.read = (async (name, id) => {
+    if (name === "cards" && id === undefined && holding) await new Promise<void>((go) => held.push(go));
+    const result = await read(name, id);
+    // The core's total counts three more than its full read sends.
+    return name === "cards" && id !== undefined && result.kind === "data" ? { ...result, data: { ...result.data, finishedTotal: counted + 3 } } : result;
+  }) as SyntheticSource["read"];
+  setWide(true);
+  window.history.replaceState(null, "", "/app/#/");
+  const store = new Store(source);
+  const view = render(<App store={store} />);
+  const group = await waitFor(() => view.getByTestId("section-finished"));
+  const number = (element: Element | null) => element?.querySelector("[data-testid=count], [data-testid=nav-count]")?.textContent ?? null;
+  const state = () => ({ head: number(view.getByTestId("head-finished")), sidebar: number(view.getByTestId("nav-done")), fold: drawn(group).fold });
+  const states = [state()];
+  const watch = new MutationObserver(() => states.push(state()));
+  watch.observe(view.container, { subtree: true, childList: true, characterData: true });
+  await waitFor(() => expect(drawn(group).fold).toBe(W.loading));
+  holding = false;
+  for (const go of held.splice(0)) go();
+  await waitFor(() => expect(drawn(group).more).toBeGreaterThan(0));
+  // A later read of every card, held too, leaves the numbers as they are.
+  holding = true;
+  const later = store.refresh();
+  await waitFor(() => expect(held.length).toBeGreaterThan(0));
+  holding = false;
+  for (const go of held.splice(0)) go();
+  await later;
+  watch.disconnect();
+  states.push(state());
+  for (const each of states) expect({ head: each.head, sidebar: each.sidebar }, JSON.stringify(each)).toEqual(each.fold === W.loading ? { head: null, sidebar: null } : { head: String(counted), sidebar: String(counted) });
+  fireEvent.click(group.querySelector(`${FOLD} button`) as HTMLElement);
+  expect(drawn(group).cards).toBe(counted);
+});
 
 test("empty: with no finished card there is no 완료 group, and the sidebar's 완료 has no number", async () => {
   const source = new SyntheticSource({ now: now() });

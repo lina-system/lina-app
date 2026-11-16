@@ -12,9 +12,10 @@
   --bar: rgba(249, 249, 251, 0.86);
   --accent: #007aff;
   --on-accent: #ffffff;
-  /* The current sidebar row's fill behind white words, and the sidebar's red counts: the accent and the red in light,
-     a shade that reaches 4.5:1 in dark (lina-app#232; src/design/contrast.test.ts). */
-  --accent-fill: #007aff;
+  /* The fill behind white words (the current sidebar row, the owner's chat bubble, a selected chip): the accent's
+     shade that reaches 4.5:1, light and dark (lina-app#232, #242); the sidebar's red counts: the red in light, a shade
+     that reaches 4.5:1 in dark (lina-app#232; src/design/contrast.test.ts). */
+  --accent-fill: #0071e3;
   --red: #ff3b30;
   --red-text: #ff3b30;
   /* Red behind white words (the bell's count, the stopped pills): the state red's hue, dark enough for 4.5:1, the

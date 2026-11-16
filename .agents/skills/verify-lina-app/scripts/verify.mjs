@@ -1303,6 +1303,33 @@ const drivers = {
       check(await page.getByRole("textbox", { name: "댓글 달기" }).isVisible(), "the goal page has no comment field");
       return heads.join(", ") + "; cards " + cards.join(" | ");
     });
+    await step("on the hub's shape (&hub=round24), a goal whose title holds a Latin word lists the finished cards nothing names as one grey 제목 없는 n건 line with its agents and newest time, never a row named 작업 (lina-app#242)", async () => {
+      await openApp(page, "#/goals/G10", "&hub=round24");
+      const list = page.getByTestId("screen-goal").getByRole("list", { name: "작업", exact: true });
+      await list.waitFor();
+      const firsts = (await list.locator("li[data-testid=row] .lines > .title").allInnerTexts()).map((title) => title.trim());
+      const grey = list.locator("li[data-testid=row]").filter({ has: page.locator(".title.is-kind") });
+      const sub = (await grey.count()) ? (await grey.getByTestId("row-sub").innerText()).trim() : null;
+      const time = (await grey.count()) ? (await grey.locator(".time").innerText()).replace(/^\s*·\s*/, "").trim() : null;
+      check(!firsts.includes("작업") && firsts.filter((title) => /^제목 없는 \d+건$/.test(title)).length === 1 && firsts.length === 3 && sub === "에이전트 3명" && /^가장 최근 \d+시간 전$/.test(time ?? ""), "rows " + JSON.stringify(firsts) + ", grey " + sub + " · " + time);
+      return firsts.join(" | ") + "; grey " + sub + " · " + time;
+    });
+    await step("on the hub's shape (&hub=round23), a goal page whose record's state and progress disagree says why in one line under its head's state, as its row does (lina-app#242)", async () => {
+      const heads = [];
+      for (const [id, why] of [["G7", "할 일 1개 남음"], ["G8", "할 일 12개 남음"], ["G9", "작업 2건 완료"]]) {
+        await openApp(page, "#/goals/" + id, "&hub=round23");
+        const line = page.locator(".detail-head").getByTestId("goal-why");
+        await line.waitFor();
+        const state = (await page.locator(".detail-head [data-testid=state]").innerText()).trim();
+        const said = (await line.innerText()).trim();
+        check(said === why, id + " reads " + said);
+        heads.push(id + ": " + state + " / " + said);
+      }
+      await openApp(page, "#/goals/G1");
+      await page.locator(".detail-head").waitFor();
+      check((await page.locator(".detail-head").getByTestId("goal-why").count()) === 0, "G1, whose record agrees with itself, says why");
+      return heads.join(" | ");
+    });
     await step("a done goal's history (기록) reads the evidence that closed it and its close, one line each", async () => {
       await openApp(page, "#/goals/G4");
       const rows = page.getByTestId("goal-history").getByTestId("history-row");
@@ -2744,15 +2771,16 @@ const drivers = {
                 .map((box) => {
                   const badge = box.querySelector("[data-testid=bell-count]")?.getBoundingClientRect();
                   const icon = box.querySelector("[data-testid=bell] svg")?.getBoundingClientRect();
-                  return { box: box.clientWidth, content: box.scrollWidth, badge: box.querySelector("[data-testid=bell-count]")?.textContent ?? "", past: badge ? Math.round((badge.right - box.getBoundingClientRect().right) * 10) / 10 : null, clear: badge && icon ? badge.left > (icon.left + icon.right) / 2 && badge.bottom < (icon.top + icon.bottom) / 2 : null };
+                  return { box: box.clientWidth, content: box.scrollWidth, badge: box.querySelector("[data-testid=bell-count]")?.textContent ?? "", past: badge ? Math.round((badge.right - box.getBoundingClientRect().right) * 10) / 10 : null, clear: badge && icon ? badge.left >= icon.right - 0.5 || badge.bottom <= icon.top + 0.5 : null, overlap: badge && icon ? [Math.max(0, Math.min(badge.right, icon.right) - Math.max(badge.left, icon.left)), Math.max(0, Math.min(badge.bottom, icon.bottom) - Math.max(badge.top, icon.top))].map((px) => Math.round(px * 10) / 10) : null };
                 }),
             );
             check(look.length > 0, hash + query + ": no head tools drawn");
             for (const tools of look) {
               check(tools.content <= tools.box && (tools.past === null || tools.past <= 0), hash + query + ": the tools draw " + tools.content + " px in a " + tools.box + " px box, the badge " + tools.badge + " ends " + tools.past + " px past it");
-              check(tools.clear !== false, hash + query + ": the badge " + tools.badge + " reaches the icon's centre");
+              // lina-app#242: on the hub the badge covered 4 x 7 px of the icon's box at 390; it sits clear of it.
+              check(tools.clear !== false, hash + query + ": the badge " + tools.badge + " covers " + JSON.stringify(tools.overlap) + " px of the icon");
             }
-            seen.push((query ? "round23 " : "") + hash + " " + look.map((tools) => tools.badge + " " + tools.content + "/" + tools.box + " px").join(", "));
+            seen.push((query ? "round23 " : "") + hash + " " + look.map((tools) => tools.badge + " " + tools.content + "/" + tools.box + " px, over the icon " + JSON.stringify(tools.overlap)).join(", "));
           }
         }
         return seen.join("; ");
@@ -3534,6 +3562,46 @@ const drivers = {
       check(agents.length === 3 && sum === grouped && (await box.getByTestId("fold-member").count()) === 0, "opened: " + JSON.stringify(agents) + " for " + grouped);
       await openApp(page, "#/running");
       return "folded " + before.rows + " + 외 " + before.more + "개, opened " + titles.length + " lines for " + cards + " cards, none twice; grey: " + sub + " · " + time + ", opened " + agents.join(" | ");
+    });
+    await step("on the hub's shape (&hub=round24), the grey line's detail speaks of the line: 제목 없는 n건, 완료 · 가장 최근 <time>, 에이전트 n명, never one card's 제목 없음, 소요 or 읽기 전용 (lina-app#242)", async () => {
+      await openApp(page, "#/", "&hub=round24");
+      const group = page.getByTestId("section-finished");
+      await group.locator(".more-row:not([data-testid=fold-hide])").filter({ hasText: /^외 \d+개$/ }).waitFor();
+      const grey = group.locator("li[data-testid=row]").filter({ has: page.locator(".title.is-kind") });
+      const name = (await grey.locator(".title").innerText()).trim();
+      const agents = (await grey.getByTestId("row-sub").innerText()).trim();
+      await grey.getByRole("link").click();
+      const head = page.getByTestId("group-head");
+      await head.waitFor();
+      const detail = page.locator("article.detail", { has: head });
+      const title = (await detail.locator("h1").innerText()).trim();
+      const state = (await head.innerText()).replace(/\s+/g, " ").trim();
+      const who = (await detail.getByTestId("group-agents").innerText()).trim();
+      const text = await detail.innerText();
+      check(title === name && /^완료 · 가장 최근 \d+분 전$/.test(state) && who === agents && !/제목 없음|소요 |읽기 전용/.test(text), "head " + JSON.stringify([title, state, who]) + " for the line " + name + " · " + agents);
+      await openApp(page, "#/running");
+      return title + " / " + state + " / " + who;
+    });
+    await step("on the hub's shape (&hub=round24), rows of one goal read apart by their first line: three stopped and two planned cards under one goal each, the goal's title their second line, and a stopped one's head its own title over 목표 · <goal> (lina-app#242)", async () => {
+      await openApp(page, "#/", "&hub=round24");
+      const stopped = page.getByTestId("section-stopped");
+      const more = stopped.locator(".more-row:not([data-testid=fold-hide])");
+      if (await more.count()) await more.getByRole("button").click();
+      const lines = async (group) => group.locator("li[data-testid=row]").evaluateAll((rows) => rows.map((row) => [row.querySelector(".lines > .title")?.textContent.trim() ?? "", row.querySelector("[data-testid=row-sub]")?.textContent.trim() ?? null]));
+      const twice = (rows) => rows.map(([first]) => first).filter((first, index, all) => all.indexOf(first) !== index);
+      const stoppedLines = await lines(stopped);
+      const plannedLines = await lines(page.getByTestId("section-planned"));
+      const underGoal = stoppedLines.filter(([, second]) => second === "가상 주문 확인 관문");
+      const planned = plannedLines.filter(([first, second]) => first.startsWith("가상 원격 작업") || second === "가상 원격 작업 환경 시험");
+      check(twice(stoppedLines).length === 0 && twice(plannedLines).length === 0 && underGoal.length === 3 && planned.length === 2 && new Set(planned.map(([first]) => first)).size === 2, "중단됨 twice " + JSON.stringify(twice(stoppedLines)) + ", under the goal " + underGoal.length + "; 예정 twice " + JSON.stringify(twice(plannedLines)) + ", " + JSON.stringify(planned));
+      await stopped.locator("li[data-testid=row]").filter({ has: page.locator(".lines > .title", { hasText: new RegExp("^" + underGoal[0][0] + "$") }) }).getByRole("link").first().click();
+      const goalLine = page.getByTestId("card-goal");
+      await goalLine.waitFor();
+      const head = (await page.locator("article.detail h1").innerText()).trim();
+      const goal = (await goalLine.innerText()).trim();
+      check(head === underGoal[0][0] && goal === "목표 · 가상 주문 확인 관문", "head " + head + " / " + goal);
+      await openApp(page, "#/running");
+      return "중단됨 " + stoppedLines.length + " rows, 예정 " + plannedLines.length + " rows, none twice; " + underGoal.map(([first]) => first).join(" | ") + "; head " + head + " / " + goal;
     });
     await step("on the hub's shape (&hub=round20), every planned card is a row of 예정, its head their number, the one with a Latin goal title named by it (lina-app#225)", async () => {
       await openApp(page, "#/", "&hub=round20");

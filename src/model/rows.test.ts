@@ -138,7 +138,7 @@ function duplicates(rows: readonly CardRow[]): number {
   return [...seen.values()].filter((count) => count > 1).reduce((sum, count) => sum + count, 0);
 }
 
-test("no two rows of a group read the same: line 1 is the goal's title, line 2 the card's own name, then when it moved (lina-app#148, #152)", () => {
+test("no two rows of a group read the same: line 1 is the goal's title, line 2 the card's own name, then when it moved; rows sharing a goal lead with their own names (lina-app#148, #152, #242)", () => {
   const model = realModel();
   const groups: Section<CardRow>[] = [model.home.stopped, model.home.active, model.home.planned, model.home.waiting, model.home.finished];
   for (const group of groups) expect(duplicates(group.rows), group.id).toBe(0);
@@ -154,11 +154,11 @@ test("no two rows of a group read the same: line 1 is the goal's title, line 2 t
   expect(model.done.some((each) => each.sub?.includes(KIND_TITLE.code))).toBe(false);
   // A row whose goal title does not repeat still names its own card under it (lina-app#152).
   expect(card("d6")).toMatchObject({ name: "가상 혼자인 목표", sub: "가짜 혼자 끝난 정리" });
-  // The planned group's two rows of one goal read apart by their own names.
-  expect(model.home.planned.rows.find((each) => each.id === "p1")).toMatchObject({ name: PUSH, sub: "가짜 푸시 구독 저장" });
+  // The planned group's two rows of one goal read apart by their first line: each its own name, the goal's under it (lina-app#242).
+  expect(model.home.planned.rows.find((each) => each.id === "p1")).toMatchObject({ name: "가짜 푸시 구독 저장", sub: PUSH });
   // The stopped rows of one goal name their own cards too, whatever their asks (lina-app#152); an own name keeps its tool
   // names, only its references cut (lina-app#156, #225).
-  expect(model.home.stopped.rows.filter((each) => each.name === ORDER).map((each) => each.sub ?? null)).toEqual(["가짜 관문: 주문 여러 건 묶기", "가짜 관문: 장 밖 주문 채우기", "가짜 매매 관문(fake-gate·fake-board)을 허브로"]);
+  expect(model.home.stopped.rows.filter((each) => each.sub === ORDER).map((each) => each.name)).toEqual(["가짜 관문: 주문 여러 건 묶기", "가짜 관문: 장 밖 주문 채우기", "가짜 매매 관문(fake-gate·fake-board)을 허브로"]);
 });
 
 // lina-app#168: the hub's finished cards whose titles differ only by a hash the screen cuts.
@@ -189,7 +189,7 @@ test("finished cards whose visible lines are equal collapse to one line with the
 
 // lina-app#196: the hub's finished cards, more than the first page, some with no name the screen may draw (an English
 // own title and no goal) and those only past the first page, as in the hub's reply.
-test("the 완료 head is every finished card on the first page and once every one is read: what has no name is one line that counts them (lina-app#196, #225)", () => {
+test("the 완료 count is every finished card, drawn once every one is read: what has no name is one line that counts them (lina-app#196, #225, #242)", () => {
   const named = Array.from({ length: 8 }, (_, index) => row(`n${index + 1}`, `가짜 정리 ${index + 1}단계 마치기`, "done", { endedAt: NOW - (index + 1) * 600 }));
   const unnamed = Array.from({ length: 3 }, (_, index) => row(`u${index + 1}`, `fake cleanup pass ${index + 1}`, "done", { endedAt: NOW - 2 * DAY - index * 600 }));
   const every = [...named, ...unnamed];
@@ -202,7 +202,8 @@ test("the 완료 head is every finished card on the first page and once every on
   expect(first.home.finished.rows).toHaveLength(5);
   expect(first.finished.more).toBe(6);
   expect(first.home.finished.count).toBe(11);
-  expect(first.counts.done).toBe(11);
+  // The sidebar draws no number while the page holds the first page alone (lina-app#242).
+  expect(first.counts.done).toBe(0);
   // Opened, the head, the sidebar and the cards the rows stand for are the same number: the three nothing names are one
   // grey line ×3 (lina-app#225), never 제목 없음.
   expect(opened.home.finished.rows).toHaveLength(9);

@@ -2562,7 +2562,7 @@ describe("work cards", () => {
     expect(names("완료").length).toBe(count(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")));
   });
 
-  test("a work card with no checked title is named by its own title on its detail, and by its goal on the home and its agent", async () => {
+  test("a work card with no checked title is named by its own title on its detail, by its goal on the home, and by its own name on its agent's list, which holds another card of that goal (lina-app#242)", async () => {
     const source = new SyntheticSource();
     const raw = [
       ...source.scene.cards.cards.filter((card) => card.plain.title !== null).map((card) => card.title),
@@ -2600,8 +2600,10 @@ describe("work cards", () => {
     expect(row?.querySelector(".state")?.textContent).toBe("진행 중");
     view.unmount();
     const agent = await open("#/agents/ag-2", { wide: true });
+    // The agent's list also holds k-107 under the same goal: each row leads with its own name, the goal's under it.
     const agentRow = agent.container.querySelector('.list-pane li:has(> a[href="#/cards/k-102"]) .title');
-    expect(agentRow?.textContent).toBe("결제 화면 개편");
+    expect(agentRow?.textContent).toBe("위키: 결제 화면 문서 정리");
+    expect(agent.container.querySelector('.list-pane li:has(> a[href="#/cards/k-102"]) [data-testid=row-sub]')?.textContent).toBe("결제 화면 개편");
     expect(agentRow?.classList.contains("is-kind")).toBe(false);
   });
 
@@ -3445,9 +3447,11 @@ describe("the work tab list (lina-app#141)", () => {
       expect(row("#/cards/k-108").querySelector("a")?.getAttribute("aria-label")).toContain("야간 보고서를 받을 사람");
       expect(row("#/cards/k-108").querySelector("a")?.getAttribute("aria-label")).not.toMatch(/확인 필요.*확인 필요/);
       expect(list.querySelectorAll("[data-testid=stop-ask]")).toHaveLength(0);
-      // k-107 has no ask; another stopped row shares its goal's title, so its own name is its second line (lina-app#148).
+      // k-107 has no ask; another stopped row shares its goal's title, so it leads with its own name, the goal's under it
+      // (lina-app#148, #242).
       expect(row("#/cards/k-107").querySelector("[data-testid=state]")?.textContent).toBe("중단됨 · 피드백 대기 · 이유 기록 없음");
-      expect(row("#/cards/k-107").querySelector("[data-testid=row-sub]")?.textContent).toBe("결제: 영수증 문구 정하기");
+      expect(row("#/cards/k-107").querySelector(".title")?.textContent).toBe("결제: 영수증 문구 정하기");
+      expect(row("#/cards/k-107").querySelector("[data-testid=row-sub]")?.textContent).toBe("결제 화면 개편");
     });
 
     test("a row is titled by the core's goalTitle first, and by its own names when goalTitle is null", async () => {

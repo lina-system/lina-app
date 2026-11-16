@@ -264,8 +264,9 @@ export interface Home {
   readonly waiting: Section<CardRow>;
   /**
    * 완료 (lina-app#186): the finished lines the page read, the last 24 hours first, each part newest first. Its count is
-   * cards (lina-app#225): the cards its lines stand for (cardCount) and the finished cards not read yet, the number the
-   * sidebar shows, the same collapsed, reading and opened.
+   * cards (lina-app#225): the cards its lines stand for (cardCount) and the finished cards not read yet, the same
+   * collapsed and opened. It is drawn, and the sidebar's `counts.done` is it, only once every finished card is read
+   * (lina-app#242).
    */
   readonly finished: Section<CardRow>;
 }
@@ -488,10 +489,20 @@ const movedAt = (row: CardRow) => row.endedAt ?? row.startedAt ?? row.stateAt;
  * One group's rows, each told apart from the others (lina-app#148, #152): line 1 is the goal's title (or the card's own
  * when it has no goal), line 2 the card's own name whenever it differs from line 1. Rows that still read the same say
  * when they last moved as a clock time in their time slot (`when`); line 2 is never a bare time, and the kind of work
- * is never a row's words (lina-app#122).
+ * is never a row's words (lina-app#122). A line 1 several rows share (a goal's title over its cards) tells none of them
+ * apart (lina-app#242): such a row with a name of its own leads with it, the goal's title its line 2, unless `lead` is
+ * off (완료, whose rows of one title are one line, collapsed).
  */
-export function apart(rows: readonly CardRow[], now: number): CardRow[] {
-  const named = rows.map((row) => ({ ...row, sub: row.ownName && row.ownName !== row.name ? row.ownName : null, when: null }));
+export function apart(rows: readonly CardRow[], now: number, lead = true): CardRow[] {
+  // Line 1 by the title order (the goal's title first), read from `title`, which apart never changes: so rows already
+  // apart read the same when a list of some of them is told apart again (an agent's, a goal's).
+  const first = (row: CardRow) => row.title ?? row.name;
+  const shared = new Map<string, number>();
+  for (const row of rows) shared.set(first(row), (shared.get(first(row)) ?? 0) + 1);
+  const named = rows.map((row) => {
+    const own = row.ownName && row.ownName !== first(row) ? row.ownName : null;
+    return lead && own && (shared.get(first(row)) ?? 0) > 1 ? { ...row, name: own, sub: first(row), when: null } : { ...row, name: first(row), sub: own, when: null };
+  });
   const key = (row: CardRow) => [row.name, row.sub ?? "", row.stop?.words ?? ""].join("\n");
   const seen = new Map<string, number>();
   for (const row of named) seen.set(key(row), (seen.get(key(row)) ?? 0) + 1);
@@ -767,7 +778,7 @@ export function buildModel(input: ModelInput, now: number): Model {
   const running = apart(allCards.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt)), now);
   const planned = apart(allCards.filter((card) => card.state === "planned").sort(newestFirst((card) => card.stateAt)), now);
   const runningSections = [section("stopped", "", stopped), section("running", "", running)];
-  const done = apart(allCards.filter((card) => card.state === "done").sort(newestFirst((card) => card.endedAt)), now);
+  const done = apart(allCards.filter((card) => card.state === "done").sort(newestFirst((card) => card.endedAt)), now, false);
   const waiting = apart(allCards.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt)), now);
   const finished = doneLines(done, now);
   // One unit for 완료 (lina-app#225): cards, the ones read and the ones the core holds (lina#729) that the page has not
@@ -977,7 +988,9 @@ export function buildModel(input: ModelInput, now: number): Model {
       running: running.length,
       stopped: stopped.length,
       due: dueRows.length,
-      done: finishedCount,
+      // No number while only the first page is read (lina-app#242): the core counts its total apart from the cards its
+      // full read sends, so it is no sum of lines.
+      done: (input.finished?.all ?? true) ? finishedCount : 0,
       goals: goals.length,
       notices: notices.length,
       unread: (board?.counts.unread ?? allNotices.filter((notice) => !notice.read).length) - hiddenUnread,
@@ -1087,18 +1100,27 @@ export function agentView(model: Model, agentId: string): AgentView | null {
   };
 }
 
-/** A goal's work cards (kanban goal cards excluded) and the evidence that closed it. */
+/**
+ * A goal's work cards (kanban goal cards excluded) and the evidence that closed it. Its finished cards nothing names are
+ * one line, as in 완료 (collapsed, lina-app#242), where the first of them stood: never rows named by the kind word.
+ */
 export function goalCards(model: Model, detail: ItemDetail, goals: GoalList | undefined): { cards: Section<CardRow>; evidence: { key: string; text: string; at: number | null }[] } {
   const goalCardIds = new Set((goals?.goals ?? []).map((goal) => goal.id));
   // Its detail's cards, then the ones the work tab's fold links to it (lina-app#170): the same rows both tabs show.
   const ids = [...new Set([...detail.workCards.filter((id) => !goalCardIds.has(id)), ...linkedCards(model, goalIds(model, detail.id), [], detail.title).map((card) => card.id)])];
-  const cards = ids.map((id) => model.cards.get(id)).filter((card): card is CardRow => card !== undefined);
+  const cards = apart(
+    ids.map((id) => model.cards.get(id)).filter((card): card is CardRow => card !== undefined),
+    model.now,
+  );
+  const unnamed = cards.filter((card) => card.state === "done" && card.title === null);
+  const grey = unnamed.length ? collapsed([...unnamed].sort(newestFirst((card) => card.endedAt)))[0] : null;
+  const rows = grey ? cards.flatMap((card) => (card === unnamed[0] ? [grey] : unnamed.includes(card) ? [] : [card])) : cards;
   const linked = new Set(detail.workCards);
   const evidence = (goals?.goals ?? [])
     .flatMap((goal) => goal.evidence)
     .filter((entry) => linked.has(entry.cardId) && entry.summary)
     .map((entry) => ({ key: entry.cardId, text: entry.summary ?? "", at: entry.completedAt }));
-  return { cards: section("cards", W.cards, apart(cards, model.now)), evidence };
+  return { cards: section("cards", W.cards, rows), evidence };
 }
 
 type GoalFacts = { readonly id: string; readonly title?: string; readonly state: WorkState; readonly reason: string | null; readonly stateSince: number | null };

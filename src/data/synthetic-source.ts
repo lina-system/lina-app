@@ -331,6 +331,131 @@ export function round23Scene(scene: Scene): Scene {
   return round23ListScene(round23FrameScene(round23RecordScene(scene)));
 }
 
+/**
+ * The hub's long card shapes UI QA round 24 met (`&hub=round24`, lina-app#241), field by field as the hub serves them, in
+ * made-up words. k-101's comments: machine notices (a worker's hand-out tag, the dispatcher), a bot's report on several
+ * lines with the stamp it opens with, refs, ids and a list, a long plan in Korean alone, a verdict that stands whole, a
+ * sentence cut off before its verb, a state word twice in a row and a note by an author the app has no name for. Its
+ * first worker run's record (r9) holds five ended rounds of the shape the hub serves: one said row each, the tail the core
+ * kept of a longer text (it opens or ends inside a sentence, or joins six events with ` / `) or one whole sentence, and
+ * report lines in English with refs or in Korean. Four stopped cards whose inbox reason is the typed field a bot wrote
+ * for the owner, each with a short ask the row says: one line that stands whole, a long one in Korean alone, one with
+ * Latin words and the question last, and one of the core's internal start words. T4's thread holds the same state word
+ * twice in a row, a sentence cut off before its verb and a report with refs.
+ */
+export function round24RecordScene(scene: Scene): Scene {
+  const now = scene.now;
+  const hour = 3600;
+  const card = scene.cardDetails["k-101"];
+  const comment = (id: number, author: string, body: string, ago: number) => ({ id, author, body, createdAt: now - ago });
+  const comments = [
+    comment(201, "ag-2", "[가짜 보고 11-13 21:20 · 상태: 검토 · 가짜 s126] 가짜 첫 판을 올렸다. 남은 것: fake_card_s5가 다른 가짜 카드(fake#631 뒤 정리)를 기다린다.\n- 가짜 화면 17곳(s1~s17)을 다시 읽었고 4곳(s4·s8·s12·s17)이 어긋나 있었다.\n- 가짜 고침은 fake-app#124에 묶었다.", 9 * hour),
+    comment(202, "lina-worker", "[받음] 가짜 작업을 넘겨받음", 9 * hour - 60),
+    comment(203, "kanban-dispatcher", "가짜 작업자를 깨움", 9 * hour - 120),
+    comment(204, "ag-2", "가짜 계획을 세 갈래로 나눴다. 첫째 갈래는 목록 화면의 줄 간격을 처음 시안대로 되돌리는 일이다. 둘째 갈래는 접힌 줄을 눌러 펼치는 일이고, 펼친 줄은 쓴 그대로 보여 준다. 셋째 갈래는 좁은 폭과 넓은 폭에서 같은 순서로 다시 읽는 일이다. 결정할 것은 둘째 갈래를 먼저 할지이다.", 8 * hour),
+    comment(205, "ag-3", "가짜 검토를 마쳤고 병합해도 된다.", 7 * hour),
+    comment(206, "ag-2", "가짜 금액 줄을 다시 붙였고 그 뒤에 세부를", 6 * hour),
+    comment(207, "ag-2", "진행 중", 5 * hour),
+    comment(208, "ag-2", "진행 중", 5 * hour - 60),
+    comment(209, "worker-b", "가짜 정리 결과를 남겼다 (t_ab12cd34 기준).", 4 * hour),
+  ];
+  const said = (at: number, text: string) => ({ at, kind: "said" as const, text, count: 1 });
+  const round = (run: number, ago: number, fields: Pick<RunRecord["rounds"][number], "result" | "verdict" | "stopped">, text: string): RunRecord["rounds"][number] => {
+    const endedAt = now - ago;
+    return { run, startedAt: endedAt - 20 * 60, endedAt, endKnown: true, startUnknown: false, ...fields, rows: [said(endedAt - 2 * 60, text)] };
+  };
+  const rounds = [
+    round(5, 3 * hour + 10 * 60, { result: "Fake review merged via fake#12.", verdict: "accepted", stopped: false }, "9 · 가짜 시작 / 22:08 · 가짜 검토 / 22:07 · 가짜 고침 / 21:54 · 가짜 확인 / 21:36 · 가짜 확인 / 21:21 · 가짜 확인"),
+    round(4, 4 * hour, { result: null, verdict: "rejected", stopped: false }, '.5초 뒤 "불러오는 중"이 사라지고, 6.5초 뒤 첫 줄이 선다.'),
+    round(3, 5 * hour, { result: "가짜 표를 다시 그렸다.", verdict: "accepted", stopped: false }, "가짜 표의 둘째 칸이 비어 있었다. 남은 칸은 '가짜 칸 + 가짜 6', 가짜 '1'로 둔 값 |"),
+    round(2, 6 * hour, { result: "`fake/notes.md`: 가짜 17곳(s1~s17).", verdict: "accepted", stopped: false }, "가짜 정리를 마쳤다."),
+    round(1, 7 * hour, { result: null, verdict: null, stopped: true }, "~26초 걸리던 가짜 첫 화면이(213개 중 84개) 빨라졌고, 가짜 30~34번째 줄은 '…'로 끝난다."),
+  ];
+  const template = scene.cards.cards.find((card) => card.state === "stopped");
+  const detail = template ? scene.cardDetails[template.id] : undefined;
+  if (!template || !detail) return scene;
+  const stops = [
+    { id: "k-441", title: "가짜 첫 화면 시안 고르기", reason: "feedback", ask: "시안 고르기", blockReason: "가짜 첫 화면 시안 두 장을 올렸어요. 어느 쪽이 더 읽기 쉬운지 알려 주세요." },
+    { id: "k-442", title: "가짜 기록 캐시 원인 찾기", reason: "decision", ask: "원인 정리 확인", blockReason: "원인은 가짜 기록이 이어지지 않을 때 앞선 기록 전체를 한 덩어리로 펴서 처음부터 다시 쓰는 경로로 좁혀짐.\n고칠 설정은 없고 그 경로는 공개되지 않아 여기서 직접 바꿀 수 없음. 가짜 기록을 짧게 나누는 방법과 그대로 두고 기다리는 방법이 남아 있고, 둘 다 하루 안에 해 볼 수 있음.\n결정할 것은 두 가지로, 정리한 문제 설명을 공개 게시판에 올릴지와 다음 판을 먼저 올려 볼지임. 어느 쪽으로 갈지 정해 주세요." },
+    { id: "k-443", title: "가짜 기기 바꾸기", reason: "decision", ask: "바꿀 시각 결정", blockReason: "가짜 판 · 새 기기 · fake-mac 가짜 상태 확인\n가짜 서버는 다시 켰고 주소 세 곳(127.0.0.1·LAN·tailnet 200)에서 답이 왔다. 가짜 앱 첫 화면도 열렸다.\n결정할 것: 오늘 밤에 바꿀지, 내일 아침에 바꿀지 정해 주세요." },
+    { id: "k-444", title: "가짜 백업 확인하기", reason: "feedback", ask: null, blockReason: "initial_status" },
+  ];
+  const stoppedCards = stops.map((stop, index) => ({ ...template, id: stop.id, title: stop.title, plain: { ...template.plain, title: stop.title }, goalTitle: null, reason: stop.reason, waitingOn: "owner", retry: "none", ask: stop.ask, readOnly: true, lastHeartbeatAt: now - (index + 2) * hour }) as SceneCard);
+  const stoppedDetails = Object.fromEntries(stops.map((stop) => [stop.id, { ...detail, id: stop.id, title: stop.title, reason: stop.reason, comments: [], workerRuns: [], readOnly: true }]));
+  const thread = scene.itemDetails.T4;
+  const reply = (cid: string, text: string, ago: number) => ({ cid, by: "ag-2", at: now - ago, text, status: "open" as const, kind: "comment" as const, replies: [] });
+  return {
+    ...scene,
+    cards: { ...scene.cards, cards: [...scene.cards.cards, ...stoppedCards] },
+    cardDetails: { ...scene.cardDetails, "k-101": { ...card, comments: [...comments, ...card.comments] }, ...stoppedDetails },
+    records: { ...scene.records, r9: { ...scene.records.r9, rounds } },
+    inbox: { ...scene.inbox, blocked: [...scene.inbox.blocked, ...stops.map((stop, index) => ({ cardId: stop.id, title: stop.title, agent: stoppedCards[index].agent, state: "stopped" as const, reason: stop.reason, blockKind: null, blockReason: stop.blockReason }))] },
+    itemDetails: { ...scene.itemDetails, T4: { ...thread, comments: [...thread.comments, reply("q24-1", "진행 중", 3 * hour), reply("q24-2", "진행 중", 3 * hour - 60), reply("q24-3", "가짜 문구를 고쳤고 그 뒤에 세부를", 2 * hour), reply("q24-4", "가짜 문구 정리는 fake-app#124에 묶었다.", 2 * hour - 60)] } },
+  };
+}
+
+/** Round 24's made-up titles (lina-app#242). */
+export const ROUND24 = {
+  /** One goal over three stopped cards of one agent, each with a title of its own: the hub's rows read the goal three times. */
+  stopGoal: "가상 주문 확인 관문",
+  stopOwn: ["가상 관문 장 밖 주문 막기", "가상 관문 여러 주문을 한 장으로 묶기", "가상 관문 주문 유형 채우기와 알림 보내기"],
+  /** One goal over two planned cards of two agents: one titled as the goal (no second line), one with a title of its own. */
+  planGoal: "가상 원격 작업 환경 시험",
+  planOwn: "가상 원격 작업 앱 첫 시제품 (화면·소리 한 앱)",
+  /** A record goal whose title holds a Latin word, so no finished card under it is named by it. */
+  workGoal: "FAKE M0 가상 기억 하나 저장소 하나",
+  /** Its finished cards no rule draws: a Latin word or a reference outside a bracket in each. */
+  workUnnamed: ["가상 1단계: Fake 카드에서 worker run 받기 + fake-task 고침 옮기기 (fake#27·#28)", "가상 2단계: 허브를 node로 돌려 fake-task 바꾸기 (fake#35)", "가상 선행: fake gate 열기 fake#31", "가상 3단계 fake-drift 흡수", "가상 4단계: fake 묶음 sync 옮기기 (fake#38)"],
+  /** Its finished cards with titles of their own. */
+  workNamed: ["가상 기억 칸 나누기", "가상 저장소 하나로 합치기"],
+} as const;
+
+/**
+ * The hub's shapes UI QA round 24 met (`&hub=round24`, lina-app#242), on top of round24RecordScene and round 23's list shapes
+ * (not its record frame, whose extra worker run would move the long card's record), field by field as its lists
+ * serve them, in made-up words (ROUND24). Three stopped cards of one agent under one goal title, read-only, waiting on the
+ * owner's decision, never retried, each with a short ask, a long Latin `now` and its inbox block reason. Two planned cards
+ * of two agents under one goal title, one titled as the goal (scheduled), one with a title of its own (in triage). And the
+ * first agent's goal G10 as the item list serves it (waiting, 9 of 10 to-dos closed), whose title holds a Latin word, over
+ * finished cards that carry that title as theirs (`goalTitle`): five whose own titles no rule draws, every agent's, and
+ * two drawn as written; the hub links them to the goal by that title alone.
+ */
+export function round24Scene(scene: Scene): Scene {
+  const next = round23ListScene(round24RecordScene(scene));
+  const template = next.cards.cards.find((card) => card.state === "done");
+  const agents = next.items.agents.map((agent) => agent.id);
+  if (!template || agents.length < 3) return next;
+  const now = next.now;
+  const R = ROUND24;
+  const row = (id: string, fields: Partial<SceneCard>): SceneCard =>
+    ({ ...template, id, goalTitle: null, reason: null, waitingOn: null, retry: null, ask: null, now: null, endedAt: null, lastHeartbeatAt: null, plain: { title: null, now: null, result: null }, todoProgress: { done: 0, total: 0 }, readOnly: true, ...fields }) as SceneCard;
+  const longNow = "11-16 20:50 (run 2134) - fake lint had one real error in the test profile merge, fixed and pushed again…";
+  const stopped = R.stopOwn.map((title, index) =>
+    row(`k-${800 + index}`, { title, goalTitle: R.stopGoal, agent: agents[1], state: "stopped", reason: "decision", waitingOn: "owner", retry: "none", ask: `가상 관문 시험 ${index + 1}차 승인`, elapsedSeconds: (9 - index) * 86_400, now: longNow, lastHeartbeatAt: now - (9 - index) * 86_400 }),
+  );
+  const planned = [
+    row("k-810", { title: R.planGoal, goalTitle: R.planGoal, agent: agents[0], state: "planned", reason: "scheduled", retry: "scheduled", elapsedSeconds: 10 * 86_400, now: longNow, lastHeartbeatAt: now - 10 * 86_400 }),
+    row("k-811", { title: R.planOwn, goalTitle: R.planGoal, agent: agents[1], state: "planned", reason: "triage", elapsedSeconds: 9 * 86_400, now: longNow, lastHeartbeatAt: now - 9 * 86_400 }),
+  ];
+  const finished = [...R.workUnnamed, ...R.workNamed].map((title, index) => {
+    const ended = now - (3 + index * 30) * 3600;
+    return { ...row(`k-${820 + index}`, { title, goalTitle: R.workGoal, agent: agents[index % 3], state: "done", elapsedSeconds: 30_000 + index * 600, endedAt: ended }), detail: false } as SceneCard;
+  });
+  const base = next.items.items.find((item) => item.id === "G1");
+  const goal = { ...base, id: "G10", parent: "A1", title: R.workGoal, agent: agents[0], addedBy: agents[0], mine: false, state: "waiting" as const, reason: null, stateSince: now - 2 * 86_400, lastActivityAt: now - 2 * 86_400, createdAt: now - 15 * 86_400, closedAt: null, due: null, doneCondition: "가상 기억과 저장소가 한 곳에서 읽힌다", area: "가상 영역", projects: [], todos: { done: 9, total: 10 }, runCount: 40, commentCount: 0 } as Scene["items"]["items"][number];
+  const detail = { ...next.itemDetails.G1, ...goal, why: null, basis: [], children: [], comments: [], runs: [], links: [], workCards: [], decision: null, ownerDone: null };
+  // The hub serves the detail of every open card: its row's fields and empty lists.
+  const cardDetails = Object.fromEntries([...stopped, ...planned].map((card) => [card.id, { ...card, todos: [], workerRuns: [], runsAwaitingVerdict: [], gates: [], comments: [], runs: [] }]));
+  return {
+    ...next,
+    cardDetails: { ...next.cardDetails, ...cardDetails } as Scene["cardDetails"],
+    cards: { ...next.cards, cards: [...next.cards.cards, ...stopped, ...planned, ...finished] },
+    inbox: { ...next.inbox, blocked: [...next.inbox.blocked, ...stopped.map((card) => ({ cardId: card.id, title: card.title, agent: card.agent, state: "stopped" as const, reason: card.reason, blockKind: null, blockReason: `가상 관문은 켜 두었다. ${card.ask}을 정해 주세요.` }))] },
+    items: { ...next.items, items: [...next.items.items, goal] },
+    itemDetails: { ...next.itemDetails, G10: detail },
+  };
+}
+
 function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
   switch (name) {
     case "board":
@@ -692,7 +817,7 @@ export class SyntheticSource implements Source {
   private readonly signing = new Set<string>();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; hubRound23?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; hubRound23?: boolean; hubRound24?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean } = {}) {
     this.slowRecords = options.slowRecords ?? false;
     this.staleNext = options.settings === "stale";
     this.raceNext = options.settings === "race";
@@ -717,7 +842,7 @@ export class SyntheticSource implements Source {
         settings: options.settings === "stale" || options.settings === "race" ? null : options.settings,
         power: options.power,
       });
-    this.scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : options.hubRound23 ? round23Scene(generated) : generated;
+    this.scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : options.hubRound23 ? round23Scene(generated) : options.hubRound24 ? round24Scene(generated) : generated;
   }
 
   async read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {

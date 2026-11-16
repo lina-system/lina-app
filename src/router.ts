@@ -8,6 +8,12 @@ export type Route =
   | { readonly name: "done"; readonly agent?: string }
   | { readonly name: "agent" | "goal" | "item" | "card" | "run"; readonly id: string }
   /**
+   * A finished line of the cards nothing names, by its newest card, in the list it was drawn in (lina-app#244): every
+   * agent's 완료 (`#/group/<card>`), one agent's (`?agent=<id>`) or a goal's work list (`?goal=<id>`). The card's own
+   * address stays the card's.
+   */
+  | { readonly name: "group"; readonly id: string; readonly agent?: string; readonly goal?: string }
+  /**
    * A card's worker run by its place among the card's worker runs (`#/cards/<card>/runs/<n>`, from 1): the run's own id
    * is a task id no person reads, and an address shows on hover and in the status bar (lina-app#238).
    */
@@ -57,6 +63,12 @@ export function parse(hash: string): Route {
     const agent = new URLSearchParams(query).get("agent");
     return agent ? { name: "done", agent } : { name: "done" };
   }
+  if (parts.length === 2 && parts[0] === "group") {
+    const scope = new URLSearchParams(query);
+    const agent = scope.get("agent");
+    const goal = scope.get("goal");
+    return { name: "group", id: parts[1], ...(agent ? { agent } : {}), ...(goal ? { goal } : {}) };
+  }
   if (parts.length === 1 && parts[0] === "talk") return { name: "talks" };
   if (parts.length === 2 && parts[0] === "talk") {
     const goal = new URLSearchParams(query).get("goal");
@@ -75,6 +87,10 @@ export function href(route: Route): string {
   if (route.name === "setting") return `#/settings/${route.page.split("/").map(encodeURIComponent).join("/")}`;
   if (route.name === "talk" && route.goal) return `#/talk/${encodeURIComponent(route.id)}?${new URLSearchParams({ goal: route.goal })}`;
   if (route.name === "round") return `#/cards/${encodeURIComponent(route.card)}/runs/${route.n}`;
+  if (route.name === "group") {
+    const scope = String(new URLSearchParams(route.agent ? { agent: route.agent } : route.goal ? { goal: route.goal } : {}));
+    return `#/group/${encodeURIComponent(route.id)}${scope ? `?${scope}` : ""}`;
+  }
   if ("id" in route) return `#/${SEGMENT[route.name]}/${encodeURIComponent(route.id)}`;
   if (route.name === "done" && route.agent) return `#/done?${new URLSearchParams({ agent: route.agent })}`;
   if (route.name === "talks") return "#/talk";
@@ -91,7 +107,7 @@ export function isList(route: Route): boolean {
  * So does a goal chosen on an agent's card in 대화 (`#/talk/<agent>?goal=<id>`, lina-app#143).
  */
 export function isFrame(route: Route): boolean {
-  return route.name === "goal" || route.name === "item" || route.name === "card" || route.name === "run" || route.name === "round" || (route.name === "talk" && Boolean(route.goal));
+  return route.name === "goal" || route.name === "item" || route.name === "card" || route.name === "group" || route.name === "run" || route.name === "round" || (route.name === "talk" && Boolean(route.goal));
 }
 
 /**
@@ -124,6 +140,9 @@ export function defaultListFor(route: Route): Route {
       return { name: "running" };
     case "goal":
       return { name: "goals" };
+    case "group":
+      if (route.goal) return { name: "goals" };
+      return route.agent ? { name: "done", agent: route.agent } : { name: "done" };
     case "item":
       return { name: "inbox" };
     case "setting":

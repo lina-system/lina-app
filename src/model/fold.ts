@@ -95,7 +95,7 @@ const CUT_LAST = /[\uE000\uE001]\s*$/;
  * would open the clause (`손보기: <ref>(지난 판) 이후`, lina-app#228). A cut at either end of a list, a clause after a spaced pair mark that opens on a cut name
  * (`갱신 + <name> 릴레이 교체`), a ref cut from beside a word it names (`커밋 <hash> 반영`) and a bracket the cut took whole
  * leave none. The rule the title cuts follow (withoutRefs, withoutLatin): a title with one is drawn by none of them. No
- * history line or comment is cut at all (drawnSentence, lina-app#226).
+ * history line or comment is cut at all (unitMayShow, lina-app#226, #241).
  */
 function cutLeavesHole(marked: string): boolean {
   if (!/[\uE000\uE001]/.test(marked)) return false;
@@ -192,8 +192,8 @@ export function withoutLatin(text: string): string {
 
 /** A Korean particle standing as its own word: a ref written apart from its particle (`t_e6e0f90a 가`) leaves it alone. */
 const LONE_PARTICLE = String.raw`(?:으로|에서|까지|부터|이라|라고|가|은|는|을|를|라|로|와|과|도|의|만|에)(?=[\s.,!?。]|$)`;
-/** A start inside another sentence: a closing quote or bracket, a separator, an arrow, or a particle alone (never `만 원`). */
-const STARTS_INSIDE = new RegExp(String.raw`^(?:[.,:;·…|)\]}\-\u2013\u2014→]|['"\u2019\u201d](?:\s|$)|(?!만\s)${LONE_PARTICLE})`, "u");
+/** A start inside another sentence: a closing quote or bracket, a separator, a range's tail (`~26초`), an arrow, or a particle alone (never `만 원`). */
+const STARTS_INSIDE = new RegExp(String.raw`^(?:[.,:;·…|)\]}~\-\u2013\u2014→]|['"\u2019\u201d](?:\s|$)|(?!만\s)${LONE_PARTICLE})`, "u");
 /** An end outside a sentence: a separator, an opening bracket or a particle alone, with or without the hub's `…`. */
 const ENDS_OUTSIDE = new RegExp(String.raw`(?:[|·,:;/+\-\u2013\u2014([{]|\s${LONE_PARTICLE})\s*(?:…|\.\.\.)?$`, "u");
 /** Punctuation standing alone (` , `) or doubled where a cut word stood (`,.`, `:,`); an ellipsis is no double. */
@@ -214,14 +214,31 @@ const LATIN_OR_CODE = new RegExp(String.raw`[A-Za-z]|#\d|${DIGIT_HASH}`, "u");
 
 const count = (text: string, mark: string) => text.split(mark).length - 1;
 
+/**
+ * A list's mark (`1)`, `2)` with a space after it), or a round bracket. The mark is no bracket of the text unless it
+ * closes one opened before it (`가짜 묶음(항목 각 6) 기준`, lina-app#244).
+ */
+const LIST_PAREN = /((?<!\S)\d{1,2}\)(?=\s))|[()]/gu;
+
+/** Whether every round bracket the text opens it also closes, a list's mark closing none it did not open. */
+function parensClose(text: string): boolean {
+  let opened = 0;
+  let closed = 0;
+  for (const [paren, mark] of text.matchAll(LIST_PAREN)) {
+    if (paren === "(") opened += 1;
+    else if (!mark || opened > closed) closed += 1;
+  }
+  return opened === closed;
+}
+
 /** Whether every bracket and quote the text opens it also closes. */
 function closes(text: string): boolean {
-  return count(text, "(") === count(text, ")") && count(text, "[") === count(text, "]") && count(text, "\u201c") === count(text, "\u201d") && count(text, "\u2018") === count(text, "\u2019") && count(text, '"') % 2 === 0 && count(text, "'") % 2 === 0;
+  return parensClose(text) && count(text, "[") === count(text, "]") && count(text, "\u201c") === count(text, "\u201d") && count(text, "\u2018") === count(text, "\u2019") && count(text, '"') % 2 === 0 && count(text, "'") % 2 === 0;
 }
 
 /**
  * The checks a sentence passes to be drawn (lina-app#197, #222): every title (index.ts: cleanTitle, finishedTitle,
- * plainLine), and every history line and folded comment through drawnSentence. It fails a sentence that (a) starts
+ * plainLine), and every text the one gate reads (unitMayShow, lina-app#241). It fails a sentence that (a) starts
  * inside another one (a separator, a closing quote, a particle alone, a bare number with its unit, a list's number),
  * (b) ends open (`:`, `|`, a separator, a particle alone, a bracket or quote left open or closed alone), (c) has a hole
  * (an empty bracket, punctuation alone or doubled, a particle apart from its noun, a modifier with no noun), (d) holds a
@@ -236,93 +253,11 @@ export function sentenceMayShow(sentence: string): boolean {
   return !PARTICLE_APART.test(text) && !MODIFIER_ALONE.test(text) && closes(text);
 }
 
-/**
- * A list's number as the last word of a piece: the item it numbers follows it. A piece that is only the mark (`2.`,
- * `(3)`) always is one; after other words only the first number (`순서는 1.`) is, because a list starts at 1 and a
- * sentence may end on any other count (`실패 건수는 0.`, `대기 3.`), which stays a sentence of its own.
- */
-const ENDS_ON_LIST_MARK = /^\(?\d{1,2}[.)]$|\s\(?1[.)]$/;
-
-/**
- * A list's mark in a text (lina-app#228): `(2)` with a space after it, `2)` or `2.` with a space before and after it,
- * or `②`; never inside a word, a number or a range (`a(2)`, `1.5`, `11-16)`). Its kind (`()`, `)`, `.`, `①`) tells one
- * list's marks from another's.
- */
-const LIST_MARK = /(?<![\p{L}\p{N}])\((\d{1,2})\)(?=\s)|(?<!\S)(\d{1,2})([.)])(?=\s)|([\u2460-\u2473])/gu;
-
-interface ListMark {
-  readonly n: number;
-  readonly kind: string;
-  readonly at: number;
-  readonly end: number;
-}
-
-function listMarks(text: string): ListMark[] {
-  // A `)` that closes a bracket opened before it is that bracket's (`(… 각 6) 기준`), no list's mark (lina-app#230).
-  const closesOpen = (at: number) => count(text.slice(0, at), "(") > count(text.slice(0, at), ")");
-  return [...text.matchAll(LIST_MARK)].filter((mark) => !(mark[3] === ")" && closesOpen(mark.index))).map((mark) => {
-    const [n, kind] = mark[4] ? [mark[4].codePointAt(0)! - 0x245f, "①"] : mark[1] ? [Number(mark[1]), "()"] : [Number(mark[2]), mark[3]];
-    return { n, kind, at: mark.index, end: mark.index + mark[0].length };
-  });
-}
-
-/** The mark a text opens on, a piece that is only the mark (`2.`) too. */
-function opensOn(text: string): ListMark | undefined {
-  return listMarks(`${text} `).find((mark) => mark.at === 0);
-}
-
-/**
- * Whether a piece is the next item of the list the sentence before it holds (lina-app#228): the sentence ends on that
- * list's next mark (`… 2.`), or the piece opens on it (the same kind, the next number).
- */
-function goesOnWith(sentence: string, piece: string): boolean {
-  const marks = listMarks(`${sentence} `);
-  const last = marks.at(-1);
-  if (last === undefined) return false;
-  if (last.end === sentence.length && marks.length > 1) return true;
-  const head = opensOn(piece);
-  return head !== undefined && head.kind === last.kind && head.n === last.n + 1;
-}
-
-/**
- * A line's sentences (lina-app#222): split after `.`, `!`, `?` or `。` with a space after it, never after a list's number
- * (`순서는 1. 빌드`) and never inside a quote or bracket that a later piece closes (`"검사가 실패했다. 다시 시도하자."라고`),
- * so no half is a sentence alone, and never between a list's items (goesOnWith, lina-app#228). A piece that opens one
- * nothing closes stays its own sentence. A dot inside a number, a version or a file name (`0.5`, `1.2.3`, `a.md`) has no space after it and never splits. The one split of every history
- * line, folded comment and stop reason.
- */
-export function sentencesOf(line: string): string[] {
-  const pieces = line.split(/(?<=[.!?。])\s+/);
-  const sentences: string[] = [];
-  for (let at = 0; at < pieces.length; at += 1) {
-    const last = sentences.at(-1);
-    if (last !== undefined && (ENDS_ON_LIST_MARK.test(last) || goesOnWith(last, pieces[at]))) {
-      sentences[sentences.length - 1] = `${last} ${pieces[at]}`;
-      continue;
-    }
-    let sentence = pieces[at];
-    if (!closes(sentence)) {
-      // Take the next pieces up to the one that closes it; when none does, the piece stays alone.
-      for (let to = at + 1; to < pieces.length; to += 1) {
-        const joined = pieces.slice(at, to + 1).join(" ");
-        if (closes(joined)) {
-          sentence = joined;
-          at = to;
-          break;
-        }
-      }
-    }
-    sentences.push(sentence);
-  }
-  return sentences;
-}
-
 /** A bracket that holds only refs, ids or hashes (`(lina#12)`, `(#123·#124)`, `(t_ab12cd34)`, `(a1b2c3d)`), with the space before it. */
-const REF_BRACKET = /\s*[([]([^()[\]]*)[)\]]/g;
+const REF_BRACKET = /[ \t]*[([]([^()[\]\n]*)[)\]]/g;
 const ONE_REF = new RegExp(String.raw`${ISSUE_REF}|${CARD_ID}|${HASH}`, "gu");
-/** What a line opens with that is no sentence of it: the bracketed tags of who wrote it and when (LINE_TAGS), and a list's mark. */
+/** The bracketed tags of who wrote a text and when, which it opens with: no words of it. */
 const LINE_TAGS = /^(?:\s*\[[^\]\n]*\])*\s*/;
-const LINE_HEAD = /^(?:[-•·*]|\(?\d{1,2}[.)])\s+/;
 /**
  * Marks no drawn sentence holds (lina-app#226): a slash (a path, an `a/b` list), an arrow, a code mark (`\``, `=`, `\\`), a
  * table's `|` and the hub's own cut (`…`, `...`) anywhere in it.
@@ -345,141 +280,61 @@ function holdsNeverDrawn(sentence: string): boolean {
   const [time] = times;
   return times.length > 1 || time[0].split(":").length > 2 || !/^\p{Script=Hangul}/u.test(sentence.slice(time.index + time[0].length));
 }
-/** A sentence that opens on a word tying it to the one before it: it does not read alone. */
-const CONTINUES = /^(?:그러나|하지만|그래서|그리고|따라서|그런데|즉|및|또는|혹은|다만)(?=[\s,]|$)/;
-/** How many Hangul letters a sentence with no predicate needs to be one: fewer is a fragment (`원인 둘.`, `반영 단계.`). */
-export const FRAGMENT_BELOW = 8;
 /** A line that is a state word and nothing else (완료, 진행 중, 검토 통과): an event of a known kind, read as that word. */
 export const STATE_ONLY = new Set<string>([...STATE_WORDS, ...Object.values(W.outcome)]);
 
-/** Whether a sentence ends on a predicate: `-다`, `-요`, `-까`, `-죠`, `-네`, `-자`, or a nominalised one (`-ㅁ`: 함, 됨, 마침). */
-function endsOnPredicate(sentence: string): boolean {
-  const last = sentence.replace(/[^\p{Script=Hangul}]+$/u, "").at(-1) ?? "";
-  const code = last.charCodeAt(0) - 0xac00;
-  return /[다요까죠네자]/.test(last) || (code >= 0 && code < 11172 && code % 28 === 16);
-}
-
 /**
- * Whether one sentence reads as written (lina-app#226): the checks of sentenceMayShow (a lead-in ends on its colon there),
- * no mark of NEVER_DRAWN, no list's number before it, no list whose marks do not run from 1 (lina-app#228), and no word the
- * screens never use (BANNED_WORDS, lina-app#230).
+ * A unit's sentences and lines, each up to its end mark or its line break, never after a number (a list's `2.`, a count's
+ * `0.`): what the checks and the limit read, never what is drawn.
  */
-function sentenceReads(text: string): boolean {
-  return readsAsWritten(text) && !/^\(?\d{1,2}[.)]\s/.test(text) && listMarks(text).every((mark, index) => mark.n === index + 1);
-}
-
-/** The checks of sentenceReads that do not read list marks: the one rule, NEVER_DRAWN and BANNED_WORDS. */
-function readsAsWritten(text: string): boolean {
-  return !BANNED_WORDS.some((word) => text.includes(word)) && sentenceMayShow(text) && !holdsNeverDrawn(text);
-}
-
-/** A text with no predicate and fewer than FRAGMENT_BELOW Hangul letters: a fragment (`원인 둘.`, a bare label such as `직접 확인한 것`). */
-function isFragment(text: string): boolean {
-  return !endsOnPredicate(text) && (text.match(/\p{Script=Hangul}/gu) ?? []).length < FRAGMENT_BELOW;
-}
-
+const PIECES = /(?<=[^\d\s][.!?。])\s+|\n/;
 /**
- * One sentence of a stop reason as the detail draws it, whole or not at all: exactly as written, less a bracket that
- * holds only refs, ids or hashes; a state word alone is one. Null for one that does not read (sentenceReads), opens on a
- * word that continues the one before it, or is a fragment.
+ * A piece cut off before its verb (lina-app#241): it ends on the particle of an object, a place, a subject or a topic
+ * (`세부를`, `화면에서`, `고치는 중이`, `작업은`), with or without an end mark. Never `가`: so many nouns end on it (`추가`,
+ * `평가`) that it says nothing.
  */
-function drawnSentence(sentence: string): string | null {
-  const text = withoutRefBrackets(sentence);
-  if (STATE_ONLY.has(text)) return text;
-  return sentenceReads(text) && !CONTINUES.test(text) && !isFragment(text) ? text : null;
-}
+const CUT_OFF = new RegExp(String.raw`\p{Script=Hangul}(?:을|를|에서|으로|은|는|이)[.!?。]?["'\u2019\u201d)\]]*$`, "u");
+/** A list's first mark as the last word of a text (`순서는 1.`), or a text that is only a mark (`2.`): the item it opens is not in it. */
+const ENDS_ON_MARK = /^\(?\d{1,2}[.)]$|\s\(?1[.)]$/;
 
 /**
- * A stop's reason as the detail says it (the work inbox's `blockReason`, index.ts stopReasonText): each line's sentences
- * drawnSentence draws, empty when none is, and a list drawn whole or not at all (listEntry), so no item of a list stands
- * alone. No history line or comment reads so: they are whole or folded (wholeText).
+ * A text of anyone but the owner as the one unit the screens draw or fold (lina-app#241): as written, less its markdown
+ * markers (plainText), the stamp it opens with (`[이름 16:52]`) and every bracket that holds only refs, ids or hashes, with
+ * the space before it. Its lines stay.
  */
-export function foldedText(text: string): string {
-  const lines = text.split("\n").map((line) => line.replace(LINE_TAGS, "").trim());
-  const drawn: string[] = [];
-  for (let at = 0; at < lines.length; at += 1) {
-    const leadsIn = /:$/.test(lines[at]) && opensOn(lines[at + 1] ?? "") !== undefined;
-    if (!leadsIn && !listMarks(`${lines[at]} `).length) {
-      drawn.push(lineSentences(lines[at]).flatMap((sentence) => drawnSentence(sentence) ?? []).join(" "));
-      continue;
-    }
-    // The list: this line and each next line that opens on a list's mark, one entry.
-    let to = at;
-    while (to + 1 < lines.length && opensOn(lines[to + 1])) to += 1;
-    drawn.push(listLine(lines.slice(at, to + 1).join(" ")));
-    at = to;
-  }
-  return drawn.filter(Boolean).join("\n");
+export function unitOf(text: string | null | undefined): string {
+  return withoutRefBrackets(plainText(text ?? "").replace(LINE_TAGS, ""));
 }
 
 /**
- * A line that holds a list (lina-app#239 review): the sentences before the list's lead-in are each drawn as any other
- * sentence is (drawnSentence), so a list that is not drawn takes no sentence of its own with it; the list, lead-in and items,
- * is whole or nothing (listEntry).
+ * The one gate (lina-app#241): whether a unit may be drawn as its own text. It passes the checks every title passes
+ * (sentenceMayShow over the whole unit: no Latin letter, ref or hash, no start inside another sentence, no open end, no
+ * hole), holds no word the screens never use (BANNED_WORDS), no mark of NEVER_DRAWN or a log's time in any sentence, no
+ * sentence cut off before its verb (CUT_OFF), and does not end on a list's first mark. Nothing else: no sentence, list
+ * or lead-in is drawn apart from its unit. A unit that fails is folded whole, and opens as written.
  */
-function listLine(text: string): string {
-  const sentences = sentencesOf(withoutRefBrackets(text));
-  let from = sentences.findIndex((sentence) => listMarks(`${sentence} `).length > 0);
-  if (from < 0) from = 0;
-  else if (from > 0 && /:$/.test(sentences[from - 1])) from -= 1;
-  const before = sentences.slice(0, from).flatMap((sentence) => drawnSentence(sentence) ?? []);
-  return [...before, listEntry(sentences.slice(from).join(" "))].filter(Boolean).join(" ");
-}
-
-/** A text with every list mark of it set aside, so the prose rules see no mark's bracket or number (lina-app#239 review). */
-function withoutListMarks(text: string): string {
-  let out = "";
-  let from = 0;
-  for (const mark of listMarks(`${text} `)) {
-    out += text.slice(from, mark.at);
-    from = Math.min(mark.end, text.length);
-  }
-  return `${out}${text.slice(from)}`.replace(/\s+/g, " ").trim();
+export function unitMayShow(unit: string): boolean {
+  if (!unit || BANNED_WORDS.some((word) => unit.includes(word)) || !sentenceMayShow(unit) || ENDS_ON_MARK.test(unit)) return false;
+  return unit.split(PIECES).every((piece) => !holdsNeverDrawn(piece) && !CUT_OFF.test(piece));
 }
 
 /**
- * A list in a stop's reason, its lead-in and items joined: whole less a bracket of refs only, when its marks run 1, 2, 3
- * (each list on the line on its own) and every sentence reads once its mark is set aside (readsAsWritten), a sentence after the items whole (drawnSentence); else empty.
- */
-function listEntry(text: string): string {
-  const whole = withoutRefBrackets(text);
-  // Two lists on one line (`1. a 2. b 1. c 2. d`) are two runs: a mark `1` after a run of two or more opens the next.
-  let run = 0;
-  const numbered = listMarks(`${whole} `).every((mark) => {
-    run = mark.n === run + 1 ? run + 1 : mark.n === 1 && run >= 2 ? 1 : -1;
-    return run > 0;
-  });
-  if (!numbered) return "";
-  // A sentence that holds a mark is the lead-in and its items (a noun phrase may be one); one that holds none follows them and must be whole (drawnSentence) (lina-app#239 review).
-  const reads = (sentence: string) =>
-    listMarks(`${sentence} `).length ? readsAsWritten(withoutListMarks(sentence)) : drawnSentence(sentence) !== null;
-  return sentencesOf(whole).every(reads) ? whole : "";
-}
-
-/**
- * How long a bot's text may be to stand whole on one history line (lina-app#236): two sentences and 120 letters. On the
- * hub's long cards a bot's sentence is 56 letters at the median and 124 at the 90th percentile, so two median sentences
- * fit, and a record row the core cut at 300 letters never does. A longer text is folded (features/card-detail.md).
+ * How long a unit may be to stand closed as one history or comment line (lina-app#236, #241): one line of two sentences
+ * and 120 letters. On the hub's long card every bot comment that is no machine notice holds a ref, an id or a Latin word,
+ * so it folds whatever the limit; a longer unit that passes the gate folds too, and opens whole (features/card-detail.md).
  */
 const WHOLE_SENTENCES = 2;
 const WHOLE_LETTERS = 120;
 
 /**
- * A bot's text as one history or comment line (lina-app#236): the whole text or nothing, never a part of it. Its markdown
- * markers, the stamp it opens with (`[이름 16:52]`) and a bracket of refs only are no words of it; everything else stays
- * as written. Null when it holds more than one line, a list's mark, more than WHOLE_SENTENCES sentences or WHOLE_LETTERS
- * letters, opens on a word that continues something before it, is a fragment, or any sentence of it does not read
- * (sentenceReads). A state word alone is one. The line it would have been folds into the history's 접힌 line.
+ * A bot's text as one closed history or comment line: its unit (unitOf) when it passes the gate (unitMayShow) and the
+ * limit, or a state word alone; else null, and it folds into the history's 접힌 line, which holds it whole.
  */
 export function wholeText(text: string | null | undefined): string | null {
-  const plain = plainText(text ?? "").replace(LINE_TAGS, "");
-  if (!plain || plain.includes("\n")) return null;
-  const whole = withoutRefBrackets(plain);
-  if (STATE_ONLY.has(whole)) return whole;
-  const sentences = sentencesOf(whole);
-  if (sentences.length > WHOLE_SENTENCES || [...whole].length > WHOLE_LETTERS || listMarks(`${whole} `).length) return null;
-  // Each sentence is checked on its own: a whole sentence must not mask a cut-off one beside it (lina-app#239 review).
-  return !CONTINUES.test(whole) && sentences.every((sentence) => sentenceReads(sentence) && !isFragment(sentence)) ? whole : null;
+  const unit = unitOf(text);
+  if (STATE_ONLY.has(unit)) return unit;
+  const fits = !unit.includes("\n") && unit.split(PIECES).length <= WHOLE_SENTENCES && [...unit].length <= WHOLE_LETTERS;
+  return fits && unitMayShow(unit) ? unit : null;
 }
 
 /** Whether a bracket's inside is refs, ids or hashes and their separators alone: no word, so cutting it leaves no hole (lina-app#233). */
@@ -487,20 +342,15 @@ export function holdsRefsOnly(inner: string): boolean {
   return inner.trim() !== "" && !inner.replace(ONE_REF, "").replace(/[\s·,]+/g, "");
 }
 
-/** A sentence less every bracket that holds only refs, ids or hashes, with the space before it (lina-app#226). */
-function withoutRefBrackets(sentence: string): string {
-  return sentence
+/** A text less every bracket that holds only refs, ids or hashes, with the space before it (lina-app#226); its lines stay. */
+function withoutRefBrackets(text: string): string {
+  return text
     .replace(REF_BRACKET, (whole, inner: string) => (holdsRefsOnly(inner) ? "" : whole))
-    .replace(/\s+/g, " ")
-    .trim();
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n");
 }
-
-/** A line's sentences, read without its tags (LINE_TAGS) and a bullet's head (LINE_HEAD); a list's number stays its mark. */
-function lineSentences(line: string): string[] {
-  const tagged = line.replace(LINE_TAGS, "");
-  return sentencesOf((opensOn(tagged) ? tagged : tagged.replace(LINE_HEAD, "")).trim());
-}
-
 
 export function foldReason(text: string): FoldReason | null {
   const body = text.trim();

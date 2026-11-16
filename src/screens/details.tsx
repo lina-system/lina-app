@@ -1,8 +1,8 @@
 import { Fragment, type ComponentChildren } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, RecordRow, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
-import { cardTitle, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, runRow, todoState, wholeTitle, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
+import { cardTitle, doneFor, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, runRow, todoState, wholeTitle, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
 import { foldReason, wholeText } from "../model/fold";
 import { plainText } from "../model/plain";
 import { holds } from "../model/rounds";
@@ -10,13 +10,14 @@ import { stopReason } from "../model/stop-reason";
 import { answerOf, commentHistory, decisionHistory, goalHistory, historyLines, isMachineNotice, outcomeOf, ownerWrote } from "../model/timeline";
 import type { CardKind } from "../model/kind";
 import { isRunId, newestRun, type Store } from "../data/store";
-import { back, baseOf, href, isFrame, navigate, parse, tabOf } from "../router";
+import { back, baseOf, href, isFrame, navigate, parse, tabOf, type Route } from "../router";
 import { ago, clockAt, dayLabel } from "../time";
 import { useActions } from "../ui/actions";
 import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, itemTime, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, stateWords, useApp } from "../ui/parts";
 import { DETAIL_WORD, reasonWord, ROUND11_WORD, ROUND9_WORD, RUN_LINE_WORD, SEP, STATE_WORD, stateLabel, W, waitWord } from "../words";
 import { PastEvents, RunModelLine, Timeline, type PastEvent } from "./timeline";
-import { Comments, SendButton } from "./comments";
+import { Comments, FoldLine, SendButton } from "./comments";
+import { FinishedLine } from "./lists";
 import { Talk } from "./talk";
 
 function Missing() {
@@ -305,6 +306,8 @@ function DoneHead({ detail }: { detail: ItemDetail }) {
   // So does one whose answer waits for its toast (lina-app#166).
   const answered = (detail.decision?.answered || (detail.decision && answering(`decide:${detail.id}`))) && detail.state !== "done";
   const answer = answered && detail.decision?.answered ? answerOf(detail) : null;
+  // A goal whose record disagrees with itself says how in one line under its state, as its rows do (lina-app#237, #242).
+  const why = detail.kind === "goal" ? (model.goals.find((each) => each.id === detail.id)?.why ?? null) : null;
   return (
     <>
       <div class="head-check">
@@ -325,6 +328,11 @@ function DoneHead({ detail }: { detail: ItemDetail }) {
           </button>
         ) : null}
       </div>
+      {why ? (
+        <span class="sub" data-testid="goal-why">
+          {why}
+        </span>
+      ) : null}
       {/* The due date its row shows, in the same colours (lina-app#161). */}
       {detail.due ? (
         <span class="sub item-due" data-testid="item-due">
@@ -429,18 +437,23 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
       {cards.rows.length ? (
         <Box title={W.cards}>
           <ul class="rows" aria-label={W.cards}>
-            {cards.rows.map((card) => (
-              <CardRowView key={card.key} card={card} />
-            ))}
+            {/* The finished cards nothing names are one line, drawn as 완료 draws it (lina-app#242). */}
+            {cards.rows.map((card) => (card.repeat ? <FinishedLine key={card.key} line={card} /> : <CardRowView key={card.key} card={card} />))}
           </ul>
         </Box>
       ) : null}
       {history.length ? (
         <Box title={W.record} testid="goal-history">
           <ul class="history-rows" aria-label={W.record}>
-            {history.map((row, index) => (
-              <HistoryLine key={`${row.at}:${index}`} at={row.at} text={row.text} kind={row.kind} />
-            ))}
+            {history.map((row, index) =>
+              row.held.length ? (
+                <li key={`${row.at}:${index}`} class="history-row" data-testid="history-row" data-kind={row.kind}>
+                  <FoldLine label={row.text} held={row.held} at={row.at} />
+                </li>
+              ) : (
+                <HistoryLine key={`${row.at}:${index}`} at={row.at} text={row.text} kind={row.kind} />
+              ),
+            )}
           </ul>
         </Box>
       ) : null}
@@ -645,9 +658,15 @@ function CardComments({ lines }: { lines: ReturnType<typeof cardCommentLines> })
   return (
     <Box title={W.comments} testid="card-comments">
       <ul class="history-rows" aria-label={W.comments}>
-        {lines.map((line) => (
-          <HistoryLine key={line.id} at={line.at} text={line.text === null ? W.foldedRun(line.folded) : line.count > 1 ? `${line.text} ${W.repeated(line.count)}` : line.text} kind="comment" who={line.text ? agentName(model, line.author) : undefined} />
-        ))}
+        {lines.map((line) =>
+          line.text === null ? (
+            <li key={line.id} class="history-row" data-testid="history-row" data-kind="comment">
+              <FoldLine label={W.foldedRun(line.folded)} held={line.held.map((held) => ({ at: held.at, by: held.author, text: held.body }))} at={line.at} />
+            </li>
+          ) : (
+            <HistoryLine key={line.id} at={line.at} text={line.count > 1 ? `${line.text} ${W.repeated(line.count)}` : line.text} kind="comment" who={agentName(model, line.author)} />
+          ),
+        )}
       </ul>
     </Box>
   );
@@ -707,12 +726,13 @@ function FoldMembers({ id, fold, byAgent }: { id: string; fold: readonly CardRow
   }
   const note = (cardId: string) => wholeText(store.get("cards")?.cards.find((card) => card.id === cardId)?.now);
   const cards = [...fold.filter((card) => card.id === id), ...fold.filter((card) => card.id !== id)];
+  // A card nothing names has no sentence of its own: its line is its time and state, never the kind word (lina-app#242).
   return (
     <Box title={ROUND9_WORD.foldMembers(cards.length)} testid="fold-members">
       <ul class="history-rows" aria-label={ROUND9_WORD.foldMembers(cards.length)}>
         {cards.map((card) => {
           const at = card.endedAt ?? card.stateAt ?? card.startedAt;
-          const line = [at === null ? "" : clockAt(at, now), stateWords(card.state, card.reason, card.stop), card.result ?? note(card.id) ?? card.own ?? card.name].filter(Boolean).join(SEP);
+          const line = [at === null ? "" : clockAt(at, now), stateWords(card.state, card.reason, card.stop), card.result ?? note(card.id) ?? card.own ?? (card.title === null ? "" : card.name)].filter(Boolean).join(SEP);
           return (
             <li key={card.id} class="history-row" data-testid="fold-member">
               <Link href={card.href}>{line}</Link>
@@ -721,6 +741,53 @@ function FoldMembers({ id, fold, byAgent }: { id: string; fold: readonly CardRow
         })}
       </ul>
     </Box>
+  );
+}
+
+/**
+ * The line of the cards nothing names that a group's address names (lina-app#244): the one its list draws with that
+ * card newest, from that list (every agent's 완료, one agent's, or a goal's work list), never another list's.
+ */
+export function groupOf(route: Extract<Route, { name: "group" }>, model: Model, store: Store): CardRow | undefined {
+  const goal = route.goal ? store.get("item", route.goal) : undefined;
+  const rows = route.goal
+    ? goal
+      ? goalCards(model, goal, { goals: goal.workCards.map((id) => store.get("goal", id)).filter((each) => each !== undefined) }).cards.rows
+      : []
+    : route.agent
+      ? doneFor(model, route.agent)
+      : model.home.finished.rows;
+  return rows.find((line) => line.title === null && line.id === route.id && line.fold);
+}
+
+/**
+ * The detail of a line of the cards nothing names, opened from that line (lina-app#242) at its own address (lina-app#244):
+ * it speaks of the line, never of the one card it opens first. Its head is the line's name (how many cards), 완료 with
+ * the newest card's time said as such, and how many agents' cards it holds (or the one agent's name); under it the cards
+ * by agent (FoldMembers).
+ */
+export function GroupScreen({ route }: { route: Extract<Route, { name: "group" }> }) {
+  const { model, store, now } = useApp();
+  const line = groupOf(route, model, store);
+  // A list read only in part, or a goal not read yet, may still hold the line.
+  if (!line?.fold) return !model.finished.all || (route.goal && store.status("item", route.goal) === "pending") ? <Loading /> : <Missing />;
+  const fold = line.fold;
+  const agents = new Set(fold.map((card) => card.agent)).size;
+  return (
+    <article class="detail" data-testid="screen-card">
+      <Header title={line.name}>
+        <span class="sub" data-testid="group-head">
+          <span class="state" data-state="done">
+            {STATE_WORD.done}
+          </span>
+          {line.endedAt === null ? null : <span class="time">{`${SEP}${W.newest(ago(now - line.endedAt))}`}</span>}
+        </span>
+        <span class="sub" data-testid="group-agents">
+          {agents > 1 ? W.agentsCount(agents) : agentName(model, line.agent)}
+        </span>
+      </Header>
+      <FoldMembers id={line.id} fold={fold} byAgent={agents > 1} />
+    </article>
   );
 }
 
@@ -777,15 +844,7 @@ function StopWhy({ reason, words, whole = null, carried, stoppedAt, comments = [
           {whole?.lead || words || word || DETAIL_WORD.noReason}
         </span>
       )}
-      {whole ? (
-        <span class="sub wrap-line" data-testid="stop-reason">
-          {whole.text.split("\n").map((line, index) => (
-            <span key={index} class="wrap-line">
-              {line}
-            </span>
-          ))}
-        </span>
-      ) : null}
+      {whole?.folded ? <FoldLine label={DETAIL_WORD.foldedReason} held={[{ at: stoppedAt, by: card?.agent ?? null, text: whole.text }]} /> : whole ? <WholeReason text={whole.text} /> : null}
       {requested && card ? (
         <span class="sub" data-testid="requested-since-stop">
           {W.requestedTo(agentName(model, card.agent))}
@@ -795,6 +854,34 @@ function StopWhy({ reason, words, whole = null, carried, stoppedAt, comments = [
         <span class="sub" data-testid="decided-since-stop">
           {DETAIL_WORD.decidedSinceStop}
         </span>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * A stop's reason that the one gate passes, all of it (lina-app#241): three lines at most until 더 보기 opens it, so the
+ * question it asks the owner is always in it or one tap away; 더 보기 shows only when the three lines cut it.
+ */
+function WholeReason({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const [cut, setCut] = useState(false);
+  const reason = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const measure = () => setCut(Boolean(reason.current && reason.current.scrollHeight > reason.current.clientHeight + 1));
+    if (!open) measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [text, open]);
+  return (
+    <>
+      <span ref={reason} class={open ? "sub wrap-line stop-reason" : "sub wrap-line stop-reason is-clamped"} data-testid="stop-reason">
+        {text}
+      </span>
+      {cut || open ? (
+        <button type="button" class="fold-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? DETAIL_WORD.close : DETAIL_WORD.more}
+        </button>
       ) : null}
     </>
   );
@@ -862,16 +949,25 @@ export function CardScreen({ id }: { id: string }) {
   const drawn = useRef<string | null>(null);
   const detail = store.get("card", id);
   const row = model.cards.get(id);
+  // The work tab's row of the card: one of several under one goal leads with its own name (lina-app#242), so the head
+  // reads that name and its goal's title is the 목표 line under it.
+  const listed = [...model.running.rows, ...model.home.planned.rows, ...model.home.waiting.rows].find((card) => card.id === id);
+  const led = listed && listed.title !== null && listed.name !== listed.title ? { name: listed.name, goal: listed.title } : null;
   if (!detail) {
     if (store.status("card", id) === "missing") return <Missing />;
     if (!row) return <Loading />;
     // The card's detail is read only now that it is open: its list row's head and now line show while it comes.
     return (
       <article class="detail" data-testid="screen-card">
-        <CardHead work={row.work} title={row.title}>
+        <CardHead work={row.work} title={led?.name ?? row.title}>
           <HeadState state={row.state} reason={row.reason} row={row} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} readOnly={row.readOnly} />
           {row.state === "stopped" ? <StopWhy reason={row.reason} words={row.stop?.words} whole={row.stop?.reason} carried={stateSaysWhy(row.state, row.reason, row, Boolean(row.readOnly))} stoppedAt={row.stateAt} card={row} /> : null}
-          <OwnTitleLine own={row.own} title={row.title} />
+          <OwnTitleLine own={row.own} title={led?.name ?? row.title} />
+          {led ? (
+            <span class="sub" data-testid="card-goal">
+              {[W.goals, led.goal].join(SEP)}
+            </span>
+          ) : null}
           {row.readOnly ? <ReadOnlyLine agent={row.agent} waits={waitsOnOwner(row.state, row.reason, row)} /> : null}
         </CardHead>
         {row.now && row.state === "in_progress" ? (
@@ -914,7 +1010,7 @@ export function CardScreen({ id }: { id: string }) {
   const workerLink = (runId: string) => workerHref(detail, runId);
   // The goal (project) the card serves, in its head; a goal title that would show raw text is left out.
   const goal = store.get("goals")?.goals.find((candidate) => candidate.workCards.some((card) => card.id === id));
-  const goalLine = goal && !foldReason(goal.title) ? goal.title : null;
+  const goalLine = (goal && !foldReason(goal.title) ? goal.title : null) ?? led?.goal ?? null;
   // A card from a board the core only reads (lina#481) has no place to answer and no other write (lina-app#149).
   const readOnly = Boolean(detail.readOnly || row?.readOnly);
   // An old done card the core keeps no history for (`detail: false`) says so instead of an empty frame.
@@ -922,7 +1018,7 @@ export function CardScreen({ id }: { id: string }) {
   // The head reads the name of the row that was tapped (its goal's title when the row leads with it); the card's own
   // title is the line under it when it differs (lina-app#153).
   const own = cardTitle(detail.plain.title, detail.title, detail.state === "stopped") ?? row?.own ?? null;
-  const title = row?.title ?? own;
+  const title = led?.name ?? row?.title ?? own;
   // The head reads the state of the row that was pressed, the list's snapshot, until the next refresh moves both; the
   // detail read later may already say another (lina-app#157). A card with no row reads its detail's.
   const state = row?.state ?? detail.state;

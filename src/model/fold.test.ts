@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { foldedText, foldReason, sentenceMayShow, sentencesOf, wholeText, withoutLatin, withoutRefs } from "./fold";
+import { foldReason, sentenceMayShow, unitMayShow, unitOf, wholeText, withoutLatin, withoutRefs } from "./fold";
 
 test("a comment shows as it is unless it would show a path, a command, a hash, an issue number, an address or a fragment", () => {
   for (const plain of ["오류 문구 초안을 공유했어요.", "카드 번호는 앞 여섯 자리까지 보여 줄까요?", "1.5배 빨라졌어요."]) expect(foldReason(plain)).toBeNull();
@@ -129,6 +129,13 @@ test.each([
   ["2.", false],
   ["2) → 가짜 대기로 고침.", false],
   ["1) 가짜 설정이 돌았다.", true],
+  // A number and `)` that close a bracket opened before them are that bracket's (lina-app#244); a list's mark closes none.
+  ["가짜 묶음(항목 각 6) 기준을 확인했다.", true],
+  ["가짜 묶음 (항목 6) 기준을 확인했다.", true],
+  ["가짜 묶음 (겉 칸 (속 칸 2) 끝 칸 3) 정리함.", true],
+  ["가짜 순서: 1) 빌드를 마친다. 2) 배포를 한다.", true],
+  ["가짜 묶음 (항목 6) 다음은 2) 배포를 한다.", true],
+  ["가짜 묶음 (겉 칸 (속 칸 2) 끝을 정리함.", false],
   // (b) an open end: a colon, a table's bar, an open bracket or quote.
   ["가짜 순서:", false],
   ["가짜 표 칸 |", false],
@@ -154,23 +161,20 @@ test.each([
   expect(sentenceMayShow(sentence)).toBe(shows);
 });
 
-// lina-app#228, #230, #236: a comment holding a list (`(1)`, `1)`, `1.` or `①` marks) is folded whole: no list, lead-in or
-// item of it is drawn, however its marks run. A range is no list's mark.
+// lina-app#241: a list is no unit of its own. A comment holding one is drawn whole when it is one line within the limit
+// (two sentences, 120 letters) and the one gate passes it, however its marks run; a longer one folds whole. A range is no
+// list's mark.
 const LIST = "가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. (2) 버튼을 아래로 옮겼다. (3) 카드사 이름을 굵게 바꿨다.";
 test.each([
   [LIST, null],
   [`${LIST} 다음 문장도 있다.`, null],
-  ["가짜 순서: 1) 빌드를 마친다. 2) 배포를 한다.", null],
-  ["가짜 순서는 1. 가짜 빌드를 마친다. 2. 가짜 배포를 한다.", null],
-  ["가짜 할 일은 둘이다 ① 문구를 고친다 ② 버튼을 옮긴다.", null],
-  ["가짜 검토 결과: (1) 첫 화면 문구를 맞췄다. (3) 버튼을 아래로 옮겼다.", null],
-  ["앞의 일은 끝났고 (2) 버튼을 아래로 옮겼다.", null],
+  ["가짜 순서: 1) 빌드를 마친다. 2) 배포를 한다.", "가짜 순서: 1) 빌드를 마친다. 2) 배포를 한다."],
+  ["가짜 차례: 2. 금액 칸을 누른다. 1. 목록을 연다.", "가짜 차례: 2. 금액 칸을 누른다. 1. 목록을 연다."],
+  ["(1) 가짜 목록을 연다. ② 금액 칸을 누른다.", "(1) 가짜 목록을 연다. ② 금액 칸을 누른다."],
   ["가짜 남은 일: (1) 영수증 금액 줄을 다시 본다.\n(2) 환불 문구 확인.", null],
-  ["(1) 가짜 문구를 맞췄다. (2) 가짜 버튼을 옮겼다.", null],
-  ["가짜 차례: 2. 금액 칸을 누른다. 1. 목록을 연다.", null],
-  ["(1) 가짜 목록을 연다. ② 금액 칸을 누른다.", null],
+  ["가짜 순서는 1.", null],
   ["가짜 보고(검토 기간 11-16) 내용을 고쳤다.", "가짜 보고(검토 기간 11-16) 내용을 고쳤다."],
-])("wholeText(%j) is %j: a list folds its comment (lina-app#228, #236)", (text, drawn) => {
+])("wholeText(%j) is %j: a list is drawn whole or folds whole with its comment (lina-app#241)", (text, drawn) => {
   expect(wholeText(text)).toBe(drawn);
 });
 
@@ -250,121 +254,46 @@ test("a title holding a digits-only hash passes the sentence rule only once the 
   expect(withoutRefs("가짜 빌드 4815162342 올리기")).toBe("가짜 빌드 올리기");
 });
 
-// lina-app#222: the split never cuts after a list's number, so neither half of `순서는 1. 빌드` is a sentence alone; a dot
-// inside a number, a version or a file name has no space after it and never splits.
+
+// lina-app#222, #226, #241: comment shapes of round 18 and the hub's real ones, the words made up, the address host an
+// example name. The one gate reads the whole unit: one sentence that fails it folds the unit, and nothing is cut out of it.
 test.each([
-  ["가짜 순서는 1. 가짜 빌드를 마친다. 다음 문장.", ["가짜 순서는 1. 가짜 빌드를 마친다.", "다음 문장."]],
-  ["2. 가짜 시험 통과.", ["2. 가짜 시험 통과."]],
-  // An item stays with the list before it: the same kind of mark, the next number (lina-app#228).
-  ["가짜 결과: (1) 문구를 맞췄다. (2) 버튼을 옮겼다. 다음 문장.", ["가짜 결과: (1) 문구를 맞췄다. (2) 버튼을 옮겼다.", "다음 문장."]],
-  ["가짜 순서는 1. 가짜 빌드를 마친다. 2. 가짜 배포를 한다. 다음 문장.", ["가짜 순서는 1. 가짜 빌드를 마친다. 2. 가짜 배포를 한다.", "다음 문장."]],
-  ["가짜 결과: (1) 문구를 맞췄다. 2) 버튼을 옮겼다.", ["가짜 결과: (1) 문구를 맞췄다.", "2) 버튼을 옮겼다."]],
-  // A count at the end of a sentence is no list's number, so the next sentence stays its own (lina-app#224 review).
-  ["가짜 실패 건수는 0. 가짜 검사는 대기 중.", ["가짜 실패 건수는 0.", "가짜 검사는 대기 중."]],
-  ["가짜 대기는 3. 가짜 검사는 대기 중.", ["가짜 대기는 3.", "가짜 검사는 대기 중."]],
-  ["가짜 지연이 0.5초 늘었다. 가짜 판 1.2.3을 깔았다. 가짜 notes.md를 고쳤다.", ["가짜 지연이 0.5초 늘었다.", "가짜 판 1.2.3을 깔았다.", "가짜 notes.md를 고쳤다."]],
-  // A quote or bracket holding several sentences stays one sentence; one nothing closes does not swallow the rest (lina-app#224 review).
-  ["가짜 담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다. 다음 문장.", ["가짜 담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다.", "다음 문장."]],
-  ["가짜 결과(검사 통과. 배포 대기)를 적었다. 다음 문장.", ["가짜 결과(검사 통과. 배포 대기)를 적었다.", "다음 문장."]],
-  ["가짜 괄호(를 열고 끝. 다음 문장. 또 다음.", ["가짜 괄호(를 열고 끝.", "다음 문장.", "또 다음."]],
-])("sentencesOf(%j) is %j (lina-app#222)", (line, sentences) => {
-  expect(sentencesOf(line)).toEqual(sentences);
+  ["가짜 순서:\n1. 가짜 빌드 통과.\n2. `fake run`\n3. 가짜 화면 확인.", false],
+  ["가짜 할 일 1. fake build 정리. 가짜 시험을 마침.", false],
+  ["가짜 지연이 0.5초 늘었다. 가짜 판 1.2.3을 깔았다.", true],
+  ["가짜 담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다.", true],
+  ["가짜 설정 notes.md를 고쳤다. 가짜 시험을 마침.", false],
+  ["copy/fake.json 키 12개를 바꿈 (3f2a1c9)", false],
+  ["가짜 수정이 merged 되었다. 가짜 시험을 마침.", false],
+  ['가짜 댓글의 세 번 끊겼다"는 틀렸다. 가짜 시험을 마침.', false],
+  ["가짜 S2는 뒤에 얹는다. 가짜 결함 D1~D7을 모았다.", false],
+  ["백업 대체는 t_e6e0f90a 가 맡는다.", false],
+  ["남은 범위 lina#718 라 카드 완료 금지.", false],
+  ["주소: http://hub.example.com:8080/ 되돌릴 커밋: e37e43f", false],
+  ["그 일은 오늘 가 볼 예정.", true],
+  ["주소: 아직 정하지 않음.", true],
+  ["(…)", false],
+  ["결과: ✅", true],
+  ["결과: 배포 성공, 커밋: a1b2c3d. 정리함.", false],
+  ["fake_option' 값은 꺼져 있다. 다음 판에서 다시 확인함.", false],
+  ["그 뒤 디스패처가 152번 `fake_field` 로 막았다.", false],
+  ["안전망 =2026-11-16T03:30+09:00", false],
+  ["확인할 가짜 결과:", false],
+  ["확인할 가짜 결과:\n1. 가짜 빌드 통과.\n2. 가짜 시험 통과.\n3. 가짜 화면 확인.", true],
+  ["남은 일: 1. 설정을 고친다. 2. 서버를 켠다. 고치는 중이", false],
+  ["남은 일: 1) 목록을 연다. 3) 금액 칸을 누른다.", true],
+  ["가짜 묶음(항목 각 6) 기준을 확인했다.", true],
+  ["가짜 금액 줄을 다시 붙였고 그 뒤에 세부를", false],
+  ["가짜 항목을 하나 추가.", true],
+])("unitMayShow(unitOf(%j)) is %s: the gate reads the unit whole (lina-app#241)", (text, shows) => {
+  expect(unitMayShow(unitOf(text))).toBe(shows);
 });
 
-// lina-app#222, #226: comment sentences in the round 18 shapes, the words made up. A sentence that fails the rule is not
-// drawn; the comment keeps the sentences that pass, whole, and nothing is cut out of one.
-test.each([
-  // The lead-in is no sentence and the items have no predicate and fewer than 8 Hangul letters (lina-app#226).
-  ["가짜 순서:\n1. 가짜 빌드 통과.\n2. `fake run`\n3. 가짜 화면 확인.", ""],
-  // A list's mark takes the rest of its line into its item: the item may not show, so neither does the list (lina-app#230).
-  ["가짜 할 일 1. fake build 정리. 가짜 시험을 마침.", ""],
-  ["가짜 지연이 0.5초 늘었다. 가짜 판 1.2.3을 깔았다.", "가짜 지연이 0.5초 늘었다. 가짜 판 1.2.3을 깔았다."],
-  // A quoted passage of two sentences is kept whole by the comment (lina-app#224 review).
-  ["가짜 담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다.", "가짜 담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다."],
-  // A sentence with a file name or a path is not drawn at all: it is never cut to what is left (lina-app#226).
-  ["가짜 설정 notes.md를 고쳤다. 가짜 시험을 마침.", "가짜 시험을 마침."],
-  ["copy/fake.json 키 12개를 바꿈 (3f2a1c9)", ""],
-  ["가짜 수정이 merged 되었다. 가짜 시험을 마침.", "가짜 시험을 마침."],
-  ["가짜 판을 v2.97 로 올렸다. 가짜 시험을 마침.", "가짜 시험을 마침."],
-  ['가짜 댓글의 세 번 끊겼다"는 틀렸다. 가짜 시험을 마침.', "가짜 시험을 마침."],
-  ["가짜 단계 (닫음). PR (닫음).", "가짜 단계 (닫음)."],
-  ["가짜 S2는 뒤에 얹는다. 가짜 결함 D1~D7을 모았다.", ""],
-])("foldedText(%j) draws only the sentences the rule passes: %j (lina-app#222)", (comment, shown) => {
-  expect(foldedText(comment)).toBe(shown);
+test("a unit is the text as written, less its markers, its opening stamp and brackets of refs alone; its lines stay (lina-app#241)", () => {
+  expect(unitOf("[가짜 기록 11-16 09:41 · 목표] **가짜 줄을 붙였다** (lina#12).\n둘째 줄  그대로.")).toBe("가짜 줄을 붙였다.\n둘째 줄 그대로.");
 });
 
-// lina-app#161 item 6, #226: comment sentences in the hub's real shapes. A sentence holding a ref, an id or a hash outside
-// a bracket of its own is not drawn: no ref is cut out of it and no kind word stands in for it (the lina-app#207 stand-in
-// is gone). A label with nothing but a mark after it is a fragment. The address host is an example name in place of the
-// real one.
-test.each([
-  ["백업 대체는 t_e6e0f90a 가 맡는다.", ""],
-  ["남은 범위 lina#718 라 카드 완료 금지.", ""],
-  ["주소: (lina-system/lina#12), (hermes-ops#277)", ""],
-  ["주소: http://hub.example.com:8080/ 되돌릴 커밋: e37e43f", ""],
-  ["Codex 리뷰 요청함. 남은 범위 lina#718 라 카드 완료 금지.", ""],
-  ["t_e6e0f90a 카드에서 이어서 확인함.", ""],
-  ["그 일은 오늘 가 볼 예정.", "그 일은 오늘 가 볼 예정."],
-  ["#196은 이 경로를 건드리지 않는다.", ""],
-  ["lina#206 이 카드가 쉬는 동안 합쳐졌다.", ""],
-  ["주소: 아직 정하지 않음.", "주소: 아직 정하지 않음."],
-  ["(…)", ""],
-  ["(…), (…)", ""],
-  ["…", ""],
-  ["결과: 배포 성공, 커밋: a1b2c3d", ""],
-  ["커밋: a1b2c3d, 결과: 배포 성공", ""],
-  ["결과: ✅", ""],
-  ["확인: 👍", ""],
-  ["결과: ✅, 커밋: a1b2c3d", ""],
-  ["주소: (…) 결과: 배포 성공", ""],
-  ["커밋: a1b2c3d.", ""],
-  ["결과: 배포 성공, 커밋: a1b2c3d.", ""],
-  ["결과: ✅, 커밋: a1b2c3d.", ""],
-  ["결과: 배포 성공, 커밋: a1b2c3d. 정리함.", "정리함."],
-  ["결과: 배포 성공, 커밋: a1b2c3d! 확인함.", "확인함."],
-  // lina-app#197: a cut that leaves lone punctuation or opens on a closing quote is no sentence; one that reads stays.
-  ["실행: [정리 기록](https://fake.example.test/a) (정리 커밋 포함), a1b2c3d4. 남은 일은 없음.", "남은 일은 없음."],
-  ["fake_option' 값은 꺼져 있다. 다음 판에서 다시 확인함.", "다음 판에서 다시 확인함."],
-  ["가상 화면 a1b2c3d4 정리를 마침.", ""],
-  // lina-app#207, #226: a name in backticks inside a sentence: the sentence is not drawn, wherever the name stands.
-  ["그 뒤 디스패처가 152번 `fake_field` 로 막았다.", ""],
-  ["`fake_field` 로 막았다.", ""],
-])("foldedText(%j) keeps only what still reads: %j (lina-app#161)", (comment, shown) => {
-  expect(foldedText(comment)).toBe(shown);
-});
 
-// lina-app#239 review: two numbered lists on one line are two lists, each drawn whole, not one run `1, 2, 1, 2` that drops the line.
-test("a stop reason with two numbered lists on one line draws both (lina-app#239)", () => {
-  const two = "원인은 둘이다: 1. 설정이 낡았다. 2. 서버가 꺼져 있다. 할 일은 둘이다: 1. 설정을 고친다. 2. 서버를 켠다.";
-  expect(foldedText(two).replace(/\s+/g, " ")).toContain("1. 설정이 낡았다.");
-  expect(foldedText(two)).toContain("2. 서버를 켠다.");
-  // A list whose numbers skip is still not drawn.
-  expect(foldedText("원인은 둘이다: 1. 설정이 낡았다. 3. 서버가 꺼져 있다.")).toBe("");
-});
-
-// lina-app#239 review: a list that is not drawn takes no independent sentence before it with it.
-test("a sentence before a list that is not drawn stays (lina-app#239)", () => {
-  expect(foldedText("설정 파일이 없어 작업을 중단했다. 남은 일은 둘이다: 1. 설정을 고친다. 3. 서버를 켠다.")).toBe("설정 파일이 없어 작업을 중단했다.");
-  const both = foldedText("설정 파일이 없어 작업을 중단했다. 남은 일은 둘이다: 1. 설정을 고친다. 2. 서버를 켠다.");
-  expect(both).toBe("설정 파일이 없어 작업을 중단했다. 남은 일은 둘이다: 1. 설정을 고친다. 2. 서버를 켠다.");
-  // The lead-in on its own line, the list on the next.
-  expect(foldedText("설정 파일이 없어 작업을 중단했다. 남은 일은 둘이다:\n1. 설정을 고친다.\n3. 서버를 켠다.")).toBe("설정 파일이 없어 작업을 중단했다.");
-});
-
-// lina-app#239 review: a cut-off sentence after a list is no sentence of the list; the list is not drawn whole with it.
-test("a cut-off sentence after a numbered list is not drawn with the list (lina-app#239)", () => {
-  expect(foldedText("남은 일: 1. 설정을 고친다. 2. 서버를 켠다. 고치는 중이")).toBe("");
-  // A whole sentence after the list still stays with it.
-  expect(foldedText("남은 일: 1. 설정을 고친다. 2. 서버를 켠다. 그 뒤에 다시 확인한다.")).toBe("남은 일: 1. 설정을 고친다. 2. 서버를 켠다. 그 뒤에 다시 확인한다.");
-});
-
-// lina-app#207, #226: the hub's comments wrote machine times (`안전망 =2026-11-16T03:30+09:00`); rewriting one into a date
-// changed the sentence, so a sentence holding one is not drawn at all.
-test("a comment sentence holding a machine time is not drawn (lina-app#207, #226)", () => {
-  expect(foldedText("안전망 =2026-11-16T03:30+09:00")).toBe("");
-  expect(foldedText("백업 =2026-11-16T00:30+09:00")).toBe("");
-  expect(foldedText("안전망 fake_until=2026-11-16T03:30 이후 확인.")).toBe("");
-});
 
 // lina-app#218: the shapes the hub's comments and titles took after a cut (round 17), the words made up. A particle glued
 // to a bracket the cut took whole goes back onto the word before it; a colon with only a bracket after it goes.
@@ -404,25 +333,13 @@ test.each([
   ["가짜 두 묶음+fake_config 정리."],
 ])("withoutRefs(%j) is empty: the cut left a hole (lina-app#218)", (text) => {
   expect(withoutRefs(text)).toBe("");
-  expect(foldedText(`${text} 가짜 시험을 마침.`)).toBe("가짜 시험을 마침.");
+  expect(wholeText(`${text} 가짜 시험을 마침.`)).toBeNull();
 });
 
-test("the round 17 comment shape: the dangling particle and the cut modifier never show, the next sentence does (lina-app#218)", () => {
-  const comment = "이 가짜 카드의 끝 조건(가짜 값 = a1b2c3d4e5f6)은 더 새 dev 0aa65fe53a로 충족됨. 가짜 시험을 마친 뒤 닫아도 된다.";
-  expect(foldedText(comment)).toBe("가짜 시험을 마친 뒤 닫아도 된다.");
-  expect(foldedText("이 가짜 카드의 끝 조건(가짜 값 = a1b2c3d4e5f6)은 더 새 dev 0aa65fe53a로 충족됨.")).toBe("");
+test("the round 17 comment shape folds whole: no sentence of it is drawn apart (lina-app#218, #241)", () => {
+  expect(wholeText("이 가짜 카드의 끝 조건(가짜 값 = a1b2c3d4e5f6)은 더 새 dev 0aa65fe53a로 충족됨. 가짜 시험을 마친 뒤 닫아도 된다.")).toBeNull();
 });
 
-// lina-app#218, #226: a line that leads a list in (it ends in `:`) is never drawn, and is never joined to its first item.
-test.each([
-  ["확인할 가짜 결과:", ""],
-  ["가짜 확인을 마침. 확인할 가짜 결과:", "가짜 확인을 마침."],
-  ["확인할 가짜 결과:\n- 가짜 빌드 통과.", ""],
-  ["확인할 가짜 결과:\n1. 가짜 빌드 통과.\n2. 가짜 시험 통과.\n3. 가짜 화면 확인.", "확인할 가짜 결과: 1. 가짜 빌드 통과. 2. 가짜 시험 통과. 3. 가짜 화면 확인."],
-  ["확인할 가짜 결과:\n- 가짜 빌드를 마쳤다.", "가짜 빌드를 마쳤다."],
-])("foldedText(%j) draws no lead-in alone: %j (lina-app#218)", (comment, shown) => {
-  expect(foldedText(comment)).toBe(shown);
-});
 
 test.each([
   ["설정 파일을 고쳤다. 고치는 중이", null],
@@ -432,12 +349,3 @@ test.each([
   expect(wholeText(text)).toBe(drawn);
 });
 
-// lina-app#239 review: every list mark of a sentence is set aside before its prose is checked, not the first alone.
-test("a stop reason list with `1)` marks is drawn whole (lina-app#239)", () => {
-  const list = "남은 일: 1) 목록을 연다. 2) 금액 칸을 누른다.";
-  expect(foldedText(list)).toBe(list);
-  const paren = "남은 일: (1) 목록을 연다. (2) 금액 칸을 누른다.";
-  expect(foldedText(paren)).toBe(paren);
-  // A list whose marks skip is still not drawn.
-  expect(foldedText("남은 일: 1) 목록을 연다. 3) 금액 칸을 누른다.")).toBe("");
-});

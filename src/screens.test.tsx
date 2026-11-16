@@ -2562,7 +2562,7 @@ describe("work cards", () => {
     expect(names("완료").length).toBe(count(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")));
   });
 
-  test("a work card with no checked title is named by its own title on its detail, and by its goal on the home and its agent", async () => {
+  test("a work card with no checked title is named by its own title on its detail, by its goal on the home, and by its own name on its agent's list, which holds another card of that goal (lina-app#242)", async () => {
     const source = new SyntheticSource();
     const raw = [
       ...source.scene.cards.cards.filter((card) => card.plain.title !== null).map((card) => card.title),
@@ -2600,8 +2600,10 @@ describe("work cards", () => {
     expect(row?.querySelector(".state")?.textContent).toBe("진행 중");
     view.unmount();
     const agent = await open("#/agents/ag-2", { wide: true });
+    // The agent's list also holds k-107 under the same goal: each row leads with its own name, the goal's under it.
     const agentRow = agent.container.querySelector('.list-pane li:has(> a[href="#/cards/k-102"]) .title');
-    expect(agentRow?.textContent).toBe("결제 화면 개편");
+    expect(agentRow?.textContent).toBe("위키: 결제 화면 문서 정리");
+    expect(agent.container.querySelector('.list-pane li:has(> a[href="#/cards/k-102"]) [data-testid=row-sub]')?.textContent).toBe("결제 화면 개편");
     expect(agentRow?.classList.contains("is-kind")).toBe(false);
   });
 
@@ -2966,13 +2968,14 @@ describe("the run's own timeline", () => {
     expect(titles.join("\n")).not.toMatch(/ –|^–/m);
   });
 
-  test("rows read newest first: sentences bright, tools one dim line with its count, a repeat once with ×n, raw text left out", async () => {
+  test("rows read newest first: sentences bright, tools one dim line with its count, a repeat once with ×n, raw text folded (lina-app#241)", async () => {
     const view = await open("#/cards/k-101", { wide: true });
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const going = view.getAllByTestId("timeline-block")[0];
     const rows = [...going.querySelectorAll(".timeline-row")].map((row) => [row.getAttribute("data-kind"), row.classList.contains("is-dim"), row.textContent]);
     expect(rows).toEqual([
       ["said", false, expect.stringMatching(/^(어제 )?\d\d:\d\d · 요약을 표로 옮기는 중 ×3$/)],
+      ["folded", true, expect.stringMatching(/^(어제 )?\d\d:\d\d · 접힌 기록 1건$/)],
       ["tools", true, expect.stringMatching(/^(어제 )?\d\d:\d\d · 도구 사용 4번$/)],
       ["said", false, expect.stringMatching(/^(어제 )?\d\d:\d\d · 변경마다 한 줄 요약을 붙이는 중$/)],
     ]);
@@ -3051,16 +3054,17 @@ describe("the run's own timeline", () => {
     expect(screenText(view.container)).not.toMatch(/\br\d+\b/);
   });
 
-  test("a run's own page shows its timeline; a raw result line is left out and the round keeps its head", async () => {
+  test("a run's own page shows its timeline; a raw result line folds into one line that opens to it and the round keeps its head (lina-app#241)", async () => {
     const view = await open("#/runs/r6", { wide: true });
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const block = view.getByTestId("timeline-block");
     expect(block.getAttribute("data-outcome")).toBe("ended");
     expect(block.querySelector(".timeline-head")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 완료$/);
     expect(block.querySelector("[data-testid=timeline-result]")).toBeNull();
-    expect(block.querySelector(".timeline-rows")).toBeNull();
     const text = screenText(view.getByTestId("timeline"));
     expect(text).not.toMatch(/index-structure|benchmark|3f2a1c9/);
+    fireEvent.click(within(block).getByRole("button", { name: /접힌 기록 1건$/ }));
+    expect(within(block).getByTestId("held-text").textContent).toBe("index-structure benchmark v2 done (3f2a1c9)");
     expect(text).not.toContain("가린 문장");
   });
 
@@ -3443,9 +3447,11 @@ describe("the work tab list (lina-app#141)", () => {
       expect(row("#/cards/k-108").querySelector("a")?.getAttribute("aria-label")).toContain("야간 보고서를 받을 사람");
       expect(row("#/cards/k-108").querySelector("a")?.getAttribute("aria-label")).not.toMatch(/확인 필요.*확인 필요/);
       expect(list.querySelectorAll("[data-testid=stop-ask]")).toHaveLength(0);
-      // k-107 has no ask; another stopped row shares its goal's title, so its own name is its second line (lina-app#148).
+      // k-107 has no ask; another stopped row shares its goal's title, so it leads with its own name, the goal's under it
+      // (lina-app#148, #242).
       expect(row("#/cards/k-107").querySelector("[data-testid=state]")?.textContent).toBe("중단됨 · 피드백 대기 · 이유 기록 없음");
-      expect(row("#/cards/k-107").querySelector("[data-testid=row-sub]")?.textContent).toBe("결제: 영수증 문구 정하기");
+      expect(row("#/cards/k-107").querySelector(".title")?.textContent).toBe("결제: 영수증 문구 정하기");
+      expect(row("#/cards/k-107").querySelector("[data-testid=row-sub]")?.textContent).toBe("결제 화면 개편");
     });
 
     test("a row is titled by the core's goalTitle first, and by its own names when goalTitle is null", async () => {

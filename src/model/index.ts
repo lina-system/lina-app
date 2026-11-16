@@ -27,7 +27,7 @@ import { BANNED_WORDS, CRUMB, KIND_TITLE, ROUND9_WORD, SEP, SOURCE_WORD, STATE_W
 import { href } from "../router";
 import { clockAt } from "../time";
 import { checksView, type ChecksView } from "./checks";
-import { foldedText, foldReason, holdsRefsOnly, sentenceMayShow, sentencesOf, withoutLatin, withoutRefs } from "./fold";
+import { foldReason, holdsRefsOnly, sentenceMayShow, unitMayShow, unitOf, withoutLatin, withoutRefs } from "./fold";
 import { cardKind, type CardKind } from "./kind";
 import { ocxView, usageViews, type OcxView, type UsageRangeView } from "./usage";
 
@@ -160,11 +160,13 @@ export interface CardRow {
 
 /**
  * A stop reason longer than its row says (lina-app#171): the words before it (`결정 대기`) and all of it, for the detail,
- * where the row cuts it at a word. Absent when the row says the whole reason.
+ * where the row cuts it at a word. `folded` when the one gate does not pass it: the detail draws one folded line that
+ * opens to it as written (lina-app#241). Absent when the row says the whole reason.
  */
 export interface StopReasonText {
   readonly lead: string;
   readonly text: string;
+  readonly folded: boolean;
 }
 
 /** Where an answer to a decision goes: the record's item (comments with answer) or a work card's question. */
@@ -262,8 +264,9 @@ export interface Home {
   readonly waiting: Section<CardRow>;
   /**
    * 완료 (lina-app#186): the finished lines the page read, the last 24 hours first, each part newest first. Its count is
-   * cards (lina-app#225): the cards its lines stand for (cardCount) and the finished cards not read yet, the number the
-   * sidebar shows, the same collapsed, reading and opened.
+   * cards (lina-app#225): the cards its lines stand for (cardCount) and the finished cards not read yet, the same
+   * collapsed and opened. It is drawn, and the sidebar's `counts.done` is it, only once every finished card is read
+   * (lina-app#242).
    */
   readonly finished: Section<CardRow>;
 }
@@ -464,23 +467,19 @@ export function cutAtWord(text: string, max: number): string {
 /** A text the core cut itself: it ends in a fold marker. */
 const CUT_END = /(?:…|\.\.\.)\s*$/;
 
+/** A text that is one identifier and nothing else (`initial_status`): a word of the core's, no reason a bot wrote. */
+const IDENTIFIER = /^[\w.-]+$/;
+
 /**
- * The whole reason the core keeps for a stop (the inbox's `blockReason`, lina-app#171) as the detail may show it: each
- * line through the comments' fold (foldedText: only the sentences the one rule passes, lina-app#222), a sentence with a
- * word the screens never use left out. Null when nothing a person reads is left (an internal word such as a status name).
+ * The whole reason the core keeps for a stop (the inbox's `blockReason`, lina-app#171), the typed field a bot wrote for
+ * the owner, never cut (lina-app#241): its unit (unitOf) when the one gate passes it (unitMayShow), else all of it as
+ * written and `folded`, one line that opens to it. Null when there is none or it is one of the core's identifiers.
  */
-export function stopReasonText(text: string | null | undefined): string | null {
-  if (!text) return null;
-  const kept = text
-    .split("\n")
-    .map((line) =>
-      sentencesOf(foldedText(line))
-        .filter((sentence) => !BANNED_WORDS.some((word) => sentence.includes(word)))
-        .join(" "),
-    )
-    .filter(Boolean)
-    .join("\n");
-  return kept || null;
+export function stopReasonText(text: string | null | undefined): { readonly text: string; readonly folded: boolean } | null {
+  const whole = text?.trim();
+  if (!whole || IDENTIFIER.test(whole)) return null;
+  const unit = unitOf(whole);
+  return unitMayShow(unit) ? { text: unit, folded: false } : { text: whole, folded: true };
 }
 
 /** The time a row last moved: its end, its start or its state's. */
@@ -490,10 +489,20 @@ const movedAt = (row: CardRow) => row.endedAt ?? row.startedAt ?? row.stateAt;
  * One group's rows, each told apart from the others (lina-app#148, #152): line 1 is the goal's title (or the card's own
  * when it has no goal), line 2 the card's own name whenever it differs from line 1. Rows that still read the same say
  * when they last moved as a clock time in their time slot (`when`); line 2 is never a bare time, and the kind of work
- * is never a row's words (lina-app#122).
+ * is never a row's words (lina-app#122). A line 1 several rows share (a goal's title over its cards) tells none of them
+ * apart (lina-app#242): such a row with a name of its own leads with it, the goal's title its line 2, unless `lead` is
+ * off (완료, whose rows of one title are one line, collapsed).
  */
-export function apart(rows: readonly CardRow[], now: number): CardRow[] {
-  const named = rows.map((row) => ({ ...row, sub: row.ownName && row.ownName !== row.name ? row.ownName : null, when: null }));
+export function apart(rows: readonly CardRow[], now: number, lead = true): CardRow[] {
+  // Line 1 by the title order (the goal's title first), read from `title`, which apart never changes: so rows already
+  // apart read the same when a list of some of them is told apart again (an agent's, a goal's).
+  const first = (row: CardRow) => row.title ?? row.name;
+  const shared = new Map<string, number>();
+  for (const row of rows) shared.set(first(row), (shared.get(first(row)) ?? 0) + 1);
+  const named = rows.map((row) => {
+    const own = row.ownName && row.ownName !== first(row) ? row.ownName : null;
+    return lead && own && (shared.get(first(row)) ?? 0) > 1 ? { ...row, name: own, sub: first(row), when: null } : { ...row, name: first(row), sub: own, when: null };
+  });
   const key = (row: CardRow) => [row.name, row.sub ?? "", row.stop?.words ?? ""].join("\n");
   const seen = new Map<string, number>();
   for (const row of named) seen.set(key(row), (seen.get(key(row)) ?? 0) + 1);
@@ -508,9 +517,10 @@ export function apart(rows: readonly CardRow[], now: number): CardRow[] {
  * or a number the screen cuts, and the cards a goal's title names first, lina-app#237) are one line, the newest of them,
  * which it opens, with how many it stands for (`repeat`); its second line is their own name only while they share it.
  * The cards nothing names are one such line too (lina-app#225), named for what it holds and how many, never by a kind
- * word (lina-app#231). The rows come newest first; the group head counts the cards (cardCount).
+ * word (lina-app#231); that line opens its own address, in `scope`, the list it is drawn in (lina-app#244). The rows come
+ * newest first; the group head counts the cards (cardCount).
  */
-function collapsed(rows: readonly CardRow[]): CardRow[] {
+function collapsed(rows: readonly CardRow[], scope: { readonly agent?: string; readonly goal?: string } = {}): CardRow[] {
   const lines = new Map<string, CardRow>();
   for (const row of rows) {
     const key = row.title === null ? "" : row.name;
@@ -518,7 +528,7 @@ function collapsed(rows: readonly CardRow[]): CardRow[] {
     lines.set(key, first ? { ...first, sub: first.sub === row.sub ? first.sub : null, repeat: (first.repeat ?? 1) + 1, fold: [...(first.fold ?? [first]), row] } : { ...row, when: null });
   }
   const unnamed = lines.get("");
-  if (unnamed) lines.set("", { ...unnamed, name: W.untitledCount(unnamed.repeat ?? 1), sub: null });
+  if (unnamed) lines.set("", { ...unnamed, name: W.untitledCount(unnamed.repeat ?? 1), sub: null, ...(unnamed.fold ? { href: href({ name: "group", id: unnamed.id, ...scope }) } : {}) });
   return [...lines.values()];
 }
 
@@ -526,9 +536,9 @@ function collapsed(rows: readonly CardRow[]): CardRow[] {
  * Finished cards as the lines they are listed in (lina-app#168, #179, #186): the last 24 hours first, then the older
  * ones, collapsed as one list, so a line never shows twice. The work tab's 완료 group and the 완료 screen list these.
  */
-function doneLines(done: readonly CardRow[], now: number): CardRow[] {
+function doneLines(done: readonly CardRow[], now: number, agent?: string): CardRow[] {
   const recent = done.filter((card) => card.endedAt !== null && now - card.endedAt < RECENT_SECONDS);
-  return collapsed([...recent, ...done.filter((card) => !recent.includes(card))]);
+  return collapsed([...recent, ...done.filter((card) => !recent.includes(card))], agent ? { agent } : {});
 }
 
 /** The one naming rule: that title, else the kind of work (코드 작업, 문서 작업, 조사, 기기 작업). */
@@ -691,13 +701,15 @@ export function buildModel(input: ModelInput, now: number): Model {
     if (retry === "none" || (isRun && (reason === "failed" || reason === "rejected"))) return { words: [word, W.notRetried].filter(Boolean).join(SEP), known: true, owner: false, retry: again };
     return { words: word ?? STOP_WORD.none, known: false, owner: false, retry: again };
   };
-  // A stopped row's words with its reason (lina-app#171): cut at a word on the row, whole in the detail when cut; a stop
-  // that waits on the owner's decision or feedback with no sentence of why says so instead of leaving a gap.
-  const stopWithReason = (stop: NonNullable<CardRow["stop"]>, reasonKey: string | null, reason: string | null): NonNullable<CardRow["stop"]> => {
-    if (reason === null) return reasonKey && STOP_WAIT[reasonKey] ? { ...stop, words: [stop.words, ROUND9_WORD.noReasonRecord].join(SEP) } : stop;
-    const short = cutAtWord(reason.replace(CUT_END, ""), ROW_REASON_MAX);
+  // A stopped row's words with its reason (lina-app#171): cut at a word on the row, and in the detail the inbox's whole
+  // reason whenever it keeps one the row does not say whole (lina-app#241), folded when the one gate does not pass it; a
+  // stop that waits on the owner's decision or feedback with no reason at all says so instead of leaving a gap.
+  const stopWithReason = (stop: NonNullable<CardRow["stop"]>, reasonKey: string | null, reason: string | null, whole: ReturnType<typeof stopReasonText>): NonNullable<CardRow["stop"]> => {
+    if (reason === null && whole === null) return reasonKey && STOP_WAIT[reasonKey] ? { ...stop, words: [stop.words, ROUND9_WORD.noReasonRecord].join(SEP) } : stop;
+    const short = reason === null ? null : cutAtWord(reason.replace(CUT_END, ""), ROW_REASON_MAX);
     const words = [stop.words, short].filter(Boolean).join(SEP);
-    return short === reason ? { ...stop, words } : { ...stop, words, reason: { lead: stop.words, text: reason } };
+    const detail = whole && whole.text !== short ? whole : reason !== null && short !== reason ? { text: reason, folded: false } : null;
+    return detail ? { ...stop, words, reason: { lead: stop.words, ...detail } } : { ...stop, words };
   };
   // The owner's 다시 시도 on a card is a comment on it (the core keeps no other trace): one newer than the stop still stands.
   const retryAsked = (detail: WorkCardDetail | undefined, stoppedAt: number | null): boolean | null =>
@@ -745,9 +757,10 @@ export function buildModel(input: ModelInput, now: number): Model {
       const said = ask !== null && ask !== title ? withoutRepeat(ask, row.stop?.words ?? "") : null;
       // The whole reason the inbox keeps (lina-app#171): the core cuts its ask at a length, so a cut ask reads from it.
       const whole = card.state === "stopped" ? stopReasonText(workInbox?.blocked.find((entry) => entry.cardId === card.id)?.blockReason) : null;
-      const reason = said !== null && CUT_END.test(said) ? (whole ?? said) : (said ?? whole);
-      // An ask that names the row is its reason already.
-      const stop = row.stop && !(ask !== null && ask === title) ? stopWithReason(row.stop, row.reason, reason) : row.stop;
+      const drawn = whole && !whole.folded ? whole.text : null;
+      const reason = said !== null && CUT_END.test(said) ? (drawn ?? said) : (said ?? drawn);
+      // An ask that names the row is its reason already; the detail still shows the inbox's whole reason under it.
+      const stop = row.stop ? (ask !== null && ask === title ? (whole ? { ...row.stop, reason: { lead: row.stop.words, ...whole } } : row.stop) : stopWithReason(row.stop, row.reason, reason, whole)) : row.stop;
       return { row: { ...row, title, name: title ?? (card.state === "done" ? W.cards : KIND_TITLE[row.work]), stop, ask: null, ...(card.state === "stopped" ? { asked: retryAsked(input.cardDetails[card.id], row.stateAt) } : {}) }, listed: !isEnded(card) };
     }),
     ...(board?.cards ?? []).map((run) => ({ row: runListRow(run), listed: false })),
@@ -766,7 +779,7 @@ export function buildModel(input: ModelInput, now: number): Model {
   const running = apart(allCards.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt)), now);
   const planned = apart(allCards.filter((card) => card.state === "planned").sort(newestFirst((card) => card.stateAt)), now);
   const runningSections = [section("stopped", "", stopped), section("running", "", running)];
-  const done = apart(allCards.filter((card) => card.state === "done").sort(newestFirst((card) => card.endedAt)), now);
+  const done = apart(allCards.filter((card) => card.state === "done").sort(newestFirst((card) => card.endedAt)), now, false);
   const waiting = apart(allCards.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt)), now);
   const finished = doneLines(done, now);
   // One unit for 완료 (lina-app#225): cards, the ones read and the ones the core holds (lina#729) that the page has not
@@ -976,7 +989,9 @@ export function buildModel(input: ModelInput, now: number): Model {
       running: running.length,
       stopped: stopped.length,
       due: dueRows.length,
-      done: finishedCount,
+      // No number while only the first page is read (lina-app#242): the core counts its total apart from the cards its
+      // full read sends, so it is no sum of lines.
+      done: (input.finished?.all ?? true) ? finishedCount : 0,
       goals: goals.length,
       notices: notices.length,
       unread: (board?.counts.unread ?? allNotices.filter((notice) => !notice.read).length) - hiddenUnread,
@@ -1002,7 +1017,7 @@ export function latestActivity(cards: Iterable<CardRow>): number | null {
 
 /** 완료, for every agent or for one: its lines (doneLines); the filter's counts and the list are this one list. */
 export function doneFor(model: Model, agentId?: string): readonly CardRow[] {
-  return doneLines(agentId ? model.done.filter((card) => card.agent === agentId) : model.done, model.now);
+  return doneLines(agentId ? model.done.filter((card) => card.agent === agentId) : model.done, model.now, agentId);
 }
 
 /** The cards some lines stand for, a `×n` line counting n (lina-app#225): what every 완료 number counts. */
@@ -1086,18 +1101,27 @@ export function agentView(model: Model, agentId: string): AgentView | null {
   };
 }
 
-/** A goal's work cards (kanban goal cards excluded) and the evidence that closed it. */
+/**
+ * A goal's work cards (kanban goal cards excluded) and the evidence that closed it. Its finished cards nothing names are
+ * one line, as in 완료 (collapsed, lina-app#242), where the first of them stood: never rows named by the kind word.
+ */
 export function goalCards(model: Model, detail: ItemDetail, goals: GoalList | undefined): { cards: Section<CardRow>; evidence: { key: string; text: string; at: number | null }[] } {
   const goalCardIds = new Set((goals?.goals ?? []).map((goal) => goal.id));
   // Its detail's cards, then the ones the work tab's fold links to it (lina-app#170): the same rows both tabs show.
   const ids = [...new Set([...detail.workCards.filter((id) => !goalCardIds.has(id)), ...linkedCards(model, goalIds(model, detail.id), [], detail.title).map((card) => card.id)])];
-  const cards = ids.map((id) => model.cards.get(id)).filter((card): card is CardRow => card !== undefined);
+  const cards = apart(
+    ids.map((id) => model.cards.get(id)).filter((card): card is CardRow => card !== undefined),
+    model.now,
+  );
+  const unnamed = cards.filter((card) => card.state === "done" && card.title === null);
+  const grey = unnamed.length ? collapsed([...unnamed].sort(newestFirst((card) => card.endedAt)), { goal: detail.id })[0] : null;
+  const rows = grey ? cards.flatMap((card) => (card === unnamed[0] ? [grey] : unnamed.includes(card) ? [] : [card])) : cards;
   const linked = new Set(detail.workCards);
   const evidence = (goals?.goals ?? [])
     .flatMap((goal) => goal.evidence)
     .filter((entry) => linked.has(entry.cardId) && entry.summary)
     .map((entry) => ({ key: entry.cardId, text: entry.summary ?? "", at: entry.completedAt }));
-  return { cards: section("cards", W.cards, apart(cards, model.now)), evidence };
+  return { cards: section("cards", W.cards, rows), evidence };
 }
 
 type GoalFacts = { readonly id: string; readonly title?: string; readonly state: WorkState; readonly reason: string | null; readonly stateSince: number | null };

@@ -18,6 +18,23 @@ describe("the 완료 filter lives in the address", () => {
   });
 });
 
+describe("a finished group's own address carries its list (lina-app#244)", () => {
+  test("#/group/<card> reads back as the same group of the same list, a frame under the work tab; a card's address stays the card's", () => {
+    for (const route of [{ name: "group", id: "hermes:t_1" }, { name: "group", id: "k-1", agent: "ag 1" }, { name: "group", id: "k-1", goal: "G1" }] as const) {
+      expect(parse(href(route))).toEqual(route);
+      expect(tabOf(route)).toBe("work");
+    }
+    expect(href({ name: "group", id: "hermes:t_1" })).toBe("#/group/hermes%3At_1");
+    expect(href({ name: "group", id: "k-1", agent: "ag-1" })).toBe("#/group/k-1?agent=ag-1");
+    expect(href({ name: "group", id: "k-1", goal: "G1" })).toBe("#/group/k-1?goal=G1");
+    expect(parse("#/cards/k-1")).toEqual({ name: "card", id: "k-1" });
+    // Opened directly, it stands on the list it was drawn in.
+    expect(baseOf(parse("#/group/k-1"), ["#/group/k-1"])).toEqual({ name: "done" });
+    expect(baseOf(parse("#/group/k-1?agent=ag-1"), ["#/group/k-1?agent=ag-1"])).toEqual({ name: "done", agent: "ag-1" });
+    expect(baseOf(parse("#/group/k-1?goal=G1"), ["#/group/k-1?goal=G1"])).toEqual({ name: "goals" });
+  });
+});
+
 describe("a card's worker run by its place (lina-app#238)", () => {
   test("#/cards/<card>/runs/<n> reads back as the same place, a frame under the work tab; a place that is no number from 1 is no round", () => {
     expect(parse("#/cards/hermes%3At_1/runs/3")).toEqual({ name: "round", card: "hermes:t_1", n: 3 });

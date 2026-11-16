@@ -589,8 +589,14 @@ export const DETAIL_WORD = {
   decidedSinceStop: "결정 기록 있음 · 상태는 아직 중단됨",
   /** Lines of a history that are not comments and have no sentence a person may read. */
   earlierRecords: (n: number) => `이전 기록 ${n}건`,
-  /** Comments with nothing left once their fold debris is gone: one row with their count (lina-app#161). */
+  /** A worker run's record rows that do not stand whole: one line with their count, which opens to them (lina-app#161, #241). */
   foldedRecords: (n: number) => `접힌 기록 ${n}건`,
+  /** A stop's reason that the one gate does not pass: one line that opens to all of it (lina-app#241). */
+  foldedReason: "접힌 이유",
+  /** Opens a stop's reason longer than its three lines (lina-app#241). */
+  more: "더 보기",
+  /** Closes an opened folded line or reason (lina-app#241). */
+  close: "접기",
 };
 
 /**

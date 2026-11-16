@@ -525,26 +525,35 @@ export async function rowLines(page) {
 // The core's client API answering with the synthetic scene and the first agent's long conversation (tests/long-talk.ts),
 // for a page that loads /app/ without ?source=synthetic. The routes are read in Node through Vite, from the same modules
 // the specs import, so the drive and tests/layout-qa15.spec.ts serve one shape (lina-app#206).
-async function serveLongTalk(page) {
+// `sourceOptions` picks the scene (`{ hubRound22: true }`, lina-app#231); the first page of the finished cards
+// (`finished_limit`, lina#729) and every card's and item's detail are served too, so a page keeps its copy and opens details.
+async function serveScene(page, sourceOptions = {}) {
   const { createServer } = await import("vite");
   const server = await createServer({ root: repo, configFile: false, logLevel: "error", appType: "custom", server: { middlewareMode: true, hmr: false, ws: false }, optimizeDeps: { noDiscovery: true } });
   const bodies = new Map();
   let talk;
   let api;
+  let scene;
   try {
     api = await server.ssrLoadModule("/src/api/client.ts");
     const { SyntheticSource } = await server.ssrLoadModule("/src/data/synthetic-source.ts");
     const { longTalk, LONG_TALK_TURNS } = await server.ssrLoadModule("/tests/long-talk.ts");
-    const source = new SyntheticSource();
+    const source = new SyntheticSource(sourceOptions);
     for (const name of ["board", "items", "goals", "cards", "inbox", "devices", "quota", "modelsState", "checks", "settingsModels"]) {
       const result = await source.read(name);
       if (result.kind === "data") bodies.set(api.routePath(name), result.data);
+    }
+    const details = [["cards", "5"], ...source.scene.cards.cards.map((card) => ["card", card.id]), ...Object.keys(source.scene.itemDetails).map((id) => ["item", id])];
+    for (const [name, id] of details) {
+      const result = await source.read(name, id);
+      if (result.kind === "data") bodies.set(api.routePath(name, id), result.data);
     }
     for (const range of api.USAGE_RANGES) {
       const result = await source.read("usage", range);
       if (result.kind === "data") bodies.set(api.routePath("usage", range), result.data);
     }
     talk = { history: longTalk("ag-1", Math.floor(Date.now() / 1000)), turns: LONG_TALK_TURNS };
+    scene = source.scene;
   } finally {
     await server.close();
   }
@@ -556,8 +565,17 @@ async function serveLongTalk(page) {
     const body = bodies.get(url.pathname + url.search) ?? bodies.get(url.pathname);
     return body === undefined ? route.fulfill({ status: 404, json: { detail: "not found" } }) : route.fulfill({ json: body });
   });
-  await page.routeWebSocket((url) => url.pathname === api.EVENTS_PATH, (socket) => socket.send(JSON.stringify({ cursor: "c1", events: [] })));
-  return talk.turns;
+  // `tail(cursor)` sends the stream's next message with no events, as the hub does between changes: the page writes its
+  // kept copy at that cursor.
+  let stream = null;
+  await page.routeWebSocket(
+    (url) => url.pathname === api.EVENTS_PATH,
+    (socket) => {
+      stream = socket;
+      socket.send(JSON.stringify({ cursor: "c1", events: [] }));
+    },
+  );
+  return { turns: talk.turns, scene, tail: (cursor) => stream?.send(JSON.stringify({ cursor, events: [] })) };
 }
 
 // A context like the drive's, with touch, to send the touches a finger would.
@@ -3225,6 +3243,41 @@ const drivers = {
       check(cut.length === 0 && holes.length === 0 && JSON.stringify(grey) === JSON.stringify(["제목 없는 7건"]), "cut " + JSON.stringify(cut) + ", holes " + JSON.stringify(holes) + ", grey " + JSON.stringify(grey));
       return after.rows + " lines for " + after.all + " cards: " + drawn.length + " titles as written, grey " + grey.join("");
     });
+    await step("on the hub's shape served as the core (round 22, its newest finished cards listed last), 완료's first line opens the newest card on the first read, with the fold opened and closed, after a reload drawn from the kept copy and back from a detail (lina-app#231)", async () => {
+      // Its own context with the service worker blocked: the app's worker passes reads past page.route.
+      const context = await touchContext(page, { serviceWorkers: "block" });
+      try {
+        const own = await context.newPage();
+        const { scene, tail } = await serveScene(own, { hubRound22: true });
+        const newest = scene.cards.cards.filter((card) => card.state === "done").sort((a, b) => b.endedAt - a.endedAt)[0];
+        const group = own.getByTestId("section-finished");
+        const first = async () => (await group.locator("li[data-testid=row] a").first().getAttribute("href")) ?? "";
+        await own.goto("/app/#/");
+        await group.locator("li[data-testid=row]").first().waitFor({ timeout: 10_000 });
+        const seen = { read: await first() };
+        await group.locator(".more-row").getByRole("button").click();
+        await group.getByRole("button", { name: "완료 닫기", exact: true }).click();
+        await group.locator(".more-row:not([data-testid=fold-hide])").waitFor();
+        seen.closed = await first();
+        // The stream's next message: the copy is written from the cards last read, every finished one, and a reload draws
+        // its first page before any read.
+        tail("c2");
+        await own.waitForFunction(() => Object.keys(localStorage).some((key) => (localStorage.getItem(key) ?? "").includes('"cursor":"c2"')));
+        await own.reload();
+        await group.locator("li[data-testid=row]").first().waitFor({ timeout: 10_000 });
+        seen.reload = await first();
+        await group.locator("li[data-testid=row] a").first().click();
+        await own.getByTestId("detail-frame").waitFor();
+        await own.evaluate(() => history.back());
+        await own.getByTestId("detail-frame").waitFor({ state: "detached" });
+        seen.back = await first();
+        const want = "#/cards/" + newest.id;
+        check(Object.values(seen).every((at) => at === want), "the first line opens " + JSON.stringify(seen) + ", the newest is " + want);
+        return "first line " + want + " on the first read, closed, reloaded from the copy and back";
+      } finally {
+        await context.close();
+      }
+    });
     await step("on the hub's shape (&hub=round20), every planned card is a row of 예정, its head their number, the one with a Latin goal title named by it (lina-app#225)", async () => {
       await openApp(page, "#/", "&hub=round20");
       const group = page.getByTestId("section-planned");
@@ -3830,7 +3883,7 @@ const drivers = {
         const context = await touchContext(page, { serviceWorkers: "block" });
         try {
           const own = await context.newPage();
-          const turns = await serveLongTalk(own);
+          const { turns } = await serveScene(own);
           await own.goto("/app/#/talk/ag-1");
           await own.getByTestId("talk-reply").nth(turns - 1).waitFor({ timeout: 10_000 });
           const main = own.locator(".phone-main");

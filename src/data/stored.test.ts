@@ -6,6 +6,7 @@ import { FINISHED_SHOWN, SLOW_ROUTES, Store } from "./store";
 import { STORED_FORMAT, STORED_MAX_CHARS, storedCopy, storedKey, type StoredCopy } from "./stored";
 import { MANY_FINISHED } from "../fixtures/synthetic";
 import { SyntheticSource } from "./synthetic-source";
+import { buildModel } from "../model";
 
 // lina-app#194: the app opens from the copy it kept on the device, and the change stream says what changed since.
 
@@ -283,6 +284,29 @@ test("the copy keeps the first page of the finished cards with the core's total,
 
   copyIn(storage).save({ cursor: "s.1.0", owner: null, routes: { board: { data: "x".repeat(STORED_MAX_CHARS) } } });
   expect(storage.items.has(KEY)).toBe(false);
+});
+
+// lina-app#231: the hub lists its newest finished cards last, so the copy's first page is its newest five, not its first.
+test("the copy keeps the newest finished cards, so a page opened from it shows the newest first (lina-app#231)", async () => {
+  const storage = memory();
+  const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000), hubRound22: true });
+  const page = await open(source, copyIn(storage));
+  await page.store.showFinished();
+  await new SyntheticSource({ scene: source.scene }).comment("T4", { text: "다른 기기에서" });
+  await vi.advanceTimersByTimeAsync(1_000);
+  await settle();
+  page.stop();
+  const newest = source.scene.cards.cards
+    .filter((card) => card.state === "done")
+    .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0))
+    .slice(0, FINISHED_SHOWN)
+    .map((card) => card.id);
+  const finished = kept(storage).routes.cards.data.cards.filter((card: { state: string }) => card.state === "done").map((card: { id: string }) => card.id);
+  expect([...finished].sort()).toEqual([...newest].sort());
+
+  // A page opened from the copy draws it before any read: its 완료 preview's first line is the newest card.
+  const again = new Store(new SyntheticSource({ scene: source.scene }), { stored: copyIn(storage) });
+  expect(buildModel(again.input(), source.scene.now).home.finished.rows[0]?.id).toBe(newest[0]);
 });
 
 test("the kept cursor never runs ahead of the routes: a change's cursor is written only once its reads land", async () => {

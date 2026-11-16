@@ -54,6 +54,26 @@ test("a card's folded comments open to each comment whole, newest first, with it
   expect(within(box).getByTestId("held-head").textContent).toMatch(new RegExp(`${TIME}$`));
 });
 
+test("a stop reason is shown whole, or as one folded line that opens to all of it", async () => {
+  const whole = await open("#/cards/k-441");
+  expect(whole.frame.getByTestId("stop-reason").textContent).toBe("가짜 첫 화면 시안 두 장을 올렸어요. 어느 쪽이 더 읽기 쉬운지 알려 주세요.");
+  expect(whole.frame.queryByText(/이유 기록 없음/)).toBeNull();
+  whole.view.unmount();
+  const long = await open("#/cards/k-442");
+  const reason = long.frame.getByTestId("stop-reason");
+  expect(reason.textContent?.replace(/\s+/g, " ")).toContain("어느 쪽으로 갈지 정해 주세요.");
+  expect(reason.className).toContain("is-clamped");
+  long.view.unmount();
+  const folded = await open("#/cards/k-443");
+  const button = folded.frame.getByRole("button", { name: "접힌 이유" });
+  expect(button.getAttribute("aria-expanded")).toBe("false");
+  fireEvent.click(button);
+  expect(folded.frame.getByTestId("held-text").textContent).toBe(folded.scene.inbox.blocked.find((entry) => entry.cardId === "k-443")?.blockReason);
+  folded.view.unmount();
+  const internal = await open("#/cards/k-444");
+  expect(internal.frame.queryByText(/initial_status/)).toBeNull();
+});
+
 test("an ended round's said rows and report lines that do not stand whole fold into 접힌 기록, which opens to them as written", async () => {
   const { frame, scene } = await open("#/cards/k-101");
   const timeline = frame.getByTestId("timeline");

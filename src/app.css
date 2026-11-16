@@ -3496,7 +3496,8 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   color: var(--label-2);
 }
 
-/* lina-app#241: a folded line is a button that opens what it holds, each text whole and as written, its lines kept. */
+/* lina-app#241: a folded line is a button that opens what it holds, each text whole and as written, its lines kept; a
+   stop's reason shows three lines at most until 더 보기 opens it. */
 .fold-toggle {
   min-height: var(--hit, 28px);
   padding: 0;
@@ -3547,6 +3548,18 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   white-space: pre-line;
   word-break: keep-all;
   overflow-wrap: anywhere;
+}
+
+.detail-head .stop-reason {
+  white-space: pre-line;
+}
+
+.detail-head .stop-reason.is-clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
 }
 
 /* lina-app#167: a title, a done condition, a decision's question and its context line, and a check's line wrap at a

@@ -1,5 +1,5 @@
 import { Fragment, type ComponentChildren } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, RecordRow, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
 import { cardTitle, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, runRow, todoState, wholeTitle, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
@@ -789,15 +789,7 @@ function StopWhy({ reason, words, whole = null, carried, stoppedAt, comments = [
           {whole?.lead || words || word || DETAIL_WORD.noReason}
         </span>
       )}
-      {whole ? (
-        <span class="sub wrap-line" data-testid="stop-reason">
-          {whole.text.split("\n").map((line, index) => (
-            <span key={index} class="wrap-line">
-              {line}
-            </span>
-          ))}
-        </span>
-      ) : null}
+      {whole?.folded ? <FoldLine label={DETAIL_WORD.foldedReason} held={[{ at: stoppedAt, by: card?.agent ?? null, text: whole.text }]} /> : whole ? <WholeReason text={whole.text} /> : null}
       {requested && card ? (
         <span class="sub" data-testid="requested-since-stop">
           {W.requestedTo(agentName(model, card.agent))}
@@ -807,6 +799,34 @@ function StopWhy({ reason, words, whole = null, carried, stoppedAt, comments = [
         <span class="sub" data-testid="decided-since-stop">
           {DETAIL_WORD.decidedSinceStop}
         </span>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * A stop's reason that the one gate passes, all of it (lina-app#241): three lines at most until 더 보기 opens it, so the
+ * question it asks the owner is always in it or one tap away; 더 보기 shows only when the three lines cut it.
+ */
+function WholeReason({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const [cut, setCut] = useState(false);
+  const reason = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const measure = () => setCut(Boolean(reason.current && reason.current.scrollHeight > reason.current.clientHeight + 1));
+    if (!open) measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [text, open]);
+  return (
+    <>
+      <span ref={reason} class={open ? "sub wrap-line stop-reason" : "sub wrap-line stop-reason is-clamped"} data-testid="stop-reason">
+        {text}
+      </span>
+      {cut || open ? (
+        <button type="button" class="fold-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? DETAIL_WORD.close : DETAIL_WORD.more}
+        </button>
       ) : null}
     </>
   );

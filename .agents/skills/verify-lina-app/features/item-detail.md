@@ -19,7 +19,7 @@ A to-do opens in the one detail frame: its check box, done condition, state and 
 - Each comment shows its sentence, then author and time; replies sit under it with their author, time and result word (`반영함`, `답변 필요`, `반영 안 함`). Never only a count.
 - Times read `방금` under a minute, `n분 전` under an hour, `n시간 전` from 60 minutes and `n일 전` from a day: a reply 55 minutes old reads `<author> · 55분 전`, one 80 minutes old `<author> · 1시간 전`.
 - A resolved thread folds to one line `해결됨 · <first words>`; choosing it opens the thread.
-- A comment that is only the hub's fold markers (`(…)`, `(…), (…)`, `…`) with no reply shows no sentence of its own: each run of them is one grey row `접힌 기록 N건`, never one row each (lina-app#161).
+- A comment that does not stand whole by the one rule (card-detail.md: the hub's fold markers `(…)`, a ref, a cut-off end) with no reply shows no sentence of its own: each run of them is one grey row `접힌 댓글 N건` (`접힌 댓글` for one), never one row each (lina-app#161), the card's own word (lina-app#241), and the row is a button that opens the comments it holds as written, each with its time and author's name. The same state word said in a row is one comment with `×n`, as on a card (`진행 중 ×2`).
 - At the bottom of `댓글`: a one-line field `댓글 달기` and `보내기`. While `보내기` cannot send, one grey line under it says why: `글 입력 대기` while the field is empty, `보내는 중` while a comment is on its way; the line is gone once it can send. Every answer field (a decision's, a stopped card's) follows the same rule.
 - 보내기: on screen the comment shows at once under the thread with `<agent>에게 보냄 · 방금` and the field empties; in the record (`POST /api/lina/work/items/<id>/comments`) a new open comment by the owner. When the agent's reply reaches the record, the next refresh shows it under the comment with its result word and the pending line goes.
 - A refused comment comes back into the field, the core's reason shows as one red line under it, and the thread is as it was.
@@ -53,6 +53,8 @@ Preconditions:
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/item-detail/item-detail-1280.{png,aria.yml,json}` and `item-detail-390.{png,aria.yml,json}`.
 - **One decision, one word and one time (lina-app#179).** On `/app/?source=synthetic&hub=round11` the item list serves T2 with no reason since two days ago while its question was asked 19 days ago: its 수신함 row reads `결정 대기` and `19일 전`, its head `결정 대기 · 19일 전`, and its line in `#/talk/ag-1?goal=G1` the same; T3 (planned, dated) reads `예정` alone there.
 - **Overdue (lina-app#221).** On `/app/?source=synthetic&hub=round18` T3 (planned, the owner's, due three days before the clock): its `내 할 일` row on `#/` reads `지남` above its red date and its name ends `· 지남`; its line on `#/goals/G1` and in `#/talk/ag-1?goal=G1` reads `지남`; `#/items/T3`'s head reads `지남` and its due line `마감일 · <n>월 <n>일`.
+
+- **A thread's fold and a repeated state word (lina-app#241).** On `/app/?source=synthetic&hub=round24`, `#/items/T4`'s thread reads `진행 중 ×2` (never `진행 중` twice) and one `접힌 댓글 2건` button, never `접힌 기록`; pressing it opens a sentence cut off before its verb and a report with a ref, each as written.
 
 ## Gotchas
 

@@ -1423,6 +1423,19 @@ const drivers = {
       check(/^마감일 · \d+월 \d+일$/.test(due), "its due line reads " + due);
       return "row " + word + " + " + (await date.count()) + " red date; goal " + line + "; 대화 " + talk + "; head " + head + "; " + due;
     });
+    // lina-app#241: a thread merges the same state word in a row as a card's history does, and its fold reads 접힌 댓글,
+    // a button that opens the comments it holds as written.
+    await step("on &hub=round24, T4's thread reads a repeated state word once with ×2 and folds as 접힌 댓글, which opens", async () => {
+      await openApp(page, "#/items/T4", "&hub=round24");
+      const thread = page.getByTestId("comments");
+      await thread.waitFor();
+      const texts = (await thread.locator(".comment-text").allInnerTexts()).map((line) => line.trim());
+      check(texts.includes("진행 중 ×2") && !texts.includes("진행 중") && !(await thread.innerText()).includes("접힌 기록"), "T4's thread reads " + JSON.stringify(texts));
+      await thread.getByRole("button", { name: "접힌 댓글 2건" }).click();
+      const held = await thread.getByTestId("held-text").allInnerTexts();
+      check(held.length === 2 && held[0] === "가짜 문구를 고쳤고 그 뒤에 세부를", "the thread's fold opens to " + JSON.stringify(held));
+      return texts.length + " comment texts; the fold opens to " + held.length;
+    });
   },
 
   async talk(page, step) {
@@ -1669,8 +1682,9 @@ const drivers = {
       const lines = (await rows.allInnerTexts()).map((line) => line.trim().replace(/^(?:어제 )?\d\d:\d\d · /, ""));
       // Newest first: three 검토 통과 in a row are one line; a comment longer than a whole line and a log line fold; a long
       // amount and one time of day with its particle are facts; the hub's opening stamp is no word of the comment; two
-      // sentences stand with the one they lean on; every list, lead-in and part, and the digits-only hash, fold in one line.
-      const expected = ["검토 통과 ×3", "접힌 댓글 2건", "영수증 화면은 12:50에 다시 올렸다.", "환불 한도는 12345678원으로 정했다.", "금액 줄을 오른쪽으로 붙였다.", "앞 판의 금액 줄이 두 칸 밀려 있었다. 그 줄은 뒤에서 바로잡음.", "접힌 댓글 11건"];
+      // sentences stand with the one they lean on; a list of two items within the limit is drawn whole, its marks as
+      // written (lina-app#241); longer lists, a lead-in, parts and the digits-only hash fold.
+      const expected = ["검토 통과 ×3", "접힌 댓글 2건", "영수증 화면은 12:50에 다시 올렸다.", "환불 한도는 12345678원으로 정했다.", "금액 줄을 오른쪽으로 붙였다.", "앞 판의 금액 줄이 두 칸 밀려 있었다. 그 줄은 뒤에서 바로잡음.", "접힌 댓글 4건", "차례: 2. 금액 칸을 누른다. 1. 목록을 연다.", "확인 차례: (1) 목록을 연다. ② 금액 칸을 누른다.", "접힌 댓글 5건"];
       check(JSON.stringify(lines) === JSON.stringify(expected), "k-104's comments read " + JSON.stringify(lines));
       return lines.join(" | ");
     });
@@ -1685,6 +1699,71 @@ const drivers = {
       const text = await page.getByTestId("timeline").innerText();
       check(!/[A-Za-z]/.test(text), "raw record text in k-105's 기록: " + text.replace(/\s+/g, " "));
       return lines.join(" | ");
+    });
+    // lina-app#241, &hub=round24: the hub's long card shapes, field by field, in made-up words. A folded line is a button
+    // that opens what it holds, whole and as written, with its time and its author's name, without moving the detail's
+    // scroll; 접기 closes it where it was. An ended round's said rows and report lines that do not stand whole fold the same
+    // way, and a stop's reason is never cut: whole, three lines with 더 보기, or one folded line that opens.
+    await step("on the hub's shape (&hub=round24), a folded comment line opens to each comment whole without moving the detail, and 접기 closes it where it was", async () => {
+      await openApp(page, "#/cards/k-101", "&hub=round24");
+      const box = page.getByTestId("card-comments");
+      await box.waitFor();
+      const fold = box.getByRole("button", { name: /접힌 댓글 2건$/ });
+      await fold.scrollIntoViewIfNeeded();
+      const scroller = () => fold.evaluate((node) => {
+        for (let at = node.parentElement; at; at = at.parentElement) if (at.scrollHeight > at.clientHeight && /auto|scroll/.test(getComputedStyle(at).overflowY)) return at.scrollTop;
+        return document.scrollingElement.scrollTop;
+      });
+      const before = { top: await scroller(), y: (await fold.boundingBox()).y };
+      check((await fold.getAttribute("aria-expanded")) === "false", "the fold is not a closed button");
+      await fold.click();
+      const opened = { top: await scroller(), y: (await fold.boundingBox()).y, expanded: await fold.getAttribute("aria-expanded") };
+      check(opened.expanded === "true" && opened.top === before.top && Math.abs(opened.y - before.y) < 0.5, "opening moved the detail: " + JSON.stringify({ before, opened }));
+      const held = box.getByTestId("fold-held");
+      const texts = await held.getByTestId("held-text").allInnerTexts();
+      const heads = await held.getByTestId("held-head").allInnerTexts();
+      check(texts.length === 2 && texts[0].includes("결정할 것은 둘째 갈래를 먼저 할지이다.") && texts[1].includes("fake-app#124에 묶었다."), "the fold opens to " + JSON.stringify(texts));
+      check(heads.every((head) => /^(어제 )?\d\d:\d\d · [^\s·]/.test(head.trim()) && !/ag-\d|lina-worker|dispatcher/.test(head)), "the opened heads read " + JSON.stringify(heads));
+      check(!/받음|깨움/.test(await held.innerText()), "a machine notice is in the opened fold");
+      await held.getByRole("button", { name: "접기" }).click();
+      const closed = { y: (await fold.boundingBox()).y, expanded: await fold.getAttribute("aria-expanded"), focused: await fold.evaluate((node) => document.activeElement === node) };
+      check(closed.expanded === "false" && closed.focused && Math.abs(closed.y - before.y) < 0.5 && (await box.getByTestId("fold-held").count()) === 0, "접기 did not close it where it was: " + JSON.stringify(closed));
+      const lines = (await box.getByTestId("history-row").allInnerTexts()).map((line) => line.trim().replace(/^(?:어제 )?\d\d:\d\d · /, ""));
+      check(lines.includes("진행 중 ×2") && lines.includes("가짜 검토를 마쳤고 병합해도 된다."), "k-101's comments read " + JSON.stringify(lines));
+      return lines.length + " lines; opened 2 whole at scroll " + before.top + ", the line at y " + Math.round(before.y) + " before, open and after 접기";
+    });
+    await step("on &hub=round24, no 기록 line of an ended round is a fragment or joins events; its folds open to the rows and report lines as written", async () => {
+      const timeline = page.getByTestId("timeline");
+      const said = (await timeline.locator("[data-kind=said]").allInnerTexts()).map((line) => line.trim().replace(/^(?:어제 )?\d\d:\d\d · /, ""));
+      check(said.every((line) => !/ \/ |^[.~]|\|$|[A-Za-z]/.test(line)), "a said line is a fragment or joins events: " + JSON.stringify(said));
+      const heads = (await timeline.locator(".timeline-head").allInnerTexts()).map((line) => line.trim());
+      check(heads.every((head) => !/[A-Za-z]/.test(head)) && heads.some((head) => /검토 통과(?: ×\d+)? · 가짜 표를 다시 그렸다\.$/.test(head)), "the round heads read " + JSON.stringify(heads));
+      const folds = timeline.getByRole("button", { name: /접힌 기록 \d+건$/ });
+      for (const fold of await folds.all()) await fold.click();
+      const opened = await timeline.getByTestId("held-text").allInnerTexts();
+      check(opened.some((text) => text.startsWith("9 · 가짜 시작 / 22:08")) && opened.some((text) => text.startsWith(".5초 뒤")) && opened.includes("Fake review merged via fake#12."), "the opened 기록 folds hold " + JSON.stringify(opened));
+      return said.length + " said lines, " + (await folds.count()) + " folds opened to " + opened.length + " rows";
+    });
+    await step("on &hub=round24, a stop's reason is never cut: whole, three lines with 더 보기, or one folded line that opens to all of it", async () => {
+      await openApp(page, "#/cards/k-441", "&hub=round24");
+      const whole = page.getByTestId("stop-reason");
+      check((await text(whole)) === "가짜 첫 화면 시안 두 장을 올렸어요. 어느 쪽이 더 읽기 쉬운지 알려 주세요.", "k-441's reason reads " + (await whole.innerText()));
+      check(!(await page.locator(".detail-head").innerText()).includes("이유 기록 없음"), "k-441 reads 이유 기록 없음");
+      await openApp(page, "#/cards/k-442", "&hub=round24");
+      const long = page.getByTestId("stop-reason");
+      await long.waitFor();
+      const clamp = await long.evaluate((node) => ({ height: node.clientHeight, full: node.scrollHeight, line: parseFloat(getComputedStyle(node).lineHeight) }));
+      check(Math.round(clamp.height / clamp.line) === 3 && clamp.full > clamp.height, "k-442's reason is not three lines with more below: " + JSON.stringify(clamp));
+      const more = page.locator(".detail-head").getByRole("button", { name: "더 보기" });
+      await more.click();
+      const all = await long.evaluate((node) => ({ height: node.clientHeight, full: node.scrollHeight }));
+      check(all.height >= all.full && (await long.innerText()).includes("어느 쪽으로 갈지 정해 주세요."), "더 보기 did not open all of k-442's reason: " + JSON.stringify(all));
+      await openApp(page, "#/cards/k-443", "&hub=round24");
+      const fold = page.locator(".detail-head").getByRole("button", { name: "접힌 이유" });
+      await fold.click();
+      const reason = await page.locator(".detail-head").getByTestId("held-text").innerText();
+      check(reason.startsWith("가짜 판 · 새 기기 · fake-mac") && reason.trim().endsWith("내일 아침에 바꿀지 정해 주세요."), "k-443's folded reason opens to " + reason.replace(/\s+/g, " "));
+      return "k-441 whole; k-442 " + Math.round(clamp.height / clamp.line) + " lines then " + all.full + " px; k-443 folded, opened " + reason.split("\n").length + " lines";
     });
     await step("a finished run with no record lists its past events, time · one sentence", async () => {
       await openApp(page, "#/runs/r7");

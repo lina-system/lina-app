@@ -1,7 +1,7 @@
 import { act, render, waitFor } from "@testing-library/preact";
 import { afterEach, expect, test, vi } from "vitest";
 import { App } from "./app";
-import { Store } from "./data/store";
+import { RECORDS_AT_ONCE, Store } from "./data/store";
 import { SyntheticSource } from "./data/synthetic-source";
 import { W } from "./words";
 
@@ -132,8 +132,9 @@ for (const wide of [true, false]) {
     // The detail is in; the record of the run seen last is asked first and alone, the others once it is in.
     await waitFor(() => expect(reads.held("record").map((read) => read.id)).toEqual([runIds.at(-1)]));
     await act(async () => reads.release("record"));
-    await waitFor(() => expect(reads.held("record")).toHaveLength(runIds.length - 1));
-    await act(async () => reads.release("record"));
+    // The others follow a few at a time (lina-app#253).
+    await waitFor(() => expect(reads.held("record")).toHaveLength(RECORDS_AT_ONCE));
+    await act(async () => reads.stop());
     await waitFor(() => expect(view.container.querySelector("[data-testid=detail-frame] [data-testid=card-comments]")).not.toBeNull());
     const settled = section(view.container);
     expect(settled).toContain("card-comments:");
@@ -174,12 +175,14 @@ for (const wide of [true, false]) {
     await act(async () => reads.release("card"));
     await waitFor(() => expect(reads.held("record")).toHaveLength(1));
     await act(async () => reads.release("record"));
-    await waitFor(() => expect(reads.held("record")).toHaveLength(runIds.length - 1));
+    await waitFor(() => expect(reads.held("record")).toHaveLength(RECORDS_AT_ONCE));
     await waitFor(() => expect(view.container.querySelector("[data-testid=detail-frame] [data-testid=timeline]")).not.toBeNull());
     const states = watch(view.container);
-    // A change event names one of the records still out: it is read again on its own and lands before the rest.
+    // A change event names one of the records still waiting: its read goes ahead of the others waiting, takes the first
+    // place one of those out leaves (lina-app#253), and lands on its own before the rest.
     const alone = store.invalidate([["record", runIds[0]]]);
-    await waitFor(() => expect(reads.held("record")).toHaveLength(runIds.length));
+    reads.releaseLast();
+    await waitFor(() => expect(reads.held("record").at(-1)?.id).toBe(runIds[0]));
     reads.releaseLast();
     await act(async () => alone);
     expect(store.status("record", runIds[0])).toBe("ok");

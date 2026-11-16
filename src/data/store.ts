@@ -24,13 +24,16 @@ export function isRunId(id: string): boolean {
 }
 
 /**
- * The worker run of a card seen last, the one whose record holds the card's newest round; the later of two seen at the
- * same time. A card's detail reads its record first and alone (lina-app#232).
+ * A card's worker runs that are runs, seen last first; of two seen at the same time, the one listed later. The first's
+ * record holds the card's newest round and is read first and alone (lina-app#232); the history is newest first, so read
+ * in this order each record adds under what stands (lina-app#253).
  */
-export function newestRun(workers: readonly { readonly id: string; readonly lastSeenAt: number }[]): string | null {
-  let newest: { readonly id: string; readonly lastSeenAt: number } | null = null;
-  for (const worker of workers) if (isRunId(worker.id) && (!newest || worker.lastSeenAt >= newest.lastSeenAt)) newest = worker;
-  return newest?.id ?? null;
+export function newestFirst(workers: readonly { readonly id: string; readonly lastSeenAt: number }[]): string[] {
+  return workers
+    .map((worker, index) => ({ worker, index }))
+    .filter(({ worker }) => isRunId(worker.id))
+    .sort((a, b) => b.worker.lastSeenAt - a.worker.lastSeenAt || b.index - a.index)
+    .map(({ worker }) => worker.id);
 }
 
 /** The routes once each, in order, without a record whose id cannot name a run. */
@@ -43,6 +46,12 @@ function distinct(routes: Want): Want {
     return true;
   });
 }
+
+/**
+ * How many worker-run records are read at once (lina-app#253): a long card names more than a hundred, and the core
+ * answers one read after another, so asking them all at once put every list read behind them.
+ */
+export const RECORDS_AT_ONCE = 4;
 
 /** The change stream: not opened yet, open (the screens are current), or down (they may be stale). */
 export type LiveState = "connecting" | "open" | "down";
@@ -178,6 +187,15 @@ export class Store {
   private readonly talks = new Map<string, number>();
   private talkResyncs = 0;
   private talkTails = 0;
+  /**
+   * The record reads waiting for their turn (lina-app#253): at most RECORDS_AT_ONCE are out, none starts while a list is
+   * read, and the reads of the stream and of a refresh go first, then the open screen's records in the order it asks.
+   */
+  private readonly recordsWaiting: { readonly id: string; readonly wanted: boolean; readonly go: () => void }[] = [];
+  private recordsOut = 0;
+  private listsReading = 0;
+  /** A record landed and its change is drawn with the next frame, with any other that lands before it. */
+  private changing = false;
 
   constructor(
     readonly source: Source,
@@ -262,13 +280,25 @@ export class Store {
     return () => this.listeners.delete(listener);
   }
 
-  private async load(name: RouteName, id?: string): Promise<boolean> {
+  /** One read of a route. `wanted`: a record the open screen asked for, read in its order behind the others' re-reads. */
+  private async load(name: RouteName, id?: string, wanted = false): Promise<boolean> {
     const key = this.key(name, id);
     const cards = name === "cards";
+    const record = name === "record";
+    const list = LIST_ROUTES.includes(name);
+    if (record) await this.recordTurn(id ?? "", wanted);
     if (cards) this.cardsReading += 1;
+    if (list) this.listsReading += 1;
     const limit = cards && !this.finishedAll ? String(FINISHED_SHOWN) : id;
-    const result = await this.source.read(name, limit);
-    if (cards) this.cardsReading -= 1;
+    let result: Awaited<ReturnType<Source["read"]>>;
+    try {
+      result = await this.source.read(name, limit);
+    } finally {
+      if (cards) this.cardsReading -= 1;
+      if (list) this.listsReading -= 1;
+      if (record) this.recordsOut -= 1;
+      if (list || record) this.nextRecords();
+    }
     if (cards && result.kind === "data") this.cardsWhole = limit === undefined;
     // What the store holds when the answer lands: another read of the route may have landed meanwhile.
     const before = this.entries.get(key);
@@ -301,6 +331,40 @@ export class Store {
         this.entries.set(key, { ...before, status: "failed" });
         return before?.status !== "failed";
     }
+  }
+
+  /** Resolves when this record may be read. */
+  private recordTurn(id: string, wanted: boolean): Promise<void> {
+    return new Promise((go) => {
+      this.recordsWaiting.push({ id, wanted, go });
+      this.orderRecords();
+      this.nextRecords();
+    });
+  }
+
+  /** The waiting records in turn: re-reads first, then the open screen's own in its order (a run page's ahead of a card's). */
+  private orderRecords(): void {
+    const wanted = this.wanted.flatMap(([name, id]) => (name === "record" && id !== undefined ? [id] : []));
+    const place = (turn: { readonly id: string; readonly wanted: boolean }) => (turn.wanted ? wanted.indexOf(turn.id) + 1 || wanted.length + 1 : 0);
+    this.recordsWaiting.sort((a, b) => place(a) - place(b));
+  }
+
+  private nextRecords(): void {
+    while (this.listsReading === 0 && this.recordsOut < RECORDS_AT_ONCE) {
+      const turn = this.recordsWaiting.shift();
+      if (!turn) return;
+      this.recordsOut += 1;
+      turn.go();
+    }
+  }
+
+  private changeSoon(): void {
+    if (this.changing) return;
+    this.changing = true;
+    void this.afterPaint().then(() => {
+      this.changing = false;
+      this.changed();
+    });
   }
 
   private changed(): void {
@@ -611,13 +675,22 @@ export class Store {
 
   want(routes: Want): void {
     this.wanted = distinct(routes);
+    // A record this screen asks for that is still waiting moves up to its place (a run page opened from a long card).
+    this.orderRecords();
     const missing = this.wanted.filter(([name, id]) => !this.entries.has(this.key(name, id)));
     if (!missing.length) return;
     // Held as pending while the read is out, so a redraw meanwhile does not ask for it again.
     for (const [name, id] of missing) this.entries.set(this.key(name, id), { status: "pending" });
-    void Promise.all(missing.map(([name, id]) => this.load(name, id))).then((changes) => {
-      if (changes.some(Boolean)) this.changed();
-    });
+    const others = missing.filter(([name]) => name !== "record");
+    if (others.length)
+      void Promise.all(others.map(([name, id]) => this.load(name, id))).then((changes) => {
+        if (changes.some(Boolean)) this.changed();
+      });
+    // Each record is drawn as it lands, not after the last of a long card's (lina-app#253).
+    for (const [, id] of missing.filter(([name]) => name === "record"))
+      void this.load("record", id, true).then((changed) => {
+        if (changed) this.changeSoon();
+      });
   }
 
   /**

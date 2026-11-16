@@ -1,7 +1,7 @@
 import { act, render, waitFor } from "@testing-library/preact";
 import { afterEach, expect, test, vi } from "vitest";
 import { App } from "./app";
-import { Store } from "./data/store";
+import { RECORDS_AT_ONCE, Store } from "./data/store";
 import { SyntheticSource } from "./data/synthetic-source";
 import { W } from "./words";
 
@@ -87,7 +87,7 @@ for (const wide of [true, false]) {
   const width = wide ? "1280" : "390";
 
   test(`the long card draws its head and newest history from one record, then fills the rest below in place (${width})`, async () => {
-    const { source, runIds, newest } = longCard();
+    const { source, newest } = longCard();
     const reads = holdReads(source);
     setWide(wide);
     window.history.replaceState(null, "", "/app/#/running");
@@ -112,7 +112,8 @@ for (const wide of [true, false]) {
     expect(loading).not.toBeNull();
     expect(article.querySelector("[data-testid=timeline]")?.compareDocumentPosition(loading as Element)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(article.querySelector("[data-testid=card-comments]")).toBeNull();
-    await waitFor(() => expect(reads.held("record")).toHaveLength(runIds.length - 1));
+    // The others are asked a few at a time (lina-app#253).
+    await waitFor(() => expect(reads.held("record")).toHaveLength(RECORDS_AT_ONCE));
 
     await act(async () => reads.stop());
     await waitFor(() => expect(article.querySelector("[data-testid=card-comments]")).not.toBeNull());

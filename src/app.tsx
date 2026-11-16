@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/ho
 import type { AppLabel } from "./data/http-source";
 import { LIVE_SETTLE_MS, startLive } from "./data/live";
 import { nowSeconds } from "./data/source";
-import { newestRun, SLOW_ROUTES, useClock, useStore, type Store, type Want } from "./data/store";
+import { newestFirst, SLOW_ROUTES, useClock, useStore, type Store, type Want } from "./data/store";
 import { buildModel, runRow, type Model } from "./model";
 import { back, baseOf, defaultListFor, href, isFrame, isList, linkClick, navigate, onSaveScroll, onStackMotion, parse, tabOf, tabRoot, TABS, useNav, type Route, type Tab } from "./router";
 import { slideMotion } from "./stack-motion";
@@ -95,10 +95,10 @@ function wantsFor(route: Route, store: Store): Want {
     case "card": {
       // A card's detail and the records of its worker runs (the timeline). The record of the run seen last comes first
       // and alone: on a long card each run may serve the card's whole record again, 110 reads of 300 kB that the history
-      // waited for on a phone (lina-app#232). The others are asked once it is in.
-      const workers = store.get("card", route.id)?.workerRuns ?? [];
-      const newest = newestRun(workers);
-      const records = newest !== null && store.status("record", newest) === "pending" ? [newest] : workers.map((worker) => worker.id);
+      // waited for on a phone (lina-app#232). The others are asked once it is in, newest first: the store reads a few at
+      // a time in that order, and each adds under the history that stands (lina-app#253).
+      const runs = newestFirst(store.get("card", route.id)?.workerRuns ?? []);
+      const records = runs.length && store.status("record", runs[0]) === "pending" ? [runs[0]] : runs;
       return [["card", route.id], ...records.map((id) => ["record", id] as const)];
     }
     case "run": {

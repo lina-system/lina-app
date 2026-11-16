@@ -557,6 +557,68 @@ export type SettingsScript = SettingsVariant | "stale" | "race";
 /** Who the synthetic core says wrote from this page, and from the other device of `&settings=stale`. */
 export const SETTINGS_WRITER = { principal: SYNTHETIC_OWNER.id, device: "나침반", other: "먹물" } as const;
 
+/**
+ * The long card of `&card=long` (lina-app#253), in made-up words: its id, its own title (a Latin word in it, so no rule
+ * draws it and its row reads its goal's title), that goal's title and how many worker runs it names.
+ */
+export const LONG_CARD = { card: "k-860", own: "가상 fake record 묶음 옮기기", goal: "가상 긴 기록 화면 다듬기", runs: 142 } as const;
+
+/**
+ * `&card=long` (lina-app#253): k-860, the hub's biggest card as the board lists it, the newest finished card on the work
+ * tab's first page. It names LONG_CARD.runs worker runs, each serving its own record in the hub's shape: one round of one
+ * line, every fifth with a comment row; the run seen last is a short one whose record holds no round, as a browser run's.
+ */
+export function longCardScene(scene: Scene): Scene {
+  const template = scene.cards.cards.find((card) => card.state === "done");
+  const base = scene.cardDetails["k-101"];
+  if (!template || !base) return scene;
+  const now = scene.now;
+  const ended = now - 10 * 60;
+  const start = ended - LONG_CARD.runs * 20 * 60;
+  const runs = Array.from({ length: LONG_CARD.runs }, (_, index) => ({ id: `w-86${String(index + 1).padStart(3, "0")}`, start: start + index * 20 * 60 }));
+  const row = { ...template, id: LONG_CARD.card, title: LONG_CARD.own, plain: { ...template.plain, title: null }, goalTitle: LONG_CARD.goal, state: "done", reason: null, readOnly: true, endedAt: ended, lastHeartbeatAt: ended } as SceneCard;
+  const detail: WorkCardDetail = {
+    ...base,
+    id: LONG_CARD.card,
+    title: LONG_CARD.own,
+    plain: { title: null, now: null, result: null },
+    state: "done",
+    reason: null,
+    now: null,
+    todoProgress: { done: 0, total: 0 },
+    todos: [],
+    comments: [],
+    readOnly: true,
+    endedAt: ended,
+    lastHeartbeatAt: ended,
+    workerRuns: runs.map(({ id, start }, index) => ({ id, kind: index === runs.length - 1 ? "quick-issue" : "lina-worker", firstSeenAt: start, lastSeenAt: start + 15 * 60 })),
+    runs: runs.map(({ start }, index) => ({ id: 8600 + index, profile: null, status: "done", outcome: "completed", startedAt: start - 60, endedAt: start + 15 * 60, lastHeartbeatAt: null, summary: null, live: false })),
+  };
+  const records = runs.map(({ id, start }, index): RunRecord => ({
+    ...scene.records.r9,
+    id,
+    cardId: LONG_CARD.card,
+    rounds:
+      index === runs.length - 1
+        ? []
+        : [{ run: 1, startedAt: start, endedAt: start + 15 * 60, endKnown: true, startUnknown: false, result: `가상 묶음 ${index + 1}번을 정리했다.`, verdict: "accepted", stopped: false, rows: [{ at: start + 5 * 60, kind: "said", text: `가상 묶음 ${index + 1}번의 줄을 다시 읽었다.`, count: 1 }] }],
+    comments: index % 5 === 0 ? [{ at: start + 10 * 60, kind: "comment", text: `가상 묶음 ${index + 1}번 메모를 남겼다.`, count: 1 }] : [],
+    errors: [],
+  }));
+  return {
+    ...scene,
+    cards: { ...scene.cards, cards: [...scene.cards.cards, row] },
+    cardDetails: { ...scene.cardDetails, [LONG_CARD.card]: detail },
+    records: { ...scene.records, ...Object.fromEntries(records.map((record) => [record.id, record])) },
+  };
+}
+
+/**
+ * `&records=serial` (lina-app#253): the synthetic core answers every read one after another, as the hub's core does, a
+ * worker run's record taking this long; the other reads wait their turn.
+ */
+export const SERIAL_RECORD_MS = 60;
+
 /** A settings write drawn over another revision than the one read last: stale, and not sent, like HttpSource. */
 const NOT_THE_READ: WriteResult<never> = { ok: false, status: 412, detail: null };
 
@@ -839,6 +901,10 @@ export class SyntheticSource implements Source {
   private readonly script: StreamScript;
   /** `&records=slow`: k-101 read as the hub's long card (lina-app#232); see SLOW_RECORD_MS. */
   private readonly slowRecords: boolean;
+  /** `&records=serial`: how long a record's answer takes, every read answered after the one before it (lina-app#253). */
+  private readonly serialRecordMs: number | null;
+  /** The last read answered or still being answered, which the next one waits for. */
+  private answering: Promise<unknown> = Promise.resolve();
   /** `&error=checks`: the hub's checks route does not answer, while every other route still does. */
   private readonly checksError: boolean;
   private streamDown: boolean;
@@ -870,8 +936,9 @@ export class SyntheticSource implements Source {
   private readonly signing = new Set<string>();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; hubRound23?: boolean; hubRound24?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; hubRound23?: boolean; hubRound24?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean; serialRecordMs?: number | null; longCard?: boolean } = {}) {
     this.slowRecords = options.slowRecords ?? false;
+    this.serialRecordMs = options.serialRecordMs ?? null;
     this.staleNext = options.settings === "stale";
     this.raceNext = options.settings === "race";
     this.talkRefusal = options.talk ?? null;
@@ -895,10 +962,22 @@ export class SyntheticSource implements Source {
         settings: options.settings === "stale" || options.settings === "race" ? null : options.settings,
         power: options.power,
       });
-    this.scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : options.hubRound23 ? round23Scene(generated) : options.hubRound24 ? round24Scene(generated) : generated;
+    const scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : options.hubRound23 ? round23Scene(generated) : options.hubRound24 ? round24Scene(generated) : generated;
+    this.scene = options.longCard ? longCardScene(scene) : scene;
   }
 
-  async read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {
+  read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {
+    const ms = this.serialRecordMs;
+    if (ms === null) return this.answer(name, id);
+    const answered = this.answering.then(async () => {
+      if (name === "record") await new Promise((resolve) => setTimeout(resolve, ms));
+      return this.answer(name, id);
+    });
+    this.answering = answered;
+    return answered;
+  }
+
+  private async answer<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {
     const at = nowSeconds();
     this.reads += 1;
     if (this.pageToken !== this.coreToken) return { kind: "failed", offline: false, at, denied: true };

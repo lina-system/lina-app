@@ -9,7 +9,7 @@ import { holds } from "../model/rounds";
 import { stopReason } from "../model/stop-reason";
 import { answerOf, commentHistory, decisionHistory, goalHistory, historyLines, isMachineNotice, outcomeOf, ownerWrote } from "../model/timeline";
 import type { CardKind } from "../model/kind";
-import { isRunId, newestRun, type Store } from "../data/store";
+import { isRunId, newestFirst, type Store } from "../data/store";
 import { back, baseOf, href, isFrame, navigate, parse, tabOf, type Route } from "../router";
 import { ago, clockAt, dayLabel } from "../time";
 import { useActions } from "../ui/actions";
@@ -993,11 +993,15 @@ export function CardScreen({ id }: { id: string }) {
   const { rounds, outside } = workerRounds({ runs: detail.runs, workerRuns });
   // The history and comments wait for the records of the card's worker runs, read only once its detail named them
   // (lina-app#217): drawn from the detail alone they read `이전 기록 N건` and then grow when the records land. The
-  // record of the run seen last is read first (lina-app#232): once it holds a round, the history draws from it while the
-  // others are read and add below it in place; the comments, which take theirs too, wait for them all.
+  // records are read newest run first (lina-app#232, #253): once those in so far, up to the first still out, hold a round,
+  // the history draws from them, and each later one adds below in place (an older run's rounds are older, and the history
+  // is newest first); the comments, which take theirs too, wait for them all. Only that first draw holds back the runs
+  // not yet landed: a card already drawn that gains a newer run keeps every record on screen while the new one is read.
   const pending = drawn.current !== id && workerRuns.some((worker) => store.status("record", worker.id) === "pending");
-  const newest = newestRun(workerRuns);
-  const filling = pending && newest !== null && Boolean(store.get("record", newest)?.rounds.length);
+  const order = newestFirst(workerRuns);
+  const out = order.findIndex((runId) => store.status("record", runId) === "pending");
+  const landed = new Set(out < 0 ? order : order.slice(0, out));
+  const filling = pending && [...landed].some((runId) => Boolean(store.get("record", runId)?.rounds.length));
   const reading = pending && !filling;
   if (!pending) drawn.current = id;
   // The state word of a worker run the board does not list: going while it beats, else how its round ended.
@@ -1028,7 +1032,12 @@ export function CardScreen({ id }: { id: string }) {
   // The head reads the name of the row that was tapped (its goal's title when the row leads with it); the card's own
   // title is the line under it when it differs (lina-app#153).
   const own = cardTitle(detail.plain.title, detail.title, detail.state === "stopped") ?? row?.own ?? null;
-  const title = led?.name ?? row?.title ?? own;
+  // A card opened by its address before the list holds its row: its name is the row's, so the head reads 불러오는 중 until
+  // the list is read, never 제목 없음 (lina-app#253), which stays for a card the board does not know. A list read that
+  // failed is no read out: the head falls back to the detail's title instead of waiting for a read nothing repeats.
+  const cardsStatus = store.status("cards");
+  const unlisted = !row && (cardsStatus === "pending" || (!model.finished.all && cardsStatus !== "failed"));
+  const title = unlisted ? null : (led?.name ?? row?.title ?? own);
   // The head reads the state of the row that was pressed, the list's snapshot, until the next refresh moves both; the
   // detail read later may already say another (lina-app#157). A card with no row reads its detail's.
   const state = row?.state ?? detail.state;
@@ -1047,10 +1056,10 @@ export function CardScreen({ id }: { id: string }) {
   const nothing = !fold && !questions.length && !askHere && !nowLine && !detail.plain.result && !detail.todos.length && kept && !workerRuns.length && !commentLines.length;
   return (
     <article class="detail" data-testid="screen-card">
-      <CardHead work={row?.work ?? "code"} title={title}>
+      <CardHead work={row?.work ?? "code"} title={title} untitled={unlisted ? W.loading : undefined}>
         <HeadState state={state} reason={reason} row={row} time={row ? [cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP) : ""} readOnly={readOnly} />
         {state === "stopped" ? <StopWhy reason={reason} words={row?.stop?.words} whole={row?.stop?.reason} carried={stateSaysWhy(state, reason, row, readOnly)} stoppedAt={row?.stateAt ?? detail.lastHeartbeatAt ?? null} comments={detail.comments} card={row} /> : null}
-        <OwnTitleLine own={own} title={title} />
+        {unlisted ? null : <OwnTitleLine own={own} title={title} />}
         {goalLine && goalLine !== title ? (
           <span class="sub" data-testid="card-goal">
             {[W.goals, goalLine].join(SEP)}
@@ -1116,7 +1125,7 @@ export function CardScreen({ id }: { id: string }) {
       ) : (
         <>
           <Timeline
-            runs={workerRuns.map((worker) => worker.id)}
+            runs={workerRuns.map((worker) => worker.id).filter((runId) => !pending || landed.has(runId))}
             boxed
             live={(runId) => runLive(model, runId)}
             link={(runId, n, at) => workerLink(roundRun(runId, n, at))}

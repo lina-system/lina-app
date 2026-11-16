@@ -8,7 +8,9 @@ import { ROUND24, SyntheticSource } from "./data/synthetic-source";
 // from 1. A record block's head opens the worker run it was recorded from, never the card's first run. On the hub's
 // shapes (&hub=round24, k-450); every text is made up.
 
-const hub = () => new SyntheticSource({ now: Math.floor(Date.now() / 1000), hubRound24: true });
+// One clock for the whole file: two opens a second apart can straddle a minute and shift the heads they compare.
+const NOW = Math.floor(Date.now() / 1000);
+const hub = () => new SyntheticSource({ now: NOW, hubRound24: true });
 
 afterEach(() => {
   vi.unstubAllGlobals();

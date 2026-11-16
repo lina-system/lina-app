@@ -316,10 +316,15 @@ async function rowNames(list) {
 }
 
 // A group's rows, one each (a `×n` line too), and the rows its fold `외 n개` holds back (lina-app#221).
-async function rowsAndFold(section) {
-  const rows = await section.locator("li[data-testid=row]").count();
+// The cards some rows stand for, a `×n` row counting n (lina-app#225).
+async function cardsOf(rows) {
+  return (await rows.allInnerTexts()).reduce((sum, text) => sum + Number(/×(\d+)/.exec(text)?.[1] ?? 1), 0);
+}
+
+// The cards a 완료 group's rows and its fold `외 n개` stand for (lina-app#225).
+async function cardsAndFold(section) {
   const fold = section.locator(".more-row:not([data-testid=fold-hide])");
-  return rows + ((await fold.count()) ? Number(/외 (\d+)개/.exec(await fold.innerText())?.[1] ?? 0) : 0);
+  return (await cardsOf(section.locator("li[data-testid=row]"))) + ((await fold.count()) ? Number(/외 (\d+)개/.exec(await fold.innerText())?.[1] ?? 0) : 0);
 }
 
 // The scroll of the element a list scrolls in: the nearest one above it that may scroll, else the page (lina-app#221).
@@ -991,6 +996,20 @@ const drivers = {
       await openApp(page, "#/running");
       return measured + " titles and second lines, none cut";
     });
+    // lina-app#225 (QA round 20, the real hub): two stopped cards with no goal and a Latin word in their own title read 제목 없음.
+    await step("on the hub's shape (&hub=round20), all 13 stopped cards are rows under a red 13, none 제목 없음, a title with a product name, a hash and refs reading what is left (lina-app#225)", async () => {
+      await openApp(page, "#/", "&hub=round20");
+      const group = page.getByTestId("section-stopped");
+      await group.locator(".more-row:not([data-testid=fold-hide])").getByRole("button").click();
+      const rows = await group.locator("li[data-testid=row]").count();
+      const red = Number((await group.getByTestId("head-stopped").getByTestId("stopped-count").innerText()).trim());
+      const titles = (await group.locator("li[data-testid=row] .lines > .title").allInnerTexts()).map((title) => title.trim());
+      const grey = await group.locator("li[data-testid=row] .lines > .title.is-kind").count();
+      const named = ["Grafana 대시보드 패널 순서 맞추기", "Figma 시안의 버튼 간격을 Tailwind 기준으로 다시 맞추기"].filter((title) => titles.includes(title));
+      check(rows === 13 && red === 13 && !titles.some((title) => title.includes("제목 없음")) && named.length === 2 && grey === 0, rows + " rows under a red " + red + ": " + titles.join(" | "));
+      await openApp(page, "#/running");
+      return rows + " stopped rows, red " + red + ", both Latin-bearing titles read";
+    });
     // lina-app#212: the selected stopped row's selection ran to its link and left 다시 시도 (or `<agent>에게 요청함`)
     // outside it on the panel, so the row read cut in two.
     await step("a selected stopped row is painted whole, its 다시 시도 and 요청함 inside, in light, dark and forced colours", async () => {
@@ -1108,18 +1127,19 @@ const drivers = {
       check(/^완료 · \d+(분|시간|일) 전 · 소요 \d+(분|시간)( \d+분)?$/.test(head), "the detail reads " + head);
       return head;
     });
-    await step("on the hub's shape (&hub=round11), 완료 counts the lines it lists, the work tab's lines (×3 is one line, lina-app#221)", async () => {
+    await step("on the hub's shape (&hub=round11), 완료 counts the cards its lines stand for, as the work tab does (×3 counts three, lina-app#225)", async () => {
       await openApp(page, "#/running", "&hub=round11");
-      const finished = await rowsAndFold(page.getByTestId("section-finished"));
+      const finished = await cardsAndFold(page.getByTestId("section-finished"));
       await openApp(page, "#/done", "&hub=round11");
       const list = page.getByTestId("screen-done").getByRole("list", { name: "완료", exact: true }).locator(":scope > li");
       const rows = await list.count();
+      const cards = await cardsOf(list);
       const all = (await page.getByTestId("done-filter").getByRole("button").first().getAttribute("aria-label")) ?? "";
       await openMenu(page);
       const nav = await sidebarCount(page, "nav-done");
-      check(rows === finished && all.endsWith(" " + rows) && (nav === null || Number(nav) === rows), "완료 says " + nav + " and " + all + ", lists " + rows + " lines; the work tab lists " + finished);
+      check(cards === finished && cards === rows + 2 && all.endsWith(" " + cards) && (nav === null || Number(nav) === cards), "완료 says " + nav + " and " + all + ", lists " + rows + " lines standing for " + cards + " cards; the work tab " + finished);
       check((await page.getByTestId("screen-done").getByText(/×3$/).count()) === 1, "no ×3 line in 완료");
-      return "완료 " + (nav ?? "(phone)") + ", " + rows + " lines, work tab " + finished;
+      return "완료 " + (nav ?? "(phone)") + ", " + rows + " lines, " + cards + " cards, work tab " + finished;
     });
   },
 
@@ -3087,8 +3107,8 @@ const drivers = {
         const red = Number((await page.getByTestId("nav-running").getByTestId("nav-stopped").innerText()).trim());
         check(Number(nav) + red === running, "the sidebar says " + nav + " and red " + red + ", the list has " + running);
         const done = Number(await sidebarCount(page, "nav-done"));
-        const finished = await rowsAndFold(page.getByTestId("section-finished"));
-        check(done === finished, "완료 says " + done + ", the home lists " + finished + " finished");
+        const finished = await cardsAndFold(page.getByTestId("section-finished"));
+        check(done === finished, "완료 says " + done + ", the home's rows and fold stand for " + finished + " finished cards");
       }
       return found.join(", ") + "; running list " + running;
     });
@@ -3135,20 +3155,67 @@ const drivers = {
       check(bottom > opened && back === opened, "the list was at " + opened + " px when opened, " + bottom + " px at 닫기, " + back + " px after");
       return "opened at " + opened + " px: " + rows + " rows, 닫기 at " + bottom + " px; closed: " + after.rows + " rows + " + after.fold + ", back at " + back + " px";
     });
-    await step("on the hub's shape (&hub=round18), 완료 is one unit, its rows: 524 entries read 5 rows and 외 519개, then 513 rows, with no 제목 없음 (lina-app#221)", async () => {
+    // The 완료 group as it reads now: its head, the sidebar's 완료 (null on a phone), its rows and the cards they and the fold stand for.
+    const finishedNow = async (group) => ({ head: Number((await group.getByTestId("head-finished").getByTestId("count").innerText()).trim()), nav: await sidebarCount(page, "nav-done"), rows: await group.locator("li[data-testid=row]").count(), all: await cardsAndFold(group) });
+    await step("on the hub's shape (&hub=round18), 완료 is one unit, cards: 524 cards read 5 rows and 외 519개, then 514 rows standing for 524, with no 제목 없음 (lina-app#225)", async () => {
       await openApp(page, "#/", "&hub=round18");
       const group = page.getByTestId("section-finished");
-      const read = async () => ({ head: Number((await group.getByTestId("head-finished").getByTestId("count").innerText()).trim()), nav: await sidebarCount(page, "nav-done"), rows: await group.locator("li[data-testid=row]").count(), all: await rowsAndFold(group) });
-      const before = await read();
+      const before = await finishedNow(group);
       check(before.head === 524 && before.rows === 5 && before.all === 524 && (before.nav === null || Number(before.nav) === 524), "before: " + JSON.stringify(before));
       await group.locator(".more-row").getByRole("button").click();
       await group.getByRole("button", { name: "완료 닫기", exact: true }).waitFor();
-      const after = await read();
+      const after = await finishedNow(group);
       const folds = (await group.locator("li[data-testid=row]").allInnerTexts()).map((text) => /×(\d+)/.exec(text)?.[1]).filter(Boolean);
+      const grey = await group.locator("li[data-testid=row] .title.is-kind").allInnerTexts();
       const untitled = await page.getByTestId("screen-running").getByText("제목 없음").count();
-      check(after.head === 513 && after.rows === 513 && after.all === 513 && (after.nav === null || Number(after.nav) === 513), "opened: " + JSON.stringify(after));
-      check(JSON.stringify(folds) === JSON.stringify(["4", "5", "2", "2"]) && untitled === 0, "folds " + JSON.stringify(folds) + ", 제목 없음 " + untitled);
-      return "before " + before.head + " = " + before.rows + " rows + 외 " + (before.all - before.rows) + "개 (sidebar " + (before.nav ?? "phone") + "); opened " + after.rows + " rows, head " + after.head + ", sidebar " + (after.nav ?? "phone") + ", folds ×" + folds.join(" ×");
+      check(after.head === 524 && after.rows === 514 && after.all === 524 && (after.nav === null || Number(after.nav) === 524), "opened: " + JSON.stringify(after));
+      check(JSON.stringify(folds) === JSON.stringify(["4", "5", "2", "2", "2"]) && JSON.stringify(grey) === JSON.stringify(["작업 ×2"]) && untitled === 0, "folds " + JSON.stringify(folds) + ", grey " + JSON.stringify(grey) + ", 제목 없음 " + untitled);
+      return "before " + before.head + " = " + before.rows + " rows + 외 " + (before.all - before.rows) + "개 (sidebar " + (before.nav ?? "phone") + "); opened " + after.rows + " rows for " + after.all + " cards, head " + after.head + ", sidebar " + (after.nav ?? "phone") + ", folds ×" + folds.join(" ×");
+    });
+    // lina-app#225 (QA round 20, the real hub): the hub's 525 finished cards read 525 collapsed and 475 opened, a planned card
+    // with a Latin goal title was in no list, and a waiting to-do past its due date read only its date.
+    await step("on the hub's shape (&hub=round20), 완료 counts cards in every state: 46 cards read 5 rows and 외 41개, then rows whose ×n add up to 46 with one grey 작업 ×4, the head and the sidebar 46 (lina-app#225)", async () => {
+      await openApp(page, "#/", "&hub=round20");
+      const group = page.getByTestId("section-finished");
+      const before = await finishedNow(group);
+      check(before.head === 46 && before.rows === 5 && before.all === 46 && (before.nav === null || Number(before.nav) === 46), "before: " + JSON.stringify(before));
+      await group.locator(".more-row").getByRole("button").click();
+      await group.getByRole("button", { name: "완료 닫기", exact: true }).waitFor();
+      const after = await finishedNow(group);
+      const grey = await group.locator("li[data-testid=row] .title.is-kind").allInnerTexts();
+      const untitled = await page.getByTestId("screen-running").getByText("제목 없음").count();
+      check(after.head === 46 && after.all === 46 && after.rows < 46 && (after.nav === null || Number(after.nav) === 46), "opened: " + JSON.stringify(after));
+      check(JSON.stringify(grey) === JSON.stringify(["작업 ×4"]) && untitled === 0, "grey " + JSON.stringify(grey) + ", 제목 없음 " + untitled);
+      return "before " + before.head + " = " + before.rows + " rows + 외 " + (before.all - before.rows) + "개 (sidebar " + (before.nav ?? "phone") + "); opened " + after.rows + " rows for " + after.all + " cards, head " + after.head + ", grey " + grey.join("");
+    });
+    await step("on the hub's shape (&hub=round20), every planned card is a row of 예정, its head their number, the one with a Latin goal title named by it (lina-app#225)", async () => {
+      await openApp(page, "#/", "&hub=round20");
+      const group = page.getByTestId("section-planned");
+      const rows = group.locator("li[data-testid=row]");
+      const planned = await page.evaluate(() => window.__linaScene.cards.cards.filter((card) => card.state === "planned").length);
+      const head = Number((await group.getByTestId("head-planned").getByTestId("count").innerText()).trim());
+      const notion = rows.filter({ has: page.locator(".title", { hasText: /^Notion 문서 옮기기$/ }) });
+      const sub = (await notion.count()) ? (await notion.getByTestId("row-sub").innerText()).trim() : null;
+      check((await rows.count()) === planned && head === planned && sub === "Notion 페이지 목록을 새 폴더로 정리", "예정 " + head + ", " + (await rows.count()) + " rows of " + planned + " planned cards; the Latin goal's row reads " + sub);
+      return "예정 " + head + " = " + planned + " planned cards, k-421 under its goal's title";
+    });
+    await step("on the hub's shape (&hub=round20), the owner's to-do waiting on feedback past its due date reads 지남 on its 내 할 일 row and 피드백 대기 · 지남 on its head (lina-app#225)", async () => {
+      await openApp(page, "#/", "&hub=round20");
+      const mine = page.getByTestId("home-mine");
+      const more = mine.locator(".more-row:not([data-testid=fold-hide])");
+      if (await more.count()) await more.getByRole("button").click();
+      const row = mine.locator("li[data-testid=row]").filter({ hasText: "저장소 접근 권한 주기" });
+      const word = (await row.locator(".trail .kind-word").count()) ? (await row.locator(".trail .kind-word").innerText()).trim() : null;
+      const label = (await row.getByRole("link").getAttribute("aria-label")) ?? "";
+      const red = await row.locator(".due-date.is-overdue").count();
+      check(word === "지남" && label.endsWith(" · 지남") && red === 1, "T9's row reads " + word + ", named " + label + ", red date " + red);
+      await openApp(page, "#/items/T9", "&hub=round20");
+      const state = page.locator(".detail-head [data-testid=state]").first();
+      await state.waitFor();
+      const head = (await state.innerText()).trim();
+      check(head === "피드백 대기 · 지남", "T9's head reads " + head);
+      await openApp(page, "#/");
+      return "row " + word + " over its red date; head " + head;
     });
     await step("one card per run: three rounds of one card stay one card, and no worker run is a row", async () => {
       const release = await home().getByRole("link", { name: /릴리스 노트 정리/ }).count();

@@ -94,7 +94,8 @@ export interface CardRow {
    * The name in colour. The title order (lina-app#122): its goal's title (the card's own `goalTitle` first, lina-app#134); else a work card's checked title, or its own
    * title until that exists when it may be drawn (cardTitle), a run's checked title, then its own name; else its
    * to-do's title; else its card's title. A lone stopped run whose only name is in Latin reads 이름 없는 실행. Null when
-   * none may be drawn: the row is not listed (lina-app#124).
+   * none may be drawn: the card is still a row (lina-app#225), named by its kind of work, a finished one in 완료's line
+   * of the cards nothing names.
    */
   readonly title: string | null;
   /** The card's own title, the one its page's head shows, before its goal's title is put first: null when none may be drawn. */
@@ -130,7 +131,7 @@ export interface CardRow {
    * lina-app#156: the ask is said after the stop's words (`stop.words`), or names the row when nothing else does.
    */
   readonly ask?: string | null;
-  /** The card's own name with its references cut (ownName), when that may be drawn: what tells rows of one goal apart. */
+  /** The card's own name with its references cut (its title as workCardRow reads it), when that may be drawn: what tells rows of one goal apart. */
   readonly ownName?: string | null;
   /**
    * The row's second line in its group (lina-app#148, #152): the card's own name whenever it differs from the row's
@@ -256,7 +257,8 @@ export interface Home {
   readonly waiting: Section<CardRow>;
   /**
    * 완료 (lina-app#186): the finished lines the page read, the last 24 hours first, each part newest first. Its count is
-   * its rows and the finished cards not read yet, each of which may be a row (lina-app#221): the number the sidebar shows.
+   * cards (lina-app#225): the cards its lines stand for (cardCount) and the finished cards not read yet, the number the
+   * sidebar shows, the same collapsed, reading and opened.
    */
   readonly finished: Section<CardRow>;
 }
@@ -341,11 +343,6 @@ export function cardTitle(checked: string | null, own: string | null, _stopped =
   return own === null ? null : cleanTitle(own);
 }
 
-/** A card's own name in any state: its title as cardTitle gives it. */
-export function ownName(checked: string | null, own: string | null): string | null {
-  return cardTitle(checked, own);
-}
-
 /**
  * A title with its ids, references and hashes cut (withoutRefs), when what is left passes the one rule every drawn
  * sentence passes (sentenceMayShow, lina-app#156, #222): one with no Hangul, a Latin word, a product name or a round
@@ -366,6 +363,21 @@ function cleanTitle(title: string, latin = false): string | null {
 function finishedTitle(title: string | null): string | null {
   const cut = title ? withoutLatin(withoutRefs(title)) : "";
   return (cut.match(/\p{Script=Hangul}/gu) ?? []).length >= 4 && sentenceMayShow(cut) ? cut : null;
+}
+
+/** Three Latin words or more in a row: an English phrase, not a product or tool name in a Korean title. */
+const LATIN_RUN = /(?<![\w.\-/])[A-Za-z][\w.\-/]*(?:[\s,:·]+[A-Za-z][\w.\-/]*){2,}/;
+
+/**
+ * The title a stopped, planned or running card's row draws (lina-app#156, #225): the core's title with only what is
+ * internal cut (issue and pull request references, hashes, ids, code names and the bracket that held only them,
+ * withoutRefs), product and tool names and short abbreviations kept. Null only when no Hangul is left, a run of three
+ * Latin words or more is, or raw text such as a path or a command is (foldReason). Not the sentence rule: a title is no
+ * sentence.
+ */
+export function workTitle(title: string | null | undefined): string | null {
+  const cut = title ? withoutRefs(title) : "";
+  return cut && HANGUL.test(cut) && !LATIN_RUN.test(cut) && mayDraw(cut, true) ? cut : null;
 }
 
 /**
@@ -471,12 +483,13 @@ export function apart(rows: readonly CardRow[], now: number): CardRow[] {
 /**
  * A finished group's lines (lina-app#168): cards whose lines read the same (the hub's titles that differ only by a hash
  * or a number the screen cuts) are one line, the newest of them, which it opens, with how many it stands for
- * (`repeat`). The rows come newest first; the group head counts the lines.
+ * (`repeat`); the cards nothing names are one such line too (lina-app#225). The rows come newest first; the group head
+ * counts the cards (cardCount).
  */
 function collapsed(rows: readonly CardRow[]): CardRow[] {
   const lines = new Map<string, CardRow>();
   for (const row of rows) {
-    const key = [row.name, row.sub ?? ""].join("\n");
+    const key = row.title === null ? "" : [row.name, row.sub ?? ""].join("\n");
     const first = lines.get(key);
     lines.set(key, first ? { ...first, repeat: (first.repeat ?? 1) + 1, fold: [...(first.fold ?? [first]), row] } : { ...row, when: null });
   }
@@ -493,8 +506,8 @@ function doneLines(done: readonly CardRow[], now: number): CardRow[] {
 }
 
 /** The one naming rule: that title, else the kind of work (코드 작업, 문서 작업, 조사, 기기 작업). */
-export function cardName(title: string | null, work: CardKind, ownTitle: string | null = null): string {
-  return cardTitle(title, ownTitle) ?? KIND_TITLE[work];
+export function cardName(title: string | null, work: CardKind): string {
+  return cardTitle(title, null) ?? KIND_TITLE[work];
 }
 
 function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, receivedAt: number, cardRuns: readonly RunCard[]): CardRow {
@@ -505,7 +518,8 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
   const base = receivedAt - card.elapsedSeconds;
   // A card with no checked title is named by its own title when that may be drawn; its kind is read from that same
   // text, so a card showing its own title is not guessed as code when it is a documents card.
-  const title = cardTitle(card.plain.title, card.title);
+  // A finished card keeps the sentence rule; a stopped, planned or running one reads its title by the row title rule.
+  const title = card.state === "done" ? cardTitle(card.plain.title, card.title) : (workTitle(card.plain.title) ?? workTitle(card.title));
   const work = cardKind(title ?? "", cardRuns);
   return {
     key: `card:${card.id}`,
@@ -515,8 +529,8 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
     href: href({ name: "card", id: card.id }),
     title,
     own: title,
-    ownName: ownName(card.plain.title, card.title),
-    name: cardName(card.plain.title, work, card.title),
+    ownName: title,
+    name: title ?? KIND_TITLE[work],
     agent: card.agent,
     state: card.state,
     reason: card.reason,
@@ -687,14 +701,15 @@ export function buildModel(input: ModelInput, now: number): Model {
       // Its goal's title (the one the core puts on the row first), then its own names (workCardRow), then the to-do
       // its runs take on.
       const fallback = todoName(cardRuns.map((run) => run.todo));
-      const goal = plainName((card as CardSummary).goalTitle) ?? plainName(cardGoal.get(card.id)?.title);
+      const goalName = card.state === "done" ? plainName : workTitle;
+      const goal = goalName((card as CardSummary).goalTitle) ?? goalName(cardGoal.get(card.id)?.title);
       const row = { ...contextRow(workCardRow(card, input.cardDetails[card.id], receivedAt, cardRuns), goal, fallback, false, card), goalTitle: (card as CardSummary).goalTitle ?? cardGoal.get(card.id)?.title ?? null };
-      // A stopped card nothing else names still is a row, named by its ask, else 제목 없음 (lina-app#156). The ask is
-      // said after the stop's words, unless it already names the row.
+      // Every card is a row (lina-app#225). One nothing else names is named by its ask (a stopped card's, lina-app#156),
+      // then by the Hangul words of its own title (lina-app#214); the ask is said after the stop's words, unless it
+      // already names the row. With none, it reads its kind of work, and a finished one is counted in 완료's one line
+      // of the cards nothing names (collapsed), never 제목 없음.
       const ask = card.state === "stopped" ? askLine((card as CardSummary).ask) : null;
-      // A finished card nothing else names reads by the Hangul words of its own title (lina-app#214); with none it is
-      // no row (lina-app#221).
-      const title = row.title ?? (card.state === "stopped" ? (ask ?? W.untitled) : card.state === "done" ? finishedTitle(card.title) : null);
+      const title = row.title ?? ask ?? finishedTitle(card.title);
       // An ask that ends in the status word before it says that word once (lina-app#160).
       const said = ask !== null && ask !== title ? withoutRepeat(ask, row.stop?.words ?? "") : null;
       // The whole reason the inbox keeps (lina-app#171): the core cuts its ask at a length, so a cut ask reads from it.
@@ -702,14 +717,13 @@ export function buildModel(input: ModelInput, now: number): Model {
       const reason = said !== null && CUT_END.test(said) ? (whole ?? said) : (said ?? whole);
       // An ask that names the row is its reason already.
       const stop = row.stop && !(ask !== null && ask === title) ? stopWithReason(row.stop, row.reason, reason) : row.stop;
-      return { row: { ...row, title, name: title ?? row.name, stop, ask: null, ...(card.state === "stopped" ? { asked: retryAsked(input.cardDetails[card.id], row.stateAt) } : {}) }, listed: !isEnded(card) };
+      return { row: { ...row, title, name: title ?? (card.state === "done" ? W.cards : KIND_TITLE[row.work]), stop, ask: null, ...(card.state === "stopped" ? { asked: retryAsked(input.cardDetails[card.id], row.stateAt) } : {}) }, listed: !isEnded(card) };
     }),
     ...(board?.cards ?? []).map((run) => ({ row: runListRow(run), listed: false })),
   ];
   // The lookup keeps every card and run (a goal's page and a run page link to them); the lists leave out ended work
-  // and work nothing names, and no line counts it (lina-app#141); a finished card nothing names too, no 제목 없음 line
-  // (lina-app#221).
-  const allCards: CardRow[] = everyCard.filter((each) => each.listed && each.row.title !== null).map((each) => each.row);
+  // and worker runs (lina-app#141), and drop no card for its title (lina-app#225).
+  const allCards: CardRow[] = everyCard.filter((each) => each.listed).map((each) => each.row);
   // One state per id (lina-app#152): a worker run the hub serves under its card's own id never stands in for the card,
   // so the row, its detail head and its goal all read the card's kanban status.
   const cardMap = new Map<string, CardRow>();
@@ -724,11 +738,11 @@ export function buildModel(input: ModelInput, now: number): Model {
   const done = apart(allCards.filter((card) => card.state === "done").sort(newestFirst((card) => card.endedAt)), now);
   const waiting = apart(allCards.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt)), now);
   const finished = doneLines(done, now);
-  // One unit for 완료 (lina-app#221): its rows, and the finished cards the core holds (lina#729) that the page has not
-  // read, each of which may be a row; once they are read, the rows alone.
+  // One unit for 완료 (lina-app#225): cards, the ones read and the ones the core holds (lina#729) that the page has not
+  // read, so opening the fold never changes the number.
   const readDone = (cards?.cards ?? []).filter((card) => card.state === "done").length;
   const unreadDone = Math.max(0, (input.finished?.total ?? readDone) - readDone);
-  const finishedCount = finished.length + unreadDone;
+  const finishedCount = done.length + unreadDone;
 
   // Inbox: decisions (oldest first), finished runs waiting on the owner, then the owner's own to-dos.
   const goalTitleOfCard = (cardId: string) => input.goals?.goals.find((goal) => goal.workCards.some((card) => card.id === cardId))?.title;
@@ -953,6 +967,11 @@ export function doneFor(model: Model, agentId?: string): readonly CardRow[] {
   return doneLines(agentId ? model.done.filter((card) => card.agent === agentId) : model.done, model.now);
 }
 
+/** The cards some lines stand for, a `×n` line counting n (lina-app#225): what every 완료 number counts. */
+export function cardCount(lines: readonly CardRow[]): number {
+  return lines.reduce((sum, line) => sum + (line.repeat ?? 1), 0);
+}
+
 /** A goal's or to-do's state line (lina-app#179): its fold, or while a decision on it is open, that wait since it was asked. */
 export interface ItemLine {
   readonly state: WorkState;
@@ -960,7 +979,7 @@ export interface ItemLine {
   readonly since: number | null;
   /** `since` is when the open decision was asked, not when the state moved. */
   readonly asked: boolean;
-  /** Planned, with no decision open, and due before today (lina-app#221): it reads 지남, never 예정. */
+  /** Open (not done) and due before today, in any state (lina-app#221, #225): it reads 지남 (itemWords). */
   readonly overdue: boolean;
 }
 
@@ -968,18 +987,24 @@ export interface ItemLine {
  * The one state line of a goal or to-do (lina-app#179), in 수신함's row, its head and its goal's 할 일 alike: its fold
  * (todoState, goalState), and while a decision on it is open, the time since the question was asked (the time its 수신함 row
  * reads, its record's question when no row lists it yet), with the decision's wait as its reason when the record gives
- * none (the item list serves the to-do a decision waits on with no reason). A planned one due before today is overdue.
+ * none (the item list serves the to-do a decision waits on with no reason). An open one due before today is overdue,
+ * waiting or not (lina-app#225).
  */
 export function itemLine(model: Pick<Model, "inbox" | "today">, id: string, fold: { readonly state: WorkState; readonly reason: string | null; readonly stateSince: number | null }, decision?: ItemDetail["decision"], due: string | null = null): ItemLine {
   const row = model.inbox.rows.find((each) => each.type === "decide" && each.target.kind === "item" && each.target.id === id);
   const asked = row?.type === "decide" ? row.at : decision && !decision.answered ? decision.at : null;
-  if (asked) return { state: fold.state, reason: fold.reason ?? "decision", since: asked, asked: true, overdue: false };
-  return { state: fold.state, reason: fold.reason, since: fold.stateSince, asked: false, overdue: fold.state === "planned" && due !== null && due < model.today };
+  const overdue = fold.state !== "done" && due !== null && due < model.today;
+  if (asked) return { state: fold.state, reason: fold.reason ?? "decision", since: asked, asked: true, overdue };
+  return { state: fold.state, reason: fold.reason, since: fold.stateSince, asked: false, overdue };
 }
 
-/** The words of a goal's or to-do's state line: 지남 when it is overdue, else its state label. */
+/**
+ * The words of a goal's or to-do's state line: its state label, and 지남 after it when it is overdue; a planned one reads
+ * 지남 alone, never 예정 (lina-app#221), any other keeps its word (`피드백 대기 · 지남`, lina-app#225).
+ */
 export function itemWords(line: ItemLine): string {
-  return line.overdue ? W.dueOverdue : stateLabel(line.state, line.reason);
+  if (!line.overdue) return stateLabel(line.state, line.reason);
+  return line.state === "planned" ? W.dueOverdue : [stateLabel(line.state, line.reason), W.dueOverdue].join(SEP);
 }
 
 /** A goal's or to-do's state line by its id, from the lists (its row's fold): what 수신함's decision row says; null when unlisted. */

@@ -40,10 +40,12 @@ const navCount = (view: ReturnType<typeof render>, testid: string) => ({
   stopped: Number(view.getByTestId(testid).querySelector("[data-testid=nav-stopped]")?.textContent ?? "0"),
 });
 const rows = (root: Element | null) => (root ? root.querySelectorAll("[data-testid=row]").length : 0);
-/** A group's rows and the ones its fold holds, `외 n개` (lina-app#221). */
-const rowsAndFold = (root: Element | null) => rows(root) + Number(/외 (\d+)개/.exec(root?.querySelector(".more-row")?.textContent ?? "")?.[1] ?? 0);
+/** The cards a list's rows stand for, a `×n` row counting n (lina-app#225). */
+const cards = (root: Element | null) => (root ? [...root.querySelectorAll("[data-testid=row]")].reduce((sum, row) => sum + Number(/×(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1), 0) : 0);
+/** A group's cards and the ones its fold holds, `외 n개` (lina-app#225). */
+const cardsAndFold = (root: Element | null) => cards(root) + Number(/외 (\d+)개/.exec(root?.querySelector(".more-row")?.textContent ?? "")?.[1] ?? 0);
 
-test("item 1: every sidebar number is the rows of the list it opens, 완료 the lines the work tab lists with its fold", async () => {
+test("item 1: every sidebar number is the rows of the list it opens, 완료 the cards the work tab's lines and its fold stand for", async () => {
   const view = await open("#/running");
   const sidebar = {
     inbox: navCount(view, "nav-inbox"),
@@ -54,7 +56,7 @@ test("item 1: every sidebar number is the rows of the list it opens, 완료 the 
     agents: [0, 1, 2].map((index) => navCount(view, `nav-agent-${index}`)),
   };
   const home = view.getByTestId("screen-running");
-  expect(sidebar.done.count).toBe(rowsAndFold(home.querySelector("[data-testid=section-finished]")));
+  expect(sidebar.done.count).toBe(cardsAndFold(home.querySelector("[data-testid=section-finished]")));
   expect(sidebar.running.count).toBe(rows(home.querySelector("[data-testid=section-active]")));
   expect(sidebar.running.stopped).toBe(Number(home.querySelector("[data-testid=head-stopped] [data-testid=stopped-count]")?.textContent));
   view.unmount();
@@ -68,7 +70,7 @@ test("item 1: every sidebar number is the rows of the list it opens, 완료 the 
   for (const [hash, testid, count] of lists) {
     const list = await open(hash);
     await waitFor(() => expect(list.getByTestId(testid)).toBeTruthy());
-    expect(rows(list.getByTestId(testid)), hash).toBe(count);
+    expect((hash === "#/done" ? cards : rows)(list.getByTestId(testid)), hash).toBe(count);
     list.unmount();
   }
   const { scene } = hub();

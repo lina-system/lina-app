@@ -7,7 +7,8 @@ import { localDay } from "./model";
 import { STATE_WORD, W } from "./words";
 
 // lina-app#221 (QA round 18, the real hub): the work tab's 완료 counted cards in its head and the sidebar, cards less the
-// shown lines in its fold and lines once open (524, 외 519개, 514 lines); a finished line nothing named read 제목 없음 ×2;
+// shown lines in its fold and lines once open (524, 외 519개, 514 lines); a finished line nothing named read 제목 없음 ×2
+// (since lina-app#225 every number counts cards, and the cards nothing names are one grey line);
 // and an open to-do past its due date read 예정. The cards here have the hub's finished-row shape (no checked title,
 // result or now line, no goal title, read-only, an old card with no history kept, &hub=round18); every title is made up.
 
@@ -36,13 +37,15 @@ async function open(hash: string, source: SyntheticSource, wide: boolean) {
 const count = (element: Element | null) => Number(element?.querySelector("[data-testid=count]")?.textContent ?? "0");
 const sidebarDone = (view: ReturnType<typeof render>) => Number(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")?.textContent ?? "0");
 
-/** What 완료 draws: its head's number, its rows, the fold's `외 n개`, whether it reads, and its hide button. */
+/** What 완료 draws: its head's number, its rows and the cards they stand for, the fold's `외 n개`, whether it reads, and its hide button. */
 function finished(view: ReturnType<typeof render>) {
   const group = view.getByTestId("section-finished");
   const more = group.querySelector(".more-row");
+  const rows = [...group.querySelectorAll("[data-testid=row]")];
   return {
     head: count(view.getByTestId("head-finished")),
-    rows: group.querySelectorAll("[data-testid=row]").length,
+    rows: rows.length,
+    cards: rows.reduce((sum, row) => sum + Number(/×(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1), 0),
     fold: Number(/외 (\d+)개/.exec(more?.textContent ?? "")?.[1] ?? 0),
     loading: more?.textContent === W.loading,
     hide: within(group).queryByRole("button", { name: `${W.done} ${W.close}` }) !== null,
@@ -52,11 +55,11 @@ function finished(view: ReturnType<typeof render>) {
 for (const wide of [true, false]) {
   const width = wide ? "1280" : "390";
 
-  test(`${W.done}: 524 entries folded to 514 rows, one nothing names, read one number everywhere, before, while and after the rest is read (${width})`, async () => {
+  test(`${W.done}: 524 cards folded to 514 rows, one of them the cards nothing names, read one number everywhere, before, while and after the rest is read (${width})`, async () => {
     const view = await open("#/", hub(), wide);
     const before = finished(view);
-    // The newest five lines, and the fold the 519 cards not read yet: each may be a row of its own.
-    expect(before).toEqual({ head: 524, rows: 5, fold: 519, loading: false, hide: false });
+    // The newest five lines, and the fold the 519 cards they do not stand for.
+    expect(before).toEqual({ head: 524, rows: 5, cards: 5, fold: 519, loading: false, hide: false });
     if (wide) expect(sidebarDone(view)).toBe(524);
     const group = view.getByTestId("section-finished");
     const states: ReturnType<typeof finished>[] = [];
@@ -65,31 +68,32 @@ for (const wide of [true, false]) {
     fireEvent.click(group.querySelector(".more-row button") as HTMLElement);
     await waitFor(() => expect(finished(view).hide).toBe(true));
     watch.disconnect();
-    // At every moment between the tap and the settled list, the head is the rows drawn and the fold.
+    // At every moment between the tap and the settled list, the head is 524 and, but while it reads, the cards drawn and the fold.
     expect(states.length).toBeGreaterThan(0);
-    for (const state of states) expect(state.loading ? { head: state.head, rows: state.rows } : state.head).toEqual(state.loading ? { head: before.head, rows: before.rows } : state.rows + state.fold);
+    for (const state of states) expect(state.loading ? { head: state.head, rows: state.rows } : { head: state.head, cards: state.cards + state.fold }).toEqual(state.loading ? { head: before.head, rows: before.rows } : { head: 524, cards: 524 });
     const after = finished(view);
-    expect(after).toEqual({ head: 513, rows: 513, fold: 0, loading: false, hide: true });
-    if (wide) expect(sidebarDone(view)).toBe(513);
-    // A fold stays on its row and says how many entries it holds.
-    expect([...group.querySelectorAll("[data-testid=row]")].map((row) => /×(\d+)/.exec(row.textContent ?? "")?.[1]).filter(Boolean)).toEqual(["4", "5", "2", "2"]);
+    expect(after).toEqual({ head: 524, rows: 514, cards: 524, fold: 0, loading: false, hide: true });
+    if (wide) expect(sidebarDone(view)).toBe(524);
+    // A fold stays on its row and says how many cards it holds; the two nothing names are the last, grey.
+    expect([...group.querySelectorAll("[data-testid=row]")].map((row) => /×(\d+)/.exec(row.textContent ?? "")?.[1]).filter(Boolean)).toEqual(["4", "5", "2", "2", "2"]);
+    expect([...group.querySelectorAll("[data-testid=row] .title.is-kind")].map((title) => title.textContent)).toEqual([`${W.cards} ${W.repeated(2)}`]);
     expect(view.container.textContent).not.toContain(W.untitled);
     // Hiding restores the collapsed view: the first five rows and one fold for the rest, the head unchanged.
     fireEvent.click(within(group).getByRole("button", { name: `${W.done} ${W.close}` }));
-    expect(finished(view)).toEqual({ head: 513, rows: 5, fold: 508, loading: false, hide: false });
-    if (wide) expect(sidebarDone(view)).toBe(513);
+    expect(finished(view)).toEqual({ head: 524, rows: 5, cards: 5, fold: 519, loading: false, hide: false });
+    if (wide) expect(sidebarDone(view)).toBe(524);
     // Opened again, it is the whole list at once: nothing is read twice.
     fireEvent.click(group.querySelector(".more-row button") as HTMLElement);
-    expect(finished(view)).toEqual({ head: 513, rows: 513, fold: 0, loading: false, hide: true });
+    expect(finished(view)).toEqual({ head: 524, rows: 514, cards: 524, fold: 0, loading: false, hide: true });
   });
 
-  test(`${W.done} screen: each choice counts the rows it lists, the sidebar's number (${width})`, async () => {
+  test(`${W.done} screen: each choice counts the cards its rows stand for, the sidebar's number (${width})`, async () => {
     const view = await open("#/done", hub(), wide);
     const list = await waitFor(() => view.getByRole("list", { name: W.done }));
     const all = view.getByRole("button", { name: new RegExp(`^${W.allAgents} \\d+$`) });
-    expect(Number(all.querySelector(".count")?.textContent)).toBe(list.querySelectorAll("[data-testid=row]").length);
-    expect(list.querySelectorAll("[data-testid=row]").length).toBe(513);
-    if (wide) expect(sidebarDone(view)).toBe(513);
+    expect(list.querySelectorAll("[data-testid=row]").length).toBe(514);
+    expect(Number(all.querySelector(".count")?.textContent)).toBe(524);
+    if (wide) expect(sidebarDone(view)).toBe(524);
     expect(view.container.textContent).not.toContain(W.untitled);
   });
 

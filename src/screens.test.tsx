@@ -87,7 +87,8 @@ const REASONS = ["결정 필요", "피드백", "검토 필요", "보류", "진�
 const WAITS = ["결정 대기", "피드백 대기", "다른 일 대기"];
 // Latin words the term table allows on screen: the app name, CPU and the services' display names.
 const LATIN_WORDS = ["LINA", "CPU", "Claude", "ChatGPT", "Gemini", "Grok", "Cursor"];
-const STATE_LINE = new RegExp(`^(?:${WAITS.join("|")}|(?:${STATES.join("|")})(?: · (?:${[...REASONS, ...WAITS].join("|")}))?)$`);
+// A goal or to-do past its due date says 지남 after its state's words, or alone instead of 예정 (lina-app#221, #225).
+const STATE_LINE = new RegExp(`^(?:(?:${WAITS.join("|")}|(?:${STATES.join("|")})(?: · (?:${[...REASONS, ...WAITS].join("|")}))?)(?: · 지남)?|지남)$`);
 
 describe.each([
   ["1280", true],

@@ -1,6 +1,6 @@
 import { SETTINGS_HISTORY, type ActionResult, type AddItemRequest, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type BoardSnapshot, type ChangeEvent, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemDetail, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type Settings, type SettingsAuditLine, type SettingsModel, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest, type WorkState } from "../api/client";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type PowerVariant, type Scene, type SettingsVariant } from "../fixtures/synthetic";
-import { localDay } from "../model";
+import { localDay, type CardSummary } from "../model";
 import { mergePatch } from "../model/settings";
 import { currentSettings, historyView, invalidDetail, modelsView, revisionOf, settingsView, validate, writeRevision } from "./synthetic-settings";
 import { base64UrlBytes, type PushManagerLike, type PushSubscriptionLike } from "../push";
@@ -43,6 +43,77 @@ export function round18Scene(scene: Scene): Scene {
     items: { ...scene.items, items: scene.items.items.map(dated) },
     itemDetails: { ...scene.itemDetails, T3: dated(scene.itemDetails.T3), G1: { ...goal, children: goal.children.map(dated) } },
     board: { ...scene.board, inbox: { ...scene.board.inbox, mine: scene.board.inbox.mine.map(dated) } },
+  };
+}
+
+/** A cards-list row as the hub serves it, with its goal's title and its ask (CardSummary). */
+type SceneCard = CardSummary;
+
+/** Made-up titles of three Hangul words for round 20's finished cards, apart for every index under 40. */
+const round20Title = (index: number) => `${ROUND18_FIRST[index % 9]} ${ROUND18_SECOND[(index + Math.floor(index / 9)) % 8]} ${ROUND18_THIRD[Math.floor(index / 9) % 8]}`;
+
+/**
+ * The hub's shapes UI QA round 20 met (`&hub=round20`, lina-app#225), field by field as its cards list serves them, in
+ * made-up words. 13 stopped cards (the scene's one and 12 of the hub's: read-only, no checked lines, waiting on the
+ * owner's decision or feedback, never retried), two of which have no goal and only an own title with Latin words in it:
+ * one with a product name, a hash and issue references and no ask, one with two tool names and an ask holding a Latin
+ * word. Two planned cards of the hub's, one whose goal title and own title both hold a Latin word. 45 finished cards of
+ * the hub's (no checked lines, no goal, read-only): 32 titled apart, 4, 3 and 2 titled alike but for a hash or an issue
+ * reference, and 4 whose titles nothing names (Latin only, or too few Hangul letters), old ones with no history kept.
+ * And the owner's to-do T9, waiting on the owner's feedback since its due date, the day before the clock.
+ */
+export function round20Scene(scene: Scene): Scene {
+  const template = scene.cards.cards.find((card) => card.state === "stopped");
+  const agents = scene.items.agents.map((agent) => agent.id);
+  if (!template || agents.length < 3) return scene;
+  const now = scene.now;
+  const hub = (id: string, fields: Partial<SceneCard>): SceneCard =>
+    ({ ...template, id, goalTitle: null, reason: null, waitingOn: null, retry: null, ask: null, now: null, endedAt: null, lastHeartbeatAt: null, plain: { title: null, now: null, result: null }, todoProgress: { done: 0, total: 0 }, readOnly: true, ...fields }) as SceneCard;
+  const stop = (index: number, title: string, goalTitle: string | null, ask: string | null, extra: Partial<SceneCard> = {}) =>
+    hub(`k-${400 + index}`, { title, goalTitle, agent: agents[index % 3], state: "stopped", reason: index % 4 === 1 ? "feedback" : "decision", waitingOn: "owner", retry: "none", ask, elapsedSeconds: (index + 2) * 3600, now: "정리 중", lastHeartbeatAt: now - (index + 2) * 3600, ...extra });
+  const stopped = [
+    ...["주간 회의록 묶기", "사진 폴더 나누기", "가계부 항목 고르기", "이사 체크리스트 만들기", "여행 숙소 비교하기", "독서 목록 다듬기", "정원 물주기 일정 잡기", "보험 서류 모으기", "요리 순서 적기", "운동 기록 옮기기"].map((title, index) =>
+      stop(index, title, index % 2 ? null : "생활 정리", `${title.split(" ")[0]} 기준을 정해 주세요.`),
+    ),
+    // No goal, no ask; its own title holds a product name, a hash and issue references, cut to what a person reads.
+    stop(10, "Grafana 대시보드 패널 순서 맞추기 a1b2c3d (#41, lina#12)", null, null, { reason: "feedback", lastHeartbeatAt: null }),
+    // No goal; its own title holds two tool names, its ask a Latin word the row never draws.
+    stop(11, "Figma 시안의 버튼 간격을 Tailwind 기준으로 다시 맞추기", null, "버튼 간격을 preview 화면 기준으로 맞출지 정해 주세요"),
+  ];
+  const planned = [
+    hub("k-420", { title: "알림 문구 모으기", agent: agents[0], state: "planned", reason: "triage", elapsedSeconds: 600, now: "대기 중", lastHeartbeatAt: now - 600 }),
+    // Its goal's title and its own both hold a Latin word.
+    hub("k-421", { title: "Notion 페이지 목록을 새 폴더로 정리", goalTitle: "Notion 문서 옮기기", agent: agents[1], state: "planned", reason: "scheduled", retry: "scheduled", elapsedSeconds: 1200, now: "대기 중", lastHeartbeatAt: now - 1200 }),
+  ];
+  const done = (index: number, title: string, extra: Partial<SceneCard> = {}) =>
+    hub(`k-${500 + index}`, { title, agent: agents[index % 3], state: "done", elapsedSeconds: 900, endedAt: now - (2 + index) * 3600, detail: true, ...extra } as Partial<SceneCard>);
+  const alike = [
+    ...["a1b2c3d", "b2c3d4e", "c3d4e5f", "d4e5f6a"].map((hash) => `허브 화면 빌드 올리기 ${hash}`),
+    ...["#21", "#22", "#23"].map((ref) => `설정 화면 문구 다듬기 (${ref})`),
+    ...["e5f6a7b", "f6a7b8c"].map((hash) => `백업 기록 확인하기 ${hash}`),
+  ];
+  const unnamed = ["fix a9c2 (#12)", "chore bump deps (#31)", "deploy 핫픽스 b7e1f2a", "release v2 메모"];
+  const finished = [
+    ...Array.from({ length: 32 }, (_, index) => round20Title(index)),
+    ...alike,
+  ].map((title, index) => done(index, title));
+  finished.push(...unnamed.map((title, index) => done(41 + index, title, { detail: false } as Partial<SceneCard>)));
+  const due = localDay(now - 86_400);
+  const waiting = <T extends { id: string; due: string | null }>(row: T, fields: object): T => (row.id === "T9" ? { ...row, due, ...fields } : row);
+  const item = { state: "waiting" as const, reason: "feedback" };
+  const goal = scene.itemDetails.G3;
+  const t9 = scene.board.due.later.find((row) => row.id === "T9");
+  return {
+    ...scene,
+    cards: { ...scene.cards, cards: [...scene.cards.cards, ...stopped, ...planned, ...finished] },
+    inbox: { ...scene.inbox, blocked: [...scene.inbox.blocked, ...stopped.map((card) => ({ cardId: card.id, title: card.title, agent: card.agent, state: "stopped" as const, reason: card.reason, blockKind: null, blockReason: card.ask ?? "initial_status" }))] },
+    items: { ...scene.items, items: scene.items.items.map((row) => waiting(row, item)) },
+    itemDetails: { ...scene.itemDetails, T9: waiting(scene.itemDetails.T9, item), G3: { ...goal, children: goal.children.map((row) => waiting(row, item)) } },
+    board: {
+      ...scene.board,
+      inbox: { ...scene.board.inbox, mine: scene.board.inbox.mine.map((row) => waiting(row, { waiting: true })) },
+      due: { ...scene.board.due, later: scene.board.due.later.filter((row) => row.id !== "T9"), overdue: t9 ? [...scene.board.due.overdue, { ...t9, due }] : scene.board.due.overdue },
+    },
   };
 }
 
@@ -399,7 +470,7 @@ export class SyntheticSource implements Source {
   private readonly signing = new Set<string>();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null } = {}) {
     this.staleNext = options.settings === "stale";
     this.raceNext = options.settings === "race";
     this.talkRefusal = options.talk ?? null;
@@ -423,7 +494,7 @@ export class SyntheticSource implements Source {
         settings: options.settings === "stale" || options.settings === "race" ? null : options.settings,
         power: options.power,
       });
-    this.scene = options.hubRound18 && !options.scene ? round18Scene(generated) : generated;
+    this.scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : generated;
   }
 
   async read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {

@@ -380,8 +380,11 @@ export function round24Scene(scene: Scene): Scene {
   const base = next.items.items.find((item) => item.id === "G1");
   const goal = { ...base, id: "G10", parent: "A1", title: R.workGoal, agent: agents[0], addedBy: agents[0], mine: false, state: "waiting" as const, reason: null, stateSince: now - 2 * 86_400, lastActivityAt: now - 2 * 86_400, createdAt: now - 15 * 86_400, closedAt: null, due: null, doneCondition: "가상 기억과 저장소가 한 곳에서 읽힌다", area: "가상 영역", projects: [], todos: { done: 9, total: 10 }, runCount: 40, commentCount: 0 } as Scene["items"]["items"][number];
   const detail = { ...next.itemDetails.G1, ...goal, why: null, basis: [], children: [], comments: [], runs: [], links: [], workCards: [], decision: null, ownerDone: null };
+  // The hub serves the detail of every open card: its row's fields and empty lists.
+  const cardDetails = Object.fromEntries([...stopped, ...planned].map((card) => [card.id, { ...card, todos: [], workerRuns: [], runsAwaitingVerdict: [], gates: [], comments: [], runs: [] }]));
   return {
     ...next,
+    cardDetails: { ...next.cardDetails, ...cardDetails } as Scene["cardDetails"],
     cards: { ...next.cards, cards: [...next.cards.cards, ...stopped, ...planned, ...finished] },
     inbox: { ...next.inbox, blocked: [...next.inbox.blocked, ...stopped.map((card) => ({ cardId: card.id, title: card.title, agent: card.agent, state: "stopped" as const, reason: card.reason, blockKind: null, blockReason: `가상 관문은 켜 두었다. ${card.ask}을 정해 주세요.` }))] },
     items: { ...next.items, items: [...next.items.items, goal] },

@@ -2,7 +2,7 @@ import { fireEvent, render, waitFor, within } from "@testing-library/preact";
 import { afterEach, expect, test, vi } from "vitest";
 import { App } from "./app";
 import { Store } from "./data/store";
-import { ROUND23, SyntheticSource } from "./data/synthetic-source";
+import { ROUND23, ROUND24, SyntheticSource } from "./data/synthetic-source";
 import { ago } from "./time";
 import { SEP, STATE_WORD, W } from "./words";
 
@@ -30,6 +30,13 @@ async function open(hash: string, source: SyntheticSource, wide: boolean) {
   return view;
 }
 
+/** A group's rows as a person reads them: the first line, and the second line under it (null when none). */
+function lines(group: HTMLElement) {
+  return [...group.querySelectorAll("[data-testid=row]")].map((row) => ({ first: row.querySelector(".title")?.textContent ?? "", second: row.querySelector("[data-testid=row-sub]")?.textContent ?? null }));
+}
+
+const repeated = (firsts: readonly string[]) => firsts.filter((first, index) => firsts.indexOf(first) !== index);
+
 for (const wide of [true, false]) {
   const width = wide ? "1280" : "390";
 
@@ -56,6 +63,20 @@ for (const wide of [true, false]) {
     expect(detail.querySelector("[data-testid=read-only]")).toBeNull();
     const rows = [...detail.querySelectorAll("[data-testid=fold-agent]")];
     expect(rows.reduce((sum, row) => sum + Number(/(\d+)건$/.exec(row.textContent ?? "")?.[1] ?? 0), 0)).toBe(count);
+  });
+
+  test(`rows of one goal are told apart by their first line in 중단됨 and 예정 (${width})`, async () => {
+    const view = await open("#/", hub(), wide);
+    const stopped = view.getByTestId("section-stopped");
+    const more = stopped.querySelector(".more-row:not([data-testid=fold-hide]) button");
+    if (more) fireEvent.click(more);
+    const stoppedLines = lines(stopped);
+    expect(repeated(stoppedLines.map((line) => line.first))).toEqual([]);
+    for (const own of ROUND24.stopOwn) expect(stoppedLines.find((line) => line.first === own)?.second).toBe(ROUND24.stopGoal);
+    const plannedLines = lines(view.getByTestId("section-planned"));
+    expect(repeated(plannedLines.map((line) => line.first))).toEqual([]);
+    expect(plannedLines.find((line) => line.first === ROUND24.planOwn)?.second).toBe(ROUND24.planGoal);
+    expect(plannedLines.find((line) => line.first === ROUND24.planGoal)?.second).toBeNull();
   });
 
 }

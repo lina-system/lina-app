@@ -892,16 +892,25 @@ export function CardScreen({ id }: { id: string }) {
   // The grey line opens its newest card's address: there the detail is the line's (lina-app#242).
   const grey = model.home.finished.rows.find((line) => line.title === null && line.id === id && line.fold);
   if (grey?.fold) return <GroupScreen line={grey} fold={grey.fold} />;
+  // The work tab's row of the card: one of several under one goal leads with its own name (lina-app#242), so the head
+  // reads that name and its goal's title is the 목표 line under it.
+  const listed = [...model.running.rows, ...model.home.planned.rows, ...model.home.waiting.rows].find((card) => card.id === id);
+  const led = listed && listed.title !== null && listed.name !== listed.title ? { name: listed.name, goal: listed.title } : null;
   if (!detail) {
     if (store.status("card", id) === "missing") return <Missing />;
     if (!row) return <Loading />;
     // The card's detail is read only now that it is open: its list row's head and now line show while it comes.
     return (
       <article class="detail" data-testid="screen-card">
-        <CardHead work={row.work} title={row.title}>
+        <CardHead work={row.work} title={led?.name ?? row.title}>
           <HeadState state={row.state} reason={row.reason} row={row} time={[cardTime(row, now), cardTook(row)].filter(Boolean).join(SEP)} readOnly={row.readOnly} />
           {row.state === "stopped" ? <StopWhy reason={row.reason} words={row.stop?.words} whole={row.stop?.reason} carried={stateSaysWhy(row.state, row.reason, row, Boolean(row.readOnly))} stoppedAt={row.stateAt} card={row} /> : null}
-          <OwnTitleLine own={row.own} title={row.title} />
+          <OwnTitleLine own={row.own} title={led?.name ?? row.title} />
+          {led ? (
+            <span class="sub" data-testid="card-goal">
+              {[W.goals, led.goal].join(SEP)}
+            </span>
+          ) : null}
           {row.readOnly ? <ReadOnlyLine agent={row.agent} waits={waitsOnOwner(row.state, row.reason, row)} /> : null}
         </CardHead>
         {row.now && row.state === "in_progress" ? (
@@ -944,7 +953,7 @@ export function CardScreen({ id }: { id: string }) {
   const workerLink = (runId: string) => workerHref(detail, runId);
   // The goal (project) the card serves, in its head; a goal title that would show raw text is left out.
   const goal = store.get("goals")?.goals.find((candidate) => candidate.workCards.some((card) => card.id === id));
-  const goalLine = goal && !foldReason(goal.title) ? goal.title : null;
+  const goalLine = (goal && !foldReason(goal.title) ? goal.title : null) ?? led?.goal ?? null;
   // A card from a board the core only reads (lina#481) has no place to answer and no other write (lina-app#149).
   const readOnly = Boolean(detail.readOnly || row?.readOnly);
   // An old done card the core keeps no history for (`detail: false`) says so instead of an empty frame.
@@ -952,7 +961,7 @@ export function CardScreen({ id }: { id: string }) {
   // The head reads the name of the row that was tapped (its goal's title when the row leads with it); the card's own
   // title is the line under it when it differs (lina-app#153).
   const own = cardTitle(detail.plain.title, detail.title, detail.state === "stopped") ?? row?.own ?? null;
-  const title = row?.title ?? own;
+  const title = led?.name ?? row?.title ?? own;
   // The head reads the state of the row that was pressed, the list's snapshot, until the next refresh moves both; the
   // detail read later may already say another (lina-app#157). A card with no row reads its detail's.
   const state = row?.state ?? detail.state;

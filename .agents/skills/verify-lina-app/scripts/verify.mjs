@@ -3475,6 +3475,27 @@ const drivers = {
       await openApp(page, "#/running");
       return title + " / " + state + " / " + who;
     });
+    await step("on the hub's shape (&hub=round24), rows of one goal read apart by their first line: three stopped and two planned cards under one goal each, the goal's title their second line, and a stopped one's head its own title over 목표 · <goal> (lina-app#242)", async () => {
+      await openApp(page, "#/", "&hub=round24");
+      const stopped = page.getByTestId("section-stopped");
+      const more = stopped.locator(".more-row:not([data-testid=fold-hide])");
+      if (await more.count()) await more.getByRole("button").click();
+      const lines = async (group) => group.locator("li[data-testid=row]").evaluateAll((rows) => rows.map((row) => [row.querySelector(".lines > .title")?.textContent.trim() ?? "", row.querySelector("[data-testid=row-sub]")?.textContent.trim() ?? null]));
+      const twice = (rows) => rows.map(([first]) => first).filter((first, index, all) => all.indexOf(first) !== index);
+      const stoppedLines = await lines(stopped);
+      const plannedLines = await lines(page.getByTestId("section-planned"));
+      const underGoal = stoppedLines.filter(([, second]) => second === "가상 주문 확인 관문");
+      const planned = plannedLines.filter(([first, second]) => first.startsWith("가상 원격 작업") || second === "가상 원격 작업 환경 시험");
+      check(twice(stoppedLines).length === 0 && twice(plannedLines).length === 0 && underGoal.length === 3 && planned.length === 2 && new Set(planned.map(([first]) => first)).size === 2, "중단됨 twice " + JSON.stringify(twice(stoppedLines)) + ", under the goal " + underGoal.length + "; 예정 twice " + JSON.stringify(twice(plannedLines)) + ", " + JSON.stringify(planned));
+      await stopped.locator("li[data-testid=row]").filter({ has: page.locator(".lines > .title", { hasText: new RegExp("^" + underGoal[0][0] + "$") }) }).getByRole("link").first().click();
+      const goalLine = page.getByTestId("card-goal");
+      await goalLine.waitFor();
+      const head = (await page.locator("article.detail h1").innerText()).trim();
+      const goal = (await goalLine.innerText()).trim();
+      check(head === underGoal[0][0] && goal === "목표 · 가상 주문 확인 관문", "head " + head + " / " + goal);
+      await openApp(page, "#/running");
+      return "중단됨 " + stoppedLines.length + " rows, 예정 " + plannedLines.length + " rows, none twice; " + underGoal.map(([first]) => first).join(" | ") + "; head " + head + " / " + goal;
+    });
     await step("on the hub's shape (&hub=round20), every planned card is a row of 예정, its head their number, the one with a Latin goal title named by it (lina-app#225)", async () => {
       await openApp(page, "#/", "&hub=round20");
       const group = page.getByTestId("section-planned");

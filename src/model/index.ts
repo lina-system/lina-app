@@ -490,10 +490,20 @@ const movedAt = (row: CardRow) => row.endedAt ?? row.startedAt ?? row.stateAt;
  * One group's rows, each told apart from the others (lina-app#148, #152): line 1 is the goal's title (or the card's own
  * when it has no goal), line 2 the card's own name whenever it differs from line 1. Rows that still read the same say
  * when they last moved as a clock time in their time slot (`when`); line 2 is never a bare time, and the kind of work
- * is never a row's words (lina-app#122).
+ * is never a row's words (lina-app#122). A line 1 several rows share (a goal's title over its cards) tells none of them
+ * apart (lina-app#242): such a row with a name of its own leads with it, the goal's title its line 2, unless `lead` is
+ * off (완료, whose rows of one title are one line, collapsed).
  */
-export function apart(rows: readonly CardRow[], now: number): CardRow[] {
-  const named = rows.map((row) => ({ ...row, sub: row.ownName && row.ownName !== row.name ? row.ownName : null, when: null }));
+export function apart(rows: readonly CardRow[], now: number, lead = true): CardRow[] {
+  // Line 1 by the title order (the goal's title first), read from `title`, which apart never changes: so rows already
+  // apart read the same when a list of some of them is told apart again (an agent's, a goal's).
+  const first = (row: CardRow) => row.title ?? row.name;
+  const shared = new Map<string, number>();
+  for (const row of rows) shared.set(first(row), (shared.get(first(row)) ?? 0) + 1);
+  const named = rows.map((row) => {
+    const own = row.ownName && row.ownName !== first(row) ? row.ownName : null;
+    return lead && own && (shared.get(first(row)) ?? 0) > 1 ? { ...row, name: own, sub: first(row), when: null } : { ...row, name: first(row), sub: own, when: null };
+  });
   const key = (row: CardRow) => [row.name, row.sub ?? "", row.stop?.words ?? ""].join("\n");
   const seen = new Map<string, number>();
   for (const row of named) seen.set(key(row), (seen.get(key(row)) ?? 0) + 1);
@@ -766,7 +776,7 @@ export function buildModel(input: ModelInput, now: number): Model {
   const running = apart(allCards.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt)), now);
   const planned = apart(allCards.filter((card) => card.state === "planned").sort(newestFirst((card) => card.stateAt)), now);
   const runningSections = [section("stopped", "", stopped), section("running", "", running)];
-  const done = apart(allCards.filter((card) => card.state === "done").sort(newestFirst((card) => card.endedAt)), now);
+  const done = apart(allCards.filter((card) => card.state === "done").sort(newestFirst((card) => card.endedAt)), now, false);
   const waiting = apart(allCards.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt)), now);
   const finished = doneLines(done, now);
   // One unit for 완료 (lina-app#225): cards, the ones read and the ones the core holds (lina#729) that the page has not

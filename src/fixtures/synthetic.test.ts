@@ -235,9 +235,11 @@ test("the scene carries the text shapes UI QA round 21 met, and no history line 
     SYNTHETIC_OWNER.id,
   ).map((line) => line.text);
   for (const line of lines) expect(line ?? "").not.toMatch(/\d{7,}/);
-  // A list is drawn whole with every item, or not at all: never its lead-in and first item alone.
+  // A list is drawn whole with every item, or not at all: never its lead-in and first item alone; one item a line, its
+  // lines are one entry (lina-app#230).
   expect(comments.filter((comment) => /\(1\)/.test(comment.body))).toHaveLength(2);
-  expect(lines).toEqual([null, comments.find((comment) => comment.id === 2)?.body, null]);
+  const body = (id: number) => comments.find((comment) => comment.id === id)?.body.replace("\n", " ");
+  expect(lines).toEqual([null, body(4), body(3), body(2), null]);
 });
 
 test("the many-finished scene carries the title shape UI QA round 21 met, and no row draws the bracket its cut left after a colon (lina-app#228)", () => {

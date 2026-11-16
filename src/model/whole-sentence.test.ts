@@ -8,11 +8,10 @@ import { firstSentence } from "./timeline";
 type Shape = { readonly source: string; readonly drawn: string | null; readonly last?: boolean };
 
 const SHAPES: readonly Shape[] = [
-  // Drawn as written: a dot inside a number or a version, a quote of several sentences, a list's number inside, a state word.
+  // Drawn as written: a dot inside a number or a version, a quote of several sentences, a state word.
   { source: "가짜 지연이 0.5초 늘었다.", drawn: "가짜 지연이 0.5초 늘었다." },
   { source: "가짜 판 1.2.3을 깔았다.", drawn: "가짜 판 1.2.3을 깔았다." },
   { source: '가짜 담당자가 "검사가 실패했다. 다시 시도하자."라고 말했다.', drawn: '가짜 담당자가 "검사가 실패했다. 다시 시도하자."라고 말했다.' },
-  { source: "가짜 순서는 1. 가짜 빌드를 마친다.", drawn: "가짜 순서는 1. 가짜 빌드를 마친다." },
   { source: "완료", drawn: "완료", last: true },
   { source: "가짜 결과: 배포에 성공했다.", drawn: "가짜 결과: 배포에 성공했다." },
   { source: "가짜 화면 (두 번째 판) 정리를 마침.", drawn: "가짜 화면 (두 번째 판) 정리를 마침." },
@@ -72,7 +71,7 @@ function random(seed: number) {
   };
 }
 
-/** A comment of 1-4 lines of 1-3 sentences, some lines a list item (`- `, `2) `): the shapes and the order they hold. */
+/** A comment of 1-4 lines of 1-3 sentences, some lines a bullet (`- `): the shapes and the order they hold. A numbered list is one unit (list-unit.test.ts). */
 function comment(next: () => number): { text: string; shapes: Shape[] } {
   const pick = () => SHAPES[Math.floor(next() * SHAPES.length)];
   const shapes: Shape[] = [];
@@ -84,7 +83,7 @@ function comment(next: () => number): { text: string; shapes: Shape[] } {
       sentences.push(shape);
       if (shape.last) break;
     }
-    const mark = next() < 0.3 ? (next() < 0.5 ? "- " : `${1 + line}) `) : "";
+    const mark = next() < 0.3 ? "- " : "";
     lines.push(mark + sentences.map((shape) => shape.source).join(" "));
     shapes.push(...sentences);
   }

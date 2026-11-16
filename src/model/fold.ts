@@ -251,7 +251,9 @@ interface ListMark {
 }
 
 function listMarks(text: string): ListMark[] {
-  return [...text.matchAll(LIST_MARK)].map((mark) => {
+  // A `)` that closes a bracket opened before it is that bracket's (`(… 각 6) 기준`), no list's mark (lina-app#230).
+  const closesOpen = (at: number) => count(text.slice(0, at), "(") > count(text.slice(0, at), ")");
+  return [...text.matchAll(LIST_MARK)].filter((mark) => !(mark[3] === ")" && closesOpen(mark.index))).map((mark) => {
     const [n, kind] = mark[4] ? [mark[4].codePointAt(0)! - 0x245f, "①"] : mark[1] ? [Number(mark[1]), "()"] : [Number(mark[2]), mark[3]];
     return { n, kind, at: mark.index, end: mark.index + mark[0].length };
   });
@@ -343,10 +345,7 @@ function endsOnPredicate(sentence: string): boolean {
  * screens never use (BANNED_WORDS: the one gate leaves it out, lina-app#230). Nothing else is ever cut out.
  */
 export function drawnSentence(sentence: string): string | null {
-  const text = sentence
-    .replace(REF_BRACKET, (whole, inner: string) => (inner.trim() && !inner.replace(ONE_REF, "").replace(/[\s·,]+/g, "") ? "" : whole))
-    .replace(/\s+/g, " ")
-    .trim();
+  const text = withoutRefBrackets(sentence);
   if (STATE_ONLY.has(text)) return text;
   if (BANNED_WORDS.some((word) => text.includes(word))) return null;
   if (!sentenceMayShow(text) || NEVER_DRAWN.test(text) || CONTINUES.test(text) || /^\(?\d{1,2}[.)]\s/.test(text)) return null;
@@ -383,37 +382,111 @@ export function foldedText(text: string): string {
     .join("\n");
 }
 
-/**
- * Each line's drawn sentences. A sentence holding a list is drawn only when the list ends with it (lina-app#228): no
- * later sentence of the text, nor a later line's head, holds a mark of that list's kind with a higher number. An item of
- * several sentences is never drawn whole, so its list is not drawn at all.
- */
-function drawnLines(text: string): string[][] {
-  const lines = text.split("\n").map(lineSentences);
-  // Every sentence's list marks in reading order, a line's head with its first sentence.
-  const marks = lines.flatMap(({ sentences, opens }) => sentences.map((sentence, at) => [...(at === 0 && opens ? [opens] : []), ...listMarks(sentence)]));
-  let index = -1;
-  return lines.map(({ sentences }) =>
-    sentences.flatMap((sentence) => {
-      index += 1;
-      const last = listMarks(sentence).at(-1);
-      const goesOn = last !== undefined && marks.slice(index + 1).some((held) => held.some((mark) => mark.kind === last.kind && mark.n > last.n));
-      const drawn = drawnSentence(sentence);
-      return drawn !== null && !goesOn ? [drawn] : [];
-    }),
-  );
+/** A sentence of a text, the line it stands on, and the list marks it holds. */
+interface Placed {
+  readonly sentence: string;
+  readonly line: number;
+  readonly marks: readonly ListMark[];
+}
+
+/** A numbered list in a text (lina-app#230): its sentences `from`..`to`, its marks' kind, and whether they run 1, 2, 3. */
+interface ListUnit {
+  readonly from: number;
+  readonly to: number;
+  readonly kind: string;
+  readonly runs: boolean;
 }
 
 /**
- * A line's sentences, read without its head (LINE_TAGS, LINE_HEAD), and the list mark it opens on. A line that opens on a
- * list's number and holds that list's next item keeps the number: the list is read whole (lina-app#228).
+ * The numbered lists of a text, each one unit (lina-app#230): it opens on the sentence holding its first mark, or on the
+ * lead-in before it that ends on a colon, holds every sentence up to the one with its last mark (each next mark of the
+ * same kind a higher number; one that is not opens a new list), and ends with the line that mark stands on, so the
+ * sentences after an item's first are that item's. Its marks run when they read 1, 2, 3 from its first item.
  */
-function lineSentences(line: string): { sentences: string[]; opens: ListMark | undefined } {
+function listUnits(placed: readonly Placed[]): ListUnit[] {
+  const units: ListUnit[] = [];
+  for (let at = 0; at < placed.length; at += 1) {
+    const first = placed[at].marks[0];
+    if (first === undefined) continue;
+    const numbers: number[] = [];
+    let to = at;
+    for (let next = at; next < placed.length; next += 1) {
+      const own = placed[next].marks.filter((mark) => mark.kind === first.kind);
+      // A lower number, or a lead-in before the mark (on its sentence, or a sentence ending on a colon), opens a new list.
+      const leadsIn = own.length > 0 && (own[0].at > 0 || /:\s*$/.test(placed[next - 1]?.sentence ?? ""));
+      if (next > at && own.length && (own[0].n <= numbers[numbers.length - 1] || leadsIn)) break;
+      if (own.length) {
+        numbers.push(...own.map((mark) => mark.n));
+        to = next;
+      }
+    }
+    while (to + 1 < placed.length && placed[to + 1].line === placed[to].line) to += 1;
+    const lead = at - 1 > (units.at(-1)?.to ?? -1) && first.at === 0 && /:\s*$/.test(placed[at - 1].sentence);
+    units.push({ from: lead ? at - 1 : at, to, kind: first.kind, runs: numbers.every((n, index) => n === index + 1) });
+    at = to;
+  }
+  return units;
+}
+
+/** Whether a list's lead-in or a piece of one of its items reads (lina-app#230): the sentence checks bar the fragment rule. */
+function pieceReads(piece: string): boolean {
+  return sentenceMayShow(piece) && !NEVER_DRAWN.test(piece) && !BANNED_WORDS.some((word) => piece.includes(word));
+}
+
+/**
+ * A list as the screens draw it (lina-app#230): every sentence as written (less a bracket of refs only, as drawnSentence),
+ * joined into one entry, or null when its marks do not run from 1 or any piece does not read (pieceReads): its lead-in
+ * (without its colon), the words of each item between two marks, and each next sentence of an item (drawnSentence). The
+ * lead-in and an item's words after its mark may be a noun phrase (`(2) 환불 문구 확인.`): the mark makes them one.
+ */
+function listText(sentences: readonly string[], kind: string, runs: boolean): string | null {
+  if (!runs) return null;
+  const texts = sentences.map(withoutRefBrackets);
+  // Each sentence's words before its first mark (the lead-in, or the next sentence of the item before), then each item's.
+  const pieces = texts.flatMap((text, at) => {
+    const marks = listMarks(text).filter((mark) => mark.kind === kind);
+    const cuts = [0, ...marks.flatMap((mark) => [mark.at, mark.end])];
+    return Array.from({ length: marks.length + 1 }, (_, index) => ({ text: text.slice(cuts[index * 2], marks[index]?.at ?? text.length).trim(), item: index > 0, lead: at === 0 && index === 0 }));
+  });
+  // The lead-in and an item's words after its mark may be a noun phrase; an item's next sentence is one of its own.
+  const reads = pieces.every(({ text, item, lead }) => {
+    const piece = text.replace(lead ? /:$/ : /[,;]$/, "").trim();
+    if (item) return piece !== "" && pieceReads(piece);
+    return piece === "" || (lead ? pieceReads(piece) : drawnSentence(piece) !== null);
+  });
+  return reads ? texts.join(" ") : null;
+}
+
+/** A sentence less every bracket that holds only refs, ids or hashes, with the space before it (lina-app#226). */
+function withoutRefBrackets(sentence: string): string {
+  return sentence
+    .replace(REF_BRACKET, (whole, inner: string) => (inner.trim() && !inner.replace(ONE_REF, "").replace(/[\s·,]+/g, "") ? "" : whole))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Each line's drawn entries: a sentence no list holds as drawnSentence draws it, and a numbered list as one entry on its
+ * first line, whole (listText) or not at all (lina-app#230). No item's sentence and no list's later line is drawn alone.
+ */
+function drawnLines(text: string): string[][] {
+  const lines = text.split("\n");
+  const placed = lines.flatMap((line, at) => lineSentences(line).map((sentence) => ({ sentence, line: at, marks: listMarks(sentence) })));
+  const drawn: string[][] = lines.map(() => []);
+  const units = listUnits(placed);
+  for (let at = 0; at < placed.length; at += 1) {
+    const unit = units.find((candidate) => candidate.from === at);
+    const entry = unit ? listText(placed.slice(unit.from, unit.to + 1).map(({ sentence }) => sentence), unit.kind, unit.runs) : drawnSentence(placed[at].sentence);
+    if (entry !== null) drawn[placed[at].line].push(entry);
+    if (unit) at = unit.to;
+  }
+  return drawn;
+}
+
+/** A line's sentences, read without its tags (LINE_TAGS) and a bullet's head (LINE_HEAD); a list's number stays its mark. */
+function lineSentences(line: string): string[] {
   const tagged = line.replace(LINE_TAGS, "");
-  const opens = opensOn(tagged);
-  const rest = tagged.replace(LINE_HEAD, "");
-  const whole = opens !== undefined && listMarks(rest).some((mark) => mark.kind === opens.kind && mark.n === opens.n + 1);
-  return { sentences: sentencesOf((whole ? tagged : rest).trim()), opens };
+  return sentencesOf((opensOn(tagged) ? tagged : tagged.replace(LINE_HEAD, "")).trim());
 }
 
 export function foldReason(text: string): FoldReason | null {

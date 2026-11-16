@@ -52,7 +52,8 @@ test.each([
   ["범위 라 …", null],
   ["가상 문서 정리 |", null],
   // A list number opens the sentence: the sentence stays, the number goes.
-  ["1) 가상 설정이 긴 답에서 돌았다. 둘째 문장.", "가상 설정이 긴 답에서 돌았다."],
+  // A list of one item whose next sentence is a fragment: the list is not drawn whole, so not at all (lina-app#230).
+  ["1) 가상 설정이 긴 답에서 돌았다. 둘째 문장.", null],
   // A long sentence is drawn whole: nothing shortens it (lina-app#226).
   ["완료 조건이 모두 체크됨(가상 일지 두 번, 가상 주간 한 장, 나눠야 할 곳은 나누고 나누면 안 될 곳은 안 나눔)", "완료 조건이 모두 체크됨(가상 일지 두 번, 가상 주간 한 장, 나눠야 할 곳은 나누고 나누면 안 될 곳은 안 나눔)"],
   // A time of day reads against the row's own time and cannot be cut out: no line (lina-app#153, #226).
@@ -97,7 +98,7 @@ test.each([
 // fold's rule passes (sentenceMayShow): the next clean sentence of the comment when the first is not, else none.
 test.each([
   // The split never cuts after a list's number, and a dot inside a number or a version is no sentence end.
-  ["가짜 순서는 1. 가짜 빌드를 마친다. 다음 문장.", "가짜 순서는 1. 가짜 빌드를 마친다."],
+  ["가짜 순서는 1. 가짜 빌드를 마친다. 다음 문장.", null],
   ["가짜 지연이 0.5초 늘었다. 가짜 시험을 마침.", "가짜 지연이 0.5초 늘었다."],
   ["가짜 판 1.2.3을 깔았다. 가짜 시험을 마침.", "가짜 판 1.2.3을 깔았다."],
   // A Latin word, a short code, a round label or a product name left in the sentence: the next one.

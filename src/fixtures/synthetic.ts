@@ -397,6 +397,9 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
               { id: 1, author: agentId(1), body: "실패 화면 시안은 아직 4815162342 판에 머물러 있다.", createdAt: now - 3 * HOUR + 2 * MIN },
               { id: 2, author: agentId(1), body: "실패 화면 검토 결과: (1) 첫 화면 문구를 새 문체로 맞췄다. (2) 다시 시도 버튼을 아래로 옮겼다. (3) 카드사 이름을 굵게 바꿨다.", createdAt: now - 3 * HOUR + 4 * MIN },
               { id: 3, author: agentId(1), body: "남은 검토 두 가지: (1) 영수증 화면의 금액 줄을 다시 본다.\n(2) 환불 문구 확인.", createdAt: now - 3 * HOUR + 6 * MIN },
+              // Round 22's (lina-app#230): a list whose items hold more than one sentence, and one the hub cut its head from.
+              { id: 4, author: agentId(1), body: "검토 메모: ① 금액 줄을 오른쪽으로 붙였다. 굵기는 그대로 두었다. ② 환불 줄을 금액 줄 아래로 옮겼다.", createdAt: now - 3 * HOUR + 8 * MIN },
+              { id: 5, author: agentId(1), body: "(2) 영수증 머리 줄을 줄였다. 글자 크기는 그대로 두었다.\n(3) 버튼 문구를 고쳤다.", createdAt: now - 3 * HOUR + 10 * MIN },
             ]
           : [],
       runs: rounds[card.id] ?? [

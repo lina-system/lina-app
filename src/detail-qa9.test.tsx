@@ -37,9 +37,9 @@ afterEach(() => {
 const now = () => Math.floor(Date.now() / 1000);
 const hub = () => new SyntheticSource({ now: now(), hubRound9: true });
 
-/** The row of a list whose link opens this card. */
+/** The row of a list whose link opens this card, or the grey line it is newest of (its group's address, lina-app#244). */
 function rowOf(view: ReturnType<typeof render>, id: string): HTMLElement {
-  const link = view.container.querySelector(`.list-pane a[href="#/cards/${id}"]`) as HTMLElement | null;
+  const link = view.container.querySelector(`.list-pane a[href="#/cards/${id}"], .list-pane a[href="#/group/${id}"]`) as HTMLElement | null;
   if (!link?.parentElement) throw new Error(`no row for ${id}`);
   return link.parentElement;
 }

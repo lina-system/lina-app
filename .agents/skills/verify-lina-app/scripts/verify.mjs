@@ -1176,6 +1176,45 @@ const drivers = {
       check((await page.getByTestId("screen-done").getByText(/(?:×3|제목 없는 3건)$/).count()) === 1, "no ×3 line in 완료");
       return "완료 " + (nav ?? "(phone)") + ", " + rows + " lines, " + cards + " cards, work tab " + finished;
     });
+    await step("on the hub's shape (&hub=round24), the grey line opens its own address in its list: every agent's #/group/<card>, one agent's #/group/<card>?agent=<id> with that agent's count and name, even when its newest card is every agent's newest; that card opens as itself, back is that 완료, and a reload draws the same (lina-app#244)", async () => {
+      await openApp(page, "#/done", "&hub=round24");
+      const grey = () => page.getByTestId("screen-done").getByRole("list", { name: "완료", exact: true }).locator("li[data-testid=row]").filter({ has: page.locator(".title.is-kind") });
+      const everyone = { name: (await grey().locator(".title").innerText()).trim(), href: (await grey().getByRole("link").getAttribute("href")) ?? "" };
+      check(/^#\/group\/[^?]+$/.test(everyone.href), "every agent's grey line opens " + everyone.href);
+      const newest = everyone.href.split("/")[2];
+      // The agent whose grey line has the same newest card as every agent's.
+      const choices = page.getByTestId("done-filter").getByRole("button");
+      let scoped = null;
+      for (let index = 1; index < (await choices.count()) && !scoped; index++) {
+        const choice = choices.nth(index);
+        await choice.click();
+        await page.getByTestId("done-filter").locator(`button:nth-child(${index + 1})[aria-pressed=true]`).waitFor();
+        const target = (await grey().count()) ? ((await grey().getByRole("link").getAttribute("href")) ?? "") : "";
+        if (target.startsWith("#/group/" + newest + "?agent=")) scoped = { href: target, agent: ((await choice.innerText()).replace(/\d+$/, "")).trim(), name: (await grey().locator(".title").innerText()).trim(), list: new URL(page.url()).hash };
+      }
+      check(scoped !== null, "no agent's grey line has every agent's newest card " + newest);
+      await grey().getByRole("link").click();
+      const head = page.getByTestId("group-head");
+      await head.waitFor();
+      const detail = page.locator("article.detail", { has: head });
+      const shown = { hash: new URL(page.url()).hash, name: (await detail.locator("h1").innerText()).trim(), who: (await detail.getByTestId("group-agents").innerText()).trim(), cards: await detail.getByTestId("fold-member").count() };
+      check(shown.hash === scoped.href && shown.name === scoped.name && shown.name !== everyone.name && shown.who === scoped.agent && shown.cards === Number(/(\d+)/.exec(scoped.name)?.[1]), "opened " + JSON.stringify(shown) + " for " + JSON.stringify(scoped) + ", every agent's " + everyone.name);
+      await openApp(page, scoped.href, "&hub=round24");
+      await head.waitFor();
+      const again = (await page.locator("article.detail", { has: head }).locator("h1").innerText()).trim();
+      check(again === shown.name, "reloaded " + again);
+      await page.locator("article.detail", { has: head }).getByTestId("fold-member").first().getByRole("link").click();
+      await page.waitForFunction((hash) => location.hash === hash, "#/cards/" + newest);
+      await page.getByTestId("screen-card").first().waitFor();
+      check((await head.count()) === 0, "the card's address " + newest + " draws the group");
+      await openApp(page, scoped.list, "&hub=round24");
+      await grey().getByRole("link").click();
+      await head.waitFor();
+      if (await page.getByTestId("back").count()) await page.getByTestId("back").click();
+      else await page.goBack();
+      await page.waitForFunction((hash) => location.hash === hash, scoped.list);
+      return everyone.name + " at " + everyone.href + "; " + scoped.agent + ": " + shown.name + " at " + shown.hash + "; card " + newest + " opens as a card; back to " + scoped.list;
+    });
   },
 
   async "agent-screen"(page, step) {
@@ -1313,6 +1352,31 @@ const drivers = {
       const time = (await grey.count()) ? (await grey.locator(".time").innerText()).replace(/^\s*·\s*/, "").trim() : null;
       check(!firsts.includes("작업") && firsts.filter((title) => /^제목 없는 \d+건$/.test(title)).length === 1 && firsts.length === 3 && sub === "에이전트 3명" && /^가장 최근 \d+시간 전$/.test(time ?? ""), "rows " + JSON.stringify(firsts) + ", grey " + sub + " · " + time);
       return firsts.join(" | ") + "; grey " + sub + " · " + time;
+    });
+    await step("on &hub=round24, G10's grey line opens #/group/<card>?goal=G10: the goal's 5 cards of 3 agents, never every agent's group, the same after a reload; its newest card's address opens that card (lina-app#244)", async () => {
+      await openApp(page, "#/goals/G10", "&hub=round24");
+      const grey = page.getByTestId("screen-goal").getByRole("list", { name: "작업", exact: true }).locator("li[data-testid=row]").filter({ has: page.locator(".title.is-kind") });
+      const target = (await grey.getByRole("link").getAttribute("href")) ?? "";
+      check(/^#\/group\/[^?]+\?goal=G10$/.test(target), "the goal's grey line opens " + target);
+      await grey.getByRole("link").click();
+      const head = page.getByTestId("group-head");
+      const read = async () => {
+        await head.waitFor();
+        const detail = page.locator("article.detail", { has: head });
+        const counts = (await detail.getByTestId("fold-agent").allInnerTexts()).map((line) => Number(/(\d+)건$/.exec(line.trim())?.[1] ?? 0));
+        return { name: (await detail.locator("h1").innerText()).trim(), who: (await detail.getByTestId("group-agents").innerText()).trim(), cards: counts.reduce((sum, n) => sum + n, 0) };
+      };
+      const shown = await read();
+      check(new URL(page.url()).hash === target && JSON.stringify(shown) === JSON.stringify({ name: "제목 없는 5건", who: "에이전트 3명", cards: 5 }), "opened " + JSON.stringify(shown) + " at " + page.url());
+      await openApp(page, target, "&hub=round24");
+      const again = await read();
+      check(JSON.stringify(again) === JSON.stringify(shown), "reloaded " + JSON.stringify(again));
+      const card = target.split("/")[2].split("?")[0];
+      await openApp(page, "#/cards/" + card, "&hub=round24");
+      // The hub keeps no history of this card: its address says so, as every such card's does, and draws no group.
+      await page.getByTestId("screen-card").or(page.getByText("찾을 수 없음", { exact: true })).first().waitFor();
+      check((await head.count()) === 0, "the card's address " + card + " draws the group");
+      return shown.name + " / " + shown.who + " at " + target + "; #/cards/" + card + " opens the card, not the group";
     });
     await step("on the hub's shape (&hub=round23), a goal page whose record's state and progress disagree says why in one line under its head's state, as its row does (lina-app#242)", async () => {
       const heads = [];
@@ -3529,8 +3593,10 @@ const drivers = {
         await own.evaluate(() => history.back());
         await own.getByTestId("detail-frame").waitFor({ state: "detached" });
         seen.back = await first();
-        const want = "#/cards/" + newest.id;
-        check(Object.values(seen).every((at) => at === want), "the first line opens " + JSON.stringify(seen) + ", the newest is " + want);
+        // A grey line opens its group's address, by its newest card (lina-app#244).
+        const wants = ["#/cards/" + newest.id, "#/group/" + encodeURIComponent(newest.id)];
+        const want = wants.find((each) => each === seen.read) ?? wants[0];
+        check(Object.values(seen).every((at) => at === want), "the first line opens " + JSON.stringify(seen) + ", the newest is " + wants.join(" or "));
         return "first line " + want + " on the first read, closed, reloaded from the copy and back";
       } finally {
         await context.close();

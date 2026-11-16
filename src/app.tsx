@@ -10,7 +10,7 @@ import { slideMotion } from "./stack-motion";
 import { bindSwipeBack, isStandalone } from "./swipe-back";
 import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RestartSheet, RunningScreen, StatusScreen, TodayScreen } from "./screens/lists";
 import { AgentCard, AgentTalk, TalkAgents, TalkHead, TalkNameLine, TalkPreview, talkRowName } from "./screens/talk";
-import { CardScreen, GoalScreen, ItemScreen, RoundScreen, roundRunId, RunScreen, workerTitle } from "./screens/details";
+import { CardScreen, GoalScreen, GroupScreen, groupOf, ItemScreen, RoundScreen, roundRunId, RunScreen, workerTitle } from "./screens/details";
 import { RollbackSheet, SettingPage, settingParent, SettingsScreen, settingTitle } from "./screens/settings";
 import { SETTINGS_HISTORY } from "./api/client";
 import { BackIcon, BellIcon, CalendarIcon, DeviceIcon, DoneIcon, GearIcon, GoalIcon, InboxIcon, MenuIcon, RunningIcon } from "./ui/icons";
@@ -65,6 +65,8 @@ export function titleOf(route: Route, model: Model, store: Store): string {
       return store.get("item", route.id)?.title ?? model.items.get(route.id)?.title ?? (route.name === "goal" ? W.goals : W.todo);
     case "card":
       return model.cards.get(route.id)?.name ?? W.cards;
+    case "group":
+      return groupOf(route, model, store)?.name ?? W.done;
     case "run": {
       const run = model.runs.get(route.id);
       // A card's worker run reads its card's title: the core serves none of its own (lina-app#61, #128).
@@ -81,6 +83,8 @@ export function titleOf(route: Route, model: Model, store: Store): string {
 function wantsFor(route: Route, store: Store): Want {
   switch (route.name) {
     case "talk":
+      return route.goal ? wantsFor({ name: "goal", id: route.goal }, store) : [];
+    case "group":
       return route.goal ? wantsFor({ name: "goal", id: route.goal }, store) : [];
     case "goal":
     case "item": {
@@ -134,6 +138,7 @@ function readsEveryFinished(route: Route, store: Store): boolean {
     case "talk":
     case "goal":
     case "item":
+    case "group":
       return true;
     case "card":
     case "round": {
@@ -195,6 +200,8 @@ function Screen({ route }: { route: Route }) {
       return <ItemScreen id={route.id} />;
     case "card":
       return <CardScreen id={route.id} />;
+    case "group":
+      return <GroupScreen route={route} />;
     case "run":
       return <RunScreen id={route.id} />;
     case "round":

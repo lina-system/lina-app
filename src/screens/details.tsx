@@ -2,7 +2,7 @@ import { Fragment, type ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, RecordRow, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
-import { cardTitle, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, runRow, todoState, wholeTitle, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
+import { cardTitle, doneFor, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, runRow, todoState, wholeTitle, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
 import { foldReason, wholeText } from "../model/fold";
 import { plainText } from "../model/plain";
 import { holds } from "../model/rounds";
@@ -10,7 +10,7 @@ import { stopReason } from "../model/stop-reason";
 import { answerOf, commentHistory, decisionHistory, goalHistory, historyLines, isMachineNotice, outcomeOf, ownerWrote } from "../model/timeline";
 import type { CardKind } from "../model/kind";
 import { isRunId, newestRun, type Store } from "../data/store";
-import { back, baseOf, href, isFrame, navigate, parse, tabOf } from "../router";
+import { back, baseOf, href, isFrame, navigate, parse, tabOf, type Route } from "../router";
 import { ago, clockAt, dayLabel } from "../time";
 import { useActions } from "../ui/actions";
 import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, itemTime, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, stateWords, useApp } from "../ui/parts";
@@ -745,12 +745,33 @@ function FoldMembers({ id, fold, byAgent }: { id: string; fold: readonly CardRow
 }
 
 /**
- * The detail of 완료's line of the cards nothing names, opened from that line (lina-app#242): it speaks of the line, never
- * of the one card it opens first. Its head is the line's name (how many cards), 완료 with the newest card's time said as
- * such, and how many agents' cards it holds (or the one agent's name); under it the cards by agent (FoldMembers).
+ * The line of the cards nothing names that a group's address names (lina-app#244): the one its list draws with that
+ * card newest, from that list (every agent's 완료, one agent's, or a goal's work list), never another list's.
  */
-function GroupScreen({ line, fold }: { line: CardRow; fold: readonly CardRow[] }) {
-  const { model, now } = useApp();
+export function groupOf(route: Extract<Route, { name: "group" }>, model: Model, store: Store): CardRow | undefined {
+  const goal = route.goal ? store.get("item", route.goal) : undefined;
+  const rows = route.goal
+    ? goal
+      ? goalCards(model, goal, { goals: goal.workCards.map((id) => store.get("goal", id)).filter((each) => each !== undefined) }).cards.rows
+      : []
+    : route.agent
+      ? doneFor(model, route.agent)
+      : model.home.finished.rows;
+  return rows.find((line) => line.title === null && line.id === route.id && line.fold);
+}
+
+/**
+ * The detail of a line of the cards nothing names, opened from that line (lina-app#242) at its own address (lina-app#244):
+ * it speaks of the line, never of the one card it opens first. Its head is the line's name (how many cards), 완료 with
+ * the newest card's time said as such, and how many agents' cards it holds (or the one agent's name); under it the cards
+ * by agent (FoldMembers).
+ */
+export function GroupScreen({ route }: { route: Extract<Route, { name: "group" }> }) {
+  const { model, store, now } = useApp();
+  const line = groupOf(route, model, store);
+  // A list read only in part, or a goal not read yet, may still hold the line.
+  if (!line?.fold) return !model.finished.all || (route.goal && store.status("item", route.goal) === "pending") ? <Loading /> : <Missing />;
+  const fold = line.fold;
   const agents = new Set(fold.map((card) => card.agent)).size;
   return (
     <article class="detail" data-testid="screen-card">
@@ -928,9 +949,6 @@ export function CardScreen({ id }: { id: string }) {
   const drawn = useRef<string | null>(null);
   const detail = store.get("card", id);
   const row = model.cards.get(id);
-  // The grey line opens its newest card's address: there the detail is the line's (lina-app#242).
-  const grey = model.home.finished.rows.find((line) => line.title === null && line.id === id && line.fold);
-  if (grey?.fold) return <GroupScreen line={grey} fold={grey.fold} />;
   // The work tab's row of the card: one of several under one goal leads with its own name (lina-app#242), so the head
   // reads that name and its goal's title is the 목표 line under it.
   const listed = [...model.running.rows, ...model.home.planned.rows, ...model.home.waiting.rows].find((card) => card.id === id);

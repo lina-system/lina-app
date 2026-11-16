@@ -517,9 +517,10 @@ export function apart(rows: readonly CardRow[], now: number, lead = true): CardR
  * or a number the screen cuts, and the cards a goal's title names first, lina-app#237) are one line, the newest of them,
  * which it opens, with how many it stands for (`repeat`); its second line is their own name only while they share it.
  * The cards nothing names are one such line too (lina-app#225), named for what it holds and how many, never by a kind
- * word (lina-app#231). The rows come newest first; the group head counts the cards (cardCount).
+ * word (lina-app#231); that line opens its own address, in `scope`, the list it is drawn in (lina-app#244). The rows come
+ * newest first; the group head counts the cards (cardCount).
  */
-function collapsed(rows: readonly CardRow[]): CardRow[] {
+function collapsed(rows: readonly CardRow[], scope: { readonly agent?: string; readonly goal?: string } = {}): CardRow[] {
   const lines = new Map<string, CardRow>();
   for (const row of rows) {
     const key = row.title === null ? "" : row.name;
@@ -527,7 +528,7 @@ function collapsed(rows: readonly CardRow[]): CardRow[] {
     lines.set(key, first ? { ...first, sub: first.sub === row.sub ? first.sub : null, repeat: (first.repeat ?? 1) + 1, fold: [...(first.fold ?? [first]), row] } : { ...row, when: null });
   }
   const unnamed = lines.get("");
-  if (unnamed) lines.set("", { ...unnamed, name: W.untitledCount(unnamed.repeat ?? 1), sub: null });
+  if (unnamed) lines.set("", { ...unnamed, name: W.untitledCount(unnamed.repeat ?? 1), sub: null, ...(unnamed.fold ? { href: href({ name: "group", id: unnamed.id, ...scope }) } : {}) });
   return [...lines.values()];
 }
 
@@ -535,9 +536,9 @@ function collapsed(rows: readonly CardRow[]): CardRow[] {
  * Finished cards as the lines they are listed in (lina-app#168, #179, #186): the last 24 hours first, then the older
  * ones, collapsed as one list, so a line never shows twice. The work tab's 완료 group and the 완료 screen list these.
  */
-function doneLines(done: readonly CardRow[], now: number): CardRow[] {
+function doneLines(done: readonly CardRow[], now: number, agent?: string): CardRow[] {
   const recent = done.filter((card) => card.endedAt !== null && now - card.endedAt < RECENT_SECONDS);
-  return collapsed([...recent, ...done.filter((card) => !recent.includes(card))]);
+  return collapsed([...recent, ...done.filter((card) => !recent.includes(card))], agent ? { agent } : {});
 }
 
 /** The one naming rule: that title, else the kind of work (코드 작업, 문서 작업, 조사, 기기 작업). */
@@ -1016,7 +1017,7 @@ export function latestActivity(cards: Iterable<CardRow>): number | null {
 
 /** 완료, for every agent or for one: its lines (doneLines); the filter's counts and the list are this one list. */
 export function doneFor(model: Model, agentId?: string): readonly CardRow[] {
-  return doneLines(agentId ? model.done.filter((card) => card.agent === agentId) : model.done, model.now);
+  return doneLines(agentId ? model.done.filter((card) => card.agent === agentId) : model.done, model.now, agentId);
 }
 
 /** The cards some lines stand for, a `×n` line counting n (lina-app#225): what every 완료 number counts. */
@@ -1113,7 +1114,7 @@ export function goalCards(model: Model, detail: ItemDetail, goals: GoalList | un
     model.now,
   );
   const unnamed = cards.filter((card) => card.state === "done" && card.title === null);
-  const grey = unnamed.length ? collapsed([...unnamed].sort(newestFirst((card) => card.endedAt)))[0] : null;
+  const grey = unnamed.length ? collapsed([...unnamed].sort(newestFirst((card) => card.endedAt)), { goal: detail.id })[0] : null;
   const rows = grey ? cards.flatMap((card) => (card === unnamed[0] ? [grey] : unnamed.includes(card) ? [] : [card])) : cards;
   const linked = new Set(detail.workCards);
   const evidence = (goals?.goals ?? [])

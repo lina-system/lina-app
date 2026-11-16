@@ -649,12 +649,3 @@ export const ROUND11_WORD = {
   nothingYet: "아직 기록 없음",
 };
 
-/** lina-app#207: the words added in UI QA round 15. */
-export const ROUND15_WORD = {
-  /**
-   * What a name cut inside a sentence was, said where it stood when a particle followed it (`152번 항목으로`), so the
-   * sentence still reads: an issue, a card, a goal, a to-do, a commit, a file, a folder, an address, a value, or any other
-   * name.
-   */
-  nameKind: { issue: "이슈", card: "카드", goal: "목표", todo: "할 일", commit: "커밋", file: "파일", folder: "폴더", address: "주소", value: "값", item: "항목" },
-};

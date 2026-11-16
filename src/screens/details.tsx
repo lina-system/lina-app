@@ -644,8 +644,8 @@ function roundGroups(rounds: readonly Round[]): (Round | Round[])[] {
 /**
  * A work card's comments, one history line each, newest first: its time and the owner's words as saved, or a bot's
  * first sentence the screens draw whole (lina-app#142, historyText #157, #226); its author is the line's tooltip. A
- * machine notice is no line, and each run of comments with no sentence is one 접힌 댓글 line with their count
- * (lina-app#149). A comment that was only markdown markers and spaces is no line at all (lina-app#166). `records` are
+ * machine notice is no line, each run of comments with no sentence is one 접힌 댓글 line with their count
+ * (lina-app#149), and a line drawn more than once is one line with `×n` (commentHistory, lina-app#230). A comment that was only markdown markers and spaces is no line at all (lina-app#166). `records` are
  * the comment rows of its worker runs' records (lina-app#174): each is drawn once, and never when the card holds the
  * comment it was cut from. A record row has no author: the core makes it from a receipt's note (a verdict note, a cancel
  * reason, which on the hub an agent writes), joined to one line and cut at 300 characters with no mark, so it goes through
@@ -674,7 +674,7 @@ function CardComments({ lines }: { lines: ReturnType<typeof cardCommentLines> })
     <Box title={W.comments} testid="card-comments">
       <ul class="history-rows" aria-label={W.comments}>
         {lines.map((line) => (
-          <HistoryLine key={line.id} at={line.at} text={line.text ?? W.foldedRun(line.folded)} kind="comment" who={line.text ? agentName(model, line.author) : undefined} />
+          <HistoryLine key={line.id} at={line.at} text={line.text === null ? W.foldedRun(line.folded) : line.count > 1 ? `${line.text} ${W.repeated(line.count)}` : line.text} kind="comment" who={line.text ? agentName(model, line.author) : undefined} />
         ))}
       </ul>
     </Box>

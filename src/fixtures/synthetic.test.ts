@@ -303,11 +303,11 @@ test("a record's comments and its card's 댓글 are one set: the owner's words, 
     const inRounds = record.rounds.flatMap((round) => round.rows.filter((row) => row.kind === "comment").map((row) => ({ row, round })));
     const between = record.comments.map((row) => ({ row, round: null }));
     // A comment the record holds is one of the card's comments, by the owner, with the same text and time, or a
-    // receipt's note no card comment holds (an agent's verdict note, cut at 300 characters, lina-app#230).
+    // receipt's note no card comment holds (an agent's verdict note, cut at 300 characters at most, lina-app#230).
     for (const { row } of [...inRounds, ...between]) {
       const twin = card?.comments.find((comment) => comment.createdAt === row.at && comment.body === row.text);
       if (!twin) {
-        expect(row.text?.length, `${id}: ${row.text}`).toBe(300);
+        expect(row.text?.length, `${id}: ${row.text}`).toBeLessThanOrEqual(300);
         notes += 1;
         continue;
       }
@@ -315,7 +315,7 @@ test("a record's comments and its card's 댓글 are one set: the owner's words, 
       compared += 1;
     }
   }
-  expect(notes).toBe(2);
+  expect(notes).toBe(5);
   // Every comment the owner made on a card is in its worker runs' records together (the card's 기록), exactly once:
   // in the round going at its time, else between rounds.
   for (const card of Object.values(scene.cardDetails)) {

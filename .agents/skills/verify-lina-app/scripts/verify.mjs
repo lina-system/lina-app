@@ -1514,7 +1514,8 @@ const drivers = {
       const rows = page.getByTestId("card-comments").getByTestId("history-row");
       await rows.first().waitFor();
       const lines = (await rows.allInnerTexts()).map((line) => line.trim());
-      check(lines.length === 2 && / · 위키 문서의 결제 화면 절을 새 문체로 바꿨다\.$/.test(lines[0]) && / · 접힌 댓글$/.test(lines[1]), "k-102's comments read " + JSON.stringify(lines));
+      // The same verdict note on three runs is one line with its count (lina-app#230).
+      check(lines.length === 3 && / · 검토를 마쳤고 병합해도 된다\. ×3$/.test(lines[0]) && / · 위키 문서의 결제 화면 절을 새 문체로 바꿨다\.$/.test(lines[1]) && / · 접힌 댓글$/.test(lines[2]), "k-102's comments read " + JSON.stringify(lines));
       const text = await page.getByTestId("card-comments").innerText();
       check(!/[A-Za-z]|줄였다\. 표/.test(text), "raw record text in the card's comments: " + text.replace(/\s+/g, " "));
       return lines.join(" | ");

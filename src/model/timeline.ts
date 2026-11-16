@@ -71,10 +71,16 @@ export function historyLines<T extends { readonly at: number; readonly text: str
 /**
  * A work card's comments as history lines, newest first: a machine notice is no line, the owner's comment is its words
  * as saved, a bot's its first sentence the screens draw (commentLine), and a run of comments with none is one 접힌 댓글
- * line (lina-app#149, #153, #226).
+ * line (lina-app#149, #153, #226). A sentence drawn more than once is one line at its newest time with its `count`
+ * (lina-app#230), so the folded lines around a repeat it took away read as one.
  */
-export function commentHistory<T extends { readonly at: number; readonly author: string | null; readonly body: string | null }>(comments: readonly T[], owner?: string | null): (T & { readonly text: string | null; readonly folded: number })[] {
-  return historyLines(comments.filter((comment) => !isMachineNotice(comment.body, comment.author, owner)).map((comment) => ({ ...comment, text: commentLine(comment.body ?? "", comment.author, owner) })));
+export function commentHistory<T extends { readonly at: number; readonly author: string | null; readonly body: string | null }>(comments: readonly T[], owner?: string | null): (T & { readonly text: string | null; readonly count: number; readonly folded: number })[] {
+  const lines = comments.filter((comment) => !isMachineNotice(comment.body, comment.author, owner)).map((comment) => ({ ...comment, text: commentLine(comment.body ?? "", comment.author, owner) }));
+  // A state word alone is an event, no sentence: historyLines drops one that repeats the line before it.
+  const sentence = (text: string | null): text is string => text !== null && !STATE_ONLY.has(text);
+  const newest = new Map<string, (typeof lines)[number]>();
+  for (const line of lines) if (sentence(line.text) && line.at >= (newest.get(line.text)?.at ?? -Infinity)) newest.set(line.text, line);
+  return historyLines(lines.filter((line) => !sentence(line.text) || newest.get(line.text) === line).map((line) => ({ ...line, count: sentence(line.text) ? lines.filter((other) => other.text === line.text).length : 1 })));
 }
 
 /**

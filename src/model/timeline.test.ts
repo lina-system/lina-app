@@ -300,3 +300,23 @@ test("a record's comment rows read through the one gate, in a round and between 
   const blocks = timelineBlocks([{ id: "w1", record }], () => false, 1000);
   expect(blocks.map((block) => block.rows.map((row) => row.text))).toEqual([[null, "가짜 금액 줄을 다시 확인했다."], ["가짜 표로 바꿔 주세요."]]);
 });
+
+// lina-app#230: on the real hub's long card the same note stood in the 댓글 section nine times. A sentence drawn more than
+// once in one card's comments is one line at its newest time with its count; the folded lines around a repeat it took
+// away read as one.
+test("the same comment line again in one card is one line with its count, at its newest time (lina-app#230)", () => {
+  const note = "가짜 변경을 읽고 병합했다.";
+  const lines = commentHistory([
+    { id: 1, at: 100, author: "worker-a", body: note },
+    { id: 2, at: 200, author: "worker-a", body: "fake note" },
+    { id: 3, at: 300, author: "worker-a", body: note },
+    { id: 4, at: 400, author: "worker-a", body: "fake note again" },
+    { id: 5, at: 500, author: "worker-a", body: `${note} 다음은 표로 바꾼다.` },
+    { id: 6, at: 600, author: "worker-a", body: "가짜 표를 다시 만들었다." },
+  ]);
+  expect(lines.map((line) => [line.at, line.text, line.count, line.folded])).toEqual([
+    [600, "가짜 표를 다시 만들었다.", 1, 0],
+    [500, note, 3, 0],
+    [400, null, 1, 2],
+  ]);
+});

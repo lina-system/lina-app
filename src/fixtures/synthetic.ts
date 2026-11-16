@@ -1217,8 +1217,9 @@ function records(now: number): Record<string, RunRecord> {
       rounds: [{ run: 1, startedAt: now - 2 * HOUR, endedAt: null, endKnown: false, startUnknown: false, result: null, verdict: null, stopped: false, rows: [] }],
       // The hub's record comment rows (lina-app#230), in made-up words: no author, a receipt's note joined to one line and
       // cut at 300 characters with no mark, as the core serves it. An agent's English verdict note, and a note cut inside
-      // a word: never drawn as saved.
+      // a word: never drawn as saved. The same verdict note on three runs is one line with its count.
       comments: [
+        ...[90, 70, 60].map((ago) => row(now - ago * MIN, "comment", "검토를 마쳤고 병합해도 된다.")),
         row(now - 100 * MIN, "comment", cutRow("review note: diff read, merged via PR (app#12/#13, core#14/#15), checked in the QA rounds at both widths; the worktree stays for the follow-up run and the evidence folder keeps every capture, the report lists what was not run and why, and the next round reads the open points first before it starts on anything else in the list")),
         row(now - 80 * MIN, "comment", cutRow(`위키 문서의 결제 화면 절을 새 문체로 바꿨다. ${"표 머리 줄과 본문 줄의 간격을 맞추고 그림 설명을 짧게 줄였다. ".repeat(8)}`)),
       ],

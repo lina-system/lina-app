@@ -1676,6 +1676,23 @@ const drivers = {
       check(again === opened && (await page.evaluate(() => location.hash)) === target, "after a reload the page reads " + again);
       return hrefs.length + " links, none with a task id; " + target + " reads " + opened + ", also after a reload";
     });
+    // lina-app#245: on the hub each worker run serves its own record, numbered from 1, and every record block's head
+    // opened the card's first run. Each head opens the run it was recorded from; a run of two rounds both times.
+    await step("on &hub=round24, k-450's record blocks each open their own worker run, and the page a head opens holds that block", async () => {
+      await openApp(page, "#/cards/k-450", "&hub=round24");
+      await page.getByTestId("timeline-link").first().waitFor();
+      const links = page.getByTestId("timeline-link");
+      const hrefs = await links.evaluateAll((items) => items.map((item) => item.getAttribute("href")));
+      const expected = [4, 3, 3, 2, 1].map((n) => "#/cards/k-450/runs/" + n);
+      check(JSON.stringify(hrefs) === JSON.stringify(expected), "the record blocks link to " + JSON.stringify(hrefs));
+      const head = (await links.nth(3).innerText()).trim();
+      await links.nth(3).click();
+      await page.waitForFunction((hash) => location.hash === hash, expected[3], { timeout: 3_000 }).catch(() => check(false, "the head did not open " + expected[3]));
+      await page.getByTestId("screen-run").getByTestId("timeline").waitFor();
+      const opened = (await page.getByTestId("screen-run").locator(".timeline-head").allInnerTexts()).map((text) => text.trim());
+      check(JSON.stringify(opened) === JSON.stringify([head]), "the run's page holds " + JSON.stringify(opened) + ", not " + head);
+      return hrefs.join(" ") + "; " + expected[3] + " holds " + head;
+    });
     // lina-app#232: the hub's long card showed only 불러오는 중 for about 20 s on a phone's first open, while 110 reads of
     // its one record came. With every record read taking 1.5 s, the head and the newest history stand within 2 s, the
     // rest fills below one 불러오는 중 line, and the first history row neither moves nor changes when it lands.

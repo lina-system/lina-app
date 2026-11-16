@@ -36,6 +36,7 @@ A work card (`#/cards/<id>`) or a worker run outside any card (`#/runs/<id>`) op
 - One rule orders every history: by time, newest first (lina-app#153), the worker runs under a round too (lina-app#157). A round's own line that may not show is folded with the rounds next to it into one `이전 기록 N건` row (lina-app#161): a folded block is named `댓글` only when it holds comments. A card's worker runs that serve the same record show each round and each comment once, and a round with nothing in it but the outcome of the round before it is counted on that round's head (`×n`, lina-app#236).
 - A run outside any card opens at `#/runs/<id>` with its own state and the to-do it takes on.
 - A card's worker run opens at `#/cards/<card>/runs/<n>`, `n` its place among the card's worker runs from 1: the round heads and the worker run lines link there, so no address on a card holds the run's own id, a task id no person reads that shows on hover and in the status bar (lina-app#238). The address alone opens the same page, after a reload too.
+- A 기록 block's head opens the worker run whose record holds that block (lina-app#245): on the hub each worker run serves its own record, which numbers its rounds from 1, so a block never opens the card's first run for its number alone, and both rounds of a run with two link that run. Only a record that holds rounds of the card's other runs (one run serving the card's one record, lina-app#153) links each such round to the run of the card round with its number and time.
 - A worker run's page names the model that run used once, under its head, by the plain name the model list gives it, with its effort (`<name> · 보통`). A run that started on the fallback model ends the line with `대체 모델` (`<name> · 높음 · 대체 모델`). A model the list names only by an id is an alias (`model-a`, `model-b`) and draws no line (lina-app#128); neither does a run with no model. The rounds of that page's 기록 draw no model line. The settings revision is not shown.
 - On a card's 기록, each round shows its own run's model under the round's head, dim, once: the worker run that round was, the same one its head opens. A round whose run has none shows nothing. A comment block shows none.
 - Only boxes that add something are drawn.
@@ -67,6 +68,7 @@ Preconditions:
 - **Own title.** Open `#/cards/k-102`: its head reads `결제 화면 개편`, the name its row reads, with `위키: 결제 화면 문서 정리` on the line under it, the `문서` kind and no `지금`, not `코드 작업`.
 - **Card question.** In 수신함 choose `카드 번호를 앞 여섯 자리까지 표시할지 결정 필요`. The address is `#/cards/<id>` and the first box is `결정 필요` with that sentence, `결정 대기` and `n일 전`.
 - **Round address.** `/app/?source=synthetic&hub=round23#/cards/k-101` (k-101's worker runs under ids of the hub's shape): no link holds a task id or `#/runs/`; the newest round's head links to `#/cards/k-101/runs/3` and opens `릴리스 변경 목록 정리 · 진행 중`, and a reload keeps the address and the page (lina-app#238).
+- **Each block its own run (lina-app#245).** `/app/?source=synthetic&hub=round24#/cards/k-450`: its five record blocks link, newest first, to `#/cards/k-450/runs/4`, `/3`, `/3`, `/2`, `/1` (the run of two rounds links both); the fourth head opens a run page whose `기록` holds that one block.
 - **Open a run.** In 수신함 choose the 검토 필요 row. The address is `#/runs/<id>` and the state reads `대기 · 검토 필요 · n시간 전`.
 - **Timeline.** Driven in work-cards.md on `#/cards/k-101` and `#/runs/r1`; here `#/runs/r6`'s single round reads `<hh:mm> · 완료` and its raw result line is left out: no result sentence, no `가린 문장`.
 - **Model.** The scene's models have no plain name (`model-a`, `model-b` are ids): `#/runs/r1`, `#/cards/k-101`, `#/runs/r8` and `#/runs/r6` show no model line and no `model-` text. A model with a plain name reads `<name> · 보통` once under a run's head (src/screens.test.tsx). None of these pages shows a settings revision.
@@ -84,7 +86,7 @@ Preconditions:
 
 ## Gotchas
 
-- `&hub=round24` replaces nothing of the default scene: its stopped cards (`k-441` to `k-444`) and k-101's extra comments and r9's rounds exist only on that address, so the default drive's counts stand.
+- `&hub=round24` replaces nothing of the default scene: its stopped cards (`k-441` to `k-444`), k-450 (no list row; four worker runs `w-4501` to `w-4504` with their own records) and k-101's extra comments and r9's rounds exist only on that address, so the default drive's counts stand.
 - The worker run line uses the run's own state, never its to-do's.
 - The synthetic page answers a card's records at once unless `&records=slow`, so the one `불러오는 중` line while they are read is seen only there; `src/detail-qa17.test.tsx` and `src/detail-qa22.test.tsx` (the long card's shape, lina-app#232) hold it on a card shaped like the hub's, its detail and records answered late (lina-app#217).
 

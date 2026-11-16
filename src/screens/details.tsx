@@ -306,6 +306,8 @@ function DoneHead({ detail }: { detail: ItemDetail }) {
   // So does one whose answer waits for its toast (lina-app#166).
   const answered = (detail.decision?.answered || (detail.decision && answering(`decide:${detail.id}`))) && detail.state !== "done";
   const answer = answered && detail.decision?.answered ? answerOf(detail) : null;
+  // A goal whose record disagrees with itself says how in one line under its state, as its rows do (lina-app#237, #242).
+  const why = detail.kind === "goal" ? (model.goals.find((each) => each.id === detail.id)?.why ?? null) : null;
   return (
     <>
       <div class="head-check">
@@ -326,6 +328,11 @@ function DoneHead({ detail }: { detail: ItemDetail }) {
           </button>
         ) : null}
       </div>
+      {why ? (
+        <span class="sub" data-testid="goal-why">
+          {why}
+        </span>
+      ) : null}
       {/* The due date its row shows, in the same colours (lina-app#161). */}
       {detail.due ? (
         <span class="sub item-due" data-testid="item-due">

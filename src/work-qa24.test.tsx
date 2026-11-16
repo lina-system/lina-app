@@ -91,4 +91,20 @@ for (const wide of [true, false]) {
     expect(grey.textContent).toContain(W.agentsCount(3));
   });
 
+  test(`a goal's head says in one line why its record's state and its progress disagree (${width})`, async () => {
+    for (const [id, why] of [
+      ["G7", W.todosLeft(1)],
+      ["G8", W.todosLeft(12)],
+      ["G9", W.workDone(ROUND23.plannedDoneOwn.length)],
+    ] as const) {
+      const view = await open(`#/goals/${id}`, hub(), wide);
+      const head = await waitFor(() => view.getByTestId("screen-goal").querySelector(".detail-head") as HTMLElement);
+      await waitFor(() => expect(within(head).getByTestId("goal-why").textContent).toBe(why));
+      view.unmount();
+    }
+    // A goal whose record agrees with itself says nothing more.
+    const view = await open("#/goals/G10", hub(), wide);
+    const head = await waitFor(() => view.getByTestId("screen-goal").querySelector(".detail-head") as HTMLElement);
+    expect(within(head).queryByTestId("goal-why")).toBeNull();
+  });
 }

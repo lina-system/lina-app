@@ -1314,6 +1314,22 @@ const drivers = {
       check(!firsts.includes("작업") && firsts.filter((title) => /^제목 없는 \d+건$/.test(title)).length === 1 && firsts.length === 3 && sub === "에이전트 3명" && /^가장 최근 \d+시간 전$/.test(time ?? ""), "rows " + JSON.stringify(firsts) + ", grey " + sub + " · " + time);
       return firsts.join(" | ") + "; grey " + sub + " · " + time;
     });
+    await step("on the hub's shape (&hub=round23), a goal page whose record's state and progress disagree says why in one line under its head's state, as its row does (lina-app#242)", async () => {
+      const heads = [];
+      for (const [id, why] of [["G7", "할 일 1개 남음"], ["G8", "할 일 12개 남음"], ["G9", "작업 2건 완료"]]) {
+        await openApp(page, "#/goals/" + id, "&hub=round23");
+        const line = page.locator(".detail-head").getByTestId("goal-why");
+        await line.waitFor();
+        const state = (await page.locator(".detail-head [data-testid=state]").innerText()).trim();
+        const said = (await line.innerText()).trim();
+        check(said === why, id + " reads " + said);
+        heads.push(id + ": " + state + " / " + said);
+      }
+      await openApp(page, "#/goals/G1");
+      await page.locator(".detail-head").waitFor();
+      check((await page.locator(".detail-head").getByTestId("goal-why").count()) === 0, "G1, whose record agrees with itself, says why");
+      return heads.join(" | ");
+    });
     await step("a done goal's history (기록) reads the evidence that closed it and its close, one line each", async () => {
       await openApp(page, "#/goals/G4");
       const rows = page.getByTestId("goal-history").getByTestId("history-row");

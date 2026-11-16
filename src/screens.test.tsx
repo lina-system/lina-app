@@ -2019,8 +2019,7 @@ describe("agent talk", () => {
   });
 
   // lina-app#200 item 1: a disabled 보내기 says why in the words 댓글 and 답 use, one line in the field's bar.
-  // lina-app#238: an off 보내기 always says why, on an empty field too, as 댓글 and a decision's 답 do.
-  test("보내기 in the agent's window is a dim icon while it is off; a word beside it says why on an empty field, while the turn goes out and while the reply comes in (lina-app#187, #200, #238)", async () => {
+  test("보내기 in the agent's window is a dim icon while it is off; a word beside it says why while the turn goes out and the reply comes in, and none on an empty field (lina-app#187, #200)", async () => {
     let answer: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => (answer = resolve));
     class Held extends SyntheticSource {
@@ -2035,7 +2034,7 @@ describe("agent talk", () => {
     expect(field.tagName).toBe("TEXTAREA");
     expect(send.textContent).toBe("");
     expect(send.disabled).toBe(true);
-    expect(why()).toBe("글 입력 대기");
+    expect(why()).toBeNull();
     field.value = "가짜 질문 하나";
     fireEvent.input(field);
     await waitFor(() => expect(send.disabled).toBe(false));
@@ -2051,7 +2050,7 @@ describe("agent talk", () => {
     // The reason sits in the field's bar, never in the turns.
     expect(view.getByTestId("agent-talk").querySelector(".agent-talk-turns")?.textContent).not.toContain("답하는 중");
     await waitFor(() => expect(box.queryAllByTestId("talk-live")).toHaveLength(0), { timeout: 5000 });
-    expect(why()).toBe("글 입력 대기");
+    expect(why()).toBeNull();
   });
 
   test("a refused turn puts the agent row's preview back to what it showed before the send (lina-app#143)", async () => {
@@ -2315,7 +2314,7 @@ describe("talk", () => {
     fireEvent.input(field);
   }
 
-  test("보내기 under a to-do's 대화 is a dim icon while it is off, and says why in 댓글's words, on an empty field too (lina-app#187, #200, #238; lina-app#158)", async () => {
+  test("보내기 under a to-do's 대화 is a dim icon while it is off, and says why in 댓글's words (lina-app#187, #200; lina-app#158)", async () => {
     let answer: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => (answer = resolve));
     class Held extends SyntheticSource {
@@ -2329,7 +2328,8 @@ describe("talk", () => {
     const why = () => box.queryByTestId("send-why")?.textContent ?? null;
     expect(field.tagName).toBe("TEXTAREA");
     expect(send.disabled).toBe(true);
-    expect(why()).toBe("글 입력 대기");
+    // An empty field says nothing in the chat (the owner took 글 입력 대기 out); 댓글 keeps its own line.
+    expect(why()).toBeNull();
     type(field, "가짜 질문 하나");
     await waitFor(() => expect(send.disabled).toBe(false));
     expect(why()).toBeNull();

@@ -66,7 +66,13 @@ test("a record's said row is drawn whole or folds into its round's folded line, 
   const going: RunRecord["rounds"][number] = { run: TEXTS.length + 1, startedAt: start, endedAt: null, endKnown: false, startUnknown: false, result: null, verdict: null, stopped: false, rows: TEXTS.map((text, index) => ({ at: start + 1 + index, kind: "said", text, count: 1 })) };
   const record: RunRecord = { id: "r1", at: 0, cardId: "k-1", model: null, settingsRevision: null, rounds: [going, ...ended.reverse()], comments: [], errors: [] } as RunRecord;
   const blocks = timelineBlocks([{ id: "r1", record }], () => true, start + TEXTS.length + 10);
-  for (const block of blocks) if (block.type === "round" && block.result) expect(drawable(block.result)).toBe(true);
+  // A round's head reads its report line whole or one whole sentence of it (criterion 2), an English tool name in it read as a word.
+  const sentences = new Set(TEXTS.flatMap((text) => [text.trim(), ...text.split(/(?<=[^\d\s][.!?。])\s+|\n/).map((piece) => piece.trim().replace(/^(?:[-*•]|\(?\d{1,2}[.)])\s+/, ""))]));
+  for (const block of blocks)
+    if (block.type === "round" && block.result) {
+      expect(sentences.has(block.result), block.result).toBe(true);
+      expect(drawable(block.result.replace(/[A-Za-z]+/g, "낱말")), block.result).toBe(true);
+    }
   const reachable: string[] = [];
   for (const block of blocks) {
     for (const row of block.rows) {

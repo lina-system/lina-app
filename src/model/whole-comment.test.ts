@@ -72,7 +72,10 @@ test("every comment line a card draws is a whole comment or a state word, never 
   expect(drawn).toBeGreaterThan(30);
 });
 
-test("every round head and record row a timeline draws is a whole text or an event, never a part (lina-app#236)", () => {
+/** A text's sentences, each whole up to its end mark or line break and less a list's mark: what a round's head may read alone (criterion 2). */
+const sentencesOf = (text: string) => text.split(/(?<=[^\d\s][.!?。])\s+|\n/).map((piece) => piece.trim().replace(/^(?:[-*•]|\(?\d{1,2}[.)])\s+/, ""));
+
+test("every round head and record row a timeline draws is a whole text, one whole sentence of it or an event, never a part (lina-app#236)", () => {
   const next = random(2361);
   for (let run = 0; run < 200; run += 1) {
     const texts = Array.from({ length: 3 }, () => comment(next));
@@ -80,7 +83,7 @@ test("every round head and record row a timeline draws is a whole text or an eve
     const record = { id: "w1", at: 0, cardId: "k-1", model: null, settingsRevision: null, rounds: [round(3, texts[0], [{ at: 320, kind: "comment", text: texts[1], count: 1 }]), round(2, null, []), round(1, texts[2], [])], comments: [], errors: [] } as unknown as RunRecord;
     for (const block of timelineBlocks([{ id: "w1", record }], () => false, 10_000)) {
       if (block.type !== "round") continue;
-      if (block.result !== null) expect(texts.map((text) => text.trim()), block.result).toContain(block.result);
+      if (block.result !== null) expect([...texts.map((text) => text.trim()), ...texts.flatMap(sentencesOf)], block.result).toContain(block.result);
       for (const row of block.rows) if (row.kind === "comment" && row.text !== null) expect(texts.map((text) => text.trim()), row.text).toContain(row.text);
     }
   }

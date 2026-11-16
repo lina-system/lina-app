@@ -3,7 +3,7 @@ import { useState } from "preact/hooks";
 import type { Settings } from "../api/client";
 import { plainText } from "../model/plain";
 import { runModelLine } from "../model/settings";
-import { historyLines, timelineBlocks, type TimelineBlock, type TimelineRow } from "../model/timeline";
+import { historyLines, timelineBlocks, type RoundNote, type TimelineBlock, type TimelineRow } from "../model/timeline";
 import { linkClick } from "../router";
 import { clockAt } from "../time";
 import { agentName, Box, useApp } from "../ui/parts";
@@ -83,7 +83,7 @@ function Row({ row, owner, folded, count }: { row: TimelineRow; owner: string; f
 /**
  * A round's head is one history line, `time · what happened` (lina-app#123, #142): a going round its start and 진행 중,
  * an ended one its end (its start when the end is not on record) and its outcome, `×n` when it stands for n rounds of
- * that outcome in a row (lina-app#236), then its result line when it stands whole (timelineBlocks). No round number
+ * that outcome in a row (lina-app#236), then its result line when it stands whole or the one sentence it reads (timelineBlocks). No round number
  * (lina-app#61). Comments between rounds head their block with 댓글.
  */
 function head(block: TimelineBlock, now: number): string {
@@ -159,9 +159,10 @@ export function PastEvents({ events }: { events: readonly PastEvent[] }) {
  * its rounds: that page names the model once, under its head. A card passes the worker run each round was.
  * `fallback` is what stands when the record is not shown: under the one error line when its read failed, or
  * alone while there is no record. `boxed` says the page draws the record's comments between rounds in its own 댓글 box
- * (a card, lina-app#174): the timeline then has no comment block, so the page has one 댓글 section.
+ * (a card, lina-app#174): the timeline then has no comment block, so the page has one 댓글 section. `notes` are the bots'
+ * comments on the card, which a closed round's line may read its sentence from (roundSentence).
  */
-export function Timeline({ runs, live, link = () => null, modelRun = () => null, fallback = null, boxed = false }: { runs: readonly string[]; live: (runId: string) => boolean; link?: (runId: string, n: number, at: number) => string | null; modelRun?: (runId: string, n: number, at: number) => string | null; fallback?: ComponentChildren; boxed?: boolean }) {
+export function Timeline({ runs, live, link = () => null, modelRun = () => null, fallback = null, boxed = false, notes = [] }: { runs: readonly string[]; live: (runId: string) => boolean; link?: (runId: string, n: number, at: number) => string | null; modelRun?: (runId: string, n: number, at: number) => string | null; fallback?: ComponentChildren; boxed?: boolean; notes?: readonly RoundNote[] }) {
   const { model, store, now } = useApp();
   if (runs.some((id) => store.status("record", id) === "failed"))
     return (
@@ -178,7 +179,7 @@ export function Timeline({ runs, live, link = () => null, modelRun = () => null,
     const record = store.get("record", id);
     return record ? [{ id, record }] : [];
   });
-  const blocks = timelineBlocks(records, live, now)
+  const blocks = timelineBlocks(records, live, now, notes)
     .filter((block) => !(boxed && block.type === "comment"))
     .flatMap((block) => plainBlock(block) ?? []);
   if (!blocks.length) return <>{fallback}</>;

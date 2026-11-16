@@ -163,6 +163,10 @@ test.each([
   ["가짜 실패 건수는 0. 가짜 검사는 대기 중.", ["가짜 실패 건수는 0.", "가짜 검사는 대기 중."]],
   ["가짜 대기는 3. 가짜 검사는 대기 중.", ["가짜 대기는 3.", "가짜 검사는 대기 중."]],
   ["가짜 지연이 0.5초 늘었다. 가짜 판 1.2.3을 깔았다. 가짜 notes.md를 고쳤다.", ["가짜 지연이 0.5초 늘었다.", "가짜 판 1.2.3을 깔았다.", "가짜 notes.md를 고쳤다."]],
+  // A quote or bracket holding several sentences stays one sentence; one nothing closes does not swallow the rest (lina-app#224 review).
+  ["가짜 담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다. 다음 문장.", ["가짜 담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다.", "다음 문장."]],
+  ["가짜 결과(검사 통과. 배포 대기)를 적었다. 다음 문장.", ["가짜 결과(검사 통과. 배포 대기)를 적었다.", "다음 문장."]],
+  ["가짜 괄호(를 열고 끝. 다음 문장. 또 다음.", ["가짜 괄호(를 열고 끝.", "다음 문장.", "또 다음."]],
 ])("sentencesOf(%j) is %j (lina-app#222)", (line, sentences) => {
   expect(sentencesOf(line)).toEqual(sentences);
 });
@@ -173,6 +177,8 @@ test.each([
   ["가짜 순서:\n1. 가짜 빌드 통과.\n2. `fake run`\n3. 가짜 화면 확인.", "가짜 순서: 가짜 빌드 통과.\n3. 가짜 화면 확인."],
   ["가짜 할 일 1. fake build 정리. 가짜 시험을 마침.", "가짜 시험을 마침."],
   ["가짜 지연이 0.5초 늘었다. 가짜 판 1.2.3을 깔았다.", "가짜 지연이 0.5초 늘었다. 가짜 판 1.2.3을 깔았다."],
+  // A quoted passage of two sentences is kept whole by the comment (lina-app#224 review).
+  ["가짜 담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다.", "가짜 담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다."],
   // A file name is cut as a history line cuts it (lina-app#142), the sentence kept; an English word is not.
   ["가짜 설정 notes.md를 고쳤다. 가짜 시험을 마침.", "가짜 설정 고쳤다. 가짜 시험을 마침."],
   ["copy/fake.json 키 12개를 바꿈 (3f2a1c9)", "키 12개를 바꿈"],

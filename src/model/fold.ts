@@ -368,15 +368,33 @@ const ENDS_ON_LIST_MARK = /^\(?\d{1,2}[.)]$|\s\(?1[.)]$/;
 
 /**
  * A line's sentences (lina-app#222): split after `.`, `!`, `?` or `。` with a space after it, never after a list's number
- * (`순서는 1. 빌드`), so no half is a sentence alone. A dot inside a number, a version or a file name (`0.5`, `1.2.3`,
- * `a.md`) has no space after it and never splits. The one split of every history line, folded comment and stop reason.
+ * (`순서는 1. 빌드`) and never inside a quote or bracket that a later piece closes (`"검사가 실패했다. 다시 시도하자."라고`),
+ * so no half is a sentence alone. A piece that opens one nothing closes stays its own sentence. A dot inside a number, a
+ * version or a file name (`0.5`, `1.2.3`, `a.md`) has no space after it and never splits. The one split of every history
+ * line, folded comment and stop reason.
  */
 export function sentencesOf(line: string): string[] {
+  const pieces = line.split(/(?<=[.!?。])\s+/);
   const sentences: string[] = [];
-  for (const piece of line.split(/(?<=[.!?。])\s+/)) {
+  for (let at = 0; at < pieces.length; at += 1) {
     const last = sentences.at(-1);
-    if (last !== undefined && ENDS_ON_LIST_MARK.test(last)) sentences[sentences.length - 1] = `${last} ${piece}`;
-    else sentences.push(piece);
+    if (last !== undefined && ENDS_ON_LIST_MARK.test(last)) {
+      sentences[sentences.length - 1] = `${last} ${pieces[at]}`;
+      continue;
+    }
+    let sentence = pieces[at];
+    if (!closes(sentence)) {
+      // Take the next pieces up to the one that closes it; when none does, the piece stays alone.
+      for (let to = at + 1; to < pieces.length; to += 1) {
+        const joined = pieces.slice(at, to + 1).join(" ");
+        if (closes(joined)) {
+          sentence = joined;
+          at = to;
+          break;
+        }
+      }
+    }
+    sentences.push(sentence);
   }
   return sentences;
 }

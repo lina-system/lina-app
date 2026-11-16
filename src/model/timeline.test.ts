@@ -28,6 +28,9 @@ test("a history sentence is the first sentence with ids, paths and commands take
   expect([...(firstSentence(long) ?? "")]).toHaveLength(60);
   // Nothing a person can read is left: no sentence, the row says so in its own words.
   expect(firstSentence("https://example.com/a/b deploy.sh --force")).toBeNull();
+  // A quoted passage of two sentences is one sentence: neither half is dropped for its unclosed quote (lina-app#224 review).
+  expect(firstSentence("담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다.")).toBe("담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다.");
+  expect(firstSentence("실패 건수는 0. 검사는 대기 중.")).toBe("실패 건수는 0.");
   expect(firstSentence(null)).toBeNull();
 });
 

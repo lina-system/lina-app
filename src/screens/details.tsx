@@ -1268,7 +1268,7 @@ export function RunScreen({ id }: { id: string }) {
   const listedTitle = listed?.title ?? null;
   return (
     <article class="detail" data-testid="screen-run">
-      <CardHead work={row.work} title={run.plain.title ?? listedTitle ?? model.cards.get(id)?.title ?? null}>
+      <CardHead work={row.work} title={run.plain.title ?? listedTitle ?? card?.title ?? model.cards.get(id)?.title ?? null} untitled={workerTitle(model, owner)}>
         <HeadState state={run.state} reason={run.reason} row={listed ?? row} time={[cardTime(listed ?? row, now), cardTook(row)].filter(Boolean).join(SEP)} />
         <RunModelLine runId={id} />
       </CardHead>

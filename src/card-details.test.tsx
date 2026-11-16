@@ -324,3 +324,23 @@ test("a worker run's name is its card's row name: the goal's title, else the car
   expect(workerTitle(model, "k-9")).toBe("제목 없음");
   expect(workerTitle(model, null)).toBe("제목 없음");
 });
+
+test("a worker run the board lists, with no title of its own, reads its card's row name on its page, as one it does not list does (lina-app#248; the hub lists a card's recent runs)", async () => {
+  const goal = "가상 목록 다시 묶기";
+  const { scene } = latinOwnCard(goal);
+  const run = { ...scene.board.cards[0], id: "w-9001", title: "qa-topic-9", state: "done" as const, reason: null, agent: "ag-1", todo: null, card: "k-101", board: "work", plain: { title: null, now: null, result: null } };
+  const detail = scene.cardDetails["k-101"];
+  const core = fakeCore(
+    new SyntheticSource({
+      scene: {
+        ...scene,
+        board: { ...scene.board, cards: [...scene.board.cards, run] },
+        cardDetails: { ...scene.cardDetails, "k-101": { ...detail, workerRuns: [...detail.workerRuns, { id: "w-9001", kind: "omo", firstSeenAt: run.startedAt ?? 0, lastSeenAt: run.endedAt ?? 0 }] } },
+        records: { ...scene.records, "w-9001": { ...scene.records.r9, id: "w-9001", cardId: "k-101" } },
+      },
+    }),
+  );
+  const { view } = mount("#/runs/w-9001", core);
+  await waitFor(() => expect(view.getByTestId("screen-run").querySelector(".detail-title")?.textContent).toBe(goal));
+  expect(view.getByTestId("screen-run").querySelector(".detail-title")?.classList.contains("is-kind")).toBe(false);
+});

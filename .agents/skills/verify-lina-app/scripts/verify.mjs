@@ -1508,10 +1508,35 @@ const drivers = {
       check(JSON.stringify(order) === JSON.stringify(["변경 목록 모으기", "모은 변경 확인", "공지 문구 확인"]), "the to-dos read " + order.join(", "));
       const links = page.getByTestId("timeline-link");
       const hrefs = await links.evaluateAll((items) => items.map((item) => item.getAttribute("href")));
-      check(JSON.stringify(hrefs) === JSON.stringify(["#/runs/r1", "#/runs/r10", "#/runs/r9"]), "the round heads link to " + JSON.stringify(hrefs));
+      check(JSON.stringify(hrefs) === JSON.stringify(["#/cards/k-101/runs/3", "#/cards/k-101/runs/2", "#/cards/k-101/runs/1"]), "the round heads link to " + JSON.stringify(hrefs));
       const comments = await page.getByTestId("card-comments").getByTestId("history-row").allInnerTexts();
       check(comments.length === 4 && comments.every((line) => /^(어제 )?\d\d:\d\d · \S[^\n]*$/.test(line.trim())), "expected 4 one-line comments, got " + JSON.stringify(comments));
       return state + "; " + heads.join(", ") + "; " + order.join(", ");
+    });
+    // lina-app#238: on the hub a history head linked to `#/runs/OT-…`, a task id that shows on hover and in the status
+    // bar. A card's worker run is named by the card and its place among the card's worker runs, after a reload too.
+    await step("on the hub's shape (&hub=round23), no link on a card holds a task id; a round's head opens its run by its place, and a reload keeps the page", async () => {
+      await openApp(page, "#/cards/k-101", "&hub=round23");
+      await page.getByTestId("timeline-link").first().waitFor();
+      const hrefs = await page.locator("a[href]").evaluateAll((links) => links.map((link) => link.getAttribute("href")));
+      const named = hrefs.filter((href) => /OT-[A-Z]+\d+/.test(href) || href.startsWith("#/runs/"));
+      check(named.length === 0, "links name a run by its id: " + JSON.stringify(named));
+      const head = page.getByTestId("timeline-link").first();
+      const target = await head.getAttribute("href");
+      check(target === "#/cards/k-101/runs/3", "the newest round's head links to " + target);
+      await head.click();
+      await page.waitForFunction((hash) => location.hash === hash, target, { timeout: 3_000 }).catch(() => check(false, "the head did not open " + target));
+      const read = async () => {
+        await page.getByTestId("screen-run").getByTestId("timeline").waitFor();
+        return [(await page.getByTestId("screen-run").locator(".detail-title").innerText()).trim(), (await page.getByTestId("run-state").innerText()).trim()].join(" · ");
+      };
+      const opened = await read();
+      check(opened === "릴리스 변경 목록 정리 · 진행 중", "the round's page reads " + opened);
+      await page.reload();
+      await freshnessReads(page, "");
+      const again = await read();
+      check(again === opened && (await page.evaluate(() => location.hash)) === target, "after a reload the page reads " + again);
+      return hrefs.length + " links, none with a task id; " + target + " reads " + opened + ", also after a reload";
     });
     // lina-app#232: the hub's long card showed only 불러오는 중 for about 20 s on a phone's first open, while 110 reads of
     // its one record came. With every record read taking 1.5 s, the head and the newest history stand within 2 s, the

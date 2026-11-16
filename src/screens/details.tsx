@@ -9,7 +9,7 @@ import { holds } from "../model/rounds";
 import { stopReason } from "../model/stop-reason";
 import { answerOf, commentHistory, decisionHistory, firstSentence, goalHistory, historyLines, isMachineNotice, outcomeOf, ownerWrote } from "../model/timeline";
 import type { CardKind } from "../model/kind";
-import { isRunId, newestRun } from "../data/store";
+import { isRunId, newestRun, type Store } from "../data/store";
 import { back, baseOf, href, isFrame, navigate, parse, tabOf } from "../router";
 import { ago, clockAt, dayLabel } from "../time";
 import { useActions } from "../ui/actions";
@@ -823,7 +823,7 @@ function StopWhy({ reason, words, whole = null, carried, stoppedAt, comments = [
  * card), so such a run is still drawn as a link to its own page: no worker row is ever left out because its target
  * is not in a list.
  */
-function WorkerRows({ ids, model, seen, state }: { ids: readonly string[]; model: Model; seen: (runId: string) => number | null; state: (runId: string) => string }) {
+function WorkerRows({ ids, model, seen, state, link }: { ids: readonly string[]; model: Model; seen: (runId: string) => number | null; state: (runId: string) => string; link: (runId: string) => string }) {
   const { now } = useApp();
   // Newest first, as every history (lina-app#157).
   const startOf = (workerId: string) => model.runs.get(workerId)?.startedAt ?? seen(workerId);
@@ -837,7 +837,7 @@ function WorkerRows({ ids, model, seen, state }: { ids: readonly string[]; model
         const line = [at ? clockAt(at, now) : "", row ? stateWords(row.state, row.reason, row.stop) : state(workerId)].filter(Boolean).join(SEP);
         return (
           <li key={workerId} class="row card-row is-dim" data-testid="row">
-            <Link href={row?.href ?? href({ name: "run", id: workerId })} label={line}>
+            <Link href={link(workerId)} label={line}>
               <span class="lines">
                 <span class="sub one-line">{line}</span>
               </span>
@@ -928,6 +928,7 @@ export function CardScreen({ id }: { id: string }) {
   const ask = row ? stopReason(row).ask : undefined;
   // The worker run a round was: the same run its head opens. A card's 기록 holds several runs' rounds in one record.
   const roundRun = (runId: string, n: number) => rounds.find((round) => round.n === n)?.workers[0] ?? runId;
+  const workerLink = (runId: string) => workerHref(detail, runId);
   // The goal (project) the card serves, in its head; a goal title that would show raw text is left out.
   const goal = store.get("goals")?.goals.find((candidate) => candidate.workCards.some((card) => card.id === id));
   const goalLine = goal && !foldReason(goal.title) ? goal.title : null;
@@ -1028,7 +1029,7 @@ export function CardScreen({ id }: { id: string }) {
             runs={workerRuns.map((worker) => worker.id)}
             boxed
             live={(runId) => runLive(model, runId)}
-            link={(runId, n) => href({ name: "run", id: roundRun(runId, n) })}
+            link={(runId, n) => workerHref(detail, roundRun(runId, n))}
             modelRun={roundRun}
             fallback={
               workerRuns.length ? (
@@ -1040,14 +1041,14 @@ export function CardScreen({ id }: { id: string }) {
                       <details key={`fold:${group[0].n}`} class="round-fold" data-testid="round-fold">
                         <summary class="round-head">{DETAIL_WORD.earlierRecords(group.length)}</summary>
                         {group.map((round) => (
-                          <RoundSection key={round.n} round={round} line={null} workers={round.workers.length ? <WorkerRows ids={round.workers} model={model} seen={seen} state={workerState} /> : null} />
+                          <RoundSection key={round.n} round={round} line={null} workers={round.workers.length ? <WorkerRows ids={round.workers} model={model} seen={seen} state={workerState} link={workerLink} /> : null} />
                         ))}
                       </details>
                     ) : (
-                      <RoundSection key={group.n} round={group} line={group.line} workers={group.workers.length ? <WorkerRows ids={group.workers} model={model} seen={seen} state={workerState} /> : null} />
+                      <RoundSection key={group.n} round={group} line={group.line} workers={group.workers.length ? <WorkerRows ids={group.workers} model={model} seen={seen} state={workerState} link={workerLink} /> : null} />
                     ),
                   )}
-                  {outside.length ? <WorkerRows ids={outside} model={model} seen={seen} state={workerState} /> : null}
+                  {outside.length ? <WorkerRows ids={outside} model={model} seen={seen} state={workerState} link={workerLink} /> : null}
                 </Box>
               ) : null
             }
@@ -1116,6 +1117,38 @@ function CardRunScreen({ id, cardId, cardLoading = false }: { id: string; cardId
   );
 }
 
+function UnreadRun() {
+  return (
+    <article class="detail" data-testid="screen-run">
+      <CardHead work="code" title={null} untitled={W.untitledRun}>
+        {null}
+      </CardHead>
+      <p class="write-error" role="alert" data-testid="timeline-error">
+        {W.readFailed(W.record)}
+      </p>
+    </article>
+  );
+}
+
+/** The worker run a card's round address names (lina-app#238): its place among the card's worker runs, once the card is read. */
+export function roundRunId(store: Store, card: string, n: number): string | null {
+  return store.get("card", card)?.workerRuns[n - 1]?.id ?? null;
+}
+
+/** A card's worker run's address: the card and the run's place among its worker runs, never the run's own id (lina-app#238). */
+function workerHref(detail: WorkCardDetail, runId: string): string {
+  const at = detail.workerRuns.findIndex((worker) => worker.id === runId);
+  return at < 0 ? href({ name: "run", id: runId }) : href({ name: "round", card: detail.id, n: at + 1 });
+}
+
+/** A round's address opens its worker run's page once the card says which run stands at that place. */
+export function RoundScreen({ card, n }: { card: string; n: number }) {
+  const { store } = useApp();
+  const id = roundRunId(store, card, n);
+  if (id) return <RunScreen id={id} />;
+  return store.status("card", card) === "pending" ? <Loading /> : <UnreadRun />;
+}
+
 export function RunScreen({ id }: { id: string }) {
   const { model, store, now } = useApp();
   const run = model.runs.get(id);
@@ -1128,17 +1161,7 @@ export function RunScreen({ id }: { id: string }) {
   if (!run && (!model.ready || store.status("record", id) === "pending")) return <Loading />;
   // A card's worker run with no record to read (an older run the core has none for): nothing names its card before
   // the card opens (the card list carries no worker runs), so the page keeps its head and says the record failed.
-  if (!run)
-    return (
-      <article class="detail" data-testid="screen-run">
-        <CardHead work="code" title={null} untitled={W.untitledRun}>
-          {null}
-        </CardHead>
-        <p class="write-error" role="alert" data-testid="timeline-error">
-          {W.readFailed(W.record)}
-        </p>
-      </article>
-    );
+  if (!run) return <UnreadRun />;
   const row = runRow(run);
   // A finished run the core keeps no record for still lists its past events from its own card (lina-app#128: r7).
   const past: PastEvent[] = [

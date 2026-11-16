@@ -240,9 +240,12 @@ test("opening one card reads each worker run's record once and never reads a wor
   await waitFor(() => expect(store.refreshes).toBeGreaterThan(0));
   const reads = core.requests.filter((url) => url.endsWith("/record")).map((url) => decodeURIComponent(url.split("/").at(-2) ?? ""));
   expect([...reads].sort()).toEqual(["r1", "r10", "r9"]);
-  // Nothing on the card links to a word as if it were a run.
-  expect(view.container.querySelectorAll(`a[href^="#/runs/"]`).length).toBeGreaterThan(0);
-  for (const word of NOT_RUN_IDS) expect(view.container.querySelector(`a[href="#/runs/${word}"]`)).toBeNull();
+  // Nothing on the card links to a word as if it were a run: k-101 lists r9, r10 and r1 first, so a link names one of
+  // the first three places, never a word's (lina-app#238: the address names the place, not the run).
+  const places = [...view.container.querySelectorAll(`a[href^="#/cards/k-101/runs/"]`)].map((link) => Number(link.getAttribute("href")?.split("/").at(-1)));
+  expect(places.length).toBeGreaterThan(0);
+  expect(places.filter((place) => place > 3)).toEqual([]);
+  expect(view.container.querySelectorAll(`a[href^="#/runs/"]`)).toHaveLength(0);
 });
 
 test("the lists draw while a card's detail takes 30 seconds; the open card shows its row, then fills in", async () => {

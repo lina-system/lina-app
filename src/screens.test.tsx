@@ -2747,7 +2747,8 @@ describe("work cards", () => {
       expect.stringMatching(/^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/),
       expect.stringMatching(/^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/),
     ]);
-    expect(links.map((link) => link.getAttribute("href"))).toEqual(["#/runs/r1", "#/runs/r10", "#/runs/r9"]);
+    // r1, r10 and r9 by their place among k-101's worker runs (lina-app#238).
+    expect(links.map((link) => link.getAttribute("href"))).toEqual(["#/cards/k-101/runs/3", "#/cards/k-101/runs/2", "#/cards/k-101/runs/1"]);
     view.unmount();
     const waiting = await open("#/cards/k-104", { wide: true });
     expect(waiting.getByTestId("card-done-so-far").textContent).toBe("완료된 것실패 화면 세 곳의 문구와 버튼을 비교함");
@@ -3036,13 +3037,13 @@ describe("the run's own timeline", () => {
     // k-101's rounds stay r9, r10, r1. Only r1 (round 3) has a model.
     const third = round(3);
     const line = third?.querySelector("[data-testid=run-model]");
-    expect(third?.querySelector("[data-testid=timeline-link]")?.getAttribute("href")).toBe("#/runs/r1");
+    expect(third?.querySelector("[data-testid=timeline-link]")?.getAttribute("href")).toBe("#/cards/k-101/runs/3");
     expect(line?.textContent).toBe("가온 큰 모델 · 보통");
     expect(line?.classList.contains("timeline-model")).toBe(true);
     expect(third?.querySelector(".timeline-head")?.contains(line ?? null)).toBe(false);
-    expect(round(2)?.querySelector("[data-testid=timeline-link]")?.getAttribute("href")).toBe("#/runs/r10");
+    expect(round(2)?.querySelector("[data-testid=timeline-link]")?.getAttribute("href")).toBe("#/cards/k-101/runs/2");
     expect(round(2)?.querySelector("[data-testid=run-model]")).toBeNull();
-    expect(round(1)?.querySelector("[data-testid=timeline-link]")?.getAttribute("href")).toBe("#/runs/r9");
+    expect(round(1)?.querySelector("[data-testid=timeline-link]")?.getAttribute("href")).toBe("#/cards/k-101/runs/1");
     expect(round(1)?.querySelector("[data-testid=run-model]")).toBeNull();
     for (const comment of blocks.filter((block) => block.getAttribute("data-outcome") === "comment")) {
       expect(comment.querySelector("[data-testid=run-model]")).toBeNull();
@@ -3066,7 +3067,7 @@ describe("the run's own timeline", () => {
   test("a worker run a card started opens its own page from the card even though the board does not list it", async () => {
     const view = await open("#/cards/k-101", { wide: true });
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
-    const link = view.getByTestId("timeline").querySelector('a[href="#/runs/r1"]') as HTMLAnchorElement;
+    const link = view.getByTestId("timeline").querySelector('a[href="#/cards/k-101/runs/3"]') as HTMLAnchorElement;
     expect(link.textContent).toMatch(/^(어제 )?\d\d:\d\d · 진행 중$/);
     fireEvent.click(link);
     await waitFor(() => expect(view.queryByTestId("screen-run")).not.toBeNull());
@@ -3112,7 +3113,7 @@ describe("the run's own timeline", () => {
     // The worker links never disappear: they stand under the error line, in the one 기록 with no second head (lina-app#179).
     const boxes = [...view.getByTestId("screen-card").querySelectorAll(":scope > .box > .box-head")].map((head) => head.textContent);
     expect(boxes).toEqual(["지금", "할 일", "기록", "댓글"]);
-    expect([...view.getByTestId("worker-runs").querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual(["#/runs/r1", "#/runs/r10", "#/runs/r9"]);
+    expect([...view.getByTestId("worker-runs").querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual(["#/cards/k-101/runs/3", "#/cards/k-101/runs/2", "#/cards/k-101/runs/1"]);
     expect(view.getByTestId("card-now").textContent).toContain("변경마다 한 줄 요약을 붙이는 중");
     expect(within(view.getByTestId("card-comments")).getAllByTestId("history-row")).toHaveLength(4);
   });

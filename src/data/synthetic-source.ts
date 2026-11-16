@@ -180,6 +180,40 @@ export function round22Scene(scene: Scene): Scene {
   };
 }
 
+/** k-101's worker runs under ids of the hub's shape for round 23 (lina-app#238): a task id a person never reads. */
+export const ROUND23_RUNS: Readonly<Record<string, string>> = { r9: "OT-GAJ1101090105", r10: "OT-GAJ1101093210", r1: "OT-GAJ1101101500" };
+
+/** Every string and key of a plain object or array, with `names` renamed; anything else is kept as it is. */
+function renamed<T>(value: T, names: Readonly<Record<string, string>>): T {
+  if (typeof value === "string") return (names[value] ?? value) as T;
+  if (Array.isArray(value)) return value.map((each) => renamed(each, names)) as T;
+  if (value === null || typeof value !== "object" || Object.getPrototypeOf(value) !== Object.prototype) return value;
+  return Object.fromEntries(Object.entries(value).map(([key, each]) => [names[key] ?? key, renamed(each, names)])) as T;
+}
+
+/**
+ * The hub's shapes UI QA round 23 met (`&hub=round23`, lina-app#238), field by field as the hub serves them, in made-up
+ * words: k-101's worker runs carry task ids (ROUND23_RUNS) and, as the hub's long card does, a `lina-worker` entry named
+ * by a command word (`wait`) with no record; and the bell holds the hub's 61 unread notices, a two-digit badge.
+ */
+export function round23Scene(scene: Scene): Scene {
+  const next = renamed(scene, ROUND23_RUNS);
+  const card = next.cardDetails["k-101"];
+  const last = card.workerRuns.at(-1);
+  const workerRuns = last ? [...card.workerRuns, { id: "wait", kind: "lina-worker" as const, firstSeenAt: last.firstSeenAt, lastSeenAt: last.lastSeenAt }] : card.workerRuns;
+  const target = next.items.items.find((item) => item.kind === "todo" && item.mine);
+  const unread = next.board.notices.filter((notice) => !notice.read).length;
+  const more = target
+    ? Array.from({ length: Math.max(0, 61 - unread) }, (_, index) => ({ key: `todo:${target.id}:${next.now - 600 - index * 60}`, target: target.id, at: next.now - 600 - index * 60, kind: "todo" as const, line: `가상 알림 ${index + 1} · 내 할 일`, read: false }))
+    : [];
+  const notices = [...next.board.notices, ...more];
+  return {
+    ...next,
+    cardDetails: { ...next.cardDetails, "k-101": { ...card, workerRuns } },
+    board: { ...next.board, notices, counts: { ...next.board.counts, unread: notices.filter((notice) => !notice.read).length } },
+  };
+}
+
 /** Round 22's goal (lina-app#231): its title, and its done condition with an issue reference, a Latin word and a `#3`. */
 export const ROUND22_GOAL = "가상 말투 키우기";
 export const ROUND22_CONDITION = "lina#77 가상 말투 기준이 맞고 남은 메모가 memory 칸 #3에 들어감";
@@ -545,7 +579,7 @@ export class SyntheticSource implements Source {
   private readonly signing = new Set<string>();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; hubRound23?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean } = {}) {
     this.slowRecords = options.slowRecords ?? false;
     this.staleNext = options.settings === "stale";
     this.raceNext = options.settings === "race";
@@ -570,7 +604,7 @@ export class SyntheticSource implements Source {
         settings: options.settings === "stale" || options.settings === "race" ? null : options.settings,
         power: options.power,
       });
-    this.scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : generated;
+    this.scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : options.hubRound23 ? round23Scene(generated) : generated;
   }
 
   async read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {

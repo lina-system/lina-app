@@ -3716,8 +3716,9 @@ const drivers = {
       const label = await page.locator(".detail-title").evaluate((title) => getComputedStyle(title).color);
       // Each row is one event, time · one sentence (lina-app#128).
       const said = rows.map((row) => row.text.replace(/^(어제 )?\d\d:\d\d · /, "")).join(" | ");
-      check(rows.every((row) => /^(어제 )?\d\d:\d\d · \S/.test(row.text)) && said === "요약을 표로 옮기는 중 ×3 | 도구 사용 4번 | 변경마다 한 줄 요약을 붙이는 중", "the going round reads " + rows.map((row) => row.text).join(" | "));
-      check(rows[0].colour === label && rows[1].colour !== label && rows[2].colour === label, "sentence and dim colours " + JSON.stringify(rows.map((row) => row.colour)) + ", label " + label);
+      check(rows.every((row) => /^(어제 )?\d\d:\d\d · \S/.test(row.text)) && said === "요약을 표로 옮기는 중 ×3 | 접힌 기록 1건 | 도구 사용 4번 | 변경마다 한 줄 요약을 붙이는 중", "the going round reads " + rows.map((row) => row.text).join(" | "));
+      // Its raw English line folds into one dim 접힌 기록 line, which opens to it (lina-app#241).
+      check(rows[0].colour === label && rows[1].colour !== label && rows[2].colour !== label && rows[3].colour === label, "sentence and dim colours " + JSON.stringify(rows.map((row) => row.colour)) + ", label " + label);
       const noStart = (await blocks.nth(2).getByTestId("timeline-no-start").innerText()).trim();
       check(noStart === "시작 기록 없음", "the start-unknown round reads " + noStart);
       const text = await timeline.innerText();

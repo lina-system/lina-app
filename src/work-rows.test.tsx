@@ -59,14 +59,15 @@ describe("work tab rows (lina-app#148)", () => {
   });
 
   // lina-app#170 item 3: a name with a Latin word in it reads as on its 내 할 일 row, by the row title rule.
-  test("a decision whose to-do's name holds a Latin word draws that name as its context line", async () => {
+  test("a decision whose to-do's name holds a Latin word draws that name by its Hangul words as its context line (lina-app#222)", async () => {
     const scene = generateScene(SYNTHETIC_SEED, { now: now() });
     const target = scene.board.inbox.decide[0].target;
     const items = { ...scene.items, items: scene.items.items.map((item) => (item.id === target ? { ...item, title: "fakecorp·가상 회신", parent: null } : item)) };
     const board = { ...scene.board, inbox: { ...scene.board.inbox, decide: scene.board.inbox.decide.map((row) => (row.target === target ? { ...row, title: "fakecorp·가상 회신" } : row)) } };
     const view = await open("#/inbox", new SyntheticSource({ scene: { ...scene, items, board } }));
     const rows = within(view.getByRole("list", { name: W.decide })).getAllByTestId("row");
-    expect(rows.filter((row) => row.querySelector(".context")?.textContent === "fakecorp·가상 회신")).toHaveLength(1);
+    expect(rows.filter((row) => row.querySelector(".context")?.textContent === "가상 회신")).toHaveLength(1);
+    expect(rows.filter((row) => /fakecorp/.test(row.textContent ?? ""))).toHaveLength(0);
     expect(rows.filter((row) => !row.querySelector(".context"))).toHaveLength(0);
   });
 });

@@ -93,6 +93,19 @@ test("on a phone the last goal row is fully visible above the field and the stri
   await clear();
 });
 
+test("the top tabs stay put between the 대화 list, an open agent and the other tabs' first screens (lina-app#223)", async ({ page }, info) => {
+  const phone = info.project.name === "phone";
+  const place = () => page.getByTestId("tabs").boundingBox();
+  await page.goto(`${APP}#/talk`);
+  await expect(page.getByTestId(phone ? "talk-agent-0" : "nav-talk-0")).toBeVisible();
+  const list = await place();
+  // On a phone the tabs stand on each tab's first screen only; an open agent's bar has none.
+  for (const hash of phone ? ["#/", "#/status"] : ["#/talk/ag-1", "#/", "#/status"]) {
+    await page.goto(`${APP}${hash}`);
+    await expect.poll(place, { message: hash }).toEqual(list);
+  }
+});
+
 test("the selected top tab is drawn the same at every width and stands apart from its neighbours", async ({ page }, info) => {
   test.skip(info.project.name !== "wide-dark", "one dark pass resizes between widths");
   const look = async () =>

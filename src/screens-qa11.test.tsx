@@ -40,10 +40,10 @@ const navCount = (view: ReturnType<typeof render>, testid: string) => ({
   stopped: Number(view.getByTestId(testid).querySelector("[data-testid=nav-stopped]")?.textContent ?? "0"),
 });
 const rows = (root: Element | null) => (root ? root.querySelectorAll("[data-testid=row]").length : 0);
-/** The cards finished lines stand for: one each, n for a `×n` line (lina-app#186). */
-const lineCards = (root: Element | null) => [...(root?.querySelectorAll("[data-testid=row]") ?? [])].reduce((sum, row) => sum + Number(/×(\d+)/.exec(row.textContent ?? "")?.[1] ?? 1), 0);
+/** A group's rows and the ones its fold holds, `외 n개` (lina-app#221). */
+const rowsAndFold = (root: Element | null) => rows(root) + Number(/외 (\d+)개/.exec(root?.querySelector(".more-row")?.textContent ?? "")?.[1] ?? 0);
 
-test("item 1: every sidebar number is the rows of the list it opens, 완료 the cards behind the lines the work tab lists", async () => {
+test("item 1: every sidebar number is the rows of the list it opens, 완료 the lines the work tab lists with its fold", async () => {
   const view = await open("#/running");
   const sidebar = {
     inbox: navCount(view, "nav-inbox"),
@@ -54,7 +54,7 @@ test("item 1: every sidebar number is the rows of the list it opens, 완료 the 
     agents: [0, 1, 2].map((index) => navCount(view, `nav-agent-${index}`)),
   };
   const home = view.getByTestId("screen-running");
-  expect(sidebar.done.count).toBe(lineCards(home.querySelector("[data-testid=section-finished]")));
+  expect(sidebar.done.count).toBe(rowsAndFold(home.querySelector("[data-testid=section-finished]")));
   expect(sidebar.running.count).toBe(rows(home.querySelector("[data-testid=section-active]")));
   expect(sidebar.running.stopped).toBe(Number(home.querySelector("[data-testid=head-stopped] [data-testid=stopped-count]")?.textContent));
   view.unmount();
@@ -68,7 +68,7 @@ test("item 1: every sidebar number is the rows of the list it opens, 완료 the 
   for (const [hash, testid, count] of lists) {
     const list = await open(hash);
     await waitFor(() => expect(list.getByTestId(testid)).toBeTruthy());
-    expect((hash === "#/done" ? lineCards : rows)(list.getByTestId(testid)), hash).toBe(count);
+    expect(rows(list.getByTestId(testid)), hash).toBe(count);
     list.unmount();
   }
   const { scene } = hub();

@@ -259,7 +259,9 @@ test("the lists draw while a card's detail takes 30 seconds; the open card shows
   await act(async () => {
     await vi.advanceTimersByTimeAsync(1_000);
   });
-  expect(homeCards(view)).toBeGreaterThan(CARDS - 10);
+  // The home's 완료 draws its first rows and folds the rest in its `외 n개`, one row each (lina-app#221).
+  const fold = Number(/외 (\d+)개/.exec(view.getByTestId("section-finished").querySelector(".more-row")?.textContent ?? "")?.[1] ?? 0);
+  expect(homeCards(view) + fold).toBeGreaterThan(CARDS - 10);
   const card = view.getByTestId("screen-card");
   expect(card.querySelector(".detail-title")?.textContent).toBe("백업: 지난 기록 살펴보기 101");
   expect(card.querySelector(".detail-head .sub")?.textContent).toMatch(/^완료/);

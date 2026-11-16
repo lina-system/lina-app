@@ -59,7 +59,7 @@ test("item 1: a decision row opens a detail whose head is the row's line 1 and w
 test("item 2: a card's worker runs and rounds read newest first, and a folded round line is 이전 기록, never 댓글", async () => {
   const scene = base(true);
   const k108 = scene.cardDetails["k-108"];
-  const folded = { id: 1, startedAt: 0, endedAt: scene.now - 5 * HOUR, lastHeartbeatAt: null, live: false, outcome: null, profile: null, status: "done", summary: "src/report.ts 경로 정리" };
+  const folded = { id: 1, startedAt: 0, endedAt: scene.now - 5 * HOUR, lastHeartbeatAt: null, live: false, outcome: null, profile: null, status: "done", summary: "src/report.ts" };
   const cardDetails = { ...scene.cardDetails, "k-108": { ...k108, runs: [folded] } };
   const view = await open("#/cards/k-108", new SyntheticSource({ now: scene.now, scene: { ...scene, cardDetails } }));
   const card = await frame(view);

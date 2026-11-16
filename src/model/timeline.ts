@@ -1,7 +1,7 @@
 import type { ItemDetail, RecordRound, RecordRow, RunRecord } from "../api/client";
 import { STATE_WORD, STATE_WORDS, stateLabel, W } from "../words";
 import { timesInText } from "../time";
-import { cutLeavesHole, cutMark, foldReason, nameKind, readsBroken, withParticle } from "./fold";
+import { CLOCK, cutLeavesHole, cutMark, foldReason, isIdentifier, nameKind, sentenceMayShow, sentencesOf, withParticle, wordCore } from "./fold";
 import { withLeadIns } from "./plain";
 import { holds } from "./rounds";
 
@@ -22,9 +22,6 @@ const MACHINE_TAG = /^\s*\[[^\]\n\d]{1,20}\]/;
  */
 const LEADING_TAGS = /^(?:\s*\[[^\]\n]*\])+\s*/;
 
-/** A time of day inside a sentence (22:45, 22:45에): the line's own time is the only one a history line shows (lina-app#153). */
-const CLOCK = /^\d{1,2}:\d{2}(?!\d)/;
-
 /**
  * Whether a comment is a machine notice, by its author or its opening tag (lina-app#149): it is no history line. The
  * owner's own comment is never one, even when it opens with a bracketed word such as `[중요]`.
@@ -32,17 +29,6 @@ const CLOCK = /^\d{1,2}:\d{2}(?!\d)/;
 export function isMachineNotice(text: string | null | undefined, author?: string | null): boolean {
   if (author === "owner") return false;
   return (author ? MACHINE_AUTHORS.has(author) : false) || MACHINE_TAG.test(text ?? "");
-}
-
-/**
- * An identifier a person does not read: a card, run or to-do id (G73, T264, t_27363156, OT-QAX1113), a key with its
- * value (rc=1), and every kind of raw text the fold rule names but an English word (a path, a command, a hash, an
- * issue number, an address).
- */
-function isIdentifier(core: string): boolean {
-  if (CLOCK.test(core) || /^[A-Za-z]{1,3}\d+$/.test(core) || /[A-Za-z][\w]*[-_:][\w-]*\d/.test(core) || /#\d/.test(core) || core.includes("=")) return true;
-  const reason = foldReason(core);
-  return reason !== null && reason !== "latin" && reason !== "fragment";
 }
 
 /** A word that is a particle alone, with the sentence's end after it (`로`, `를.`). */
@@ -54,8 +40,9 @@ const LIST_MARK = /^\(?\d{1,2}\)\s+/;
 /**
  * One sentence as a person reads it, or null: its identifiers are left out, and it is dropped whole when it holds an
  * English word, starts inside a word or a number (.5초), a quote or a bracket, is a table's cell, is mostly not
- * Korean, or what is left no longer reads as a sentence (readsBroken, lina-app#197) or has a hole where an identifier
- * was (cutLeavesHole, the fold's one rule for every cut, lina-app#218), so no word is ever cut or spliced.
+ * Korean, or what is left fails the fold's one rule for a drawn sentence (sentenceMayShow, lina-app#197, #222: no start
+ * inside, no open end, no hole, no Latin word or code) or has a hole where an identifier was (cutLeavesHole, the fold's
+ * one rule for every cut, lina-app#218), so no word is ever cut or spliced.
  */
 function readable(sentence: string): string | null {
   const words = sentence.replace(LIST_MARK, "").split(/\s+/).filter(Boolean);
@@ -66,7 +53,7 @@ function readable(sentence: string): string | null {
   let removed = false;
   for (let index = 0; index < words.length; index += 1) {
     const word = words[index];
-    const core = word.replace(/^[(\["'“‘]+|[)\]"'”’.,!?。:;…]+$/g, "");
+    const core = wordCore(word);
     if (!/[\p{L}\p{N}]/u.test(core)) continue;
     // A time of day after its date (`11월 16일 03:30`, an ISO time as timesInText writes it) is part of that date.
     if (CLOCK.test(core) && /^\d{1,2}일$/.test(kept.at(-1) ?? "")) {
@@ -97,27 +84,33 @@ function readable(sentence: string): string | null {
   let shown = kept.join(" ");
   const end = /[.!?。]$/.exec(sentence)?.[0];
   if (end && !shown.endsWith(end)) shown = `${shown.replace(/[,.:;]$/, "")}${end}`;
-  return readsBroken(shown) ? null : shown;
+  return sentenceMayShow(shown) ? shown : null;
 }
 
-/** Where the first bracket the text leaves open starts, or -1. */
+/** Where the first bracket or quote the text leaves open starts, or -1. */
 function openBracket(text: string): number {
-  const open: number[] = [];
+  const open: { index: number; mark: string }[] = [];
   for (const [index, mark] of [...text].entries()) {
-    if (mark === "(" || mark === "[") open.push(index);
-    else if ((mark === ")" || mark === "]") && open.length) open.pop();
+    if (mark === "(" || mark === "[" || mark === "“" || mark === "‘") open.push({ index, mark });
+    else if ((mark === ")" || mark === "]" || mark === "”" || mark === "’") && open.length) open.pop();
+    else if (mark === '"' || mark === "'") {
+      if (open.at(-1)?.mark === mark) open.pop();
+      else open.push({ index, mark });
+    }
   }
-  return open[0] ?? -1;
+  return open[0]?.index ?? -1;
 }
 
 /**
  * The one sentence a history row shows for a longer text: its first sentence a person may read (readable), cut at a
- * word end with `…` when it runs past SENTENCE_MAX characters. Null when nothing a person reads is left.
+ * word end with `…` when it runs past SENTENCE_MAX characters, before a bracket or quote the cut would leave open, and
+ * back to an earlier word end while the rule fails what is left (a modifier or a particle alone before the `…`). Null
+ * when nothing a person reads is left.
  */
 export function firstSentence(text: string | null | undefined, max = SENTENCE_MAX): string | null {
   const sentences = withLeadIns(timesInText(text ?? ""))
     .split("\n")
-    .flatMap((line) => line.replace(LEADING_TAGS, "").trim().split(/(?<=[.!?。])\s+/))
+    .flatMap((line) => sentencesOf(line.replace(LEADING_TAGS, "").trim()))
     .filter(Boolean);
   const shown = sentences.map(readable).find((sentence): sentence is string => sentence !== null);
   if (!shown) return null;
@@ -127,8 +120,11 @@ export function firstSentence(text: string | null | undefined, max = SENTENCE_MA
   // A cut inside a bracket cuts before it, so no bracket is left open (lina-app#197); else at the last word end.
   const open = openBracket(head.join(""));
   const space = head.lastIndexOf(" ");
-  const kept = open > 0 ? head.slice(0, open) : space > 0 ? head.slice(0, space) : head;
-  return `${kept.join("").replace(/[\s,.:;]+$/, "")}…`;
+  for (let kept = (open > 0 ? head.slice(0, open) : space > 0 ? head.slice(0, space) : head).join(""); kept; kept = kept.slice(0, Math.max(0, kept.lastIndexOf(" ")))) {
+    const cut = `${kept.replace(/[\s,.:;]+$/, "")}…`;
+    if (sentenceMayShow(cut)) return cut;
+  }
+  return null;
 }
 
 /** A line that is a state word and nothing else (완료, 진행 중, 검토 통과). */

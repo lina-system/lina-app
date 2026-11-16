@@ -1,17 +1,18 @@
 import type { ComponentChildren } from "preact";
 import { USAGE_RANGES, type Machine, type PersonDevice, type PowerStation, type PowerView, type QuotaAccount, type QuotaService, type RunnerCell, type UsageRange } from "../api/client";
 import type { CardRow, DueRow, GoalRow, InboxRow, Section } from "../model";
-import { agentView, doneFor, foldTitle, itemLineOf, localDay } from "../model";
+import { agentView, doneFor, foldTitle, itemLineOf, itemWords, localDay } from "../model";
 import type { OpenCheck } from "../model/checks";
 import { stopReason } from "../model/stop-reason";
 import type { UsageLine } from "../model/usage";
 import { href, navigate } from "../router";
 import { ago, dayLabel, until } from "../time";
-import { useEffect, useState } from "preact/hooks";
+import { FINISHED_SHOWN } from "../data/store";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { useActions } from "../ui/actions";
 import { QuickAddButton, QuickAddForm } from "../ui/quick-add";
 import { AgentMark, agentName, CardRowView, CountPair, Dial, Disclosure, DoneCheck, Empty, ErrorLine, Link, ListSection, SectionHead, useApp } from "../ui/parts";
-import { glossaryToolName, machineWhy, metricsReason, ROUND11_WORD, serviceName, SEP, stateLabel, STATUS_WORD, toolCommand, versionOf, W } from "../words";
+import { glossaryToolName, machineWhy, metricsReason, ROUND11_WORD, serviceName, SEP, STATUS_WORD, toolCommand, versionOf, W } from "../words";
 import { writeError } from "./write-error";
 
 type DecideRow = Extract<InboxRow, { type: "decide" }>;
@@ -26,7 +27,7 @@ function DecisionRow({ row }: { row: DecideRow }) {
   const { model, now, selected } = useApp();
   const name = agentName(model, row.agent);
   const line = row.target.kind === "item" ? itemLineOf(model, row.target.id) : null;
-  const kind = line ? stateLabel(line.state, line.reason) : ROUND11_WORD.decisionWait;
+  const kind = line ? itemWords(line) : ROUND11_WORD.decisionWait;
   return (
     <li class="row inbox-row decision-row" data-testid="row">
       <Link href={row.href} label={[name, row.text, kind].filter(Boolean).join(SEP)} current={selected === row.href}>
@@ -49,15 +50,17 @@ function MineRow({ row }: { row: Extract<InboxRow, { type: "mine" }> }) {
   const actions = useActions();
   const name = agentName(model, row.agent);
   const shown = actions.isDone(row.id, row.done);
+  // An open to-do past its due date says so in words, as its head does (itemLine, lina-app#221).
+  const overdue = !shown && itemLineOf(model, row.id)?.overdue ? W.dueOverdue : null;
   return (
     <li class={`row inbox-row check-row${shown ? " is-checked" : ""}`} data-testid="row">
       <DoneCheck id={row.id} title={row.title} done={row.done} />
-      <Link href={row.href} label={[name, row.title, W.mine].filter(Boolean).join(SEP)} current={selected === row.href}>
+      <Link href={row.href} label={[name, row.title, W.mine, overdue].filter(Boolean).join(SEP)} current={selected === row.href}>
         <AgentMark id={row.agent} />
         <span class="lines">
           <span class="title wrap-line">{row.title}</span>
         </span>
-        {row.due ? <DueDate day={row.due} /> : null}
+        {row.due ? <DueDate day={row.due} word={overdue} current={selected === row.href} /> : null}
       </Link>
       <ErrorLine line={actions.error(`done:${row.id}`)?.line} />
     </li>
@@ -70,10 +73,17 @@ function InboxRowView({ row }: { row: InboxRow }) {
   return <MineRow row={row} />;
 }
 
-function DueDate({ day }: { day: string }) {
+/** A row's due date, red once past and orange today; with a word, the word above it. A selected row draws both in its white. */
+function DueDate({ day, word = null, current = false }: { day: string; word?: string | null; current?: boolean }) {
   const { model } = useApp();
   const tone = day < model.today ? " is-overdue" : day === model.today ? " is-today" : "";
-  return <span class={`trail due-date${tone}`}>{dayLabel(day)}</span>;
+  if (!word) return <span class={`trail due-date${tone}`}>{dayLabel(day)}</span>;
+  return (
+    <span class="trail">
+      <span class="kind-word">{word}</span>
+      <span class={`due-date${current ? "" : tone}`}>{dayLabel(day)}</span>
+    </span>
+  );
 }
 
 export function InboxScreen() {
@@ -120,7 +130,7 @@ const STOPPED_SHOWN = 5;
  * The one fold under a capped group: `외 n개`, the rows it holds; choosing it opens them in place. While they are read
  * (`loading`), the same line says 불러오는 중, so nothing above it moves.
  */
-function MoreRow({ title, hidden, onOpen, loading = false }: { title: string; hidden: number; onOpen: () => void; loading?: boolean }) {
+function MoreRow({ title, hidden, onOpen, loading = false }: { title: string; hidden: number; onOpen: (event: Event) => void; loading?: boolean }) {
   const line = loading ? W.loading : W.more(hidden);
   return (
     <li class="row more-row" aria-busy={loading ? "true" : undefined}>
@@ -134,6 +144,52 @@ function MoreRow({ title, hidden, onOpen, loading = false }: { title: string; hi
   );
 }
 
+/** The opened fold's last row (lina-app#221): 닫기 folds the group back. */
+function HideRow({ title, onHide }: { title: string; onHide: () => void }) {
+  return (
+    <li class="row more-row" data-testid="fold-hide">
+      <button type="button" class="row-button" aria-expanded={true} aria-label={`${title} ${W.close}`} onClick={onHide}>
+        <span class="lines">
+          <span class="sub one-line">{W.close}</span>
+        </span>
+      </button>
+    </li>
+  );
+}
+
+/** The element that scrolls a list: the nearest one above it that may scroll, else the page. */
+function scroller(from: Element): Element {
+  for (let at = from.parentElement; at; at = at.parentElement) if (/auto|scroll/.test(getComputedStyle(at).overflowY)) return at;
+  return document.scrollingElement ?? document.documentElement;
+}
+
+/**
+ * A capped group's fold (lina-app#221): opened from its `외 n개`, closed from 닫기, which puts the list back where it
+ * was scrolled when the fold was opened.
+ */
+function useFold(): { open: boolean; expand: (event: Event) => void; hide: () => void } {
+  const [open, setOpen] = useState(false);
+  const kept = useRef<{ at: Element; top: number } | null>(null);
+  const back = useRef(false);
+  useLayoutEffect(() => {
+    if (open || !back.current || !kept.current) return;
+    back.current = false;
+    kept.current.at.scrollTop = kept.current.top;
+  }, [open]);
+  return {
+    open,
+    expand: (event) => {
+      const at = scroller(event.currentTarget as Element);
+      kept.current = { at, top: at.scrollTop };
+      setOpen(true);
+    },
+    hide: () => {
+      back.current = true;
+      setOpen(false);
+    },
+  };
+}
+
 /**
  * The stopped cards' own group (lina-app#134): `중단됨` and one red number, every stopped card; its first five rows,
  * then one fold for the rest (lina-app#152). 다시 시도 sits only on a row running again can clear; a row waiting on
@@ -141,7 +197,7 @@ function MoreRow({ title, hidden, onOpen, loading = false }: { title: string; hi
  */
 function StoppedSection({ section }: { section: Section<CardRow> }) {
   const actions = useActions();
-  const [open, setOpen] = useState(false);
+  const { open, expand, hide } = useFold();
   if (!section.rows.length) return null;
   const shown = open ? section.rows : section.rows.slice(0, STOPPED_SHOWN);
   return (
@@ -154,7 +210,8 @@ function StoppedSection({ section }: { section: Section<CardRow> }) {
         {shown.map((card) => (
           <CardRowView key={card.key} card={card.stop ? { ...card, stop: { ...card.stop, words: stopReason(card).word } } : card} action={card.stop?.retry ? <RetryControl card={card} /> : undefined} error={actions.error(`retry:${card.key}`)?.line} />
         ))}
-        {shown.length < section.rows.length ? <MoreRow title={section.title} hidden={section.rows.length - shown.length} onOpen={() => setOpen(true)} /> : null}
+        {shown.length < section.rows.length ? <MoreRow title={section.title} hidden={section.rows.length - shown.length} onOpen={expand} /> : null}
+        {open && section.rows.length > STOPPED_SHOWN ? <HideRow title={section.title} onHide={hide} /> : null}
       </ul>
     </section>
   );
@@ -167,7 +224,7 @@ function StoppedSection({ section }: { section: Section<CardRow> }) {
  */
 function MineSection({ section }: { section: Section<InboxRow> }) {
   const { store } = useApp();
-  const [open, setOpen] = useState(false);
+  const { open, expand, hide } = useFold();
   const [adding, setAdding] = useState(false);
   // The rows listed before the add was taken: any row the record brings beyond them is one just added.
   const [before, setBefore] = useState<ReadonlySet<string> | null>(null);
@@ -198,7 +255,8 @@ function MineSection({ section }: { section: Section<InboxRow> }) {
         {shown.map((row) => (
           <InboxRowView key={row.key} row={row} />
         ))}
-        {shown.length < section.rows.length ? <MoreRow title={section.title} hidden={section.rows.length - shown.length} onOpen={() => setOpen(true)} /> : null}
+        {shown.length < section.rows.length ? <MoreRow title={section.title} hidden={section.rows.length - shown.length} onOpen={expand} /> : null}
+        {open && section.rows.length > MINE_SHOWN + added.length ? <HideRow title={section.title} onHide={hide} /> : null}
       </ul>
     </section>
   );
@@ -256,28 +314,39 @@ export function RunningScreen() {
 }
 
 /**
- * 완료 on the work tab (lina-app#186): its head counts every finished card, a line standing for cards whose lines read the
- * same saying how many (lina-app#168). The page reads the newest few; one fold `외 n개` under them reads the rest.
+ * 완료 on the work tab (lina-app#186, #221): one unit, the rows. Its head is the rows drawn and its fold `외 n개`, the
+ * rows held back and the finished cards not read yet; a line standing for cards whose lines read the same says how many
+ * on its row (lina-app#168). The page reads the newest few; the fold reads the rest, and once read, opens and closes in
+ * place.
  */
 function FinishedSection({ section }: { section: Section<CardRow> }) {
   const { model, store } = useApp();
+  const { open, expand, hide } = useFold();
   if (!section.count) return null;
+  const shown = open ? section.rows : section.rows.slice(0, FINISHED_SHOWN);
+  const hidden = section.rows.length - shown.length + model.finished.more;
   return (
     <section class="list-section" data-testid={`section-${section.id}`}>
       <SectionHead section={section} />
       <ul class="rows" aria-label={section.title}>
-        {section.rows.map((card) => (
+        {shown.map((card) => (
           <CardRowView key={card.key} card={repeatedLine(card)} />
         ))}
-        {model.finished.more > 0 ? <MoreRow title={section.title} hidden={model.finished.more} loading={store.finished().loading} onOpen={() => void store.showFinished()} /> : null}
+        {hidden > 0 ? (
+          <MoreRow
+            title={section.title}
+            hidden={hidden}
+            loading={model.finished.more > 0 && store.finished().loading}
+            onOpen={(event) => {
+              expand(event);
+              if (model.finished.more > 0) void store.showFinished();
+            }}
+          />
+        ) : null}
+        {open && !hidden && section.rows.length > FINISHED_SHOWN ? <HideRow title={section.title} onHide={hide} /> : null}
       </ul>
     </section>
   );
-}
-
-/** The cards finished lines stand for: one each, n for a `×n` line. */
-function lineCards(lines: readonly CardRow[]): number {
-  return lines.reduce((sum, line) => sum + (line.repeat ?? 1), 0);
 }
 
 function DueRowView({ row }: { row: DueRow }) {
@@ -326,8 +395,8 @@ function repeatedLine(card: CardRow): CardRow {
 
 /**
  * 완료, for every agent or one. The filter is the address (`#/done?agent=<id>`), so it survives a reload and every
- * live update; each choice's count is the cards of the lines it shows, the lines the work tab lists (lina-app#179). It
- * counts nothing until the page holds every finished card (lina-app#186).
+ * live update; each choice's count is the rows it shows, the lines the work tab lists (lina-app#179, #221). It counts
+ * nothing until the page holds every finished card (lina-app#186).
  */
 export function DoneScreen({ agent }: { agent?: string }) {
   const { model } = useApp();
@@ -340,7 +409,7 @@ export function DoneScreen({ agent }: { agent?: string }) {
     <div class="list" data-testid="screen-done">
       <div class="filter" role="group" aria-label={W.agents} data-testid="done-filter">
         {choices.map((choice) => {
-          const count = lineCards(doneFor(model, choice.id));
+          const count = doneFor(model, choice.id).length;
           return (
             <button key={choice.id ?? "all"} type="button" class="choice" aria-pressed={choice.id === agent} aria-label={`${choice.name} ${count}`} onClick={() => choose(choice.id)}>
               {choice.name}

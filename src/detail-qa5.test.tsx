@@ -33,6 +33,7 @@ async function frame(view: ReturnType<typeof render>): Promise<HTMLElement> {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 const scene = () => new SyntheticSource({ now: Math.floor(Date.now() / 1000), endedRuns: true });
@@ -145,6 +146,10 @@ function noisyComments(now: number) {
 }
 
 test("item 4: a card's history is in time order, with no bracket tags, no repeated state word, dropped comments folded once and no time inside a sentence", async () => {
+  // The lines are compared by clock time alone, so the day is pinned to noon: just after midnight the older lines fall on
+  // the day before and read later on the clock (the CI run at 00:12 UTC failed on that).
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(2026, 10, 16, 12, 0, 0));
   const { scene: base } = scene();
   const cardDetails = { ...base.cardDetails, "k-103": { ...base.cardDetails["k-103"], comments: noisyComments(base.now) } };
   const view = await open("#/cards/k-103", new SyntheticSource({ now: base.now, scene: { ...base, cardDetails } }));

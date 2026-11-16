@@ -2666,7 +2666,7 @@ describe("work cards", () => {
     expect(screenText(view.container)).not.toMatch(/코드 작업|문서 작업|기기 작업/);
   });
 
-  test("a card's own title with an abbreviation is drawn, stopped or finished, and its stop says why it waits (lina-app#156)", async () => {
+  test("a card's own title is drawn, stopped or finished, a finished one without its Latin words, and its stop says why it waits (lina-app#156, #222)", async () => {
     const source = new SyntheticSource({ endedRuns: true });
     const stoppedCard = source.scene.cards.cards.find((card) => card.id === "k-112") as WorkCardSummary;
     const finished: WorkCardSummary = { ...stoppedCard, id: "k-113", title: "AAS 회차 점검 마무리", state: "done", reason: null, waitingOn: null, endedAt: Math.floor(Date.now() / 1000) - 3600 };
@@ -2675,11 +2675,12 @@ describe("work cards", () => {
     const screen = view.getByTestId("screen-running");
     const row = within(screen).getAllByTestId("row").find((item) => item.querySelector("a")?.getAttribute("href") === "#/cards/k-112");
     expect(row?.classList.contains("is-stopped")).toBe(true);
-    expect(row?.querySelector(".title")?.textContent).toBe("CLI 배포 순서 정하기");
+    expect(row?.querySelector(".title")?.textContent).toBe("배포 순서 정하기");
     expect(screenText(view.container)).not.toContain("중단 카드");
     expect(row?.querySelector("[data-testid=state]")?.textContent).toBe("중단됨 · 결정 대기 · 이유 기록 없음");
-    // The finished card is listed by its own title too.
-    expect(screen.querySelector('a[href="#/cards/k-113"]')?.textContent).toContain("AAS 회차 점검 마무리");
+    // The finished card is listed by its own title too, its Latin word left out (lina-app#214, #222).
+    expect(screen.querySelector('a[href="#/cards/k-113"]')?.textContent).toContain("회차 점검 마무리");
+    expect(screen.querySelector('a[href="#/cards/k-113"]')?.textContent).not.toContain("AAS");
     expect(view.queryByTestId("home-untitled")).toBeNull();
     expect(view.getByTestId("nav-running").querySelector("[data-testid=nav-stopped]")?.textContent).toBe("7");
   });
@@ -2687,7 +2688,7 @@ describe("work cards", () => {
   test("a stopped card's detail head reads the title its list row shows (lina-app#152, #156)", async () => {
     const source = new SyntheticSource({ endedRuns: true, now: Math.floor(Date.now() / 1000) });
     const view = await open("#/cards/k-112", { wide: true, source });
-    await waitFor(() => expect(view.getByTestId("screen-card").querySelector(".detail-title")?.textContent).toBe("CLI 배포 순서 정하기"));
+    await waitFor(() => expect(view.getByTestId("screen-card").querySelector(".detail-title")?.textContent).toBe("배포 순서 정하기"));
     expect(screenText(view.container)).not.toMatch(/제목 없음|코드 작업|문서 작업|기기 작업/);
   });
 

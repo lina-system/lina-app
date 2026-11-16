@@ -31,8 +31,11 @@ const RULES: readonly (readonly [FoldReason, RegExp])[] = [
 const ISSUE_REF = String.raw`(?<![0-9A-Za-z])(?:[\w.-]+\/[\w.-]+|[A-Za-z][\w.-]*|[a-z][\w.-]*\s)?#\d+`;
 /** A card, goal or task id the hub writes into titles (lina-app#152): `t93`, `G106`, `T7`, `OT-12`, `t_586c9120`. */
 const CARD_ID = String.raw`(?<![0-9A-Za-z_])(?:t\d+|[GT]\d+|OT-[A-Z]*\d+|t_[0-9a-f]+)(?![0-9A-Za-z_])`;
-/** A commit hash, with the branch named before it (`dev <hash>`): a branch left alone reads as a stray word (lina-app#160). */
-const HASH = String.raw`(?:\b(?:dev|main|master)\s+)?\b[0-9a-f]{7,40}\b`;
+/**
+ * A commit hash, with the branch named before it (`dev <hash>`): a branch left alone reads as a stray word (lina-app#160). A run
+ * of digits only is a hash by the same rule the sentence gate uses (DIGIT_HASH): a number with a unit glued is no hash (lina-app#233 review).
+ */
+const HASH = String.raw`(?:\b(?:dev|main|master)\s+)?(?:\b(?=[0-9]*[a-f])[0-9a-f]{7,40}\b|${DIGIT_HASH})`;
 /** Mixed-case names the screens keep: a camelCase rule would cut them otherwise. */
 const CAMEL_NAMES = ["macOS", "iPhone", "iPad", "iOS"];
 /**

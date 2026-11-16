@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { foldedText, sentencesOf, withoutCutEnd } from "./fold";
+import { foldedText, sentencesOf, withoutCutEnd, withoutRefs } from "./fold";
 import { wholeTitle } from "./index";
 import { firstSentence } from "./timeline";
 
@@ -122,4 +122,12 @@ test("a list whose last item the core cut is dropped whole, not left as a shorte
   expect(withoutCutEnd("가짜 정리를 마쳤다. 가짜 시안을 고치는 중이")).toBe("가짜 정리를 마쳤다.");
   // a list that ends whole stays
   expect(withoutCutEnd("가짜 남은 일: (1) 첫 화면 문구를 고쳤다. (2) 환불 문구를 고쳤다.")).toBe("가짜 남은 일: (1) 첫 화면 문구를 고쳤다. (2) 환불 문구를 고쳤다.");
+});
+
+test("a number with its unit is no hash in a whole title, a bare run of digits still is (lina-app#233 review)", () => {
+  expect(wholeTitle("가짜 가격은 12345678원으로 정했다.")).toBe("가짜 가격은 12345678원으로 정했다.");
+  expect(withoutRefs("가짜 가격은 12345678원으로 정했다.")).toBe("가짜 가격은 12345678원으로 정했다.");
+  expect(withoutRefs("가짜 매출은 1234567,890원이다.")).toBe("가짜 매출은 1234567,890원이다.");
+  expect(wholeTitle("가짜 판은 아직 4815162342 그대로다.")).toBeNull();
+  expect(withoutRefs("가짜 빌드 4815162342 올리기")).toBe("가짜 빌드 올리기");
 });

@@ -31,8 +31,8 @@ test("a history line is a bot's whole text or none: no id, path or command is cu
   expect(wholeText("https://example.com/a/b deploy.sh --force")).toBeNull();
   // A quoted passage of two sentences is one sentence (lina-app#224 review).
   expect(wholeText("담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다.")).toBe("담당자가 \"검사가 실패했다. 다시 시도하자.\"라고 말했다.");
-  // A count's `0.` reads as a list's mark: the text folds.
-  expect(wholeText("실패 건수는 0. 검사는 대기 중.")).toBeNull();
+  // A count's `0.` is no end of a sentence and no list's mark: the text is drawn whole (lina-app#241).
+  expect(wholeText("실패 건수는 0. 검사는 대기 중.")).toBe("실패 건수는 0. 검사는 대기 중.");
   expect(wholeText(null)).toBeNull();
 });
 
@@ -52,8 +52,8 @@ test.each([
   // Only a fragment, with the hub's `…` or a table's `|` after it.
   ["범위 라 …", null],
   ["가상 문서 정리 |", null],
-  // A list's mark folds the text (lina-app#236).
-  ["1) 가상 설정이 긴 답에서 돌았다. 둘째 문장.", null],
+  // A list's mark is no rule of its own: the whole text is drawn (lina-app#241).
+  ["1) 가상 설정이 긴 답에서 돌았다. 둘째 문장.", "1) 가상 설정이 긴 답에서 돌았다. 둘째 문장."],
   // A long sentence is drawn whole: nothing shortens it (lina-app#226).
   ["완료 조건이 모두 체크됨(가상 일지 두 번, 가상 주간 한 장, 나눠야 할 곳은 나누고 나누면 안 될 곳은 안 나눔)", "완료 조건이 모두 체크됨(가상 일지 두 번, 가상 주간 한 장, 나눠야 할 곳은 나누고 나누면 안 될 곳은 안 나눔)"],
   // A time of day reads against the row's own time and cannot be cut out: no line (lina-app#153, #226).
@@ -94,8 +94,8 @@ test.each([
 // lina-app#222, #236: the round 18 shapes of the real hub's long cards, words made up. A history line is the whole text
 // when every sentence of it passes the rule (sentenceMayShow), else none: never the next clean sentence alone.
 test.each([
-  // The split never cuts after a list's number, and a dot inside a number or a version is no sentence end.
-  ["가짜 순서는 1. 가짜 빌드를 마친다. 다음 문장.", null],
+  // A list's number and a dot inside a number or a version are no sentence end: two sentences, drawn whole (lina-app#241).
+  ["가짜 순서는 1. 가짜 빌드를 마친다. 다음 문장.", "가짜 순서는 1. 가짜 빌드를 마친다. 다음 문장."],
   ["가짜 지연이 0.5초 늘었다. 가짜 시험을 마침.", "가짜 지연이 0.5초 늘었다. 가짜 시험을 마침."],
   ["가짜 판 1.2.3을 깔았다. 가짜 시험을 마침.", "가짜 판 1.2.3을 깔았다. 가짜 시험을 마침."],
   // A Latin word, a short code, a round label or a product name in one sentence: the whole text folds.

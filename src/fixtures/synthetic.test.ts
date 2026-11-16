@@ -236,11 +236,12 @@ test("the scene carries the text shapes UI QA rounds 21 to 23 met, and no histor
   ).map((line) => line.text);
   // A run with no unit after it is a hash, never drawn; one with its unit is an amount (lina-app#230).
   for (const line of lines) expect(line ?? "").not.toMatch(/\d{7,}(?![\d원])/);
-  // A comment is drawn whole or folded (lina-app#236): every list, lead-in and part folds, a whole short comment is drawn
-  // as written (its opening stamp left out), and the same state word in a row is one line.
+  // A comment is drawn whole or folded (lina-app#236, #241): a comment longer than a whole line, a lead-in and a part fold,
+  // a whole short comment is drawn as written (its opening stamp left out), a list of two items within the limit too, and
+  // the same state word in a row is one line.
   expect(comments.filter((comment) => /\(1\)/.test(comment.body))).toHaveLength(4);
   const body = (id: number) => comments.find((comment) => comment.id === id)?.body;
-  expect(lines).toEqual(["검토 통과", null, body(15), body(14), "금액 줄을 오른쪽으로 붙였다.", body(12), null]);
+  expect(lines).toEqual(["검토 통과", null, body(15), body(14), "금액 줄을 오른쪽으로 붙였다.", body(12), null, body(7), body(6), null]);
 });
 
 test("the many-finished scene carries the title shape UI QA round 21 met, and no row draws the bracket its cut left after a colon (lina-app#228)", () => {

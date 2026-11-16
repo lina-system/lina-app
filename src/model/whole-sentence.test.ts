@@ -42,16 +42,19 @@ const SHAPES: readonly Shape[] = [
   { source: "가짜 대기가 3 → 5로 늘었다.", drawn: null },
   { source: "가짜 앱/코어를 올렸다.", drawn: null },
   { source: "가짜 수치 12/14를 맞췄다.", drawn: null },
-  // Not drawn: no Hangul, a lead-in, a bare label, a fragment with no predicate, a continuation, the hub's own cut.
+  // Drawn as written: a short text with no predicate and one that opens on a word tying it to another is still the whole
+  // text its author wrote; the one gate has no fragment and no continuation rule (lina-app#241).
+  { source: "직접 확인한 것", drawn: "직접 확인한 것" },
+  { source: "원인 둘.", drawn: "원인 둘." },
+  { source: "반영 단계.", drawn: "반영 단계." },
+  { source: "앱, 코어.", drawn: "앱, 코어." },
+  { source: "그러나 가짜 화면은 그대로다.", drawn: "그러나 가짜 화면은 그대로다." },
+  // Not drawn: no Hangul, a lead-in, the hub's own cut, a sentence cut off before its verb (lina-app#241).
   { source: "done.", drawn: null },
   { source: "12:30", drawn: null },
   { source: "직접 확인한 가짜 것:", drawn: null },
-  { source: "직접 확인한 것", drawn: null },
-  { source: "원인 둘.", drawn: null },
-  { source: "반영 단계.", drawn: null },
-  { source: "앱, 코어.", drawn: null },
-  { source: "그러나 가짜 화면은 그대로다.", drawn: null },
   { source: "가짜 문구를 고치는 중인데…", drawn: null },
+  { source: "가짜 금액 줄을 다시 붙였고 그 뒤에 세부를", drawn: null },
   // Not drawn: a time of day, which reads against the row's own time (lina-app#153).
   { source: "22:45 기준으로 가짜 문구를 다시 확인함.", drawn: null },
   // Not drawn: what a split inside a number or a list leaves.
@@ -69,9 +72,9 @@ test("a bracket that holds Korean words beside a ref is kept, so the whole title
   expect(wholeTitle("가상 화면 정리 (lina#12·#13)")).toBe("가상 화면 정리");
 });
 
-test("a list, cut or whole, folds its comment: no shorter list and no item is drawn (lina-app#233 review, #236)", () => {
+test("a list is drawn whole or folds whole with its comment: no shorter list and no item is drawn (lina-app#233 review, #241)", () => {
   expect(wholeText("가짜 남은 일: (1) 첫 화면 문구를 고쳤다. 가짜 시안도 함께 고쳤다. (2) 환불 문구를 아직 고치는 중이")).toBeNull();
-  expect(wholeText("가짜 남은 일: (1) 첫 화면 문구를 고쳤다. (2) 환불 문구를 고쳤다.")).toBeNull();
+  expect(wholeText("가짜 남은 일: (1) 첫 화면 문구를 고쳤다. (2) 환불 문구를 고쳤다.")).toBe("가짜 남은 일: (1) 첫 화면 문구를 고쳤다. (2) 환불 문구를 고쳤다.");
 });
 
 test("a number with its unit is no hash in a whole title, a bare run of digits still is (lina-app#233 review)", () => {

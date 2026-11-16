@@ -27,7 +27,7 @@ import { BANNED_WORDS, CRUMB, KIND_TITLE, ROUND9_WORD, SEP, SOURCE_WORD, STATE_W
 import { href } from "../router";
 import { clockAt } from "../time";
 import { checksView, type ChecksView } from "./checks";
-import { foldedText, foldReason, holdsRefsOnly, sentenceMayShow, sentencesOf, withoutLatin, withoutRefs } from "./fold";
+import { foldReason, holdsRefsOnly, sentenceMayShow, unitMayShow, unitOf, withoutLatin, withoutRefs } from "./fold";
 import { cardKind, type CardKind } from "./kind";
 import { ocxView, usageViews, type OcxView, type UsageRangeView } from "./usage";
 
@@ -160,11 +160,13 @@ export interface CardRow {
 
 /**
  * A stop reason longer than its row says (lina-app#171): the words before it (`결정 대기`) and all of it, for the detail,
- * where the row cuts it at a word. Absent when the row says the whole reason.
+ * where the row cuts it at a word. `folded` when the one gate does not pass it: the detail draws one folded line that
+ * opens to it as written (lina-app#241). Absent when the row says the whole reason.
  */
 export interface StopReasonText {
   readonly lead: string;
   readonly text: string;
+  readonly folded: boolean;
 }
 
 /** Where an answer to a decision goes: the record's item (comments with answer) or a work card's question. */
@@ -464,23 +466,19 @@ export function cutAtWord(text: string, max: number): string {
 /** A text the core cut itself: it ends in a fold marker. */
 const CUT_END = /(?:…|\.\.\.)\s*$/;
 
+/** A text that is one identifier and nothing else (`initial_status`): a word of the core's, no reason a bot wrote. */
+const IDENTIFIER = /^[\w.-]+$/;
+
 /**
- * The whole reason the core keeps for a stop (the inbox's `blockReason`, lina-app#171) as the detail may show it: each
- * line through the comments' fold (foldedText: only the sentences the one rule passes, lina-app#222), a sentence with a
- * word the screens never use left out. Null when nothing a person reads is left (an internal word such as a status name).
+ * The whole reason the core keeps for a stop (the inbox's `blockReason`, lina-app#171), the typed field a bot wrote for
+ * the owner, never cut (lina-app#241): its unit (unitOf) when the one gate passes it (unitMayShow), else all of it as
+ * written and `folded`, one line that opens to it. Null when there is none or it is one of the core's identifiers.
  */
-export function stopReasonText(text: string | null | undefined): string | null {
-  if (!text) return null;
-  const kept = text
-    .split("\n")
-    .map((line) =>
-      sentencesOf(foldedText(line))
-        .filter((sentence) => !BANNED_WORDS.some((word) => sentence.includes(word)))
-        .join(" "),
-    )
-    .filter(Boolean)
-    .join("\n");
-  return kept || null;
+export function stopReasonText(text: string | null | undefined): { readonly text: string; readonly folded: boolean } | null {
+  const whole = text?.trim();
+  if (!whole || IDENTIFIER.test(whole)) return null;
+  const unit = unitOf(whole);
+  return unitMayShow(unit) ? { text: unit, folded: false } : { text: whole, folded: true };
 }
 
 /** The time a row last moved: its end, its start or its state's. */
@@ -691,13 +689,15 @@ export function buildModel(input: ModelInput, now: number): Model {
     if (retry === "none" || (isRun && (reason === "failed" || reason === "rejected"))) return { words: [word, W.notRetried].filter(Boolean).join(SEP), known: true, owner: false, retry: again };
     return { words: word ?? STOP_WORD.none, known: false, owner: false, retry: again };
   };
-  // A stopped row's words with its reason (lina-app#171): cut at a word on the row, whole in the detail when cut; a stop
-  // that waits on the owner's decision or feedback with no sentence of why says so instead of leaving a gap.
-  const stopWithReason = (stop: NonNullable<CardRow["stop"]>, reasonKey: string | null, reason: string | null): NonNullable<CardRow["stop"]> => {
-    if (reason === null) return reasonKey && STOP_WAIT[reasonKey] ? { ...stop, words: [stop.words, ROUND9_WORD.noReasonRecord].join(SEP) } : stop;
-    const short = cutAtWord(reason.replace(CUT_END, ""), ROW_REASON_MAX);
+  // A stopped row's words with its reason (lina-app#171): cut at a word on the row, and in the detail the inbox's whole
+  // reason whenever it keeps one the row does not say whole (lina-app#241), folded when the one gate does not pass it; a
+  // stop that waits on the owner's decision or feedback with no reason at all says so instead of leaving a gap.
+  const stopWithReason = (stop: NonNullable<CardRow["stop"]>, reasonKey: string | null, reason: string | null, whole: ReturnType<typeof stopReasonText>): NonNullable<CardRow["stop"]> => {
+    if (reason === null && whole === null) return reasonKey && STOP_WAIT[reasonKey] ? { ...stop, words: [stop.words, ROUND9_WORD.noReasonRecord].join(SEP) } : stop;
+    const short = reason === null ? null : cutAtWord(reason.replace(CUT_END, ""), ROW_REASON_MAX);
     const words = [stop.words, short].filter(Boolean).join(SEP);
-    return short === reason ? { ...stop, words } : { ...stop, words, reason: { lead: stop.words, text: reason } };
+    const detail = whole && whole.text !== short ? whole : reason !== null && short !== reason ? { text: reason, folded: false } : null;
+    return detail ? { ...stop, words, reason: { lead: stop.words, ...detail } } : { ...stop, words };
   };
   // The owner's 다시 시도 on a card is a comment on it (the core keeps no other trace): one newer than the stop still stands.
   const retryAsked = (detail: WorkCardDetail | undefined, stoppedAt: number | null): boolean | null =>
@@ -745,9 +745,10 @@ export function buildModel(input: ModelInput, now: number): Model {
       const said = ask !== null && ask !== title ? withoutRepeat(ask, row.stop?.words ?? "") : null;
       // The whole reason the inbox keeps (lina-app#171): the core cuts its ask at a length, so a cut ask reads from it.
       const whole = card.state === "stopped" ? stopReasonText(workInbox?.blocked.find((entry) => entry.cardId === card.id)?.blockReason) : null;
-      const reason = said !== null && CUT_END.test(said) ? (whole ?? said) : (said ?? whole);
-      // An ask that names the row is its reason already.
-      const stop = row.stop && !(ask !== null && ask === title) ? stopWithReason(row.stop, row.reason, reason) : row.stop;
+      const drawn = whole && !whole.folded ? whole.text : null;
+      const reason = said !== null && CUT_END.test(said) ? (drawn ?? said) : (said ?? drawn);
+      // An ask that names the row is its reason already; the detail still shows the inbox's whole reason under it.
+      const stop = row.stop ? (ask !== null && ask === title ? (whole ? { ...row.stop, reason: { lead: row.stop.words, ...whole } } : row.stop) : stopWithReason(row.stop, row.reason, reason, whole)) : row.stop;
       return { row: { ...row, title, name: title ?? (card.state === "done" ? W.cards : KIND_TITLE[row.work]), stop, ask: null, ...(card.state === "stopped" ? { asked: retryAsked(input.cardDetails[card.id], row.stateAt) } : {}) }, listed: !isEnded(card) };
     }),
     ...(board?.cards ?? []).map((run) => ({ row: runListRow(run), listed: false })),

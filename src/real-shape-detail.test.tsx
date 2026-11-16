@@ -183,3 +183,17 @@ test("a decision's row in 수신함 and its record's head read the same time", a
   const head = (await frame(view)).querySelector(".detail-head .time")?.textContent ?? "";
   expect(head.replace(/^ · /, "")).toBe(row);
 });
+
+// lina-app#239 review: a state word the bot wrote three times in a row is one line with ×3 on the worker run's own page, as it is
+// in the card's 댓글 box and a goal's history.
+test("the same state in comments one after another is one line with its count on a worker run's timeline", async () => {
+  const { scene } = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
+  const now = scene.now;
+  const r1 = scene.records.r1;
+  const same = [30, 28, 26].map((minutes) => ({ at: now - minutes * 60, kind: "comment" as const, text: "검토 통과", count: 1 }));
+  const records = { ...scene.records, r1: { ...r1, comments: [r1.comments[0], ...same] } };
+  const run = await open("#/runs/r1", new SyntheticSource({ now, scene: { ...scene, records } }));
+  await waitFor(() => expect(run.getByTestId("timeline")).toBeTruthy());
+  const lines = run.getAllByTestId("timeline-block").flatMap((block) => [...block.querySelectorAll(".timeline-row.is-comment")].map((row) => (row.textContent ?? "").replace(LINE, "")));
+  expect(lines.filter((line) => line.startsWith("검토 통과"))).toEqual(["검토 통과 ×3"]);
+});

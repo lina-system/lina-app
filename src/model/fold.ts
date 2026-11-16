@@ -414,11 +414,17 @@ export function foldedText(text: string): string {
 
 /**
  * A list in a stop's reason, its lead-in and items joined: whole less a bracket of refs only, when its marks run 1, 2, 3
- * and every sentence reads once its mark is set aside (readsAsWritten); else empty.
+ * (each list on the line on its own) and every sentence reads once its mark is set aside (readsAsWritten); else empty.
  */
 function listEntry(text: string): string {
   const whole = withoutRefBrackets(text);
-  if (!listMarks(`${whole} `).every((mark, index) => mark.n === index + 1)) return "";
+  // Two lists on one line (`1. a 2. b 1. c 2. d`) are two runs: a mark `1` after a run of two or more opens the next.
+  let run = 0;
+  const numbered = listMarks(`${whole} `).every((mark) => {
+    run = mark.n === run + 1 ? run + 1 : mark.n === 1 && run >= 2 ? 1 : -1;
+    return run > 0;
+  });
+  if (!numbered) return "";
   return sentencesOf(whole).every((sentence) => readsAsWritten(sentence.replace(/^(?:\(?\d{1,2}[.)]|[\u2460-\u2473])\s*/u, ""))) ? whole : "";
 }
 

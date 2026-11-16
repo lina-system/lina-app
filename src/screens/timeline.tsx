@@ -44,7 +44,7 @@ function timed(at: number, text: string, now: number): string {
   return [clockAt(at, now), text].join(SEP);
 }
 
-function Row({ row, owner, folded }: { row: RecordRow; owner: string; folded: number }) {
+function Row({ row, owner, folded, count }: { row: RecordRow; owner: string; folded: number; count: number }) {
   const { now } = useApp();
   if (row.kind === "tools")
     return (
@@ -59,6 +59,7 @@ function Row({ row, owner, folded }: { row: RecordRow; owner: string; folded: nu
     return (
       <li class={text ? "timeline-row is-comment" : "timeline-row is-comment is-dim"} data-kind="comment" title={owner || undefined}>
         <span class="timeline-text">{timed(row.at, text ?? W.foldedRun(folded || 1), now)}</span>
+        {text && count > 1 ? <span class="timeline-count">{` ${W.repeated(count)}`}</span> : null}
       </li>
     );
   }
@@ -110,7 +111,7 @@ function Block({ block, owner, link, modelRun }: { block: TimelineBlock; owner: 
       {rows.length ? (
         <ul class="timeline-rows">
           {rows.map((line, index) => (
-            <Row key={`${line.at}:${index}`} row={line.row} owner={owner} folded={line.folded} />
+            <Row key={`${line.at}:${index}`} row={line.row} owner={owner} folded={line.folded} count={line.count} />
           ))}
         </ul>
       ) : null}

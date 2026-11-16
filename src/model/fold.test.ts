@@ -333,6 +333,15 @@ test.each([
   expect(foldedText(comment)).toBe(shown);
 });
 
+// lina-app#239 review: two numbered lists on one line are two lists, each drawn whole, not one run `1, 2, 1, 2` that drops the line.
+test("a stop reason with two numbered lists on one line draws both (lina-app#239)", () => {
+  const two = "원인은 둘이다: 1. 설정이 낡았다. 2. 서버가 꺼져 있다. 할 일은 둘이다: 1. 설정을 고친다. 2. 서버를 켠다.";
+  expect(foldedText(two).replace(/\s+/g, " ")).toContain("1. 설정이 낡았다.");
+  expect(foldedText(two)).toContain("2. 서버를 켠다.");
+  // A list whose numbers skip is still not drawn.
+  expect(foldedText("원인은 둘이다: 1. 설정이 낡았다. 3. 서버가 꺼져 있다.")).toBe("");
+});
+
 // lina-app#207, #226: the hub's comments wrote machine times (`안전망 =2026-11-16T03:30+09:00`); rewriting one into a date
 // changed the sentence, so a sentence holding one is not drawn at all.
 test("a comment sentence holding a machine time is not drawn (lina-app#207, #226)", () => {

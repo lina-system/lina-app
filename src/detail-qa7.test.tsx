@@ -167,7 +167,7 @@ test("item 5: a to-do's detail shows the due date its row shows, red once it has
   expect(line.querySelector(".due-date")?.classList.contains("is-overdue")).toBe(true);
 });
 
-test("item 6: comments with nothing left once folded are one 접힌 기록 N건 row, not one row each", async () => {
+test("item 6: comments with nothing left once folded are one 접힌 댓글 N건 row, not one row each (lina-app#241)", async () => {
   const scene = base();
   const T4 = scene.itemDetails.T4;
   const at = scene.now - 30 * MIN;
@@ -177,7 +177,7 @@ test("item 6: comments with nothing left once folded are one 접힌 기록 N건 
   const view = await open("#/items/T4", new SyntheticSource({ now: scene.now, scene: { ...scene, itemDetails: { ...scene.itemDetails, T4: { ...T4, comments: [...T4.comments, ...markers] } } } }));
   const item = await frame(view);
   const thread = within(item).getByTestId("comments");
-  expect(within(thread).getAllByTestId("folded-records").map((row) => row.textContent)).toEqual(["접힌 기록 6건"]);
+  expect(within(thread).getAllByTestId("folded-records").map((row) => row.textContent)).toEqual(["접힌 댓글 6건"]);
   const texts = [...thread.querySelectorAll(".comment-text")].map((node) => node.textContent);
   expect(texts.some((text) => /가 맡는다|^주소$|되돌릴 커밋|^[(…),.\s]*$/.test(text ?? ""))).toBe(false);
   // The comments with words are still there, each once.

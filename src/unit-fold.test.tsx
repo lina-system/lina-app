@@ -90,3 +90,15 @@ test("an ended round's said rows and report lines that do not stand whole fold i
   for (const row of scene.records.r9.rounds.flatMap((round) => round.rows)) expect(opened).toContain(row.text);
   for (const round of scene.records.r9.rounds) if (round.result && round.result !== "가짜 표를 다시 그렸다.") expect(opened).toContain(round.result);
 });
+
+test("an item's thread merges a state word said twice as the card does and folds as 접힌 댓글, which opens", async () => {
+  const { frame } = await open("#/items/T4");
+  const thread = frame.getByTestId("comments");
+  const texts = [...thread.querySelectorAll(".comment-text")].map((node) => node.textContent);
+  expect(texts).toContain("진행 중 ×2");
+  expect(texts.filter((text) => text === "진행 중")).toEqual([]);
+  expect(thread.textContent).not.toContain("접힌 기록");
+  const fold = within(thread).getByRole("button", { name: "접힌 댓글 2건" });
+  fireEvent.click(fold);
+  expect(within(thread).getAllByTestId("held-text").map((node) => node.textContent)).toEqual(["가짜 문구를 고쳤고 그 뒤에 세부를", "가짜 문구 정리는 fake-app#124에 묶었다."]);
+});

@@ -39,9 +39,9 @@ async function thread(texts: readonly string[]) {
 }
 
 for (const [index, comment] of REAL.entries()) {
-  test(`item 6: a comment that is only ${JSON.stringify(comment)} folds into one 접힌 기록 row, no debris`, async () => {
+  test(`item 6: a comment that is only ${JSON.stringify(comment)} folds into one 접힌 댓글 row, no debris (lina-app#241)`, async () => {
     const { texts, folded } = await thread([comment]);
-    expect(folded).toEqual(["접힌 기록 1건"]);
+    expect(folded).toEqual(["접힌 댓글"]);
     for (const text of texts) expect(text).not.toContain(DEBRIS[index]);
   });
 
@@ -59,7 +59,7 @@ for (const comment of NAMED) {
   test(`a comment ${JSON.stringify(comment)} folds in the thread: its ref is never cut or stood in for (lina-app#207, #226)`, async () => {
     const { texts, folded } = await thread([comment]);
     expect(texts).not.toContain(comment);
-    expect(folded).toEqual(["접힌 기록 1건"]);
+    expect(folded).toEqual(["접힌 댓글"]);
   });
 
   test(`a card's comment history folds ${JSON.stringify(comment)} (lina-app#207, #226)`, async () => {
@@ -74,11 +74,11 @@ for (const comment of NAMED) {
 
 test("item 6: a comment whose every sentence holds a product name or a ref folds whole (lina-app#222, #226)", async () => {
   const { texts, folded } = await thread(["Codex 리뷰 요청함. 남은 범위 lina#718 라 카드 완료 금지."]);
-  expect(folded).toEqual(["접힌 기록 1건"]);
+  expect(folded).toEqual(["접힌 댓글"]);
   for (const text of texts) expect(text).not.toMatch(/범위 라|Codex|남은 범위/);
 });
 
-test("item 6: comments with nothing left in a row are one 접힌 기록 N건 row", async () => {
+test("item 6: comments with nothing left in a row are one 접힌 댓글 N건 row (lina-app#241)", async () => {
   const { folded } = await thread(["주소: (lina-system/lina#12), (hermes-ops#277)", "t_e6e0f90a 가 맡는다."]);
-  expect(folded).toEqual(["접힌 기록 2건"]);
+  expect(folded).toEqual(["접힌 댓글 2건"]);
 });

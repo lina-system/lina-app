@@ -515,8 +515,9 @@ export async function rowLines(page) {
       if (cut.length) return [lines.textContent.trim().slice(0, 40) + " (cut)"];
       const tall = children.filter((child) => child.getBoundingClientRect().height > lineHeight(child) * allowed(child) + 1);
       const asks = children.filter((child) => child.getAttribute("data-testid") === "stop-ask").length;
-      // A row whose own card's name differs from its title adds it as its second line (lina-app#148, #152).
-      const subs = children.filter((child) => child.getAttribute("data-testid") === "row-sub").length;
+      // A row whose own card's name differs from its title adds it as its second line (lina-app#148, #152); a goal's done
+      // condition is that line of a goal row, under its state line (lina-app#231).
+      const subs = children.filter((child) => child.getAttribute("data-testid") === "row-sub" || (child.matches(".sub.wrap-line") && Boolean(child.closest(".goal-row")))).length;
       return children.length > 2 + Math.min(asks, 1) + Math.min(subs, 1) || tall.length ? [lines.textContent.trim().slice(0, 40) + " (" + children.length + " lines)"] : [];
     }),
   );
@@ -1156,7 +1157,8 @@ const drivers = {
       await openMenu(page);
       const nav = await sidebarCount(page, "nav-done");
       check(cards === finished && cards === rows + 2 && all.endsWith(" " + cards) && (nav === null || Number(nav) === cards), "완료 says " + nav + " and " + all + ", lists " + rows + " lines standing for " + cards + " cards; the work tab " + finished);
-      check((await page.getByTestId("screen-done").getByText(/×3$/).count()) === 1, "no ×3 line in 완료");
+      // k-131's three cards hold a hash outside a bracket, so they are the grey line that says its three (lina-app#231).
+      check((await page.getByTestId("screen-done").getByText(/(?:×3|제목 없는 3건)$/).count()) === 1, "no ×3 line in 완료");
       return "완료 " + (nav ?? "(phone)") + ", " + rows + " lines, " + cards + " cards, work tab " + finished;
     });
   },

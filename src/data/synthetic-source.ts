@@ -92,7 +92,7 @@ export function round20Scene(scene: Scene): Scene {
     ...["#21", "#22", "#23"].map((ref) => `설정 화면 문구 다듬기 (${ref})`),
     ...["e5f6a7b", "f6a7b8c"].map((hash) => `백업 기록 확인하기 ${hash}`),
   ];
-  const unnamed = ["fix a9c2 (#12)", "chore bump deps (#31)", "deploy 핫픽스 b7e1f2a", "release v2 메모"];
+  const unnamed = ["fix a9c2 (#12)", "chore bump deps (#31)", "deploy 핫픽스 b7e1f2a", "release notes v2 메모"];
   const finished = [
     ...Array.from({ length: 32 }, (_, index) => round20Title(index)),
     ...alike,
@@ -125,16 +125,21 @@ export const ROUND22_WHOLE: readonly (readonly [string, string])[] = [
   ["가상 보관함 정리 (a1b2c3d)", "가상 보관함 정리"],
 ];
 
-/** Made-up finished titles whose only drawable form is a cut, each leaving a hole shape the hub showed (lina-app#231). */
-export const ROUND22_HOLES: readonly string[] = [
+/**
+ * Made-up finished titles the hub showed with a hole where a Latin word was cut (lina-app#231): a Latin word is no cut, so
+ * each is drawn as written (workTitle).
+ */
+export const ROUND22_LATIN: readonly string[] = [
   "가상 허브를 FakeBoard (추가)",
   "가상 허브 앱을 v2.4 (포함)로 올리기",
   "fakeproxy 용 호출자 키 발급·배포",
   "가상 서버 끊김에도 fakegate·보조 살아 있게",
   "가상 서버 fakeuser@1000 재시작 정리",
   "가상 검사 대기 결함 고치기 (PR 667)",
-  "가상 앱 반영: 묶음을 a1b2c3d4e5로 (가상 22회차 앞)",
 ];
+
+/** Made-up finished titles whose only drawable form is a cut, each leaving a hole shape the hub showed (lina-app#231). */
+export const ROUND22_HOLES: readonly string[] = ["가상 앱 반영: 묶음을 a1b2c3d4e5로 (가상 22회차 앞)"];
 
 /**
  * The hub's shapes UI QA round 22 met (`&hub=round22`, lina-app#231), field by field as its cards list serves them, in
@@ -142,7 +147,8 @@ export const ROUND22_HOLES: readonly string[] = [
  * no beat) and the newest with no `detail` field and a last beat, some under a goal title. Listed in the hub's order: a
  * few old ones first, then oldest to newest, then one old one last, so the list's first finished cards are not its
  * newest. Their titles: some drawn as written or less a bracket of refs (ROUND22_WHOLE, each under round 20's made-up
- * names too), one whose goal title holds a Latin word over a whole own title, and the hole shapes (ROUND22_HOLES).
+ * names too), one whose goal title holds a Latin word over a whole own title, the shapes a cut Latin word left a hole in,
+ * drawn as written now (ROUND22_LATIN), and the hole shapes (ROUND22_HOLES).
  * And the first agent's goal G6 in the record's shape: waiting for 16 days with 14 of 16 to-dos closed, its two open
  * to-dos waiting (its agent's own on a hold, another agent's on feedback), two finished cards under its title, and a
  * done condition that opens on an issue reference and holds a Latin word and a `#3` (ROUND22_CONDITION).
@@ -158,7 +164,7 @@ export function round22Scene(scene: Scene): Scene {
     if (recent) delete card.detail;
     return card;
   };
-  const titles = [...ROUND22_WHOLE.map(([title]) => title), ...Array.from({ length: 12 }, (_, index) => round20Title(index)), ...ROUND22_HOLES];
+  const titles = [...ROUND22_WHOLE.map(([title]) => title), ...Array.from({ length: 12 }, (_, index) => round20Title(index)), ...ROUND22_LATIN, ...ROUND22_HOLES];
   // Oldest to newest: 9 days ago to 8 minutes ago.
   const ages = titles.map((_, index) => 9 * 24 - (index * (9 * 24 - 0.14)) / (titles.length - 1));
   const listed = titles.map((title, index) => finished(index, title, ages[index]));
@@ -440,10 +446,10 @@ export const ROUND24 = {
   /** One goal over two planned cards of two agents: one titled as the goal (no second line), one with a title of its own. */
   planGoal: "가상 원격 작업 환경 시험",
   planOwn: "가상 원격 작업 앱 첫 시제품 (화면·소리 한 앱)",
-  /** A record goal whose title holds a Latin word, so no finished card under it is named by it. */
-  workGoal: "FAKE M0 가상 기억 하나 저장소 하나",
-  /** Its finished cards no rule draws: a Latin word or a reference outside a bracket in each. */
-  workUnnamed: ["가상 1단계: Fake 카드에서 worker run 받기 + fake-task 고침 옮기기 (fake#27·#28)", "가상 2단계: 허브를 node로 돌려 fake-task 바꾸기 (fake#35)", "가상 선행: fake gate 열기 fake#31", "가상 3단계 fake-drift 흡수", "가상 4단계: fake 묶음 sync 옮기기 (fake#38)"],
+  /** A record goal whose title holds a run of three Latin words, so no finished card under it is named by it. */
+  workGoal: "FAKE M0 core 가상 기억 하나 저장소 하나",
+  /** Its finished cards no rule draws: a run of three Latin words, a code name or a reference outside a bracket in each. */
+  workUnnamed: ["가상 1단계: Fake 카드에서 fake worker run 받기 + fake-task 고침 옮기기 (fake#27·#28)", "가상 2단계: 허브를 node로 돌려 fake_task 바꾸기 (fake#35)", "가상 선행: fake gate 열기 fake#31", "가상 3단계 fake_drift 흡수", "가상 4단계: fake 묶음 sync 옮기기 fake#38"],
   /** Its finished cards with titles of their own. */
   workNamed: ["가상 기억 칸 나누기", "가상 저장소 하나로 합치기"],
   /** The card whose worker runs each serve their own record, numbered from 1 (lina-app#245), and its title. */

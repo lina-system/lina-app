@@ -246,10 +246,10 @@ test("a finished card the title rule refuses for its Latin words or refs is coun
 });
 
 // lina-app#222, #225: the round 18 titles, words made up: a goal title, a checked title, an own title and an ask with a
-// Latin word, a product name or a round label in it. A finished card's title keeps the sentence rule and is never cut
-// (lina-app#231); a running or stopped card's keeps an abbreviation (workTitle), and one with a run of three Latin words
-// gives way to the next name the row has, else its kind of work.
-test("a finished card's title with a Latin word is not drawn; a running or stopped card's keeps an abbreviation (lina-app#222, #225, #231)", () => {
+// Latin word, a product name or a round label in it. Every card's title keeps an abbreviation (workTitle), a finished
+// one's as written, never cut (lina-app#231), and one with a run of three Latin words gives way to the next name the
+// row has, else its kind of work.
+test("a card's title keeps an abbreviation in every state, a finished one's as written (lina-app#222, #225, #231)", () => {
   const plain = (title: string) => ({ title, now: null, result: null });
   const model = realModel([
     row("g1", "가짜 배경 견적 회신", "in_progress", { goalTitle: "가짜 MV 네 곡 납품" }),
@@ -259,7 +259,7 @@ test("a finished card's title with a Latin word is not drawn; a running or stopp
   ]);
   expect(model.home.active.rows.find((each) => each.id === "g1")).toMatchObject({ title: "가짜 MV 네 곡 납품", sub: "가짜 배경 견적 회신" });
   expect(model.cards.get("c1")?.title).toBe("가짜 허브 앱 반영 (QA 18회차 앞)");
-  expect(model.cards.get("f1")?.title).toBeNull();
+  expect(model.cards.get("f1")?.title).toBe("가짜 PR 검사 정리 마치기");
   // Three Latin words in a row, an ask with a Latin word and too few Hangul letters: its kind of work.
   expect(model.cards.get("k1")).toMatchObject({ title: null, name: KIND_TITLE.code });
   // A record goal's title reads by its Hangul words instead (lina-app#214), never with its Latin word.
@@ -495,4 +495,36 @@ test("the owner's to-dos read overdue and today first, then later dates, then un
   // Overdue, then today's two newest first, then the later date, then the undated newest first.
   expect(order(model.home.mine.rows)).toEqual(["T25", "T22", "T26", "T21", "T23", "T24"]);
   expect(order(model.inbox.sections[2].rows)).toEqual(["T25", "T22", "T26", "T21", "T23", "T24"]);
+});
+
+// The same title in two groups of the work tab (a goal's title over a stopped or planned card and over its finished
+// ones) is drawn as one line 1: the open row leads with its own name, the goal's title its line 2, as rows of one group
+// sharing a line 1 do (lina-app#242). No card leaves its group, so every head, the sidebar and the lines agree.
+test("a title one group draws is no other group's line 1: the open row leads with its own name, and every count stays its lines'", () => {
+  const model = realModel([
+    row("x1", "가짜 키 다시 받기", "stopped", { goalTitle: ORDER, lastHeartbeatAt: NOW - 100 }),
+    row("x2", "가짜 예약 화면 그리기", "planned", { goalTitle: PUSH }),
+    row("y1", "가짜 관문 문서 정리", "done", { goalTitle: ORDER, endedAt: NOW - 600 }),
+    row("y2", "가짜 관문 표 정리", "done", { goalTitle: ORDER, endedAt: NOW - 1200 }),
+    row("y3", "가짜 구독 정리", "done", { goalTitle: PUSH, endedAt: NOW - 1800 }),
+    // A finished card under a goal named as an open card is: it leads with its own name, or with none is counted grey.
+    row("y4", "가짜 키 문서 마무리", "done", { goalTitle: "가짜 키 다시 받기", endedAt: NOW - 2400 }),
+    row("y5", "가짜 예약 화면 그리기", "done", { endedAt: NOW - 3000 }),
+  ]);
+  const groups: Section<CardRow>[] = [model.home.active, model.home.stopped, model.home.planned, model.home.waiting, model.home.finished];
+  const where = new Map<string, string[]>();
+  for (const group of groups) for (const each of group.rows) where.set(each.name, [...(where.get(each.name) ?? []), group.id]);
+  expect([...where].filter(([, ids]) => new Set(ids).size > 1)).toEqual([]);
+  expect(model.home.stopped.rows.find((each) => each.id === "x1")).toMatchObject({ name: "가짜 키 다시 받기", sub: ORDER });
+  expect(model.home.planned.rows.find((each) => each.id === "x2")).toMatchObject({ name: "가짜 예약 화면 그리기", sub: PUSH });
+  expect(model.home.finished.rows.map((each) => [each.name, each.sub ?? null, each.repeat ?? 1])).toEqual([
+    [ORDER, null, 2],
+    [PUSH, "가짜 구독 정리", 1],
+    ["가짜 키 문서 마무리", "가짜 키 다시 받기", 1],
+    [W.untitledCount(1), null, 1],
+  ]);
+  expect(model.home.stopped.rows).toHaveLength(model.counts.stopped);
+  expect(model.home.finished.count).toBe(cardCount(model.home.finished.rows));
+  expect(model.counts.done).toBe(cardCount(model.home.finished.rows));
+  expect(cardCount(doneFor(model))).toBe(5);
 });

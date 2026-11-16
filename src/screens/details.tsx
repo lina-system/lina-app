@@ -2,7 +2,7 @@ import { Fragment, type ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, RecordRow, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
-import { cardTitle, doneFor, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, runRow, todoState, wholeTitle, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
+import { doneFor, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, ownTitle, runRow, todoState, wholeTitle, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
 import { foldReason, wholeText } from "../model/fold";
 import { plainText } from "../model/plain";
 import { holds } from "../model/rounds";
@@ -954,9 +954,12 @@ export function CardScreen({ id }: { id: string }) {
   const drawn = useRef<string | null>(null);
   const detail = store.get("card", id);
   const row = model.cards.get(id);
-  // The work tab's row of the card: one of several under one goal leads with its own name (lina-app#242), so the head
-  // reads that name and its goal's title is the 목표 line under it.
-  const listed = [...model.running.rows, ...model.home.planned.rows, ...model.home.waiting.rows].find((card) => card.id === id);
+  // The work tab's row of the card: one of several under one title, in its group or another, leads with its own name
+  // (lina-app#242), so the head reads that name and its goal's title is the 목표 line under it. A finished card reads
+  // the 완료 line it stands in.
+  const listed =
+    [...model.running.rows, ...model.home.planned.rows, ...model.home.waiting.rows, ...model.home.review.rows.flatMap((each) => (each.type === "review" ? [each.card] : []))].find((card) => card.id === id) ??
+    model.home.finished.rows.find((line) => line.title !== null && (line.fold ?? [line]).some((card) => card.id === id));
   const led = listed && listed.title !== null && listed.name !== listed.title ? { name: listed.name, goal: listed.title } : null;
   if (!detail) {
     if (store.status("card", id) === "missing") return <Missing />;
@@ -1030,8 +1033,8 @@ export function CardScreen({ id }: { id: string }) {
   // An old done card the core keeps no history for (`detail: false`) says so instead of an empty frame.
   const kept = store.get("cards")?.cards.find((card) => card.id === id)?.detail !== false;
   // The head reads the name of the row that was tapped (its goal's title when the row leads with it); the card's own
-  // title is the line under it when it differs (lina-app#153).
-  const own = cardTitle(detail.plain.title, detail.title, detail.state === "stopped") ?? row?.own ?? null;
+  // title is the line under it when it differs (lina-app#153), read by its row's rule (ownTitle).
+  const own = ownTitle(detail) ?? row?.own ?? null;
   // A card opened by its address before the list holds its row: its name is the row's, so the head reads 불러오는 중 until
   // the list is read, never 제목 없음 (lina-app#253), which stays for a card the board does not know. A list read that
   // failed is no read out: the head reads its goal's title first, as its row would (lina-app#122, #258), then the

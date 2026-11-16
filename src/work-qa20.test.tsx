@@ -77,8 +77,9 @@ for (const wide of [true, false]) {
     expect(after).toMatchObject({ head: total, cards: total, fold: 0 });
     expect(after.rows).toBeLessThan(total);
     if (wide) expect(sidebarDone(view)).toBe(total);
-    // The cards nothing names are one grey row that says how many, never 제목 없음: the four with no Hangul and the six
-    // titled alike but for a hash outside a bracket, which is never cut out of a finished title (lina-app#231).
+    // The cards nothing names are one grey row that says how many, never 제목 없음: the four with no Hangul, a ref, a hash
+    // or an English phrase, and the six titled alike but for a hash outside a bracket, which is never cut out of a
+    // finished title (lina-app#231).
     const unnamed = [...group.querySelectorAll("[data-testid=row] .title.is-kind")].map((title) => title.textContent);
     expect(unnamed).toEqual([W.untitledCount(10)]);
     expect(view.container.textContent).not.toContain(W.untitled);

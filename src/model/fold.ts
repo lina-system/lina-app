@@ -341,6 +341,67 @@ export function wholeText(text: string | null | undefined): string | null {
   return fits && unitMayShow(unit) ? unit : null;
 }
 
+/** A Latin word as a history sentence may hold it: a tool's, a product's or a device's name (`Playwright`, `PR`, `npm`). */
+const NAME_WORD = /[A-Za-z][A-Za-z0-9.+-]*/g;
+/** English text, never drawn: three Latin words or more in a row (`Fake Review Bot`), or a Latin lead-in (`For you:`). */
+const ENGLISH = /[A-Za-z][\w.+-]*(?:[\s,]+[A-Za-z][\w.+-]*){2,}|^[A-Za-z][A-Za-z ]*:/;
+/**
+ * What a person never reads in a sentence: an issue ref, a card or run id, a hash, a code name, and a Latin word with a
+ * digit glued to it, an internal label or name (`N1`, `D1~D7`, `land-app233b`, `23px`).
+ */
+const INTERNAL = new RegExp(String.raw`${ISSUE_REF}|${CARD_ID}|${HASH}|${CODE}|[A-Za-z]\d|\d[A-Za-z]`, "u");
+/** A list's mark before an item (`- `, `• `, `2) `, `(3) `, `1. `): no part of the sentence after it. */
+const ITEM_MARK = /^(?:[-*•]|\(?\d{1,2}[.)])\s+/;
+/**
+ * The end of a sentence that says it did not happen (`하지 않았다`, `안 함`, `못 열음`, `없음`, `아님`), that it is still to come
+ * (`하겠다`), or that it may be (`실패할 수 있다`) or is guessed (`짐작이다`).
+ */
+const NOT_DONE = /(?:^|\s)(?:안|못)\s+\S+$|(?:않|아니|아님|없)\p{Script=Hangul}*$|겠\p{Script=Hangul}*$|수\s+있\p{Script=Hangul}*$|짐작\p{Script=Hangul}*$/u;
+/** A noun that names a finished act on its own at a sentence's end (`검사 통과`, `직접 확인`). */
+const DONE_NOUN = /(?:통과|완료|성공|확인)$/u;
+
+/** The final consonant of a Hangul syllable (0 when none; ㅆ is 20, ㅁ is 16). */
+const finalOf = (syllable: string) => (syllable.charCodeAt(0) - 0xac00) % 28;
+
+/**
+ * Whether a sentence says what came of the work: it ends on a past predicate (`합쳤다`, `고쳤습니다`, `남겼음`), a noun of a
+ * finished act (`확인함`, `고침`, `읽음`) or one that names it (`통과`), never on a negation or a plan (NOT_DONE).
+ */
+function saysDone(sentence: string): boolean {
+  // Its predicate is the last word before its end mark and an aside that closes it (`더 잘림(문서에 적힘).`), and it is Hangul: a
+  // sentence that ends on a Latin word or a number names something and says nothing of it.
+  const core = sentence.replace(/[\s.!?。"'\u2019\u201d]+$/u, "").replace(/\s*\([^()]*\)$/u, "").replace(/[\s.!?。"'\u2019\u201d)\]]+$/u, "");
+  if (!/\p{Script=Hangul}$/u.test(core) || NOT_DONE.test(core)) return false;
+  const ending = core.match(/(\p{Script=Hangul})(?:다|습니다|어요|음)$/u);
+  return (ending !== null && finalOf(ending[1]) === 20) || finalOf(core.slice(-1)) === 16 || DONE_NOUN.test(core);
+}
+
+/**
+ * Whether one sentence may stand as a closed history line (criterion 2): whole, by the one gate (unitMayShow) with each
+ * Latin word read as a word, so a tool's or a device's name stays; never with an id, a ref, a hash, a code name, a path,
+ * a command or an address in it, never English text (ENGLISH), and only when it says what came of the work (saysDone).
+ * Read only by the history's lines: a title keeps its own rule.
+ */
+export function historyMayShow(sentence: string): boolean {
+  if (!HANGUL.test(sentence) || ENGLISH.test(sentence) || INTERNAL.test(sentence)) return false;
+  if (RULES.some(([reason, rule]) => reason !== "fragment" && rule.test(sentence))) return false;
+  return unitMayShow(sentence.replace(NAME_WORD, "낱말")) && saysDone(sentence);
+}
+
+/**
+ * The sentences of a bot's text a closed history line may read, in its order, each whole (historyMayShow) and less only a
+ * list's mark before it: never a part of one, never two joined. `opens`: the text may open inside a sentence (the tail
+ * the core kept of a longer one), so its first piece is none; `ends`: it may end inside one (a note the core cut), so
+ * its last piece is one only when it ends on an end mark.
+ */
+export function historySentences(text: string | null | undefined, { opens = false, ends = false }: { opens?: boolean; ends?: boolean } = {}): string[] {
+  const pieces = unitOf(text).split(PIECES);
+  return pieces
+    .filter((piece, index) => !(opens && index === 0) && !(ends && index === pieces.length - 1 && !/[.!?。]$/.test(piece)))
+    .map((piece) => piece.trim().replace(ITEM_MARK, ""))
+    .filter(historyMayShow);
+}
+
 /** Whether a bracket's inside is refs, ids or hashes and their separators alone: no word, so cutting it leaves no hole (lina-app#233). */
 export function holdsRefsOnly(inner: string): boolean {
   return inner.trim() !== "" && !inner.replace(ONE_REF, "").replace(/[\s·,]+/g, "");

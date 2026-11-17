@@ -366,7 +366,8 @@ function cleanTitle(title: string, latin = false): string | null {
  * A title the row rule refuses, read by its Hangul words (lina-app#214): its refs and Latin words cut (withoutLatin),
  * read when at least four Hangul letters are left and what is left passes the one rule (sentenceMayShow, lina-app#222).
  * A record goal's or to-do's title reads so (foldTitle), so 제목 없음 holds only what nothing names. A finished card's
- * row never does (wholeTitle, lina-app#231); stopped, running and planned rows and an agent's ask keep the row rule.
+ * row never does (workTitle as written, lina-app#231); stopped, running and planned rows and an agent's ask keep the row
+ * rule.
  */
 function finishedTitle(title: string | null): string | null {
   const cut = title ? withoutLatin(withoutRefs(title)) : "";
@@ -376,18 +377,21 @@ function finishedTitle(title: string | null): string | null {
 /** A bracket and the space before it: removed from a title only when what it holds is refs alone (holdsRefsOnly). */
 const BRACKET = /\s*[([]([^()[\]]*)[)\]]/g;
 
-/**
- * A title exactly as written (lina-app#231): only a bracket that holds nothing but refs, ids or hashes goes, with the
- * space before it. Null when anything else would have to be cut for it to pass the one rule (sentenceMayShow): a Latin
- * word, a ref or a hash outside such a bracket, or the debris a cut would leave. A finished card's row reads its titles
- * so, and a card none of them names is counted in 완료's grey line instead of drawn with a hole.
- */
-export function wholeTitle(title: string | null | undefined): string | null {
-  if (!title) return null;
-  const whole = title
+/** A text exactly as written, less only a bracket that holds nothing but refs, ids or hashes and the space before it. */
+function asWritten(text: string): string {
+  return text
     .replace(BRACKET, (bracket, inner: string) => (holdsRefsOnly(inner) ? "" : bracket))
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/**
+ * A sentence exactly as written (lina-app#231, asWritten), null when anything else would have to be cut for it to pass
+ * the one rule (sentenceMayShow): a Latin word, a ref or a hash outside a ref-only bracket, or the debris a cut would
+ * leave. A goal's and a card's 끝 조건 read so.
+ */
+export function wholeTitle(title: string | null | undefined): string | null {
+  const whole = title ? asWritten(title) : "";
   return whole && withoutRefs(whole) === whole && sentenceMayShow(whole) ? whole : null;
 }
 
@@ -399,11 +403,18 @@ const LATIN_RUN = /(?<![\w.\-/])[A-Za-z][\w.\-/]*(?:[\s,:·]+[A-Za-z][\w.\-/]*){
  * internal cut (issue and pull request references, hashes, ids, code names and the bracket that held only them,
  * withoutRefs), product and tool names and short abbreviations kept. Null only when no Hangul is left, a run of three
  * Latin words or more is, or raw text such as a path or a command is (foldReason). Not the sentence rule: a title is no
- * sentence.
+ * sentence. A finished card's row reads the same rule `whole` (lina-app#231): as written (asWritten), never cut, so a
+ * title with anything internal outside a ref-only bracket is null and counted in 완료's grey line, never drawn with a hole.
  */
-export function workTitle(title: string | null | undefined): string | null {
-  const cut = title ? withoutRefs(title) : "";
-  return cut && HANGUL.test(cut) && !LATIN_RUN.test(cut) && mayDraw(cut, true) ? cut : null;
+export function workTitle(title: string | null | undefined, whole = false): string | null {
+  const text = title ? (whole ? asWritten(title) : withoutRefs(title)) : "";
+  return text && (!whole || withoutRefs(text) === text) && HANGUL.test(text) && !LATIN_RUN.test(text) && mayDraw(text, true) ? text : null;
+}
+
+/** A work card's own name on its row and its detail head alike: its checked title, else its own (workTitle, whole when finished). */
+export function ownTitle(card: { readonly state: WorkState; readonly title: string; readonly plain: { readonly title: string | null } }): string | null {
+  const whole = card.state === "done";
+  return workTitle(card.plain.title, whole) ?? workTitle(card.title, whole);
 }
 
 /**
@@ -491,17 +502,21 @@ const movedAt = (row: CardRow) => row.endedAt ?? row.startedAt ?? row.stateAt;
  * when they last moved as a clock time in their time slot (`when`); line 2 is never a bare time, and the kind of work
  * is never a row's words (lina-app#122). A line 1 several rows share (a goal's title over its cards) tells none of them
  * apart (lina-app#242): such a row with a name of its own leads with it, the goal's title its line 2, unless `lead` is
- * off (완료, whose rows of one title are one line, collapsed).
+ * off (완료, whose rows of one title are one line, collapsed). A line 1 the same screen draws in another group
+ * (`elsewhere`: a goal's title over a stopped card and over its finished ones) is shared the same way, so a title is one
+ * group's line 1 on the screen and no card leaves its group. A row never leads with an own name another open group
+ * draws (`taken`); a finished line it meets gives way instead (buildModel).
  */
-export function apart(rows: readonly CardRow[], now: number, lead = true): CardRow[] {
+export function apart(rows: readonly CardRow[], now: number, lead = true, elsewhere: readonly string[] = [], taken: readonly string[] = []): CardRow[] {
   // Line 1 by the title order (the goal's title first), read from `title`, which apart never changes: so rows already
   // apart read the same when a list of some of them is told apart again (an agent's, a goal's).
   const first = (row: CardRow) => row.title ?? row.name;
   const shared = new Map<string, number>();
-  for (const row of rows) shared.set(first(row), (shared.get(first(row)) ?? 0) + 1);
+  for (const line of [...rows.map(first), ...elsewhere]) shared.set(line, (shared.get(line) ?? 0) + 1);
+  const drawn = new Set(taken);
   const named = rows.map((row) => {
     const own = row.ownName && row.ownName !== first(row) ? row.ownName : null;
-    return lead && own && (shared.get(first(row)) ?? 0) > 1 ? { ...row, name: own, sub: first(row), when: null } : { ...row, name: first(row), sub: own, when: null };
+    return lead && own && !drawn.has(own) && (shared.get(first(row)) ?? 0) > 1 ? { ...row, name: own, sub: first(row), when: null } : { ...row, name: first(row), sub: own, when: null };
   });
   const key = (row: CardRow) => [row.name, row.sub ?? "", row.stop?.words ?? ""].join("\n");
   const seen = new Map<string, number>();
@@ -554,9 +569,8 @@ function workCardRow(card: WorkCardSummary, detail: WorkCardDetail | undefined, 
   const base = receivedAt - card.elapsedSeconds;
   // A card with no checked title is named by its own title when that may be drawn; its kind is read from that same
   // text, so a card showing its own title is not guessed as code when it is a documents card.
-  // A finished card reads its checked title by the sentence rule, else its own as written (wholeTitle, lina-app#231); a
-  // stopped, planned or running one reads its title by the row title rule.
-  const title = card.state === "done" ? (cardTitle(card.plain.title, null) ?? wholeTitle(card.title)) : (workTitle(card.plain.title) ?? workTitle(card.title));
+  // Every card reads its titles by the row title rule, a finished one as written (ownTitle, lina-app#231).
+  const title = ownTitle(card);
   const work = cardKind(title ?? "", cardRuns);
   return {
     key: `card:${card.id}`,
@@ -740,10 +754,10 @@ export function buildModel(input: ModelInput, now: number): Model {
       const cardRuns = runsOf(card.id);
       // Its goal's title (the one the core puts on the row first), then its own names (workCardRow), then the to-do
       // its runs take on; a finished card's each as written (lina-app#231).
-      const goalName = card.state === "done" ? wholeTitle : workTitle;
+      const goalName = (title: string | null | undefined) => workTitle(title, card.state === "done");
       const fallback = todoName(
         cardRuns.map((run) => run.todo),
-        card.state === "done" ? wholeTitle : plainName,
+        card.state === "done" ? goalName : plainName,
       );
       const goal = goalName((card as CardSummary).goalTitle) ?? goalName(cardGoal.get(card.id)?.title);
       const row = { ...contextRow(workCardRow(card, input.cardDetails[card.id], receivedAt, cardRuns), goal, fallback, false, card), goalTitle: (card as CardSummary).goalTitle ?? cardGoal.get(card.id)?.title ?? null };
@@ -774,14 +788,37 @@ export function buildModel(input: ModelInput, now: number): Model {
   for (const { row } of everyCard) if (!cardMap.has(row.id)) cardMap.set(row.id, row);
   const unlisted = new Set(everyCard.filter((each) => !allCards.includes(each.row) && cardMap.get(each.row.id) === each.row).map((each) => each.row.id));
 
-  // Each group's rows are told apart within it (apart); a part of a group (recent, older) keeps its rows apart too.
-  const stopped = apart(allCards.filter((card) => card.state === "stopped").sort(stoppedOrder), now);
-  const running = apart(allCards.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt)), now);
-  const planned = apart(allCards.filter((card) => card.state === "planned").sort(newestFirst((card) => card.stateAt)), now);
-  const runningSections = [section("stopped", "", stopped), section("running", "", running)];
-  const done = apart(allCards.filter((card) => card.state === "done").sort(newestFirst((card) => card.endedAt)), now, false);
-  const waiting = apart(allCards.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt)), now);
+  // Each group's rows are told apart within it (apart); a part of a group (recent, older) keeps its rows apart too. An
+  // open group's rows are told apart from the work tab's other groups too, 완료's lines among them, so no title is two
+  // groups' line 1; a finished card whose line 1 an open row still draws then leads with its own name, the title its
+  // line 2, or with none is counted in the grey line. Every card stays in its group, which its head and the sidebar count.
+  // The open groups are told apart in one pass: a title any other group draws is shared, and a row leads with its own
+  // name only when no other open group draws it, by the names the groups before it draw in the end and the titles of
+  // those after it, so promoting a name never makes a line 1 two groups share.
+  const finishedRows = apart(allCards.filter((card) => card.state === "done").sort(newestFirst((card) => card.endedAt)), now, false);
+  const open = [
+    allCards.filter((card) => card.state === "stopped").sort(stoppedOrder),
+    allCards.filter((card) => card.state === "in_progress").sort(newestFirst((card) => card.startedAt)),
+    allCards.filter((card) => card.state === "planned").sort(newestFirst((card) => card.stateAt)),
+    allCards.filter((card) => card.state === "waiting").sort(newestFirst((card) => card.stateAt)),
+  ];
+  const finishedLines = doneLines(finishedRows, now)
+    .filter((line) => line.title !== null)
+    .map((line) => line.name);
+  const resolved: CardRow[][] = [];
+  for (const [index, rows] of open.entries()) {
+    const titles = (groups: readonly CardRow[][]) => groups.flatMap((other) => other.map((card) => card.title ?? card.name));
+    const taken = [...resolved.flat().map((row) => row.name), ...titles(open.slice(index + 1))];
+    resolved.push(apart(rows, now, true, [...finishedLines, ...titles(open.filter((other) => other !== rows))], taken));
+  }
+  const [stopped, running, planned, waiting] = resolved;
+  const openLines = new Set([stopped, running, planned, waiting].flat().map((row) => row.name));
+  const done = finishedRows.map((row) => {
+    if (row.title === null || !openLines.has(row.name)) return row;
+    return row.ownName && row.ownName !== row.name && !openLines.has(row.ownName) ? { ...row, name: row.ownName, sub: row.name } : { ...row, title: null };
+  });
   const finished = doneLines(done, now);
+  const runningSections = [section("stopped", "", stopped), section("running", "", running)];
   // One unit for 완료 (lina-app#225): cards, the ones read and the ones the core holds (lina#729) that the page has not
   // read, so opening the fold never changes the number.
   const readDone = (cards?.cards ?? []).filter((card) => card.state === "done").length;

@@ -12,7 +12,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { useActions } from "../ui/actions";
 import { QuickAddButton, QuickAddForm } from "../ui/quick-add";
 import { AgentMark, agentName, CardRowView, CountPair, Dial, Disclosure, DoneCheck, Empty, ErrorLine, itemTime, Link, ListSection, SectionHead, useApp } from "../ui/parts";
-import { glossaryToolName, machineWhy, metricsReason, ROUND11_WORD, serviceName, SEP, STATUS_WORD, toolCommand, versionOf, W } from "../words";
+import { glossaryToolName, machineWhy, metricsReason, ROUND11_WORD, serviceName, SEP, SOURCE_WORD, STATUS_WORD, toolCommand, versionOf, W } from "../words";
 import { writeError } from "./write-error";
 
 type DecideRow = Extract<InboxRow, { type: "decide" }>;
@@ -1066,12 +1066,12 @@ function QuotaParts({ line, now, percent, rate = true }: { line: QuotaLine; now:
         {W.ratePerHour(line.rate)}
       </span>,
     );
-  if (line.resetAt !== null) parts.push(<span key="t">{until(line.resetAt - now)}</span>);
+  if (line.resetAt !== null) parts.push(<span key="t">{W.quotaReset(until(line.resetAt - now))}</span>);
   return <>{parts.flatMap((part, index) => (index ? [SEP, part] : [part]))}</>;
 }
 
 function quotaText(line: QuotaLine, now: number): string[] {
-  return [line.percent !== null ? W.percent(line.percent) : null, line.rate !== null ? W.ratePerHour(line.rate) : null, line.resetAt !== null ? until(line.resetAt - now) : null].filter((part): part is string => Boolean(part));
+  return [line.percent !== null ? W.percent(line.percent) : null, line.rate !== null ? W.ratePerHour(line.rate) : null, line.resetAt !== null ? W.quotaReset(until(line.resetAt - now)) : null].filter((part): part is string => Boolean(part));
 }
 
 function QuotaMeter({ line }: { line: QuotaLine }) {
@@ -1094,7 +1094,7 @@ function AccountRow({ account, now }: { account: QuotaAccount; now: number }) {
   // One convention with the service row: the percent used. The state word stands in its place when OCX cannot use
   // the account, and the parts after it are the ones that still hold: the reset alone for a paused account.
   const percent = reauth ? W.quotaReauth : paused ? W.quotaPaused : line.percent !== null ? W.percent(line.percent) : null;
-  const parts = [percent, !reauth && !paused && line.rate !== null ? W.ratePerHour(line.rate) : null, line.resetAt !== null ? until(line.resetAt - now) : null].filter((part): part is string => Boolean(part));
+  const parts = [percent, !reauth && !paused && line.rate !== null ? W.ratePerHour(line.rate) : null, line.resetAt !== null ? W.quotaReset(until(line.resetAt - now)) : null].filter((part): part is string => Boolean(part));
   const spoken = [W.quotaAccount(account.number), ...flags, ...parts, account.warn ? W.quotaWarn : null].filter(Boolean).join(SEP);
   return (
     <li class={`account-row${account.warn ? " is-warn" : ""}`} data-testid="account" aria-label={spoken}>
@@ -1213,6 +1213,9 @@ function UsagePanel() {
   const [range, setRange] = useState<UsageRange>("today");
   const view = model.usage.find((each) => each.range === range) ?? model.usage[0];
   if (!view) return null;
+  // The core fills the machines in the background (lina#273): under totals an empty list is still being read, unless
+  // a usage read failed, which the head already says.
+  const reading = view.tokens > 0 && !model.errors.includes(SOURCE_WORD.usage);
   return (
     <section class="list-section" data-testid="section-usage">
       <h2 class="section-head">
@@ -1235,11 +1238,17 @@ function UsagePanel() {
         ))}
       </ul>
       <h3 class="usage-head">{W.usageByMachine}</h3>
-      <ul class="rows usage-list" aria-label={W.usageByMachine}>
-        {view.machines.map((line) => (
-          <UsageRowView key={line.name} line={line} />
-        ))}
-      </ul>
+      {view.machines.length ? (
+        <ul class="rows usage-list" aria-label={W.usageByMachine}>
+          {view.machines.map((line) => (
+            <UsageRowView key={line.name} line={line} />
+          ))}
+        </ul>
+      ) : reading ? (
+        <p class="usage-total mini-none" data-testid="usage-machines-reading">
+          {W.usageMachinesReading}
+        </p>
+      ) : null}
     </section>
   );
 }

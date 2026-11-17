@@ -341,8 +341,8 @@ test("no row is untitled: work nothing names is not listed, no line counts it, a
   expect(model.counts.stopped).toBe(model.running.sections[0].rows.length);
 });
 
-// lina-app#156, #222: a title with a product's name, an abbreviation, a file name or an English sentence is not drawn in
-// any state. A stopped card nothing names still is a row; a finished one is never cut (lina-app#231).
+// lina-app#156, #222: a title with a file name or an English sentence is not drawn in any state. A stopped card nothing
+// names still is a row; a finished one is never cut (lina-app#231), and keeps a product name as written.
 // lina-app#225: a stopped, planned or running card's title is read by the row title rule (workTitle): a product name or an
 // abbreviation stays, a path or a run of three Latin words does not; then its Hangul words, then its kind of work.
 test("a stopped or running card's title keeps a product name, a finished card's is drawn whole or not at all, and no card reads 제목 없음 (lina-app#156, #225, #231)", () => {
@@ -362,7 +362,7 @@ test("a stopped or running card's title keeps a product name, a finished card's 
   expect(model.cards.get("k-latin")).toMatchObject({ title: null, name: KIND_TITLE.code });
   expect(model.running.sections[0].rows.map((row) => row.id).sort()).toEqual(["k-latin", "k-path", "k-push"]);
   expect(model.counts.stopped).toBe(3);
-  expect(model.cards.get("k-done")?.title).toBeNull();
+  expect(model.cards.get("k-done")?.title).toBe("AAS 회차 점검 마무리");
   expect(model.cards.get("k-running")?.title).toBe("qveris 일시 오류 정리");
   // An English sentence is not drawn; a finished card still is one of 완료's lines (lina-app#196), counted in its grey
   // line, never cut down to its Hangul words (lina-app#231).

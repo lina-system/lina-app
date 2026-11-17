@@ -2,7 +2,7 @@ import { fireEvent, render, waitFor, within } from "@testing-library/preact";
 import { afterEach, expect, test, vi } from "vitest";
 import { App } from "./app";
 import { Store } from "./data/store";
-import { ROUND22_CONDITION, ROUND22_HOLES, ROUND22_WHOLE, SyntheticSource } from "./data/synthetic-source";
+import { ROUND22_CONDITION, ROUND22_HOLES, ROUND22_LATIN, ROUND22_WHOLE, SyntheticSource } from "./data/synthetic-source";
 import { W } from "./words";
 
 // lina-app#231 (QA round 22, the real hub): finished titles drawn with a hole where a word was cut. The cards here have
@@ -60,11 +60,13 @@ for (const wide of [true, false]) {
       if (row.sub !== null) expect(written.has(row.sub), row.sub).toBe(true);
     }
     for (const [, drawn] of ROUND22_WHOLE) expect(rows.some((row) => row.title === drawn)).toBe(true);
+    // A Latin word is no cut: the shapes a cut one left a hole in are drawn as written.
+    for (const title of ROUND22_LATIN) expect(rows.some((row) => row.title === title), title).toBe(true);
     // The hole shapes are the grey line's cards and none of them is drawn.
     const grey = rows.filter((row) => row.grey);
     expect(grey).toHaveLength(1);
     expect(grey[0].cards).toBe(ROUND22_HOLES.length);
-    expect(rows.some((row) => /\(\s*\)|\(\d+\)|@|^[·,]|^(용|을|를)\s/.test(row.title))).toBe(false);
+    expect(rows.some((row) => !ROUND22_LATIN.includes(row.title) && /\(\s*\)|\(\d+\)|@|^[·,]|^(용|을|를)\s/.test(row.title))).toBe(false);
     expect(view.container.textContent).not.toContain(W.untitled);
   });
 

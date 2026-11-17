@@ -60,24 +60,41 @@ test("a row's second line wraps to at most two lines at 390, and a stopped row's
   }
 });
 
-test("the bell's badge leaves the bell readable on every tab at 390, also with a two-digit count (lina-app#152)", async ({ page }) => {
-  for (const tab of ["tab-work", "tab-talk", "tab-status"]) {
-    await page.goto(APP);
-    await page.getByTestId(tab).click();
-    const bell = page.getByTestId("bell");
-    await expect(bell.getByTestId("bell-count")).toBeVisible();
-    await bell.getByTestId("bell-count").evaluate((badge) => {
-      badge.textContent = "56";
-    });
-    const covered = await bell.evaluate((button) => {
-      const icon = button.querySelector("svg")?.getBoundingClientRect();
-      const badge = button.querySelector("[data-testid=bell-count]")?.getBoundingClientRect();
-      if (!icon || !badge) return 1;
-      const x = Math.max(0, Math.min(icon.right, badge.right) - Math.max(icon.left, badge.left));
-      const y = Math.max(0, Math.min(icon.bottom, badge.bottom) - Math.max(icon.top, badge.top));
-      return (x * y) / (icon.width * icon.height);
-    });
-    expect(covered, tab).toBeLessThanOrEqual(0.2);
+// lina-app#232: the badge never covers the bell's centre, nor stands with its own centre on the icon, at 1280 and 390,
+// light and dark; it starts at the icon's right edge and covers none of it (lina-app#242).
+test("the bell's badge leaves the bell readable on every tab at 1280 and 390, light and dark, also with a two-digit count (lina-app#152, #232)", async ({ page }, info) => {
+  test.skip(info.project.name !== "wide", "one pass resizes between widths and schemes");
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: width > 390 ? 800 : 844 });
+      for (const tab of ["tab-work", "tab-talk", "tab-status"]) {
+        const where = `${colorScheme} ${width} ${tab}`;
+        await page.goto(APP);
+        await page.getByTestId(tab).click();
+        const bell = page.getByTestId("bell");
+        await expect(bell.getByTestId("bell-count")).toBeVisible();
+        for (const count of [null, "56"]) {
+          if (count) await bell.getByTestId("bell-count").evaluate((badge, text) => (badge.textContent = text), count);
+          const { icon, badge } = await bell.evaluate((button) => {
+            const box = (element: Element | null) => {
+              const { left, top, right, bottom } = element!.getBoundingClientRect();
+              return { left, top, right, bottom };
+            };
+            return { icon: box(button.querySelector("svg")), badge: box(button.querySelector("[data-testid=bell-count]")) };
+          });
+          const inside = (x: number, y: number, box: typeof icon) => x > box.left && x < box.right && y > box.top && y < box.bottom;
+          const centre = (box: typeof icon) => [(box.left + box.right) / 2, (box.top + box.bottom) / 2] as const;
+          const message = `${where} count ${count ?? "as drawn"}: icon ${JSON.stringify(icon)} badge ${JSON.stringify(badge)}`;
+          expect(inside(...centre(icon), badge), message).toBe(false);
+          expect(inside(...centre(badge), icon), message).toBe(false);
+          const x = Math.max(0, Math.min(icon.right, badge.right) - Math.max(icon.left, badge.left));
+          const y = Math.max(0, Math.min(icon.bottom, badge.bottom) - Math.max(icon.top, badge.top));
+          expect(x * y, message).toBeLessThanOrEqual(1);
+          if (count) console.log(`bell ${message}`);
+        }
+      }
+    }
   }
 });
 

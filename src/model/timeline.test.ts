@@ -319,3 +319,40 @@ test("the same comment line again in one card is one line with its count, at its
     [400, null, 1, 2],
   ]);
 });
+
+// PR #260 review: a record's own comments are the owner's words (a verdict note, a cancel reason; board-client.yaml),
+// never a bot's result. An owner's note after a round ended is not that round's line, whichever run holds it.
+test("an owner's comment in a record is never read as a round's result", () => {
+  const record = {
+    at: 2000,
+    cardId: "k-1",
+    id: "wa",
+    errors: [],
+    model: null,
+    settingsRevision: null,
+    comments: [{ at: 1050, kind: "comment", text: "Playwright 검사를 통과했다.", count: 1 }],
+    rounds: [round({ run: 1, startedAt: 900, endedAt: 1000, endKnown: true })],
+  } as unknown as RunRecord;
+  const blocks = timelineBlocks([{ id: "wa", record }], () => false, 3000);
+  expect(blocks.flatMap((block) => (block.type === "round" ? [[block.at, block.result]] : []))).toEqual([[1000, null]]);
+});
+
+// PR #260 review: two rounds of one worker run. A card comment made between them, after the first ended and before the
+// second began, is the first round's: the second's end-relative window must not take it.
+test("a note made before a round began is not read by that round, only by the one it followed (PR #260)", () => {
+  const record = {
+    at: 2000,
+    cardId: "k-1",
+    id: "w1",
+    errors: [],
+    model: null,
+    settingsRevision: null,
+    comments: [],
+    rounds: [round({ run: 2, startedAt: 1080, endedAt: 1100, endKnown: true }), round({ run: 1, startedAt: 900, endedAt: 1000, endKnown: true })],
+  } as unknown as RunRecord;
+  const blocks = timelineBlocks([{ id: "w1", record }], () => false, 3000, [{ at: 1050, text: "가짜 검사를 통과했다." }]);
+  expect(blocks.flatMap((block) => (block.type === "round" ? [[block.n, block.at, block.result]] : []))).toEqual([
+    [2, 1100, null],
+    [1, 1000, "가짜 검사를 통과했다."],
+  ]);
+});

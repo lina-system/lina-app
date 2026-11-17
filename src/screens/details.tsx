@@ -2,12 +2,12 @@ import { Fragment, type ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, RecordRow, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
-import { cardTitle, doneFor, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, runRow, todoState, wholeTitle, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
+import { doneFor, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, ownTitle, runRow, todoState, wholeTitle, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
 import { foldReason, wholeText } from "../model/fold";
 import { plainText } from "../model/plain";
 import { holds } from "../model/rounds";
 import { stopReason } from "../model/stop-reason";
-import { answerOf, commentHistory, decisionHistory, goalHistory, historyLines, isMachineNotice, outcomeOf, ownerWrote } from "../model/timeline";
+import { answerOf, commentHistory, decisionHistory, goalHistory, historyLines, isMachineNotice, outcomeOf, ownerWrote, roundSentence, type RoundNote } from "../model/timeline";
 import type { CardKind } from "../model/kind";
 import { isRunId, newestFirst, type Store } from "../data/store";
 import { back, baseOf, href, isFrame, navigate, parse, tabOf, type Route } from "../router";
@@ -609,20 +609,24 @@ export function roundHead(round: Round, now: number): string {
   return [span, state].filter(Boolean).join(SEP);
 }
 
-/** A round's own line as history reads it, whole or not at all (wholeText, lina-app#157, #236). */
-function roundLine(line: string): string | null {
-  return wholeText(line);
+/**
+ * Each round's own line as history reads it, newest first (lina-app#157, #236, criterion 2): its line whole (wholeText),
+ * else the one sentence it or the bots' notes made as it ended read (roundSentence), else none.
+ */
+function roundLines(rounds: readonly Round[], notes: readonly RoundNote[]): Map<Round, string | null> {
+  const used = new Set<string>();
+  return new Map(rounds.map((round) => [round, (round.line === null ? null : wholeText(round.line)) ?? roundSentence({ result: round.line, said: [], start: round.startedAt, end: round.endedAt }, notes, used)]));
 }
 
 /**
  * The rounds in order, each run of rounds whose own line may not show gathered into one group (lina-app#161): it is one
  * 이전 기록 N건 row, not one row per round.
  */
-function roundGroups(rounds: readonly Round[]): (Round | Round[])[] {
+function roundGroups(rounds: readonly Round[], lines: Map<Round, string | null>): (Round | Round[])[] {
   const groups: (Round | Round[])[] = [];
   for (const round of rounds) {
     const last = groups.at(-1);
-    if (round.line === null || roundLine(round.line) !== null) groups.push(round);
+    if (round.line === null || lines.get(round)) groups.push(round);
     else if (Array.isArray(last)) last.push(round);
     else groups.push([round]);
   }
@@ -939,12 +943,31 @@ function runName(model: Model, run: ItemDetail["runs"][number]): string {
   return owner || foldReason(run.title) ? workerTitle(model, owner) : run.title;
 }
 
+/** The round of its card a worker run the board does not list was, once the card's detail is read. */
+function workerRound(model: Model, store: Store, runId: string): Round | undefined {
+  const owner = model.runOwner.get(runId);
+  const detail = owner ? store.get("card", owner) : undefined;
+  return detail ? workerRounds(detail).rounds.find((round) => round.workers.includes(runId)) : undefined;
+}
+
 /** Whether a worker run still goes: its own state, or for a run the board does not list, its card's. */
 function runLive(model: Model, runId: string): boolean {
   const run = model.runs.get(runId);
   if (run) return run.state === "in_progress";
   const owner = model.runOwner.get(runId);
   return owner ? model.cards.get(owner)?.state === "in_progress" : false;
+}
+
+/**
+ * The state word of a worker run, its own end and not its card's state (lina-app#61): going while it beats, and for a run
+ * the board does not list only while its own round has no end (a running card's earlier runs ended with their rounds),
+ * else how its round ended.
+ */
+function workerState(model: Model, store: Store, runId: string): string {
+  const round = workerRound(model, store, runId);
+  if (runLive(model, runId) && (model.runs.has(runId) || !round || round.endedAt === null)) return STATE_WORD.in_progress;
+  if (!round) return RUN_LINE_WORD.noResult;
+  return round.endedAt !== null ? W.outcome.ended : STATE_WORD.stopped;
 }
 
 export function CardScreen({ id }: { id: string }) {
@@ -954,9 +977,12 @@ export function CardScreen({ id }: { id: string }) {
   const drawn = useRef<string | null>(null);
   const detail = store.get("card", id);
   const row = model.cards.get(id);
-  // The work tab's row of the card: one of several under one goal leads with its own name (lina-app#242), so the head
-  // reads that name and its goal's title is the 목표 line under it.
-  const listed = [...model.running.rows, ...model.home.planned.rows, ...model.home.waiting.rows].find((card) => card.id === id);
+  // The work tab's row of the card: one of several under one title, in its group or another, leads with its own name
+  // (lina-app#242), so the head reads that name and its goal's title is the 목표 line under it. A finished card reads
+  // the 완료 line it stands in.
+  const listed =
+    [...model.running.rows, ...model.home.planned.rows, ...model.home.waiting.rows, ...model.home.review.rows.flatMap((each) => (each.type === "review" ? [each.card] : []))].find((card) => card.id === id) ??
+    model.home.finished.rows.find((line) => line.title !== null && (line.fold ?? [line]).some((card) => card.id === id));
   const led = listed && listed.title !== null && listed.name !== listed.title ? { name: listed.name, goal: listed.title } : null;
   if (!detail) {
     if (store.status("card", id) === "missing") return <Missing />;
@@ -1004,13 +1030,7 @@ export function CardScreen({ id }: { id: string }) {
   const filling = pending && [...landed].some((runId) => Boolean(store.get("record", runId)?.rounds.length));
   const reading = pending && !filling;
   if (!pending) drawn.current = id;
-  // The state word of a worker run the board does not list: going while it beats, else how its round ended.
-  const workerState = (runId: string) => {
-    if (runLive(model, runId)) return STATE_WORD.in_progress;
-    const round = rounds.find((candidate) => candidate.workers.includes(runId));
-    if (!round) return RUN_LINE_WORD.noResult;
-    return round.endedAt !== null ? W.outcome.ended : STATE_WORD.stopped;
-  };
+  const workerStateOf = (runId: string) => workerState(model, store, runId);
   const seen = (runId: string) => workerRuns.find((worker) => worker.id === runId)?.firstSeenAt ?? null;
   // A stop that waits on the owner's answer has the place to answer right here (lina-app#142).
   const ask = row ? stopReason(row).ask : undefined;
@@ -1030,8 +1050,8 @@ export function CardScreen({ id }: { id: string }) {
   // An old done card the core keeps no history for (`detail: false`) says so instead of an empty frame.
   const kept = store.get("cards")?.cards.find((card) => card.id === id)?.detail !== false;
   // The head reads the name of the row that was tapped (its goal's title when the row leads with it); the card's own
-  // title is the line under it when it differs (lina-app#153).
-  const own = cardTitle(detail.plain.title, detail.title, detail.state === "stopped") ?? row?.own ?? null;
+  // title is the line under it when it differs (lina-app#153), read by its row's rule (ownTitle).
+  const own = ownTitle(detail) ?? row?.own ?? null;
   // A card opened by its address before the list holds its row: its name is the row's, so the head reads 불러오는 중 until
   // the list is read, never 제목 없음 (lina-app#253), which stays for a card the board does not know. A list read that
   // failed is no read out: the head reads its goal's title first, as its row would (lina-app#122, #258), then the
@@ -1046,8 +1066,12 @@ export function CardScreen({ id }: { id: string }) {
   // One 댓글 section (lina-app#174): the card's comments box also holds the comments between rounds that only its worker
   // runs' record has, once each; one the card holds (a machine notice it leaves out too) is never drawn again.
   const records = workerRuns.flatMap((worker) => store.get("record", worker.id)?.comments ?? []);
-  const commentLines = cardCommentLines(detail.comments, records, store.get("items")?.owner?.id);
+  const ownerId = store.get("items")?.owner?.id;
+  const commentLines = cardCommentLines(detail.comments, records, ownerId);
   const recordFailed = workerRuns.some((worker) => store.status("record", worker.id) === "failed");
+  // The bots' comments on the card, which a closed round's line may read its sentence from (criterion 2).
+  const notes: RoundNote[] = detail.comments.filter((comment) => !ownerWrote(comment.author, ownerId) && !isMachineNotice(comment.body, comment.author, ownerId)).map((comment) => ({ at: comment.createdAt, text: comment.body }));
+  const lines = roundLines(rounds, notes);
   const foldLine = model.home.finished.rows.find((line) => line.fold?.some((card) => card.id === id));
   const fold = foldLine?.fold;
   const askHere = Boolean(ask && !readOnly && !everyQuestion.length && !answering(`answer:${id}`));
@@ -1128,6 +1152,7 @@ export function CardScreen({ id }: { id: string }) {
           <Timeline
             runs={workerRuns.map((worker) => worker.id).filter((runId) => !pending || landed.has(runId))}
             boxed
+            notes={notes}
             live={(runId) => runLive(model, runId)}
             link={(runId, n, at) => workerLink(roundRun(runId, n, at))}
             modelRun={roundRun}
@@ -1136,19 +1161,19 @@ export function CardScreen({ id }: { id: string }) {
                 <Box title={recordFailed ? undefined : W.record} testid="worker-runs">
                   {/* A round's own line is its content, its ids cut; rounds whose line would show a path or a command are no
                       comment: each run of them is one folded 이전 기록 N건 row, their worker runs inside (lina-app#157, #161). */}
-                  {roundGroups(rounds).map((group) =>
+                  {roundGroups(rounds, lines).map((group) =>
                     Array.isArray(group) ? (
                       <details key={`fold:${group[0].n}`} class="round-fold" data-testid="round-fold">
                         <summary class="round-head">{DETAIL_WORD.earlierRecords(group.length)}</summary>
                         {group.map((round) => (
-                          <RoundSection key={round.n} round={round} line={null} workers={round.workers.length ? <WorkerRows ids={round.workers} model={model} seen={seen} state={workerState} link={workerLink} /> : null} />
+                          <RoundSection key={round.n} round={round} line={null} workers={round.workers.length ? <WorkerRows ids={round.workers} model={model} seen={seen} state={workerStateOf} link={workerLink} /> : null} />
                         ))}
                       </details>
                     ) : (
-                      <RoundSection key={group.n} round={group} line={group.line} workers={group.workers.length ? <WorkerRows ids={group.workers} model={model} seen={seen} state={workerState} link={workerLink} /> : null} />
+                      <RoundSection key={group.n} round={group} line={lines.get(group) ?? null} workers={group.workers.length ? <WorkerRows ids={group.workers} model={model} seen={seen} state={workerStateOf} link={workerLink} /> : null} />
                     ),
                   )}
-                  {outside.length ? <WorkerRows ids={outside} model={model} seen={seen} state={workerState} link={workerLink} /> : null}
+                  {outside.length ? <WorkerRows ids={outside} model={model} seen={seen} state={workerStateOf} link={workerLink} /> : null}
                 </Box>
               ) : null
             }
@@ -1168,7 +1193,7 @@ function RoundSection({ round, line, workers }: { round: Round; line: string | n
       <h3 class="round-head">{roundHead(round, now)}</h3>
       {line ? (
         <p class="round-line" data-testid="round-line">
-          {roundLine(line)}
+          {line}
         </p>
       ) : null}
       {workers}
@@ -1196,7 +1221,11 @@ function CardRunScreen({ id, cardId, cardLoading = false }: { id: string; cardId
     );
   const newest = store.get("record", id)?.rounds[0];
   const live = runLive(model, id);
-  const state = newest ? W.outcome[outcomeOf(newest, true, live, now)] : live ? STATE_WORD.in_progress : null;
+  // Its own end, never its card's state (lina-app#61): its record's newest round, else the round of its card it was.
+  const cardRead = cardId ? store.get("card", cardId) : undefined;
+  const state = newest ? W.outcome[outcomeOf(newest, true, live, now)] : cardRead ? workerState(model, store, id) : live ? STATE_WORD.in_progress : null;
+  // A run the core keeps no record for says so in one line, however its page was opened (lina-app#110).
+  const unread = store.status("record", id) === "missing";
   return (
     <article class="detail" data-testid="screen-run">
       <CardHead work="code" title={title} untitled={untitled}>
@@ -1214,7 +1243,13 @@ function CardRunScreen({ id, cardId, cardLoading = false }: { id: string; cardId
           </ul>
         </Box>
       ) : null}
-      <Timeline runs={[id]} live={(runId) => runLive(model, runId)} />
+      {unread ? (
+        <p class="write-error" role="alert" data-testid="timeline-error">
+          {W.readFailed(W.record)}
+        </p>
+      ) : (
+        <Timeline runs={[id]} live={(runId) => runLive(model, runId)} />
+      )}
     </article>
   );
 }

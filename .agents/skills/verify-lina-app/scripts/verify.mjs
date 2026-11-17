@@ -1739,17 +1739,19 @@ const drivers = {
       await openApp(page, "#/cards/k-102");
       const detail = page.getByTestId("screen-card");
       await detail.waitFor();
-      // The head reads the row's name (its goal) and the card's own title is the line under it (lina-app#153).
+      // The head reads the row's name: its own, for its goal's title is a 완료 line on the work tab, and the goal is the line
+      // under it; no second line repeats the own title (lina-app#153, #242).
       await detail.getByTestId("detail-loading").waitFor({ state: "detached", timeout: 10_000 }).catch(() => null);
       const head = (await detail.locator(".detail-title").innerText()).trim();
-      check(head === "결제 화면 개편", "the card head reads " + head);
-      const own = (await detail.getByTestId("card-own-title").innerText()).trim();
-      check(own === "위키: 결제 화면 문서 정리", "the card's own title line reads " + own);
+      check(head === "위키: 결제 화면 문서 정리", "the card head reads " + head);
+      check((await detail.getByTestId("card-own-title").count()) === 0, "the card draws its own title again under a head that reads it");
+      const goal = (await detail.getByTestId("card-goal").innerText()).trim();
+      check(goal.includes("결제 화면 개편"), "the card's goal line reads " + goal);
       check((await detail.locator(".detail-title.is-kind").count()) === 0, "the head shows a kind word instead of the title");
       const kind = (await detail.getByTestId("kind").innerText()).trim();
       check(kind === "문서", "the kind reads " + kind);
       check((await detail.getByTestId("card-now").count()) === 0, "the card shows a now line");
-      return head + " / " + own + "; " + kind + "; no now line";
+      return head + " / " + goal + "; " + kind + "; no now line";
     });
     await step("a worker record's comment rows have no author: they read through the one gate, never as saved, whole or folded (lina-app#230, #236)", async () => {
       // k-102's record (r2) holds an agent's English verdict note and a note the core cut inside a word at 300 characters.
@@ -1834,6 +1836,33 @@ const drivers = {
     // that opens what it holds, whole and as written, with its time and its author's name, without moving the detail's
     // scroll; 접기 closes it where it was. An ended round's said rows and report lines that do not stand whole fold the same
     // way, and a stop's reason is never cut: whole, three lines with 더 보기, or one folded line that opens.
+    await step("a card's worker run with no record reads one 읽기 실패: 기록 line, opened from its card or by its address (lina-app#110)", async () => {
+      const failed = async (from) => {
+        await page.getByTestId("screen-run").getByTestId("timeline-error").first().waitFor();
+        const lines = await page.getByTestId("screen-run").getByTestId("timeline-error").allInnerTexts();
+        check(lines.length === 1 && lines[0].trim() === "읽기 실패: 기록", from + " reads " + JSON.stringify(lines));
+      };
+      await openApp(page, "#/cards/k-104");
+      await page.getByTestId("worker-runs").getByRole("link").first().click();
+      await page.waitForURL(/#\/cards\/k-104\/runs\/1$/);
+      await failed("k-104's run line");
+      for (const card of ["k-103", "k-104", "k-105"]) {
+        await openApp(page, `#/cards/${card}/runs/1`);
+        await failed(`#/cards/${card}/runs/1`);
+      }
+      return "k-104 from its run line, k-103, k-104, k-105 by address: one 읽기 실패: 기록 line";
+    });
+    await step("a finished worker run of a running card reads its own end, not the card's state (lina-app#61)", async () => {
+      await openApp(page, "#/cards/k-101/runs/1");
+      await page.getByTestId("run-state").waitFor();
+      const ended = (await page.getByTestId("run-state").innerText()).trim();
+      check(ended === "완료", "r9 reads " + ended);
+      await openApp(page, "#/cards/k-101/runs/3");
+      await page.getByTestId("run-state").waitFor();
+      const going = (await page.getByTestId("run-state").innerText()).trim();
+      check(going === "진행 중", "r1 reads " + going);
+      return "k-101 runs/1 " + ended + ", runs/3 " + going;
+    });
     await step("on the hub's shape (&hub=round24), a folded comment line opens to each comment whole without moving the detail, and 접기 closes it where it was", async () => {
       await openApp(page, "#/cards/k-101", "&hub=round24");
       const box = page.getByTestId("card-comments");
@@ -2132,15 +2161,15 @@ const drivers = {
       await list.locator("summary").first().click();
       const accounts = await list.getByTestId("account").evaluateAll((rows) => rows.filter((row) => row.checkVisibility()).map((row) => ({ name: row.getAttribute("aria-label"), bar: Boolean(row.querySelector(".meter")), word: row.querySelector(".sub .warn-mark")?.textContent ?? null, colour: row.querySelector(".sub .warn-mark") ? getComputedStyle(row.querySelector(".sub .warn-mark")).color : null })));
       // The service row's percent, never "left": one convention in the panel.
-      check(accounts.length === 2 && /^계정 1 · \d+% · 시간당 \+\d+% · \d+(분|시간|일) 후(?: · 주의)?$/.test(accounts[0].name), "Claude's live account reads " + accounts[0].name);
+      check(accounts.length === 2 && /^계정 1 · \d+% · 시간당 \+\d+% · \d+(분|시간|일) 후 초기화(?: · 주의)?$/.test(accounts[0].name), "Claude's live account reads " + accounts[0].name);
       check(!accounts[0].name.includes("남음"), "the account still reads what is left: " + accounts[0].name);
-      // OCX cannot read this one, so it says only that: no rate, no reset and no bar, in the warning colour.
+      // OCX cannot read this one, so it says only that: no rate, no reset and no bar, in red.
       check(accounts[1].name === "계정 2 · 다시 로그인 필요" && accounts[1].word === "다시 로그인 필요" && accounts[1].colour === "rgb(255, 59, 48)" && !accounts[1].bar, "the account to sign in again reads " + JSON.stringify(accounts[1]));
       // A paused account keeps its reset, drops its rate and its bar stays only about the window.
       await list.locator("summary").nth(2).click();
       const paused = await list.getByTestId("account").evaluateAll((rows) => rows.filter((row) => row.checkVisibility()).map((row) => ({ name: row.getAttribute("aria-label"), rate: row.textContent.includes("시간당") })));
       const pausedRow = paused.find((row) => row.name.includes("일시 중지"));
-      check(pausedRow && /^계정 \d · 일시 중지 · \d+(분|시간|일) 후$/.test(pausedRow.name) && !pausedRow.rate, "the paused account reads " + JSON.stringify(pausedRow));
+      check(pausedRow && /^계정 \d · 일시 중지 · \d+(분|시간|일) 후 초기화$/.test(pausedRow.name) && !pausedRow.rate, "the paused account reads " + JSON.stringify(pausedRow));
       return names.join(" | ") + "; " + plain.join(" | ") + "; Claude: " + accounts.map((row) => row.name).join(" | ") + "; " + pausedRow.name;
     });
     await step("주의 follows the rule over the accounts that are not paused, resets read hours under a day and days over, no rate means no rate part", async () => {
@@ -2153,7 +2182,7 @@ const drivers = {
         check(reaches === rows[index].warn, rows[index].name + " shows 주의=" + rows[index].warn + " but its rate reaches 100% before reset=" + reaches);
         const reset = Math.min(...live.map((account) => main(account).resetAt)) - scene.at;
         const word = rows[index].sub.split(" · ").at(-1);
-        check(reset < 86400 ? /^\d+시간 후$/.test(word) : /^\d+일 후$/.test(word), rows[index].name + " resets in " + Math.round(reset) + " s but reads " + word);
+        check(reset < 86400 ? /^\d+시간 후 초기화$/.test(word) : /^\d+일 후 초기화$/.test(word), rows[index].name + " resets in " + Math.round(reset) + " s but reads " + word);
         check(!/ · {2}| · $|^ · | ·  · /.test(rows[index].sub) && rows[index].sub.split(" · ").every(Boolean), rows[index].name + " has a gap: " + rows[index].sub);
         if (service.ratePerHour === null) check(!rows[index].sub.includes("시간당"), rows[index].name + " has no rate but reads " + rows[index].sub);
       }
@@ -3766,12 +3795,14 @@ const drivers = {
       await settled(page);
       const detail = page.getByTestId("screen-card");
       await detail.waitFor();
-      // The head reads the name of the row that was tapped; the card's own title is the line under it (lina-app#153).
+      // The head reads the name of the row that was tapped: its own, for its goal's title is a 완료 line, and the goal is the
+      // line under it (lina-app#153, #242).
       await detail.getByTestId("detail-loading").waitFor({ state: "detached", timeout: 10_000 }).catch(() => null);
       const head = (await detail.locator(".detail-title").innerText()).trim();
-      check(head === "결제 화면 개편", "the detail is named " + head);
-      const own = (await detail.getByTestId("card-own-title").innerText()).trim();
-      check(own === "위키: 결제 화면 문서 정리", "the detail's own title line reads " + own);
+      check(head === "위키: 결제 화면 문서 정리", "the detail is named " + head);
+      check((await detail.getByTestId("card-own-title").count()) === 0, "the detail draws its own title again under a head that reads it");
+      const goal = (await detail.getByTestId("card-goal").innerText()).trim();
+      check(goal.includes("결제 화면 개편"), "the detail's goal line reads " + goal);
       check((await detail.locator(".detail-title.is-kind").count()) === 0, "the detail draws a kind word in place of its title");
       const kind = (await detail.getByTestId("kind").innerText()).trim();
       check(kind === "문서", "the kind reads " + kind);

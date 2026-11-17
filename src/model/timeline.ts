@@ -1,6 +1,6 @@
 import type { ItemDetail, RecordRound, RecordRow, RunRecord } from "../api/client";
 import { STATE_WORD, stateLabel, W } from "../words";
-import { STATE_ONLY, wholeText } from "./fold";
+import { historySentences, STATE_ONLY, wholeText } from "./fold";
 import { holds } from "./rounds";
 
 /** Who writes machine notices on a card (the dispatcher's and the worker's receipts): never a history line. */
@@ -165,12 +165,36 @@ export type TimelineBlock =
       readonly outcome: Outcome;
       /** Its rows, newest first: a report line that does not stand whole is a folded row of its own at the round's end. */
       readonly rows: readonly TimelineRow[];
-      /** The round's report line when it stands whole (wholeText); never on a round still going. */
+      /** The round's report line when it stands whole (wholeText), else the one sentence its line reads (roundSentence); never on a round still going. */
       readonly result: string | null;
       /** How many rounds of this outcome with nothing else in them, one after another, the block stands for (`×n`, lina-app#236). */
       readonly count: number;
     }
   | { readonly type: "comment"; readonly key: string; readonly at: number; readonly rows: readonly TimelineRow[] };
+
+/** A bot's comment on the card made as a round ended (criterion 2). A record's own comments are the owner's words (a verdict note, a cancel reason; board-client.yaml) and are never one. */
+export interface RoundNote {
+  readonly at: number;
+  readonly text: string;
+}
+
+/** How long after a round's end a note still speaks of it. */
+const NOTE_AFTER = 30 * 60;
+
+/**
+ * The one sentence a closed round's line reads when its report line does not stand whole (criterion 2): the first whole
+ * sentence that says what came of it (historySentences) and that no newer round reads (`used`, filled newest first):
+ * its report line's, then its said rows' (tails the core kept of longer texts), then those of the notes made from a
+ * minute before its end (never before its own start) to half an hour after it, oldest first: a comment on the card. Null when none stands: the line reads its outcome alone.
+ */
+export function roundSentence(round: { readonly result: string | null; readonly said: readonly (string | null)[]; readonly start?: number | null; readonly end: number | null }, notes: readonly RoundNote[], used: Set<string>): string | null {
+  const end = round.end;
+  const near = end === null ? [] : notes.filter((note) => note.at >= Math.max(end - 60, round.start ?? Number.NEGATIVE_INFINITY) && note.at <= end + NOTE_AFTER).sort((a, b) => a.at - b.at);
+  const sentences = [...historySentences(round.result), ...round.said.flatMap((text) => historySentences(text, { opens: true, ends: true })), ...near.flatMap((note) => historySentences(note.text))];
+  const sentence = sentences.find((each) => !used.has(each)) ?? null;
+  if (sentence) used.add(sentence);
+  return sentence;
+}
 
 /**
  * One round's word. A verdict first (검토 통과, 검토 반려), then its own end (작업 중단, 작업 마침); a round with no
@@ -189,9 +213,9 @@ export function outcomeOf(round: RecordRound, newest: boolean, live: boolean, no
 /**
  * The timeline of one or more worker runs' records: one block per round and one per run of comments made while no
  * round was going, newest first, their rows newest first too. `live` says whether a run is still going (its own state, or its card's for a run the
- * board does not list).
+ * board does not list). `notes` are the bots' comments on the card, which a closed round's line may read (roundSentence).
  */
-export function timelineBlocks(records: readonly { readonly id: string; readonly record: RunRecord }[], live: (runId: string) => boolean, now: number): TimelineBlock[] {
+export function timelineBlocks(records: readonly { readonly id: string; readonly record: RunRecord }[], live: (runId: string) => boolean, now: number, notes: readonly RoundNote[] = []): TimelineBlock[] {
   // A machine notice is no row; rows read newest first, as every history (lina-app#149).
   const shown = <R extends RecordRow>(rows: readonly R[]) => rows.filter((row) => row.kind !== "comment" || !isMachineNotice(row.text)).sort((a, b) => b.at - a.at);
   // A comment row (an agent's note the core cut at 300 characters) and a going round's said row (what its worker says
@@ -200,6 +224,8 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
   const gated = (rows: readonly RecordRow[], ended = false): TimelineRow[] =>
     shown(rows).map((row) => (row.kind === "tools" ? { ...row, source: null } : { ...row, text: ended && row.kind === "said" ? null : wholeText(row.text), source: row.text }));
   const blocks: TimelineBlock[] = [];
+  // What a closed round whose report line does not stand whole left to read its sentence from.
+  const sources = new Map<TimelineBlock, Parameters<typeof roundSentence>[0]>();
   // A card's worker runs may each serve the card's one record: a round or a comment read twice is drawn once
   // (lina-app#153).
   const seen = new Set<string>();
@@ -214,7 +240,7 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
       const result = outcome === "going" ? null : wholeText(round.result);
       // A report line that does not stand whole is folded at the round's end, never lost (lina-app#241).
       const unread: TimelineRow[] = outcome !== "going" && result === null && round.result?.trim() ? [{ at, kind: "said", text: null, count: 1, source: round.result }] : [];
-      blocks.push({
+      const block: TimelineBlock = {
         type: "round",
         key: `${id}:${round.run ?? "x"}:${round.startedAt ?? round.endedAt ?? 0}`,
         runId: id,
@@ -227,7 +253,9 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
         rows: shown([...unread, ...gated(round.rows, outcome !== "going")]),
         result,
         count: 1,
-      });
+      };
+      blocks.push(block);
+      if (outcome !== "going" && result === null) sources.set(block, { result: round.result, said: round.rows.filter((row) => row.kind === "said").map((row) => row.text), start: round.startedAt, end: round.endedAt ?? round.startedAt });
     });
     for (const comment of gated(record.comments)) if (first(`comment:${comment.at}:${comment.source}`)) blocks.push({ type: "comment", key: `${id}:c:${comment.at}`, at: comment.at, rows: [comment] });
   }
@@ -235,7 +263,13 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
   // of the round before it is that round's line, counted (lina-app#153, #236: `검토 통과 ×n` at the newest time); what it
   // folds joins that round's rows, so its folded line holds it (lina-app#241).
   const merged: TimelineBlock[] = [];
-  for (const block of blocks.sort((a, b) => b.at - a.at)) {
+  const used = new Set<string>();
+  const read = blocks.sort((a, b) => b.at - a.at).map((block) => {
+    const source = sources.get(block);
+    const sentence = source ? roundSentence(source, notes, used) : null;
+    return sentence && block.type === "round" ? { ...block, result: sentence } : block;
+  });
+  for (const block of read) {
     const last = merged.at(-1);
     const nothingDrawn = block.rows.every((row) => row.text === null && row.kind !== "tools");
     if (block.type === "comment" && last?.type === "comment") merged[merged.length - 1] = { ...last, rows: shown([...last.rows, ...block.rows]) };

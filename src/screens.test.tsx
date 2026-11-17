@@ -330,13 +330,13 @@ describe("machines, quota and checks", () => {
     const services = [...list.querySelectorAll(":scope > .quota-row")];
     expect(services.map((row) => row.querySelector("summary .title")?.textContent)).toEqual(["Claude", "ChatGPT", "가온셈"]);
     const labels = services.map((row) => row.querySelector("summary")?.getAttribute("aria-label") ?? "");
-    expect(labels).toEqual(["Claude · 72% · 시간당 +1% · 3일 후 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후", "가온셈 · 5% · 12일 후"]);
-    expect(services.map((row) => row.querySelector("summary .sub")?.textContent)).toEqual(["72% · 시간당 +1% · 3일 후", "31% · 시간당 +1% · 2일 후", "5% · 12일 후"]);
+    expect(labels).toEqual(["Claude · 72% · 시간당 +1% · 3일 후 초기화 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후 초기화", "가온셈 · 5% · 12일 후 초기화"]);
+    expect(services.map((row) => row.querySelector("summary .sub")?.textContent)).toEqual(["72% · 시간당 +1% · 3일 후 초기화", "31% · 시간당 +1% · 2일 후 초기화", "5% · 12일 후 초기화"]);
     expect(services.map((row) => (row.querySelector("details") as HTMLDetailsElement).open)).toEqual([false, false, false]);
     expect(services.map((row) => row.querySelectorAll("[data-testid=account]").length)).toEqual([2, 1, 2]);
     // One convention, the service row's: the percent used, never "left".
-    expect(services[0].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 72% · 시간당 +1% · 3일 후 · 주의");
-    expect(services[2].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 5% · 12일 후");
+    expect(services[0].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 72% · 시간당 +1% · 3일 후 초기화 · 주의");
+    expect(services[2].querySelector("[data-testid=account]")?.getAttribute("aria-label")).toBe("계정 1 · 5% · 12일 후 초기화");
     expect(services[0].querySelector(".rate")?.getAttribute("title")).toBe("최근 5시간 평균");
     expect(services.filter((row) => row.querySelector("summary .warn-mark"))).toHaveLength(1);
   });
@@ -397,7 +397,7 @@ describe("usage, OCX and the accounts' quota", () => {
     const view = await open("#/status", { wide: true });
     const list = view.getByRole("list", { name: "쿼터" });
     const rows = [...list.querySelectorAll(":scope > li")].map((row) => row.querySelector(".row-body")?.getAttribute("aria-label") ?? row.querySelector("summary")?.getAttribute("aria-label"));
-    expect(rows).toEqual(["Claude · 72% · 시간당 +1% · 3일 후 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후", "가온셈 · 5% · 12일 후", "Cursor · 계정 없음", "모델 3개 켜짐 · 연결 끊김: 물레방아"]);
+    expect(rows).toEqual(["Claude · 72% · 시간당 +1% · 3일 후 초기화 · 주의", "ChatGPT · 31% · 시간당 +1% · 2일 후 초기화", "가온셈 · 5% · 12일 후 초기화", "Cursor · 계정 없음", "모델 3개 켜짐 · 연결 끊김: 물레방아"]);
     // Every one of them is a row of the list, with the row look: a title line and a 44 px minimum height.
     for (const row of list.querySelectorAll(":scope > li")) expect(row.querySelector(".title")).not.toBeNull();
     expect(view.getByTestId("quota-missing").textContent).toBe("Cursor · 계정 없음");
@@ -409,14 +409,14 @@ describe("usage, OCX and the accounts' quota", () => {
     const accounts = [...view.getByRole("list", { name: "쿼터" }).querySelectorAll("[data-testid=account]")];
     const labels = accounts.map((row) => row.getAttribute("aria-label"));
     expect(labels).toContain("계정 2 · 다시 로그인 필요");
-    expect(labels).toContain("계정 2 · 일시 중지 · 26일 후");
+    expect(labels).toContain("계정 2 · 일시 중지 · 26일 후 초기화");
     const reauth = accounts.find((row) => row.getAttribute("aria-label") === "계정 2 · 다시 로그인 필요") as HTMLElement;
     expect(reauth.querySelector(".sub .warn-mark")?.textContent).toBe("다시 로그인 필요");
     expect(reauth.querySelector(".meter")).toBeNull();
     expect(reauth.textContent).not.toMatch(/시간당|후$/);
-    const paused = accounts.find((row) => row.getAttribute("aria-label") === "계정 2 · 일시 중지 · 26일 후") as HTMLElement;
+    const paused = accounts.find((row) => row.getAttribute("aria-label") === "계정 2 · 일시 중지 · 26일 후 초기화") as HTMLElement;
     expect(paused.textContent).toContain("일시 중지");
-    expect(paused.textContent).toContain("26일 후");
+    expect(paused.textContent).toContain("26일 후 초기화");
     expect(paused.textContent).not.toContain("시간당");
   });
 
@@ -649,7 +649,7 @@ describe("freshness", () => {
         await vi.advanceTimersByTimeAsync(STREAM_TICK_MS * 3);
       });
       // The board was current until this read failed: a few seconds old, not 갱신 지연.
-      expect(view.getByTestId("freshness-line").textContent).toMatch(/^갱신 \d+초 전$/);
+      expect(view.getByTestId("freshness-line").textContent).toMatch(/^갱신 (?:방금|\d+초 전)$/);
       await act(async () => {
         await vi.advanceTimersByTimeAsync(31_000);
       });
@@ -828,6 +828,30 @@ describe("comments", () => {
     expect(field.value).toBe("다시");
     expect(view.queryByTestId("comment-pending")).toBeNull();
     expect(view.getAllByTestId("comment")).toHaveLength(2);
+  });
+
+  // lina-app#32: what the owner types while a refused comment is still out is theirs; the refused one comes back only
+  // into an empty field, as in the agent's own window.
+  test("a comment refused after the owner typed again keeps the new text in the field (lina-app#32)", async () => {
+    let answer: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (answer = resolve));
+    class HeldRefusal extends RefusingSource {
+      override async comment(id: string, body: { text: string }) {
+        await gate;
+        return super.comment(id, body);
+      }
+    }
+    const view = await open("#/items/T4", { wide: true, source: new HeldRefusal() });
+    const field = view.getByRole("textbox", { name: "댓글 달기" }) as HTMLInputElement;
+    field.value = "가짜 첫 댓글";
+    fireEvent.input(field);
+    fireEvent.submit(field.form as HTMLFormElement);
+    expect(field.value).toBe("");
+    field.value = "가짜 다음 댓글";
+    fireEvent.input(field);
+    answer();
+    await waitFor(() => expect(view.getByTestId("write-error").textContent).toBe("저장하지 못함 · 다시 시도"));
+    expect(field.value).toBe("가짜 다음 댓글");
   });
 
   test("a resolved thread folds to one line with its first words", async () => {
@@ -2341,6 +2365,33 @@ describe("talk", () => {
     expect(why()).toBe("답하는 중");
   });
 
+  // lina-app#32: the field cleared when the reply began, so what the owner typed while the request was out was lost.
+  // Only the sent message leaves the field.
+  test.each([
+    ["replaced", "가짜 다음 질문", "가짜 다음 질문"],
+    ["added to", "가짜 첫 질문\n가짜 덧붙인 줄", "가짜 덧붙인 줄"],
+  ])("text the owner %s while a to-do's talk request is held stays in the field once the reply starts (lina-app#32)", async (_how, typed, kept) => {
+    let answer: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (answer = resolve));
+    class Held extends SyntheticSource {
+      override async talk(id: string, body: { message: string }, signal?: AbortSignal) {
+        await gate;
+        return super.talk(id, body, signal);
+      }
+    }
+    const view = await open("#/items/T4", { wide: true, source: new Held() });
+    const { box, field, send } = talkParts(view);
+    type(field, "가짜 첫 질문");
+    await waitFor(() => expect(send.disabled).toBe(false));
+    fireEvent.click(send);
+    await waitFor(() => expect(send.disabled).toBe(true));
+    type(field, typed);
+    answer();
+    await waitFor(() => expect(box.getByTestId("talk-live")).toBeTruthy());
+    expect(box.getByTestId("talk-mine").textContent).toBe("가짜 첫 질문");
+    expect(field.value).toBe(kept);
+  });
+
   test("대화 sits under 댓글; Enter sends, the reply streams with a live mark, then one line says the agent keeps it", async () => {
     vi.useFakeTimers(TIMERS);
     try {
@@ -2562,7 +2613,7 @@ describe("work cards", () => {
     expect(names("완료").length).toBe(count(view.getByTestId("nav-done").querySelector("[data-testid=nav-count]")));
   });
 
-  test("a work card with no checked title is named by its own title on its detail, by its goal on the home, and by its own name on its agent's list, which holds another card of that goal (lina-app#242)", async () => {
+  test("a work card with no checked title is named by its own title on its detail and on the home, where its goal's title is a 완료 line too, and by its own name on its agent's list, which holds another card of that goal (lina-app#242)", async () => {
     const source = new SyntheticSource();
     const raw = [
       ...source.scene.cards.cards.filter((card) => card.plain.title !== null).map((card) => card.title),
@@ -2585,18 +2636,20 @@ describe("work cards", () => {
     const view = await open("#/cards/k-102", { wide: true });
     const detail = view.getByTestId("screen-card");
     const head = detail.querySelector(".detail-title");
-    // The head reads the name its row reads, its goal's; its own title is the line under it (lina-app#153).
-    expect(head?.textContent).toBe("결제 화면 개편");
-    expect(within(detail).getByTestId("card-own-title").textContent).toBe("위키: 결제 화면 문서 정리");
+    // The head reads the name its row reads (lina-app#153): its own, for its goal's title is a 완료 line on the work tab,
+    // and the goal is the 목표 line under it.
+    expect(head?.textContent).toBe("위키: 결제 화면 문서 정리");
+    expect(within(detail).queryByTestId("card-own-title")).toBeNull();
+    expect(within(detail).getByTestId("card-goal").textContent).toContain("결제 화면 개편");
     expect(head?.classList.contains("is-kind")).toBe(false);
     expect(within(detail).getByTestId("kind").textContent).toBe("문서");
     expect(within(detail).queryByTestId("card-now")).toBeNull();
-    // A row is titled by its goal first (lina-app#122).
+    // A row is titled by its goal first (lina-app#122), unless another group of the tab draws that title as its line 1:
+    // then by its own name, the goal's the second line (lina-app#242).
     const row = within(view.getByTestId("screen-running")).getAllByTestId("row").find((item) => item.querySelector("a")?.getAttribute("href") === "#/cards/k-102");
-    expect(row?.querySelector(".title")?.textContent).toBe("결제 화면 개편");
+    expect(row?.querySelector(".title")?.textContent).toBe("위키: 결제 화면 문서 정리");
     expect(row?.querySelector(".title")?.classList.contains("is-kind")).toBe(false);
-    // Its own title is the second line (lina-app#152).
-    expect(row?.querySelector("a")?.getAttribute("aria-label")).toMatch(/ · 결제 화면 개편 · 위키: 결제 화면 문서 정리 · 진행 중/);
+    expect(row?.querySelector("a")?.getAttribute("aria-label")).toMatch(/ · 위키: 결제 화면 문서 정리 · 결제 화면 개편 · 진행 중/);
     expect(row?.querySelector(".state")?.textContent).toBe("진행 중");
     view.unmount();
     const agent = await open("#/agents/ag-2", { wide: true });
@@ -2772,7 +2825,7 @@ describe("work cards", () => {
       const view = await open("#/running", { wide: true, source });
       const row = () => within(view.getByTestId("screen-running")).getAllByTestId("row").find((item) => item.querySelector("a")?.getAttribute("href") === "#/cards/k-102");
       const before = row();
-      expect(before?.querySelector(".title")?.textContent).toBe("결제 화면 개편");
+      expect(before?.querySelector(".title")?.textContent).toBe("위키: 결제 화면 문서 정리");
       // Let the reads the page started on its own (the first tail, the open screen's wants) finish first.
       await act(async () => {
         await vi.advanceTimersByTimeAsync(STREAM_TICK_MS);
@@ -2783,8 +2836,8 @@ describe("work cards", () => {
         await vi.advanceTimersByTimeAsync(STREAM_TICK_MS * 2);
       });
       await waitFor(() => expect(row()?.querySelector(".now")?.textContent).toBe("보안 코드 칸을 맞추는 중"));
-      // Its goal still names the row (lina-app#122); the checked title is what its detail head reads.
-      expect(row()?.querySelector(".title")?.textContent).toBe("결제 화면 개편");
+      // Its goal's title is a 완료 line too, so the row leads with its own name: now the checked title (lina-app#242).
+      expect(row()?.querySelector(".title")?.textContent).toBe("결제: 카드 입력 폼 다듬기");
       expect(row()).toBe(before);
       const routes = new Set(read.mock.calls.map(([name, id]) => (id ? `${name}:${id}` : name)));
       expect(routes.has(`cards:${FINISHED_SHOWN}`)).toBe(true);
@@ -3177,9 +3230,10 @@ describe("#13 audit, round 7", () => {
 
   test("a card's detail head names the goal it serves beside its state and reason", async () => {
     const view = await open("#/cards/k-103", { wide: true });
-    // Its row leads with the goal's title, so the head is that name and no second goal line repeats it (lina-app#153).
-    expect(view.container.querySelector(".detail-head .detail-title")?.textContent).toBe("결제 화면 개편");
-    expect(view.queryByTestId("card-goal")).toBeNull();
+    // Its goal's title is a 완료 line on the work tab, so its row leads with its own name and the head reads it, the goal
+    // the line under it (lina-app#153, #242).
+    expect(view.container.querySelector(".detail-head .detail-title")?.textContent).toBe("결제: 오류 문구 바꾸기");
+    expect(view.getByTestId("card-goal").textContent).toContain("결제 화면 개편");
     expect(view.container.querySelector(".detail-head [data-testid=state]")?.textContent).toBe("중단됨 · 응답 없음");
   });
 });
@@ -3555,8 +3609,10 @@ describe("a card's detail (lina-app#128)", () => {
     const card = await open("#/cards/k-104", { wide: true });
     const lines = within(card.getByTestId("worker-runs")).getAllByRole("link");
     expect(lines.map((line) => line.getAttribute("aria-label"))).toEqual([expect.stringMatching(new RegExp(`^${TIME} · 결과 누락$`))]);
-    expect(card.getByTestId("screen-card").querySelector(".detail-title")?.textContent).toBe("결제 화면 개편");
-    expect(card.getByTestId("card-own-title").textContent).toBe("결제: 실패 화면 검토");
+    // Its goal's title is a 완료 line too, so its row and its head lead with its own name, the goal under it (lina-app#242).
+    expect(card.getByTestId("screen-card").querySelector(".detail-title")?.textContent).toBe("결제: 실패 화면 검토");
+    expect(card.queryByTestId("card-own-title")).toBeNull();
+    expect(card.getByTestId("card-goal").textContent).toContain("결제 화면 개편");
     expect(screenText(card.container)).not.toContain("코드 작업");
   });
 

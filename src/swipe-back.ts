@@ -6,6 +6,8 @@ export type SwipeContext = {
   /** The installed Home Screen app only: a Safari tab already goes back with the browser's own swipe. */
   standalone: () => boolean;
   atRoot: () => boolean;
+  /** A push or pop still sliding, or a sheet over the stack that is not a detail: a swipe then is ignored, as on iOS. */
+  busy: () => boolean;
   onBack: () => void;
 };
 
@@ -20,7 +22,7 @@ export function swipeBack(context: SwipeContext) {
   let horizontal: boolean | null = null;
   return {
     start(point: Point): void {
-      start = point.x <= EDGE_PX && context.standalone() && !context.atRoot() ? point : null;
+      start = point.x <= EDGE_PX && context.standalone() && !context.atRoot() && !context.busy() ? point : null;
       horizontal = null;
     },
     move(point: Point): void {
@@ -43,6 +45,14 @@ export function swipeBack(context: SwipeContext) {
       start = null;
     },
   };
+}
+
+/**
+ * The stack is busy while a push or pop slides (`data-nav` on the root) or while the menu or a confirmation sheet is
+ * open. A detail sheet is not: back closes it, the edge swipe included.
+ */
+export function stackBusy(doc: Document = document): boolean {
+  return doc.documentElement.dataset.nav !== undefined || doc.querySelector(".menu-sheet, .settings-sheet") !== null;
 }
 
 export function isStandalone(host: { matchMedia?: (query: string) => { matches: boolean }; navigator: { standalone?: boolean } } = window as never): boolean {

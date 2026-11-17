@@ -441,3 +441,34 @@ describe("restart asks first and names the node (lina-app#200)", () => {
     await waitFor(() => expect(within(sheet).getByText("모래톱의 모델 연결을 다시 시작합니다.")).toBeTruthy());
   });
 });
+
+// lina-app#33: since lina#273 the core fills byMachine in the background, so right after it starts the list is empty.
+describe("the usage panel while the core has not read its machines yet (lina-app#33)", () => {
+  /** A source whose usage reads answer with no machine rows, and whose `failing` ranges fail. */
+  function noMachines(failing: readonly string[] = []) {
+    const source = fresh();
+    const read = source.read.bind(source);
+    vi.spyOn(source, "read").mockImplementation((async (name: Parameters<typeof read>[0], id?: string) => {
+      if (name !== "usage") return read(name, id);
+      if (failing.includes(id ?? "today")) return { kind: "failed", offline: false, at: Date.now() / 1000 };
+      const result = await read(name, id);
+      return result.kind === "data" ? { ...result, data: { ...result.data, byMachine: [] } } : result;
+    }) as typeof source.read);
+    return source;
+  }
+
+  test("an empty 기기별 under totals reads one dim line that it is being read", async () => {
+    const view = await open(noMachines());
+    const panel = view.getByTestId("section-usage");
+    expect(within(panel).getByTestId("usage-total").textContent).toBe("$3.42 · 토큰 1.2만");
+    expect(within(panel).getByTestId("usage-machines-reading").textContent).toBe("기기별 사용량을 읽는 중");
+    expect(within(panel).queryAllByRole("list", { name: "기기별" })).toHaveLength(0);
+  });
+
+  test("the line is not drawn when a usage read has failed", async () => {
+    const view = await open(noMachines(["today"]));
+    const panel = view.getByTestId("section-usage");
+    expect(within(panel).getByTestId("usage-total").textContent).toBe("$18.40 · 토큰 8.6만");
+    expect(within(panel).queryByTestId("usage-machines-reading")).toBeNull();
+  });
+});

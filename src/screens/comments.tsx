@@ -194,7 +194,8 @@ export function Comments({ detail }: { detail: ItemDetail }) {
     const result = await store.write((source) => source.comment(detail.id, { text: body }));
     setSending(null);
     if (!result.ok) {
-      setText(body);
+      // What the owner typed while it was out stays; the refused comment comes back into an empty field (lina-app#32).
+      setText((typed) => (typed.trim() ? typed : body));
       setError(writeError("comment", result));
     }
   };

@@ -286,7 +286,8 @@ export function Talk({ detail }: { detail: ItemDetail }) {
   useEffect(() => () => running.current?.abort(), []);
 
   const send = async () => {
-    const message = text.trim();
+    const sent = text;
+    const message = sent.trim();
     if (!message || busy) return;
     const controller = new AbortController();
     running.current = controller;
@@ -303,7 +304,8 @@ export function Talk({ detail }: { detail: ItemDetail }) {
     const key = nextKey.current++;
     const sentAt = Date.now() / 1000;
     const update = (patch: (turn: Turn) => Partial<Turn>) => setTurns((all) => all.map((turn) => (turn.key === key ? { ...turn, ...patch(turn) } : turn)));
-    setText("");
+    // Only the sent message leaves the field: what the owner typed while the request was out stays (lina-app#32).
+    setText((typed) => (typed.startsWith(sent) ? typed.slice(sent.length).trimStart() : typed));
     setTurns((all) => [...all, { key, mine: message, reply: "", agent: detail.agent, state: "streaming", at: sentAt, replyAt: sentAt }]);
     let completed = false;
     let failed = false;

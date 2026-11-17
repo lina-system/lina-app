@@ -189,12 +189,12 @@ const NOTE_AFTER = 30 * 60;
  * The one sentence a closed round's line reads when its report line does not stand whole (criterion 2): the first whole
  * sentence that says what came of it (historySentences) and that no newer round reads (`used`, filled newest first):
  * its report line's, then its said rows' (tails the core kept of longer texts), then those of the notes made from a
- * minute before its end to half an hour after it, oldest first: a comment on the card, or its own run's record note
+ * minute before its end (never before its own start) to half an hour after it, oldest first: a comment on the card, or its own run's record note
  * (`run`), never another run's. Null when none stands: the line reads its outcome alone.
  */
-export function roundSentence(round: { readonly result: string | null; readonly said: readonly (string | null)[]; readonly end: number | null; readonly run?: string }, notes: readonly RoundNote[], used: Set<string>): string | null {
+export function roundSentence(round: { readonly result: string | null; readonly said: readonly (string | null)[]; readonly start?: number | null; readonly end: number | null; readonly run?: string }, notes: readonly RoundNote[], used: Set<string>): string | null {
   const end = round.end;
-  const near = end === null ? [] : notes.filter((note) => (note.run === undefined || note.run === round.run) && note.at >= end - 60 && note.at <= end + NOTE_AFTER).sort((a, b) => a.at - b.at);
+  const near = end === null ? [] : notes.filter((note) => (note.run === undefined || note.run === round.run) && note.at >= Math.max(end - 60, round.start ?? Number.NEGATIVE_INFINITY) && note.at <= end + NOTE_AFTER).sort((a, b) => a.at - b.at);
   const sentences = [...historySentences(round.result), ...round.said.flatMap((text) => historySentences(text, { opens: true, ends: true })), ...near.flatMap((note) => historySentences(note.text, { ends: note.cut }))];
   const sentence = sentences.find((each) => !used.has(each)) ?? null;
   if (sentence) used.add(sentence);
@@ -262,7 +262,7 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
         count: 1,
       };
       blocks.push(block);
-      if (outcome !== "going" && result === null) sources.set(block, { result: round.result, said: round.rows.filter((row) => row.kind === "said").map((row) => row.text), end: round.endedAt ?? round.startedAt, run: id });
+      if (outcome !== "going" && result === null) sources.set(block, { result: round.result, said: round.rows.filter((row) => row.kind === "said").map((row) => row.text), start: round.startedAt, end: round.endedAt ?? round.startedAt, run: id });
     });
     every.push(...record.comments.filter((row) => row.text && !isMachineNotice(row.text)).map((row) => ({ at: row.at, text: row.text ?? "", cut: true, run: id })));
     for (const comment of gated(record.comments)) if (first(`comment:${comment.at}:${comment.source}`)) blocks.push({ type: "comment", key: `${id}:c:${comment.at}`, at: comment.at, rows: [comment] });

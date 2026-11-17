@@ -340,3 +340,23 @@ test("a record's note is read only by its own run's round, never by another run'
     ["wa", 1000, "가짜 검사를 통과했다.", 1],
   ]);
 });
+
+// PR #260 review: two rounds of one worker run. A note made between them, after the first ended and before the second
+// began, is the first rounds: the seconds end-relative window must not take it.
+test("a note made before a round began is not read by that round, only by the one it followed (PR #260)", () => {
+  const record = {
+    at: 2000,
+    cardId: "k-1",
+    id: "w1",
+    errors: [],
+    model: null,
+    settingsRevision: null,
+    comments: [{ at: 1050, kind: "comment", text: "가짜 검사를 통과했다.", count: 1 }],
+    rounds: [round({ run: 2, startedAt: 1080, endedAt: 1100, endKnown: true }), round({ run: 1, startedAt: 900, endedAt: 1000, endKnown: true })],
+  } as unknown as RunRecord;
+  const blocks = timelineBlocks([{ id: "w1", record }], () => false, 3000);
+  expect(blocks.flatMap((block) => (block.type === "round" ? [[block.n, block.at, block.result]] : []))).toEqual([
+    [2, 1100, null],
+    [1, 1000, "가짜 검사를 통과했다."],
+  ]);
+});

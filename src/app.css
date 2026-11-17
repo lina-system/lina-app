@@ -2718,6 +2718,9 @@ html:has(.stack) body {
   z-index: 19;
   display: flex;
   flex-direction: column;
+  /* The sheet's scroll ends where the strip starts (lina-app#267): a line under its word is never drawn there, at
+     any scroll, not only once scrolled to the end. */
+  padding-bottom: var(--phone-end);
   border-radius: 14px 14px 0 0;
   background: var(--bg-2);
   box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.18);
@@ -2764,10 +2767,10 @@ html:has(.stack) body {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0 var(--safe-right) calc(24px + var(--bottom-strip) + var(--safe-bottom) + var(--keyboard-inset, 0px)) var(--safe-left);
+  padding: 0 var(--safe-right) 24px var(--safe-left);
 }
 
-/* A word in the strip (연결 중 …) shows over the sheet's foot, and the sheet's last line ends above it (lina-app#187). */
+/* A word in the strip (연결 중 …) shows over the sheet's foot, below the sheet's scroll (lina-app#187, #267). */
 .stack:has(> .detail-sheet) .bottombar {
   z-index: 20;
 }

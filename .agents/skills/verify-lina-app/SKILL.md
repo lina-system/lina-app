@@ -74,7 +74,8 @@ A pull request that changes what people see carries the `ui` label and gets one 
    - **Confirmed Done when**: each Done when item proven, with the evidence file that proves it.
    - **Suggestions**: improvements that are not defects, including anything a feature lists under `Not goals`. Suggestions go into the sprint's one suggestions issue, not into this pull request.
    - **Map drift**: feature files that no longer match the app, missing feature files, and `map` output.
-4. Clean up and check that the evidence is still there.
+4. Read each card screen as its reader (G138, lina-app#263). A count of lines or a line's shape proves nothing: from the top line of a running, waiting or stopped card alone, can you say within ten seconds what it is doing now? If you cannot, that card is a defect, whatever the line's shape. Run it on the hub's real cards as well as the synthetic scene: open at least three cards of each of the three states, at 1280 and 390, and keep the captures; a pass on synthetic data alone is not a pass.
+5. Clean up and check that the evidence is still there.
 
 The `UI QA` workflow (`.github/workflows/ui-qa.yml`) runs the scripted part on every push to a pull request labelled `ui`: it drives every feature, fails on a defect, writes defects and map drift to the job summary, and uploads the evidence. The agent's comment adds the confirmed Done when items and the suggestions.
 

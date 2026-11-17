@@ -42,6 +42,7 @@ A work card (`#/cards/<id>`) or a worker run outside any card (`#/runs/<id>`) op
 - A worker run's page names the model that run used once, under its head, by the plain name the model list gives it, with its effort (`<name> · 보통`). A run that started on the fallback model ends the line with `대체 모델` (`<name> · 높음 · 대체 모델`). A model the list names only by an id is an alias (`model-a`, `model-b`) and draws no line (lina-app#128); neither does a run with no model. The rounds of that page's 기록 draw no model line. The settings revision is not shown.
 - On a card's 기록, each round shows its own run's model under the round's head, dim, once: the worker run that round was, the same one its head opens. A round whose run has none shows nothing. A comment block shows none.
 - Only boxes that add something are drawn.
+- Opened on a running, waiting or stopped card of the hub's real data, a card's top line alone tells within ten seconds what the card is doing now (G138, lina-app#263): three or more cards of each state, read at 1280 and 390; a card whose top line cannot say it is a defect, whatever its shape.
 
 ## Sub-features
 

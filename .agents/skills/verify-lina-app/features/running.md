@@ -23,6 +23,7 @@
 - Each card's kind icon (code, docs, research, device) tells the kind of work apart.
 - A stopped row has `다시 시도` after it only when running it again can clear the stop (no response, failed, budget, gate, hold, or the core does not say); a row waiting on the owner's answer or feedback, on a review or on another to-do, or one the core already runs again (`retry: scheduled`, lina-app#160), has none and opens its detail (lina-app#134). Choosing it asks the agent (see actions.md) and the row reads `<agent>에게 요청함` for five seconds.
 - On a wide window the open card's row is selected: the whole row in the accent, `다시 시도` or `<agent>에게 요청함` inside it in white up to the divider, never the link alone with the button outside on the panel (lina-app#212); a row with nothing after its link is selected as before. A focus ring on the selected row's link or button is white, 3:1 against the selection; with forced colours the selected row is a ring in the system's highlight. On a phone the detail is a sheet over the list, so no selected row shows.
+- Opened on a running, waiting or stopped card of the hub's real data, a card's top line alone tells within ten seconds what the card is doing now (G138, lina-app#263): three or more cards of each state, read at 1280 and 390; a card whose top line cannot say it is a defect, whatever its shape.
 
 ## Sub-features
 

@@ -62,3 +62,12 @@ test("a turn that failed right after one whose read had not landed is drawn afte
   const shown = withTurns(kept, 4, [failed]);
   expect(said(shown.lines)).toEqual(["me:어디까지 왔어요?", "agent:변경 목록을 모으는 중이에요.", "me:다시 알려 주세요", "agent:금요일 오후예요.", "me:그럼 롤백은요?", "agent:롤백은"]);
 });
+
+test("two turns in a row that failed after one whose read had not landed stay in the order they were sent", () => {
+  // A came back whole (the history holds it); B and C went out before the read holding A landed, so both anchors are
+  // the line before A, and C names B, which the history does not hold, as the turn before it.
+  const second = turn("t2", "그럼 롤백은요?", { state: "failed", reply: "롤백은", id: "m_u4", after: "m_a1", prior: "m_u3", base: 2, from: 3 });
+  const third = turn("t3", "대답이 없네요", { state: "failed", reply: "", id: "m_u5", after: "m_a1", prior: "m_u4", base: 2, from: 4 });
+  const shown = withTurns(kept, 5, [second, third]);
+  expect(said(shown.lines)).toEqual(["me:어디까지 왔어요?", "agent:변경 목록을 모으는 중이에요.", "me:다시 알려 주세요", "agent:금요일 오후예요.", "me:그럼 롤백은요?", "agent:롤백은", "me:대답이 없네요", "agent:"]);
+});

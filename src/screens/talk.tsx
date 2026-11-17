@@ -698,7 +698,19 @@ export function withTurns(kept: readonly ThreadLine[], read: number, turns: read
     }
   }
   const ids = kept.some((line) => line.id !== undefined);
-  const drawn = turns.filter((turn) => !confirmed.includes(turn)).map((turn) => ({ turn, at: (ids ? placeOf(kept, turn, holds.get(turn)) : null) ?? kept.length }));
+  // The turns keep the order they were sent in: one the history does not hold goes no earlier than where the turn
+  // before it ends (`placeOf` looks that up only for a turn the history holds), so consecutive turns the gateway did
+  // not keep stay in send order, whichever read has landed.
+  let floor = 0;
+  const drawn: { turn: Sent; at: number }[] = [];
+  for (const turn of turns) {
+    if (confirmed.includes(turn)) continue;
+    const held = holds.get(turn);
+    const own = (ids ? placeOf(kept, turn, held) : null) ?? kept.length;
+    const at = held ? own : Math.max(own, floor);
+    drawn.push({ turn, at });
+    floor = Math.max(floor, held ? held[held.length - 1] + 1 : at);
+  }
   const sentAt = (index: number) => drawn.filter((each) => each.at === index).flatMap((each) => sentLines(each.turn));
   const lines = kept.flatMap((line, index) => [...sentAt(index), ...(left.has(index) ? [] : [line])]);
   return { lines: [...lines, ...sentAt(kept.length)], confirmed };

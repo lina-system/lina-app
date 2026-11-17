@@ -904,8 +904,9 @@ export function AgentCard({ agent, folded = false }: { agent: string; folded?: b
   const view = agentView(model, agent);
   const [open, setOpen] = useState(!folded);
   if (!view) return null;
-  // Every number has its word; red is 중단됨 and nothing else (lina-app#143).
-  const parts = [view.running, view.review, view.goals].flatMap((section) => [
+  // Every number has its word; red is 중단됨 and nothing else (lina-app#143). Folded on a phone, the toggle `에이전트 · 목표 n`
+  // heads the goal rows: the counts leave the goals out and the goals draw no head, so `목표 n` reads once (lina-app#190).
+  const parts = (folded ? [view.running, view.review] : [view.running, view.review, view.goals]).flatMap((section) => [
     { key: section.id, text: `${section.title} ${section.count}`, stopped: false },
     ...(section.stopped ? [{ key: `${section.id}-stopped`, text: W.stoppedCount(section.stopped), stopped: true }] : []),
   ]);
@@ -924,7 +925,7 @@ export function AgentCard({ agent, folded = false }: { agent: string; folded?: b
   // (lina-app#200); the goal's page keeps the owner's own done check.
   const body = (
     <>
-      <ListSection section={view.goals} render={(goal) => <GoalLine key={goal.id} goal={{ ...goal, state: goal.allDone ? "done" : goal.state, href: href({ name: "talk", id: agent, goal: goal.id }) }} showAgent={false} count />} />
+      <ListSection section={folded ? { ...view.goals, title: "" } : view.goals} label={view.goals.title} render={(goal) => <GoalLine key={goal.id} goal={{ ...goal, state: goal.allDone ? "done" : goal.state, href: href({ name: "talk", id: agent, goal: goal.id }) }} showAgent={false} count />} />
       <ul class="rows" aria-label={W.done}>
         <li class="row" data-testid="card-done-today">
           <Link href={href({ name: "done", agent })} label={view.doneToday ? W.doneToday(view.doneToday.count) : W.loading}>

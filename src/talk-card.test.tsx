@@ -45,6 +45,33 @@ test("at 390 the card's summary line shows while folded and goes while the goals
   expect(toggle.querySelector(".sub")?.textContent).toMatch(/\d+\/\d+/);
 });
 
+// lina-app#190: at 390 the opened card read `목표 2` three times: its toggle, its counts line and the goals' own head. The
+// toggle `에이전트 · 목표 n` heads the goal rows, so the counts leave the goals out and the goals draw no head of their own;
+// the wide card keeps both.
+test.each([false, true])("the opened card reads 목표 n once at 390, the wide card keeps its counts and head (wide %s)", async (wide) => {
+  vi.stubGlobal("matchMedia", (query: string) => ({ matches: wide, media: query, addEventListener() {}, removeEventListener() {} }));
+  window.history.replaceState(null, "", "/app/#/talk/ag-1");
+  const view = render(<App store={new Store(new SyntheticSource({ now: Math.floor(Date.now() / 1000) }))} />);
+  const card = await waitFor(() => view.getByTestId("agent-card"));
+  const toggle = card.querySelector(".agent-card-toggle") as HTMLElement | null;
+  if (toggle) fireEvent.click(toggle);
+  await waitFor(() => expect(card.querySelectorAll("[data-testid=row]").length).toBeGreaterThan(0));
+  const said = (element: Element | null) => (element?.textContent ?? "").match(/목표 ?\d+/g) ?? [];
+  const counts = card.querySelector("[data-testid=agent-card-counts]");
+  const heads = [...card.querySelectorAll(".section-head")].filter((head) => head.textContent?.startsWith("목표"));
+  expect(card.querySelector("ul[aria-label='목표']")).toBeTruthy();
+  if (wide) {
+    expect(said(counts)).toEqual(["목표 2"]);
+    expect(heads).toHaveLength(1);
+    return;
+  }
+  expect(toggle?.textContent).toBe("에이전트 · 목표 2");
+  expect(said(counts)).toEqual([]);
+  expect(counts?.textContent).toContain("진행 중 1");
+  expect(heads).toHaveLength(0);
+  expect(said(card)).toEqual(["목표 2"]);
+});
+
 // lina-app#167 item 6: at 390 the 대화 list had no 메뉴; it has the one 작업 has.
 test("at 390 the 대화 list opens the 작업 menu from its header", async () => {
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {} }));

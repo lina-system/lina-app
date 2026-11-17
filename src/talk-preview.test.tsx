@@ -68,8 +68,21 @@ class HeldReply extends SyntheticSource {
     super({ now: Math.floor(Date.now() / 1000) });
   }
 
+  /** History reads begun, and those not yet taken in by whoever asked. */
+  started = 0;
+  pending = 0;
+
+  override agentTalkHistory(agent: string) {
+    this.started += 1;
+    this.pending += 1;
+    const read = this.history(agent);
+    // The reader's own handler is queued after this one, so the count drops once it has run.
+    void read.then(() => queueMicrotask(() => (this.pending -= 1)));
+    return read;
+  }
+
   /** The core mid-turn: the owner's message is the conversation's last one; once the reply ends, the reply is. */
-  override async agentTalkHistory(agent: string) {
+  private async history(agent: string) {
     const result = await super.agentTalkHistory(agent);
     const at = Date.now() / 1000;
     if (this.sent && result.kind === "data") result.data.messages.push({ role: "user", content: this.sent, timestamp: at });
@@ -115,7 +128,7 @@ async function sendHeld(wide: boolean) {
     await waitFor(() => expect(view.getByTestId("talk-agents")).toBeTruthy());
   }
   const preview = () => view.getByTestId(wide ? "nav-talk-0" : "talk-agent-0").querySelector("[data-testid=talk-preview]")?.textContent;
-  return { source, preview };
+  return { source, preview, view };
 }
 
 test.each([
@@ -132,10 +145,59 @@ test.each([
   ["1280", true],
   ["390", false],
 ])("at %s a reply that breaks off leaves the owner's message on the row, not 답하는 중 (lina-app#190)", async (_width, wide) => {
-  const { source, preview } = await sendHeld(wide);
+  const { source, preview, view } = await sendHeld(wide);
   await waitFor(() => expect(preview()).toBe("답하는 중"));
   source.finish(true);
   await waitFor(() => expect(preview()).toBe("하나 더 알려 주세요"));
+  if (wide) return;
+  // The phone's list reads the history again, which holds the owner's message last: the turn that broke off is read.
+  view.getByTestId("talk-agent-0").querySelector("a")!.click();
+  await waitFor(() => expect(view.queryByTestId("talk-agents")).toBeNull());
+  const before = source.started;
+  view.getByTestId("back").click();
+  await waitFor(() => expect(Boolean(view.queryByTestId("talk-agents")) && source.started > before && source.pending === 0).toBe(true));
+  expect(preview()).toBe("하나 더 알려 주세요");
+});
+
+test.each([
+  ["1280", true],
+  ["390", false],
+])("at %s the agent's row reads 답하는 중 while a send waits for the core, not the owner's message (lina-app#190)", async (_width, wide) => {
+  class Unanswered extends SyntheticSource {
+    override async agentTalk(_agent: string, _body: { message: string }, _signal?: AbortSignal) {
+      return new Promise<never>(() => undefined);
+    }
+  }
+  const view = open("#/talk/ag-1", wide, new Unanswered({ now: Math.floor(Date.now() / 1000) }));
+  const talk = within(await waitFor(() => view.getByTestId("agent-talk")));
+  const field = (await waitFor(() => talk.getByRole("textbox", { name: "메시지" }))) as HTMLTextAreaElement;
+  field.value = "하나 더 알려 주세요";
+  fireEvent.input(field);
+  fireEvent.keyDown(field, { key: "Enter" });
+  await waitFor(() => expect(talk.getAllByTestId("talk-mine").at(-1)!.getAttribute("data-state")).toBe("sending"));
+  if (!wide) view.getByTestId("back").click();
+  const preview = () => view.getByTestId(wide ? "nav-talk-0" : "talk-agent-0").querySelector("[data-testid=talk-preview]")?.textContent;
+  await waitFor(() => expect(preview()).toBe("답하는 중"));
+});
+
+// lina-app#190: a row that reads the history while a turn sent from another device goes found the owner's message
+// last, the core holding it before the reply: the row read the owner's own words until the reply ended. It reads the
+// agent's last message, or `아직 나눈 대화 없음` when the agent has said nothing yet.
+test.each([
+  ["1280", true],
+  ["390", false],
+])("at %s a row read while another device's turn goes reads the agent's last message, not the owner's (lina-app#190)", async (_width, wide) => {
+  class OtherDeviceTurn extends SyntheticSource {
+    override async agentTalkHistory(agent: string) {
+      const result = await super.agentTalkHistory(agent);
+      if (result.kind === "data") result.data.messages.push({ role: "user", content: "다른 기기에서 보낸 말", timestamp: Date.now() / 1000 });
+      return result;
+    }
+  }
+  const view = open("#/talk", wide, new OtherDeviceTurn({ now: Math.floor(Date.now() / 1000) }));
+  const preview = (index: number) => view.getByTestId(wide ? `nav-talk-${index}` : `talk-agent-${index}`).querySelector("[data-testid=talk-preview]")?.textContent;
+  await waitFor(() => expect(preview(0)).toBe("변경 목록을 모으는 중이에요. 배포 순서는 답을 기다려요."));
+  await waitFor(() => expect(preview(1)).toBe("아직 나눈 대화 없음"));
 });
 
 test("the open window reads its history at once, not behind the rows' reads (lina-app#162)", async () => {

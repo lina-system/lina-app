@@ -1432,7 +1432,8 @@ describe("agent talk", () => {
     await waitFor(() => expect(view.getByTestId("agent-talk")).toBeTruthy());
   });
 
-  test("each agent row shows the first line of its last message, or one plain line when there is none (lina-app#143)", async () => {
+  test("each agent row shows the first line of the agent's last message, or one plain line when there is none (lina-app#143, #190)", async () => {
+    // ag-3 holds the owner's message alone: the agent has said nothing yet (lina-app#190).
     class Multiline extends SyntheticSource {
       override async agentTalkHistory(agent: string) {
         const result = await super.agentTalkHistory(agent);
@@ -1445,7 +1446,7 @@ describe("agent talk", () => {
       const row = (index: number) => view.getByTestId(wide ? `nav-talk-${index}` : `talk-agent-${index}`);
       await waitFor(() => expect(row(0).querySelector("[data-testid=talk-preview]")?.textContent).toBe("변경 목록을 모으는 중이에요. 배포 순서는 답을 기다려요."));
       await waitFor(() => expect(row(1).querySelector("[data-testid=talk-preview]")?.textContent).toBe("아직 나눈 대화 없음"));
-      await waitFor(() => expect(row(2).querySelector("[data-testid=talk-preview]")?.textContent).toBe("배포 전에 확인"));
+      await waitFor(() => expect(row(2).querySelector("[data-testid=talk-preview]")?.textContent).toBe("아직 나눈 대화 없음"));
       view.unmount();
     }
   });

@@ -39,9 +39,14 @@ interface Core {
   /** Lets the held send answer with the reply. */
   answer: () => void;
   refuse: boolean;
+  /** The agent's conversation as the core keeps it; a turn `send` answers adds to it as the core would. */
+  history: { id?: string; role: string; content: string; timestamp: number }[];
+  /** Answers a send in place of the held reply: the frames of the turn. */
+  send: ((message: string, ts: number) => [string, unknown][]) | null;
 }
 
-async function serveCore(page: Page): Promise<Core> {
+/** `ids`: the history and the send carry the core's message ids (lina#753), as a hub on the current core does. */
+async function serveCore(page: Page, ids = false): Promise<Core> {
   const source = new SyntheticSource();
   const bodies = new Map<string, unknown>();
   for (const name of LIST_ROUTES) {
@@ -59,7 +64,7 @@ async function serveCore(page: Page): Promise<Core> {
     { role: "assistant", content: "배포 순서는 답을 기다려요.", timestamp: now - 86_400 + 60 },
     { role: "user", content: "[LINA app]\n\n오늘 할 일을 정리해 주세요", timestamp: now - 120 },
     { role: "assistant", content: LONG_REPLY, timestamp: now - 100 },
-  ];
+  ].map((message, index) => (ids ? { id: `m_h${index}`, ...message } : message));
   let release: () => void = () => undefined;
   let held = new Promise<void>((resolve) => (release = resolve));
   const core: Core = {
@@ -69,6 +74,8 @@ async function serveCore(page: Page): Promise<Core> {
       held = new Promise<void>((resolve) => (release = resolve));
     },
     refuse: false,
+    history,
+    send: null,
   };
   let socket: WebSocketRoute | null = null;
   await page.route("**/api/**", async (route) => {
@@ -77,8 +84,12 @@ async function serveCore(page: Page): Promise<Core> {
     if (url.pathname === "/api/auth/ws-ticket") return route.fulfill({ json: { ticket: "one-use" } });
     if (url.pathname === agentTalkPath("ag-1") && route.request().method() === "POST") {
       if (core.refuse) return route.fulfill({ status: 429, json: { detail: "busy" } });
-      await held;
       const ts = Math.floor(Date.now() / 1000);
+      if (core.send) {
+        const frames = core.send((route.request().postDataJSON() as { message: string }).message, ts);
+        return route.fulfill({ status: 200, headers: { "Content-Type": "text/event-stream" }, body: frames.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join("") });
+      }
+      await held;
       const frame = (seq: number) => ({ session_id: "app-ag-1", run_id: "run-1", seq, ts });
       const events = [
         ["talk.started", { agent: "ag-1", session_id: "app-ag-1" }],
@@ -107,8 +118,8 @@ function phoneWidth(page: Page): boolean {
   return (page.viewportSize()?.width ?? 0) < 900;
 }
 
-async function openWindow(page: Page): Promise<Core> {
-  const core = await serveCore(page);
+async function openWindow(page: Page, ids = false): Promise<Core> {
+  const core = await serveCore(page, ids);
   await page.goto("/app/#/talk/ag-1");
   await expect(page.getByTestId("freshness-line")).toHaveText("");
   await expect(page.getByTestId("talk-reply")).toHaveCount(3);
@@ -201,6 +212,42 @@ test("read up while a reply comes in: the window stays put and 맨 아래로 cou
   await jump.click();
   await expect(jump).toHaveCount(0);
   expect(await gap()).toBeLessThanOrEqual(48);
+});
+
+test("a reply that broke off before the gateway kept it stays above the next exchange once the history is read again (lina-app#210)", async ({ page }, info) => {
+  const core = await openWindow(page, true);
+  const talk = page.getByTestId("agent-talk");
+  const field = talk.getByRole("textbox", { name: "메시지" });
+  const frame = (seq: number, ts: number) => ({ session_id: "app-ag-1", run_id: `run-${seq}`, seq, ts });
+  // The first turn: the gateway took it, then the run failed before it kept anything.
+  core.send = (_message, ts) => [
+    ["talk.started", { agent: "ag-1", session_id: "app-ag-1", message_id: "m_broken" }],
+    ["assistant.delta", { ...frame(1, ts), message_id: "r1", delta: "배포는" }],
+    ["error", { ...frame(2, ts), message: "agent failed" }],
+  ];
+  await field.fill("배포는 언제예요?");
+  await field.press("Enter");
+  await expect(talk.getByTestId("write-error")).toHaveText("답을 받지 못함");
+  // The second turn comes back whole and the core keeps it.
+  core.send = (message, ts) => {
+    core.history.push({ id: "m_answered", role: "user", content: `[LINA app]\n\n${message}`, timestamp: ts }, { id: "m_answer", role: "assistant", content: "금요일 오후예요.", timestamp: ts });
+    return [
+      ["talk.started", { agent: "ag-1", session_id: "app-ag-1", message_id: "m_answered" }],
+      ["assistant.completed", { ...frame(1, ts), message_id: "r2", content: "금요일 오후예요." }],
+      ["done", frame(2, ts)],
+    ];
+  };
+  await field.fill("다시 알려 주세요");
+  await field.press("Enter");
+  await expect(talk.getByTestId("talk-reply").last()).toHaveText("금요일 오후예요.");
+  // Another device's exchange, then its change: the window reads the history again, and that read draws it.
+  const at = Math.floor(Date.now() / 1000);
+  core.history.push({ id: "m_other", role: "user", content: "[LINA app]\n\n다른 기기 질문", timestamp: at }, { id: "m_other_answer", role: "assistant", content: "다른 기기 답", timestamp: at });
+  core.socket()?.send(JSON.stringify({ cursor: "c2", events: [{ source: "talk", kind: "message", id: "ag-1", at }] }));
+  await expect(talk.getByTestId("talk-reply").last()).toHaveText("다른 기기 답");
+  await expect(talk.getByTestId("talk-mine")).toHaveText(["어디까지 왔어요?", "오늘 할 일을 정리해 주세요", "배포는 언제예요?", "다시 알려 주세요", "다른 기기 질문"]);
+  await expect(talk.getByTestId("talk-reply").filter({ hasText: "금요일 오후예요." })).toHaveCount(1);
+  await page.screenshot({ path: info.outputPath(`talk-order-${info.project.name}.png`) });
 });
 
 test("a refused send says why in one line and a lost connection shows in the head", async ({ page }, info) => {

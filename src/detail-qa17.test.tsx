@@ -143,10 +143,12 @@ for (const wide of [true, false]) {
     // history leads it, nothing redrawn shorter or longer above.
     const between = states.filter((state) => state !== "" && state !== PLACEHOLDER && state !== settled);
     expect(between.length).toBeGreaterThan(0);
+    // The one folded line after the last block counts what has landed so far (its rounds' tool steps, G138): only it grows.
+    const unfolded = (text: string) => text.replace(/(?:어제 )?\d\d:\d\d · 접힌 기록 \d+건/g, "");
     for (const state of between) {
       const [history, placeholder] = state.split("\n");
       expect(placeholder).toBe(PLACEHOLDER);
-      expect(settled.startsWith(history)).toBe(true);
+      expect(unfolded(settled).startsWith(unfolded(history))).toBe(true);
     }
     expect(states.at(-1)).toBe(settled);
 

@@ -2644,7 +2644,8 @@ describe("work cards", () => {
     expect(within(detail).getByTestId("card-goal").textContent).toContain("결제 화면 개편");
     expect(head?.classList.contains("is-kind")).toBe(false);
     expect(within(detail).getByTestId("kind").textContent).toBe("문서");
-    expect(within(detail).queryByTestId("card-now")).toBeNull();
+    // No checked now line, and its question is in the work inbox: its top line is the wait for the owner's decision (G138).
+    expect(within(detail).getByTestId("card-now").textContent).toBe("지금결정 대기");
     // A row is titled by its goal first (lina-app#122), unless another group of the tab draws that title as its line 1:
     // then by its own name, the goal's the second line (lina-app#242).
     const row = within(view.getByTestId("screen-running")).getAllByTestId("row").find((item) => item.querySelector("a")?.getAttribute("href") === "#/cards/k-102");
@@ -2705,7 +2706,7 @@ describe("work cards", () => {
     const row = (href: string) => stopped.find((each) => each.querySelector("a")?.getAttribute("href") === href) as Element;
     const state = (href: string) => row(href).querySelector("[data-testid=state]") as Element;
     // Why it waits, never on whom (lina-app#156).
-    expect(state("#/cards/k-107").textContent).toBe("중단됨 · 피드백 대기 · 이유 기록 없음");
+    expect(state("#/cards/k-107").textContent).toBe("중단됨 · 피드백 대기");
     expect(state("#/cards/k-107").classList.contains("is-plain")).toBe(false);
     // The core does not say who an unresponsive stop waits on: the line stays grey.
     expect(state("#/cards/k-103").textContent).toBe("중단됨 · 응답 없음");
@@ -2734,7 +2735,7 @@ describe("work cards", () => {
     expect(row?.classList.contains("is-stopped")).toBe(true);
     expect(row?.querySelector(".title")?.textContent).toBe("배포 순서 정하기");
     expect(screenText(view.container)).not.toContain("중단 카드");
-    expect(row?.querySelector("[data-testid=state]")?.textContent).toBe("중단됨 · 결정 대기 · 이유 기록 없음");
+    expect(row?.querySelector("[data-testid=state]")?.textContent).toBe("중단됨 · 결정 대기");
     // The finished card is listed by its own title too, its ref-only bracket left out (lina-app#231).
     expect(screen.querySelector('a[href="#/cards/k-113"]')?.textContent).toContain("회차 점검 마무리");
     expect(screen.querySelector('a[href="#/cards/k-113"]')?.textContent).not.toContain("lina");
@@ -2799,7 +2800,7 @@ describe("work cards", () => {
     const links = within(detail).getAllByTestId("timeline-link");
     // No round number: each head is one line, its time and what happened (lina-app#61, #142).
     expect(links.map((link) => link.textContent)).toEqual([
-      expect.stringMatching(/^(어제 )?\d\d:\d\d · 진행 중$/),
+      expect.stringMatching(/^(어제 )?\d\d:\d\d · 진행 중 · 변경마다 한 줄 요약을 붙이는 중$/),
       expect.stringMatching(/^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/),
       expect.stringMatching(/^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/),
     ]);
@@ -3015,21 +3016,21 @@ describe("the run's own timeline", () => {
     // The comments between rounds are the card's own, in its 댓글 box: the record heads no block 댓글 with them (lina-app#171).
     expect(blocks.map((block) => block.getAttribute("data-outcome"))).toEqual(["going", "rejected", "ended"]);
     const titles = blocks.map((block) => block.querySelector(".timeline-head")?.textContent);
-    expect(titles[0]).toMatch(/^(어제 )?\d\d:\d\d · 진행 중$/);
+    // The going round reads what the card does now, its 지금 (G138).
+    expect(titles[0]).toMatch(/^(어제 )?\d\d:\d\d · 진행 중 · 변경마다 한 줄 요약을 붙이는 중$/);
     expect(titles[1]).toMatch(/^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/);
     // No start on record: the end alone, no dangling dash; the dim line below says the start is missing.
     expect(titles[2]).toMatch(/^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/);
     expect(titles.join("\n")).not.toMatch(/ –|^–/m);
   });
 
-  test("rows read newest first: sentences bright, tools one dim line with its count, a repeat once with ×n, raw text folded (lina-app#241)", async () => {
+  test("rows read newest first: sentences bright, a repeat once with ×n, no tool count beside what the card does now, raw text folded (lina-app#241, G138)", async () => {
     const view = await open("#/cards/k-101", { wide: true });
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const going = view.getAllByTestId("timeline-block")[0];
     const rows = [...going.querySelectorAll(".timeline-row")].map((row) => [row.getAttribute("data-kind"), row.classList.contains("is-dim"), row.textContent]);
     expect(rows).toEqual([
       ["said", false, expect.stringMatching(/^(어제 )?\d\d:\d\d · 요약을 표로 옮기는 중 ×3$/)],
-      ["tools", true, expect.stringMatching(/^(어제 )?\d\d:\d\d · 도구 사용 4번$/)],
       ["said", false, expect.stringMatching(/^(어제 )?\d\d:\d\d · 변경마다 한 줄 요약을 붙이는 중$/)],
     ]);
     expect(going.querySelector("[data-testid=timeline-result]")).toBeNull();
@@ -3127,7 +3128,7 @@ describe("the run's own timeline", () => {
     const view = await open("#/cards/k-101", { wide: true });
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const link = view.getByTestId("timeline").querySelector('a[href="#/cards/k-101/runs/3"]') as HTMLAnchorElement;
-    expect(link.textContent).toMatch(/^(어제 )?\d\d:\d\d · 진행 중$/);
+    expect(link.textContent).toMatch(/^(어제 )?\d\d:\d\d · 진행 중 · 변경마다 한 줄 요약을 붙이는 중$/);
     fireEvent.click(link);
     await waitFor(() => expect(view.queryByTestId("screen-run")).not.toBeNull());
     await waitFor(() => expect(view.getByTestId("screen-run").querySelector("[data-testid=timeline]")).not.toBeNull());
@@ -3522,7 +3523,7 @@ describe("the work tab list (lina-app#141)", () => {
       expect(list.querySelectorAll("[data-testid=stop-ask]")).toHaveLength(0);
       // k-107 has no ask; another stopped row shares its goal's title, so it leads with its own name, the goal's under it
       // (lina-app#148, #242).
-      expect(row("#/cards/k-107").querySelector("[data-testid=state]")?.textContent).toBe("중단됨 · 피드백 대기 · 이유 기록 없음");
+      expect(row("#/cards/k-107").querySelector("[data-testid=state]")?.textContent).toBe("중단됨 · 피드백 대기");
       expect(row("#/cards/k-107").querySelector(".title")?.textContent).toBe("결제: 영수증 문구 정하기");
       expect(row("#/cards/k-107").querySelector("[data-testid=row-sub]")?.textContent).toBe("결제 화면 개편");
     });
@@ -3637,7 +3638,7 @@ describe("a card's detail (lina-app#128)", () => {
     const timeline = view.getByTestId("timeline");
     expect(screenText(timeline)).not.toContain("라운드");
     const heads = [...timeline.querySelectorAll(".timeline-head")].map((head) => head.textContent);
-    expect(heads[0]).toMatch(new RegExp(`^${TIME} · 진행 중$`));
+    expect(heads[0]).toMatch(new RegExp(`^${TIME} · 진행 중 · 변경마다 한 줄 요약을 붙이는 중$`));
     const rounds = [...timeline.querySelectorAll(".timeline-head")].map((head) => head.textContent ?? "").filter((head) => head !== "댓글");
     const lines = [...rounds, ...[...timeline.querySelectorAll("li.timeline-row")].map((row) => row.textContent ?? "")];
     expect(lines.length).toBeGreaterThan(5);

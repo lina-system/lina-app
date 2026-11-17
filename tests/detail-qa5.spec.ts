@@ -6,7 +6,7 @@ const APP = "/app/?source=synthetic";
 
 test("opening and closing the detail pane never changes the list's scroll, even when rows above wrap differently", async ({ page }, info) => {
   test.skip(info.project.name === "phone", "the pane beside the list is the wide layout");
-  await page.setViewportSize({ width: 1280, height: 360 });
+  await page.setViewportSize({ width: 1280, height: 420 });
   await page.goto(`${APP}#/running`);
   await expect(page.getByTestId("freshness-line")).toHaveText("");
   const list = page.locator(".list-pane");
@@ -20,14 +20,18 @@ test("opening and closing the detail pane never changes the list's scroll, even 
   const before = await list.evaluate((element) => element.scrollTop);
   expect(before).toBeGreaterThan(0);
   const rows = page.locator(".list-pane [data-testid=row] > a[href^='#/cards/']");
-  let row = rows.first();
+  // A row wholly in view, so the click scrolls nothing: Playwright scrolls a clipped row into view before it clicks, which
+  // moves the list by itself. How many rows fit depends on the rows' height, so the test says when none does.
+  let row = null;
   for (let index = 0; index < (await rows.count()); index += 1) {
     const box = await rows.nth(index).boundingBox();
-    if (box && box.y > 60 && box.y + box.height < 340) {
+    if (box && box.y > 60 && box.y + box.height < 400) {
       row = rows.nth(index);
       break;
     }
   }
+  expect(row, "a list row wholly in view to open").not.toBeNull();
+  if (!row) return;
   await row.click();
   await expect(page.getByTestId("detail-frame")).toHaveAttribute("data-frame", "panel");
   const open = await list.evaluate((element) => element.scrollTop);

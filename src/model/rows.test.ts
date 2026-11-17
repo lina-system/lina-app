@@ -375,9 +375,9 @@ test("a stopped row says its ask after why it stopped, by the title rule; a deci
   const words = (id: string) => model.cards.get(id)?.stop?.words ?? null;
   expect(words("s1")).toBe("결정 대기 · 가짜 묶음 주문서 폰 시험");
   // An ask with a Latin word in it is no reason a row says (lina-app#222); a banned word is not said at all.
-  expect(words("s6")).toBe("결정 대기 · 이유 기록 없음");
-  expect(words("s7")).toBe("결정 대기 · 이유 기록 없음");
-  expect(words("s8")).toBe("결정 대기 · 이유 기록 없음");
+  expect(words("s6")).toBe("결정 대기");
+  expect(words("s7")).toBe("결정 대기");
+  expect(words("s8")).toBe("결정 대기");
   // The ask is never a line of its own on a row.
   expect([...model.cards.values()].filter((each) => each.ask)).toEqual([]);
 

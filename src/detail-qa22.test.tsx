@@ -81,7 +81,8 @@ function holdReads(source: SyntheticSource) {
 }
 
 const frame = (container: Element) => container.querySelector("[data-testid=detail-frame] article.detail");
-const rows = (container: Element) => [...(frame(container)?.querySelectorAll("[data-testid=timeline] li") ?? [])].map((row) => row.textContent);
+// The history's lines: each round's head and each row (a tool step is folded with the rows that do not stand whole, G138).
+const rows = (container: Element) => [...(frame(container)?.querySelectorAll("[data-testid=timeline] .timeline-head, [data-testid=timeline] li") ?? [])].map((row) => row.textContent);
 
 for (const wide of [true, false]) {
   const width = wide ? "1280" : "390";

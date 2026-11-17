@@ -402,6 +402,21 @@ export function historySentences(text: string | null | undefined, { opens = fals
     .filter(historyMayShow);
 }
 
+/** How long the core's now line may be to stand as a card's top line: one short line at 390 (G138). The core's own cap is 60. */
+const NOW_LETTERS = 40;
+
+/**
+ * Whether the core's checked now line (`plain.now`) may stand as a card's top line (G138): one sentence of at most 40
+ * letters, on one line, that the one gate passes (unitMayShow: no Latin letter, so no English word or worker id; no ref,
+ * so no card id or issue number) and that holds no path, command, address or hash. A line that fails is no now line.
+ */
+export function nowMayShow(line: string): boolean {
+  const text = line.trim();
+  if (!text || [...text].length > NOW_LETTERS || text.includes("\n") || text.split(PIECES).length > 1 || INTERNAL.test(text)) return false;
+  if (RULES.some(([reason, rule]) => reason !== "fragment" && rule.test(text))) return false;
+  return unitMayShow(text);
+}
+
 /** Whether a bracket's inside is refs, ids or hashes and their separators alone: no word, so cutting it leaves no hole (lina-app#233). */
 export function holdsRefsOnly(inner: string): boolean {
   return inner.trim() !== "" && !inner.replace(ONE_REF, "").replace(/[\s·,]+/g, "");

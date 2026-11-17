@@ -148,7 +148,7 @@ test("a goal's title that would show raw text does not name a row: a stopped car
 test("a stopped row says why and who it waits on from what the core serves, and is plain when the core does not say", () => {
   const scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
   const model = endedModel(scene);
-  expect(model.cards.get("k-107")?.stop).toEqual({ words: "피드백 대기 · 이유 기록 없음", known: true, owner: true, retry: false });
+  expect(model.cards.get("k-107")?.stop).toEqual({ words: "피드백 대기", known: true, owner: true, retry: false });
   expect(model.cards.get("k-103")?.stop).toEqual({ words: "응답 없음", known: false, owner: false, retry: true });
   expect(model.cards.get("r14")?.stop).toEqual({ words: "응답 없음", known: false, owner: false, retry: true });
   expect(model.cards.get("k-101")?.stop).toBeNull();
@@ -255,7 +255,7 @@ test("a stopped row says who waits from waitingOn and retry, and the rows waitin
   // A budget stop the core will run again: its reason first, and no 다시 시도 button (lina-app#160).
   expect(stop("k-111")).toEqual({ words: "예산 초과 · 다시 시도 예정", known: true, owner: false, retry: false });
   expect(stop("r20")).toEqual({ words: "실패 · 다시 시도 안 함", known: true, owner: false, retry: true });
-  expect(stop("k-112")).toEqual({ words: "결정 대기 · 이유 기록 없음", known: true, owner: true, retry: false });
+  expect(stop("k-112")).toEqual({ words: "결정 대기", known: true, owner: true, retry: false });
   // Neither waitingOn nor retry: the core does not say, one grey line.
   expect(stop("k-103")).toEqual({ words: "응답 없음", known: false, owner: false, retry: true });
   const rows = model.running.sections[0].rows;
@@ -306,7 +306,7 @@ test("a stop reads its reason first in the core's real shapes, and a scheduled o
     "k-budget-later": "예산 초과 · 다시 시도 예정",
     "k-decision": "결정 대기 · 가짜 보고서",
     "k-check": "확인 필요 · 가짜 받는 사람",
-    "k-only": "결정 대기 · 이유 기록 없음",
+    "k-only": "결정 대기",
   });
   expect(pick("retry")).toEqual({
     "k-time": false,

@@ -168,7 +168,8 @@ test("a card's worker run opened on its own reads its card: r1 goes on inside it
   });
   const run = view.getByTestId("screen-run");
   expect(run.querySelector("[data-testid=detail-loading]")).toBeNull();
-  expect(run.querySelector(".timeline-head")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 진행 중$/);
+  // The going round reads what its card does now (G138).
+  expect(run.querySelector(".timeline-head")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 진행 중 · 변경마다 한 줄 요약을 붙이는 중$/);
   expect(runBoxes(view)).toEqual(["작업", "기록"]);
   expect(run.querySelector('a[href="#/cards/k-101"]')).not.toBeNull();
   expect(core.details()).toEqual(["k-101"]);

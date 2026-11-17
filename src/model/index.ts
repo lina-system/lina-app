@@ -23,11 +23,11 @@ import type {
   WorkInbox,
   WorkState,
 } from "../api/client";
-import { BANNED_WORDS, CRUMB, KIND_TITLE, ROUND9_WORD, SEP, SOURCE_WORD, STATE_WORD, STOP_WAIT, STOP_WORD, W, reasonWord, stateLabel } from "../words";
+import { BANNED_WORDS, CRUMB, KIND_TITLE, NOW_WORD, SEP, SOURCE_WORD, STATE_WORD, STOP_WAIT, STOP_WORD, W, reasonWord, stateLabel } from "../words";
 import { href } from "../router";
 import { clockAt } from "../time";
 import { checksView, type ChecksView } from "./checks";
-import { foldReason, holdsRefsOnly, sentenceMayShow, unitMayShow, unitOf, withoutLatin, withoutRefs } from "./fold";
+import { foldReason, holdsRefsOnly, nowMayShow, sentenceMayShow, unitMayShow, unitOf, withoutLatin, withoutRefs } from "./fold";
 import { cardKind, type CardKind } from "./kind";
 import { ocxView, usageViews, type OcxView, type UsageRangeView } from "./usage";
 
@@ -683,14 +683,15 @@ export function buildModel(input: ModelInput, now: number): Model {
   const internal = (title: string | null | undefined) => Boolean(title) && plainName(title) === null && plainName(title, true) !== null && !HANGUL.test(title ?? "");
   // What the core says about a stop (lina#629); absent and null both mean it does not say. `waitUntil` (epoch seconds)
   // is when a time wait ends, read only when the core sends it (lina-app#160).
-  type StopFacts = { readonly waitingOn?: string | null; readonly retry?: string | null; readonly waitUntil?: number | null };
+  // `asked`: the work inbox holds a question of the card's (G138), so the owner's answer is what it waits for.
+  type StopFacts = { readonly waitingOn?: string | null; readonly retry?: string | null; readonly waitUntil?: number | null; readonly asked?: boolean };
   const contextRow = (row: CardRow, goal: string | null, fallback: string | null, isRun: boolean, facts: StopFacts): CardRow => {
     // The goal names the row first (lina-app#122); the kind of work is the icon only, never the title. With no title
     // at all the row is not drawn (lina-app#124); its own page still says 제목 없음.
     const title = goal ?? row.title ?? fallback;
     return { ...row, title, name: title ?? W.untitled, stop: row.state === "stopped" ? stopWords(row.reason, isRun, facts) : null };
   };
-  const stopWords = (reason: string | null, isRun: boolean, { waitingOn, retry, waitUntil }: StopFacts): NonNullable<CardRow["stop"]> => {
+  const stopWords = (reason: string | null, isRun: boolean, { waitingOn, retry, waitUntil, asked = false }: StopFacts): NonNullable<CardRow["stop"]> => {
     // Why it waits, never on whom: no person's name in the state line (lina-app#156). The reason decides the word first,
     // whoever has to act (lina-app#160): a gate, a budget or a run the core gave up on is not a bare 확인 필요.
     const scheduled = retry === "scheduled";
@@ -700,13 +701,18 @@ export function buildModel(input: ModelInput, now: number): Model {
     // already runs again by itself: no 다시 시도.
     const again = !scheduled && reason !== "blocked_by_item";
     const answer = { words: (reason && STOP_WAIT[reason]) || W.needsCheck, known: true, owner: true, retry: false };
-    if (waitingOn === "owner") return why ? { words: why, known: true, owner: true, retry: again } : answer;
+    // The owner's answer is what it waits for when the core says so (`waitingOn`, a question of its in the work inbox), or
+    // for a decision or feedback stop when the core does not say who acts (no `waitingOn` at all).
+    const onOwner = waitingOn === "owner" || asked || (waitingOn === undefined && (reason === "decision" || reason === "feedback"));
+    if (onOwner) return why ? { words: why, known: true, owner: true, retry: again } : answer;
     // An agent that starts another run by itself is no reviewer: the retry words below say so.
     if (waitingOn?.startsWith("agent:") && !scheduled) {
       const agent = agents.find((each) => each.id === waitingOn.slice(6) || each.name === waitingOn.slice(6));
       return { words: agent ? `${agent.name} ${W.waitReview}` : W.waitReview, known: true, owner: false, retry: false };
     }
-    if (reason === "decision" || reason === "feedback") return answer;
+    // A decision or feedback stop nobody asks the owner of (a device to come back, G138) waits on something else: 결정 대기
+    // and 피드백 대기 are said only where the owner's answer is what it waits for.
+    if (reason === "decision" || reason === "feedback") return { words: STOP_WORD.why.blocked_by_item, known: true, owner: false, retry: false };
     if (reason === "review") return { words: W.waitReview, known: true, owner: false, retry: false };
     const word = why ?? reasonWord(reason);
     // A wait that wakes by itself (a time, another to-do) already says it goes on; any other says it will be tried again.
@@ -717,9 +723,9 @@ export function buildModel(input: ModelInput, now: number): Model {
   };
   // A stopped row's words with its reason (lina-app#171): cut at a word on the row, and in the detail the inbox's whole
   // reason whenever it keeps one the row does not say whole (lina-app#241), folded when the one gate does not pass it; a
-  // stop that waits on the owner's decision or feedback with no reason at all says so instead of leaving a gap.
-  const stopWithReason = (stop: NonNullable<CardRow["stop"]>, reasonKey: string | null, reason: string | null, whole: ReturnType<typeof stopReasonText>): NonNullable<CardRow["stop"]> => {
-    if (reason === null && whole === null) return reasonKey && STOP_WAIT[reasonKey] ? { ...stop, words: [stop.words, ROUND9_WORD.noReasonRecord].join(SEP) } : stop;
+  // stop with no reason at all says its words alone (G138).
+  const stopWithReason = (stop: NonNullable<CardRow["stop"]>, reason: string | null, whole: ReturnType<typeof stopReasonText>): NonNullable<CardRow["stop"]> => {
+    if (reason === null && whole === null) return stop;
     const short = reason === null ? null : cutAtWord(reason.replace(CUT_END, ""), ROW_REASON_MAX);
     const words = [stop.words, short].filter(Boolean).join(SEP);
     const detail = whole && whole.text !== short ? whole : reason !== null && short !== reason ? { text: reason, folded: false } : null;
@@ -760,7 +766,12 @@ export function buildModel(input: ModelInput, now: number): Model {
         card.state === "done" ? goalName : plainName,
       );
       const goal = goalName((card as CardSummary).goalTitle) ?? goalName(cardGoal.get(card.id)?.title);
-      const row = { ...contextRow(workCardRow(card, input.cardDetails[card.id], receivedAt, cardRuns), goal, fallback, false, card), goalTitle: (card as CardSummary).goalTitle ?? cardGoal.get(card.id)?.title ?? null };
+      const detail = input.cardDetails[card.id];
+      const blockReason = workInbox?.blocked.find((entry) => entry.cardId === card.id)?.blockReason;
+      const asked = (workInbox?.questions ?? []).some((question) => question.cardId === card.id);
+      const own = workCardRow(card, detail, receivedAt, cardRuns);
+      const doing = cardNow(card, asked);
+      const row = { ...contextRow({ ...own, now: doing?.text ?? null }, goal, fallback, false, { ...card, asked }), goalTitle: (card as CardSummary).goalTitle ?? cardGoal.get(card.id)?.title ?? null };
       // Every card is a row (lina-app#225). One nothing else names is named by its ask (a stopped card's, lina-app#156),
       // then, unless it is finished, by the Hangul words of its own title (lina-app#214); the ask is said after the stop's
       // words, unless it already names the row. With none, it reads its kind of work, and a finished one, which no cut
@@ -770,11 +781,11 @@ export function buildModel(input: ModelInput, now: number): Model {
       // An ask that ends in the status word before it says that word once (lina-app#160).
       const said = ask !== null && ask !== title ? withoutRepeat(ask, row.stop?.words ?? "") : null;
       // The whole reason the inbox keeps (lina-app#171): the core cuts its ask at a length, so a cut ask reads from it.
-      const whole = card.state === "stopped" ? stopReasonText(workInbox?.blocked.find((entry) => entry.cardId === card.id)?.blockReason) : null;
+      const whole = card.state === "stopped" ? stopReasonText(blockReason) : null;
       const drawn = whole && !whole.folded ? whole.text : null;
       const reason = said !== null && CUT_END.test(said) ? (drawn ?? said) : (said ?? drawn);
       // An ask that names the row is its reason already; the detail still shows the inbox's whole reason under it.
-      const stop = row.stop ? (ask !== null && ask === title ? (whole ? { ...row.stop, reason: { lead: row.stop.words, ...whole } } : row.stop) : stopWithReason(row.stop, row.reason, reason, whole)) : row.stop;
+      const stop = row.stop ? (ask !== null && ask === title ? (whole ? { ...row.stop, reason: { lead: row.stop.words, ...whole } } : row.stop) : stopWithReason(row.stop, reason, whole)) : row.stop;
       return { row: { ...row, title, name: title ?? (card.state === "done" ? W.cards : KIND_TITLE[row.work]), stop, ask: null, ...(card.state === "stopped" ? { asked: retryAsked(input.cardDetails[card.id], row.stateAt) } : {}) }, listed: !isEnded(card) };
     }),
     ...(board?.cards ?? []).map((run) => ({ row: runListRow(run), listed: false })),
@@ -1060,6 +1071,47 @@ export function doneFor(model: Model, agentId?: string): readonly CardRow[] {
 /** The cards some lines stand for, a `×n` line counting n (lina-app#225): what every 완료 number counts. */
 export function cardCount(lines: readonly CardRow[]): number {
   return lines.reduce((sum, line) => sum + (line.repeat ?? 1), 0);
+}
+
+/**
+ * A card's state as a short sentence of what it waits for (G138), from the values the app already has and only as far as
+ * the core says: the owner's answer (`waitingOn: owner`, or a question of the card's in the work inbox) reads its wait
+ * word (결정 대기, 피드백 대기); another to-do, an agent, a review, a gate or a set time reads what it waits for. Null
+ * for any other: what the card does is never guessed.
+ */
+function waitLine(card: Pick<CardSummary, "reason" | "waitingOn" | "retry">, asked: boolean): string | null {
+  const { reason, waitingOn, retry } = card;
+  if (waitingOn === "owner" || asked) return (reason && STOP_WAIT[reason]) || (asked ? STOP_WAIT.decision : W.needsCheck);
+  if (waitingOn?.startsWith("agent:")) return NOW_WORD.agent;
+  if (reason === "blocked_by_item") return NOW_WORD.item;
+  if (reason === "review") return NOW_WORD.review;
+  if (reason === "gate") return NOW_WORD.gate;
+  if (reason === "hold" && retry === "scheduled") return NOW_WORD.time;
+  return null;
+}
+
+/**
+ * What a card does now, as one short line (G138): its row's second line, its detail's 지금 and its going round's line in
+ * 기록 read it from here, so they never say two things. Only a card at work, waiting or stopped has one: the core's checked
+ * now line when it passes the 40-letter gate (nowMayShow), else what its state says it waits for (waitLine). A stopped
+ * card's wait is its head's already, so it reads only the core's line. No bot comment, block reason or ask is read: with
+ * neither, null, and the screens say its state alone.
+ */
+export function cardNow(card: Pick<WorkCardSummary, "state" | "plain"> & Pick<CardSummary, "reason" | "waitingOn" | "retry">, asked = false): { readonly text: string; readonly from: "plain" | "state" } | null {
+  if (card.state !== "in_progress" && card.state !== "waiting" && card.state !== "stopped") return null;
+  if (card.plain.now && nowMayShow(card.plain.now)) return { text: card.plain.now.trim(), from: "plain" };
+  if (card.state === "stopped") return null;
+  const wait = waitLine(card, asked);
+  return wait ? { text: wait, from: "state" } : null;
+}
+
+/**
+ * Whether a stopped card waits on the owner's answer (G138): its row says so (its stop words, from `waitingOn` and the work
+ * inbox's questions), or with no row known, the core's reason does. The row, the detail's head and its answer place read it.
+ */
+export function waitsOnOwner(state: WorkState, reason: string | null, row: CardRow | undefined): boolean {
+  if (state !== "stopped") return false;
+  return row?.stop ? row.stop.owner : reason === "decision" || reason === "feedback";
 }
 
 /** A goal's or to-do's state line (lina-app#179): its fold, or while a decision on it is open, that wait since it was asked. */

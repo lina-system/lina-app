@@ -986,7 +986,8 @@ const drivers = {
       check(rows.length === 7, "expected 7 stopped rows, got " + rows.length + ": " + hrefs.join(" "));
       check(!hrefs.some((href) => href.startsWith("#/runs/")), "a worker run is a row of its own: " + hrefs.join(" "));
       // Why each waits on the owner, never on whom (lina-app#156): the reason in words, then the core's ask.
-      const OWNER = { "#/cards/k-108": "중단됨 · 확인 필요 · 야간 보고서를 받을 사람", "#/cards/k-107": "중단됨 · 피드백 대기 · 이유 기록 없음", "#/cards/k-112": "중단됨 · 결정 대기 · 이유 기록 없음" };
+      // A stop with no sentence of why reads its words alone, never 이유 기록 없음 (G138).
+      const OWNER = { "#/cards/k-108": "중단됨 · 확인 필요 · 야간 보고서를 받을 사람", "#/cards/k-107": "중단됨 · 피드백 대기", "#/cards/k-112": "중단됨 · 결정 대기" };
       check(rows.slice(0, 3).every((row) => OWNER[row.href] === row.state), "the rows waiting on the owner are not first, or read otherwise: " + rows.map((row) => row.state).join(" | "));
       check(rows.slice(3).every((row) => !Object.hasOwn(OWNER, row.href)), "an owner row is below another row");
       check(!rows.some((row) => /도윤|확인 필요$/.test(row.state.replace(OWNER["#/cards/k-108"], ""))), "a state line names a person: " + rows.map((row) => row.state).join(" | "));
@@ -1100,6 +1101,26 @@ const drivers = {
       const shown = await page.getByText("변경마다 한 줄 요약을 붙이는 중").first().isVisible();
       check(shown === wide, "now line visible=" + shown + " at width " + page.viewportSize().width);
       return wide ? "now line shown" : "no now line on a phone";
+    });
+    await step("on &hub=now, a stopped row with no sentence of why reads its words alone, never 이유 기록 없음; a feedback stop nobody asks the owner for reads 다른 일 대기; a running row's now line is its top line, never a bot comment (G138)", async () => {
+      await openApp(page, "#/running", "&hub=now");
+      const list = page.getByTestId("screen-running");
+      // The stopped group shows its first five rows; its fold holds the rest (lina-app#152).
+      for (const more of await list.locator(".more-row button").all()) await more.click();
+      const state = (id) => list.locator(`li:has(> a[href="#/cards/${id}"]) [data-testid=state]`).innerText();
+      const device = (await state("k-462")).trim();
+      const bare = (await state("k-463")).trim();
+      check(device === "중단됨 · 다른 일 대기" && bare === "중단됨 · 결정 대기", "the stopped rows read " + device + " / " + bare);
+      const all = await list.innerText();
+      check(!all.includes("이유 기록 없음") && !all.includes("가짜 묶음 셋을 나눠 맡겼다."), "a row reads 이유 기록 없음 or a bot comment");
+      const wide = page.viewportSize().width >= 900;
+      const nowOf = async (id) => {
+        const line = list.locator(`a[href="#/cards/${id}"] .now`);
+        return (await line.count()) ? (await line.innerText()).trim() : null;
+      };
+      const lines = [await nowOf("k-464"), await nowOf("k-465"), await nowOf("k-460")];
+      check(JSON.stringify(lines) === JSON.stringify(wide ? ["가짜 목록 셋을 차례로 맞추는 중", "결정 대기", null] : [null, null, null]), "the running rows' now lines read " + JSON.stringify(lines));
+      return device + " / " + bare + "; now lines " + JSON.stringify(lines);
     });
   },
 
@@ -1750,8 +1771,9 @@ const drivers = {
       check((await detail.locator(".detail-title.is-kind").count()) === 0, "the head shows a kind word instead of the title");
       const kind = (await detail.getByTestId("kind").innerText()).trim();
       check(kind === "문서", "the kind reads " + kind);
-      check((await detail.getByTestId("card-now").count()) === 0, "the card shows a now line");
-      return head + " / " + goal + "; " + kind + "; no now line";
+      // No checked now line, and its question is in the work inbox: its top line is the wait for the owner's decision (G138).
+      check((await text(detail.getByTestId("card-now").locator(".box-text"))) === "결정 대기", "the card's now line reads " + (await detail.getByTestId("card-now").innerText()));
+      return head + " / " + goal + "; " + kind + "; now line 결정 대기";
     });
     await step("a worker record's comment rows have no author: they read through the one gate, never as saved, whole or folded (lina-app#230, #236)", async () => {
       // k-102's record (r2) holds an agent's English verdict note and a note the core cut inside a word at 300 characters.
@@ -1946,6 +1968,55 @@ const drivers = {
       await nothing.waitFor({ timeout: 5_000 }).catch(() => check(false, "the planned card k-106 shows a blank detail"));
       check(state === "예정" && (await nothing.innerText()).trim() === "아직 기록 없음", "k-106 reads " + state + " / " + (await nothing.innerText()));
       return heads.join(" / ") + "; k-106 " + state + " · " + (await nothing.innerText()).trim();
+    });
+    // G138: a card's top line (its going round's head, 지금, its row's second line) is the core's now line of 40 letters or
+    // fewer, else what its state says it waits for, else nothing: never a bot's comment. Each card's detail is kept as its
+    // own screenshot beside the drive's evidence, and the drive says how long each top line is.
+    const width = page.viewportSize().width;
+    const shots = path.join(evidenceRoot, "card-detail");
+    const shot = async (name) => {
+      mkdirSync(shots, { recursive: true });
+      const file = path.join(shots, "card-detail-" + name + "-" + width + ".png");
+      await page.screenshot({ path: file, fullPage: true, animations: "disabled" });
+      return path.relative(repo, file);
+    };
+    const botSaid = "가짜 묶음 셋을 나눠 맡겼다.";
+    const topOf = async () => {
+      const head = page.getByTestId("timeline").locator(".timeline-head").first();
+      await head.waitFor({ timeout: 10_000 });
+      return (await head.innerText()).trim().replace(/^(어제 )?\d\d:\d\d · 진행 중(?: · )?/, "");
+    };
+    await step("on &hub=now, a going card's top line is its now line of 40 letters or fewer, else its wait for the owner's decision, else nothing; no bot comment, tool count or read-only line stands (G138)", async () => {
+      await openApp(page, "#/cards/k-464", "&hub=now");
+      const told = await topOf();
+      const toldNow = await text(page.getByTestId("card-now").locator(".box-text"));
+      check(told === "가짜 목록 셋을 차례로 맞추는 중" && toldNow === told && [...told].length <= 40, "k-464 reads " + told + " / " + toldNow);
+      const toldShot = await shot("going-now");
+      await openApp(page, "#/cards/k-465", "&hub=now");
+      const asking = await topOf();
+      check(asking === "결정 대기", "k-465 reads " + asking);
+      await openApp(page, "#/cards/k-460", "&hub=now");
+      const none = await topOf();
+      const all = await page.getByTestId("screen-card").innerText();
+      check(none === "" && (await page.getByTestId("card-now").count()) === 0, "k-460 has a top line: " + none);
+      check(!all.split("댓글")[0].includes(botSaid) && !/도구 사용|읽기 전용|Assigned|받음/.test(all) && (await page.getByTestId("read-only").count()) === 0, "k-460 draws a bot sentence on top, a tool count, a read-only line or a notice");
+      return "k-464 " + told + " (" + [...told].length + " letters) " + toldShot + "; k-465 " + asking + "; k-460 none " + (await shot("going-none"));
+    });
+    await step("on &hub=now, a waiting card whose now line is over 40 letters reads its state's wait; a feedback stop nobody asks the owner for reads 다른 일 대기 alone; a decision stop with nothing of why reads its words alone, never 이유 기록 없음 (G138)", async () => {
+      await openApp(page, "#/cards/k-461", "&hub=now");
+      const waits = await text(page.getByTestId("card-now").locator(".box-text"));
+      check(waits === "검토를 기다리는 중" && [...waits].length <= 40, "k-461's 지금 reads " + waits);
+      const waitingShot = await shot("waiting");
+      await openApp(page, "#/cards/k-462", "&hub=now");
+      const stopped = (await page.locator(".detail-head [data-testid=state]").first().innerText()).trim();
+      check(stopped === "중단됨 · 다른 일 대기" && !/피드백 대기|이유 기록 없음|가짜 기기가/.test(await page.locator(".detail-head").innerText()) && (await page.getByTestId("card-now").count()) === 0, "k-462 reads " + stopped);
+      const stoppedShot = await shot("stopped");
+      await openApp(page, "#/cards/k-463", "&hub=now");
+      const why = await text(page.getByTestId("stop-why"));
+      const where = await text(page.getByTestId("answer-where"));
+      const card = await page.getByTestId("screen-card").innerText();
+      check(why === "결정 대기" && /^답할 곳 · \S+ 대화$/.test(where) && !/이유 기록 없음|읽기 전용/.test(card) && (await page.getByRole("textbox").count()) === 0, "k-463 reads " + why + " / " + where);
+      return "k-461 " + waits + " (" + [...waits].length + " letters) " + waitingShot + "; k-462 " + stopped + " " + stoppedShot + "; k-463 " + why + " · " + where + " " + (await shot("read-only"));
     });
   },
 
@@ -3807,10 +3878,10 @@ const drivers = {
       check((await detail.locator(".detail-title.is-kind").count()) === 0, "the detail draws a kind word in place of its title");
       const kind = (await detail.getByTestId("kind").innerText()).trim();
       check(kind === "문서", "the kind reads " + kind);
-      check((await detail.getByTestId("card-now").count()) === 0, "the detail shows a now line");
+      check((await detail.getByTestId("card-now").locator(".box-text").innerText()).trim() === "결정 대기", "the detail's now line reads " + (await detail.getByTestId("card-now").innerText()));
       const text = await detail.innerText();
       check(!/payment|card-form|editing/.test(text), "raw text in the detail: " + text.slice(0, 120));
-      return "row: 위키: 결제 화면 문서 정리 · " + state + "; detail: " + kind + ", " + head + ", no now line";
+      return "row: 위키: 결제 화면 문서 정리 · " + state + "; detail: " + kind + ", " + head + ", now line 결정 대기";
     });
     await step("a card's detail: now, to-dos, then one round list (기록), each round's head the link to its worker run", async () => {
       await openApp(page, "#/cards/k-101");
@@ -3820,7 +3891,7 @@ const drivers = {
       check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "기록", "댓글"]), "the boxes read " + JSON.stringify(heads));
       const rounds = await detail.getByTestId("timeline-link").allInnerTexts();
       check(
-        rounds.length === 3 && /^(어제 )?\d\d:\d\d · 진행 중$/.test(rounds[0]) && /^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/.test(rounds[1]) && /^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/.test(rounds[2]),
+        rounds.length === 3 && /^(어제 )?\d\d:\d\d · 진행 중 · 변경마다 한 줄 요약을 붙이는 중$/.test(rounds[0]) && /^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/.test(rounds[1]) && /^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/.test(rounds[2]),
         "the rounds read " + JSON.stringify(rounds),
       );
       // Round 1's end is r9's own end (2시간 40분 전), so the head and the run agree.
@@ -3903,7 +3974,7 @@ const drivers = {
       check(head === "할 일 1/3", "the detail head's bar reads " + head);
       return (wide ? bars.join(", ") : "no bar on the phone home") + "; detail " + head;
     });
-    await step("the run's own timeline: rounds newest first, each head time · outcome · result; sentences bright, tools dim, raw text left out", async () => {
+    await step("the run's own timeline: rounds newest first, each head time · outcome · result, the going one what the card does now; sentences bright, no tool count beside it, raw text left out", async () => {
       await openApp(page, "#/cards/k-101");
       const timeline = page.getByTestId("timeline");
       await timeline.waitFor();
@@ -3914,19 +3985,19 @@ const drivers = {
       // The comments between rounds are the card's own, read in its 댓글 box: the record heads no block 댓글 with them (lina-app#171).
       check(JSON.stringify(outcomes) === JSON.stringify(["going", "rejected", "ended"]), "the blocks read " + JSON.stringify(outcomes));
       const titles = await timeline.locator(".timeline-head").allInnerTexts();
-      check(/^(어제 )?\d\d:\d\d · 진행 중$/.test(titles[0]) && /^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/.test(titles[1]) && /^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/.test(titles[2]) && !titles.some((title) => title.includes("라운드")) && !titles.some((title) => title.includes(" –") || title.startsWith("–")), "the heads read " + JSON.stringify(titles));
+      check(/^(어제 )?\d\d:\d\d · 진행 중 · 변경마다 한 줄 요약을 붙이는 중$/.test(titles[0]) && /^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/.test(titles[1]) && /^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/.test(titles[2]) && !titles.some((title) => title.includes("라운드")) && !titles.some((title) => title.includes(" –") || title.startsWith("–")), "the heads read " + JSON.stringify(titles));
       const rows = await blocks.first().locator(".timeline-row").evaluateAll((items) =>
         items.map((item) => ({ kind: item.getAttribute("data-kind"), text: item.textContent.trim(), colour: getComputedStyle(item).color })),
       );
       const label = await page.locator(".detail-title").evaluate((title) => getComputedStyle(title).color);
       // Each row is one event, time · one sentence (lina-app#128).
       const said = rows.map((row) => row.text.replace(/^(어제 )?\d\d:\d\d · /, "")).join(" | ");
-      check(rows.every((row) => /^(어제 )?\d\d:\d\d · \S/.test(row.text)) && said === "요약을 표로 옮기는 중 ×3 | 도구 사용 4번 | 변경마다 한 줄 요약을 붙이는 중", "the going round reads " + rows.map((row) => row.text).join(" | "));
+      check(rows.every((row) => /^(어제 )?\d\d:\d\d · \S/.test(row.text)) && said === "요약을 표로 옮기는 중 ×3 | 변경마다 한 줄 요약을 붙이는 중", "the going round reads " + rows.map((row) => row.text).join(" | "));
       // Its raw English line folds into the timeline's one dim 접힌 기록 line, after the last block, which opens to it (lina-app#241).
       const folds = await timeline.locator(".timeline-row").evaluateAll((items) => items.map((item) => item.getAttribute("data-kind")));
       const foldText = (await timeline.locator("[data-kind=folded]").innerText()).trim();
       check(folds.filter((kind) => kind === "folded").length === 1 && folds.at(-1) === "folded" && /^(어제 )?\d\d:\d\d · 접힌 기록 1건$/.test(foldText.replace(/\s+/g, " ")), "the one folded line is not last: " + JSON.stringify(folds) + " " + foldText);
-      check(rows[0].colour === label && rows[1].colour !== label && rows[2].colour === label, "sentence and dim colours " + JSON.stringify(rows.map((row) => row.colour)) + ", label " + label);
+      check(rows.every((row) => row.colour === label), "sentence colours " + JSON.stringify(rows.map((row) => row.colour)) + ", label " + label);
       const noStart = (await blocks.nth(2).getByTestId("timeline-no-start").innerText()).trim();
       check(noStart === "시작 기록 없음", "the start-unknown round reads " + noStart);
       const text = await timeline.innerText();

@@ -56,6 +56,8 @@ export interface components {
             messages: {
                 /** @description As stored; the owner's turns start with the app's first line. */
                 content: string;
+                /** @description The message's id, the same on every read: worked out from its role, its content and how many earlier messages of the conversation have the same role and content, so the same words twice have two ids and a turn a compaction archived keeps its id. The `talk` change event (`docs/api/board-client.yaml` ChangeEvent) names the last one as `message_id`. */
+                id?: string;
                 /** @enum {string} */
                 role: "user" | "assistant";
                 timestamp: number | null;
@@ -66,6 +68,7 @@ export interface components {
         AgentTalkStartedEvent: {
             data: {
                 agent: string;
+                message_id?: components["schemas"]["SentMessageId"];
                 /** @description The agent's app conversation on its gateway. */
                 session_id: string;
             };
@@ -149,6 +152,8 @@ export interface components {
             /** @enum {string} */
             event: "run.started";
         };
+        /** @description The `id` the owner's message of this turn has in `AgentTalkHistory.messages` once the gateway stores it (the same id for a to-do's turn, which runs in the same app conversation). Sent once the gateway took the turn; a turn whose message never shows with this id in the history was not stored (it failed before the agent ran). */
+        SentMessageId: string;
         TalkCarriedEvent: {
             /** @description Sent right after assistant.completed once the exchange waits for the agent's next DM turn. */
             data: {

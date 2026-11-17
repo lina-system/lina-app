@@ -50,6 +50,20 @@ test("bullet and numbered lists are lists; a numbered list keeps its first numbe
   expect([...root.querySelectorAll("ol > li")].map((li) => li.textContent)).toEqual(["셋째", "넷째"]);
 });
 
+test("a task list item draws a read-only check, named for its state, instead of its [ ] or [x] (lina-app#190)", () => {
+  const root = draw("- [ ] 하나\n- [x] **둘**\n* [X] 셋\n1. [ ] 넷\n- [가] 다섯");
+  const checks = [...root.querySelectorAll("li > input")] as HTMLInputElement[];
+  expect(checks.map((check) => [check.type, check.checked, check.disabled, check.getAttribute("aria-label")])).toEqual([
+    ["checkbox", false, true, "완료 안 됨"],
+    ["checkbox", true, true, "완료"],
+    ["checkbox", true, true, "완료"],
+    ["checkbox", false, true, "완료 안 됨"],
+  ]);
+  expect([...root.querySelectorAll("li")].map((li) => li.textContent)).toEqual(["하나", "둘", "셋", "넷", "[가] 다섯"]);
+  expect(root.querySelector("li strong")?.textContent).toBe("둘");
+  expect(plainLine("- [x] **정리한** 일")).toBe("정리한 일");
+});
+
 test("a nested list item is drawn as an item of the same list", () => {
   const root = draw("- 위\n  - 아래");
   expect([...root.querySelectorAll("ul > li")].map((li) => li.textContent)).toEqual(["위", "아래"]);

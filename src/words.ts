@@ -87,6 +87,7 @@ export const W = {
   running: "진행 중인 작업",
   due: "마감일",
   done: "완료",
+  notDone: "완료 안 됨",
   agents: "에이전트",
   goals: "목표",
   status: "상태",

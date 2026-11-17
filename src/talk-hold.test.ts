@@ -6,7 +6,7 @@ import { withTurns, type Sent, type ThreadLine } from "./screens/talk";
 const line = (key: string, mine: boolean, text: string): ThreadLine => ({ key, mine, text, at: null, state: "kept" });
 
 function turn(over: Partial<Sent>): Sent {
-  return { key: "t1", message: "어디까지 왔어요?", reply: "배포 순서는 답을 기다려요.", state: "done", base: null, from: null, at: 100, replyAt: 101, told: false, ...over };
+  return { key: "t1", message: "어디까지 왔어요?", reply: "배포 순서는 답을 기다려요.", state: "done", id: null, after: null, prior: null, base: null, from: null, at: 100, replyAt: 101, told: false, ...over };
 }
 
 // Another device added the same words after this page's last read (base 2), and the core's reply to it is in that read.

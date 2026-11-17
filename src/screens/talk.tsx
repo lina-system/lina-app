@@ -418,17 +418,19 @@ function keepLastLine(source: Source, agent: string, line: string | undefined) {
   revisions.set(agent, revisionOf(source, agent) + 1);
   if (line === undefined) lastLinesOf(source).delete(agent);
   else lastLinesOf(source).set(agent, line);
-  redrawLastLines();
-}
-
-function redrawLastLines() {
   for (const watcher of lastLineWatchers) watcher();
 }
 
-function lastLineOf(history: AgentTalkHistory): string {
-  const last = history.messages.at(-1);
-  // The owner's words as typed; the agent's without their markdown marks (lina-app#187).
-  return last ? (last.role === "user" ? firstLine(ownText(last.content)) : plainLine(last.content)) : "";
+function lastLineOf(history: AgentTalkHistory, brokenOff: readonly string[] = []): string {
+  // The agent's last message, without its markdown marks (lina-app#187). An owner's message after it is a turn still
+  // going, sent from another device, and the row does not read it (lina-app#190); a turn of this page's that broke off
+  // (`brokenOff`) is read as the owner's words.
+  for (let at = history.messages.length - 1; at >= 0; at -= 1) {
+    const message = history.messages[at];
+    if (message.role !== "user") return plainLine(message.content);
+    if (brokenOff.includes(ownText(message.content))) return firstLine(ownText(message.content));
+  }
+  return "";
 }
 
 /**
@@ -512,7 +514,9 @@ export function TalkPreview({ agent }: { agent: string }) {
       const revision = revisionOf(store.source, agent);
       return store.source.agentTalkHistory(agent).then((result) => {
         // A turn sent or a reply taken meanwhile is newer than this snapshot.
-        if (live && result.kind === "data" && revisionOf(store.source, agent) === revision) keepLastLine(store.source, agent, lastLineOf(result.data));
+        if (!live || result.kind !== "data" || revisionOf(store.source, agent) !== revision) return;
+        const brokenOff = outboxes.get(store.source)?.get(agent)?.turns.filter((turn) => turn.state === "failed").map((turn) => turn.message);
+        keepLastLine(store.source, agent, lastLineOf(result.data, brokenOff));
       });
     });
     return () => {
@@ -842,7 +846,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
       turn.state = "failed";
       settle(box, turn);
       // The row's 답하는 중 goes; the owner's message is the last one.
-      redrawLastLines();
+      keepLastLine(store.source, agent, firstLine(message));
     } else if (failed) box.window?.failed();
   };
 
@@ -900,8 +904,9 @@ export function AgentCard({ agent, folded = false }: { agent: string; folded?: b
   const view = agentView(model, agent);
   const [open, setOpen] = useState(!folded);
   if (!view) return null;
-  // Every number has its word; red is 중단됨 and nothing else (lina-app#143).
-  const parts = [view.running, view.review, view.goals].flatMap((section) => [
+  // Every number has its word; red is 중단됨 and nothing else (lina-app#143). Folded on a phone, the toggle `에이전트 · 목표 n`
+  // heads the goal rows: the counts leave the goals out and the goals draw no head, so `목표 n` reads once (lina-app#190).
+  const parts = (folded ? [view.running, view.review] : [view.running, view.review, view.goals]).flatMap((section) => [
     { key: section.id, text: `${section.title} ${section.count}`, stopped: false },
     ...(section.stopped ? [{ key: `${section.id}-stopped`, text: W.stoppedCount(section.stopped), stopped: true }] : []),
   ]);
@@ -920,7 +925,7 @@ export function AgentCard({ agent, folded = false }: { agent: string; folded?: b
   // (lina-app#200); the goal's page keeps the owner's own done check.
   const body = (
     <>
-      <ListSection section={view.goals} render={(goal) => <GoalLine key={goal.id} goal={{ ...goal, state: goal.allDone ? "done" : goal.state, href: href({ name: "talk", id: agent, goal: goal.id }) }} showAgent={false} count />} />
+      <ListSection section={folded ? { ...view.goals, title: "" } : view.goals} label={view.goals.title} render={(goal) => <GoalLine key={goal.id} goal={{ ...goal, state: goal.allDone ? "done" : goal.state, href: href({ name: "talk", id: agent, goal: goal.id }) }} showAgent={false} count />} />
       <ul class="rows" aria-label={W.done}>
         <li class="row" data-testid="card-done-today">
           <Link href={href({ name: "done", agent })} label={view.doneToday ? W.doneToday(view.doneToday.count) : W.loading}>

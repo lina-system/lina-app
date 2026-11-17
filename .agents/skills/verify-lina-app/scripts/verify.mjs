@@ -1777,7 +1777,7 @@ const drivers = {
       // Its raw result line is left out, with no placeholder; the round keeps its head.
       const results = await block.getByTestId("timeline-result").count();
       const text = await page.getByTestId("timeline").innerText();
-      check(/^(어제 )?\d\d:\d\d · 완료$/.test(head) && results === 0 && !text.includes("가린 문장") && !/benchmark|3f2a1c9/.test(text), "the run's timeline reads " + head + " / results " + results + " / " + text.replace(/\s+/g, " "));
+      check(/^(어제 )?\d\d:\d\d · 작업을 마쳤다$/.test(head) && results === 0 && !text.includes("가린 문장") && !/benchmark|3f2a1c9/.test(text), "the run's timeline reads " + head + " / results " + results + " / " + text.replace(/\s+/g, " "));
       return new URL(page.url()).hash + " " + state + "; " + head + "; no result line";
     });
     await step("a run's record never shows a model alias: the scene's models have no plain name, so no model line", async () => {
@@ -1827,7 +1827,7 @@ const drivers = {
       const heads = page.getByTestId("timeline").locator(".timeline-head");
       await heads.first().waitFor();
       const lines = (await heads.allInnerTexts()).map((line) => line.trim().replace(/^(?:어제 )?\d\d:\d\d · /, ""));
-      check(JSON.stringify(lines) === JSON.stringify(["검토 통과 ×3", "중단됨", "검토 통과 · 백업 기록 마지막 달을 다시 살폈다.", "중단됨", "검토 통과 ×4"]), "k-105's 기록 heads read " + JSON.stringify(lines));
+      check(JSON.stringify(lines) === JSON.stringify(["검토를 통과했다 ×3", "작업이 중단됐다", "검토 통과 · 백업 기록 마지막 달을 다시 살폈다.", "작업이 중단됐다", "검토를 통과했다 ×4"]), "k-105's 기록 heads read " + JSON.stringify(lines));
       const text = await page.getByTestId("timeline").innerText();
       check(!/[A-Za-z]/.test(text), "raw record text in k-105's 기록: " + text.replace(/\s+/g, " "));
       return lines.join(" | ");
@@ -2136,7 +2136,7 @@ const drivers = {
       check(names.length === 3, "expected 3 services, got " + names.length);
       check(names[0].startsWith("Claude · ") && names[1].startsWith("ChatGPT · ") && names[2].startsWith("가온셈 · "), "service names " + names.join(" | "));
       check(names.filter((name) => name.endsWith("주의")).length === 1, "expected one service with 주의");
-      check(names.every((name) => /^\S+ · \d+%( · 시간당 \+\d+%)? · \d+(분|시간|일) 후( · 주의)?$/.test(name)), "quota lines " + names.join(" | "));
+      check(names.every((name) => /^\S+ · \d+%( · 시간당 \+\d+%)? · \d+(분|시간|일) 후 초기화( · 주의)?$/.test(name)), "quota lines " + names.join(" | "));
       const title = await list.locator(".rate").first().getAttribute("title");
       check(title === "최근 5시간 평균", "the rate's title is " + title);
       const warn = await list.locator("summary .warn-mark").evaluate((mark) => getComputedStyle(mark).color);
@@ -3616,7 +3616,7 @@ const drivers = {
       return "before " + before.head + " = " + before.rows + " rows + 외 " + before.more + "개 (sidebar " + (before.nav ?? "phone") + "); opened " + after.rows + " rows for " + after.all + " cards, head " + after.head + ", grey " + grey.join("");
     });
     // lina-app#231 (QA round 22, the real hub): finished titles read with a hole where a Latin word or a ref was cut.
-    await step("on the hub's shape (&hub=round22), every finished line is a title as written (less a bracket of refs) or the grey line, which stands for the 7 titles with a hole shape; no hole is drawn (lina-app#231)", async () => {
+    await step("on the hub's shape (&hub=round22), every finished line is a title as written (less a bracket of refs) or the grey line, which stands for the title with a hole shape; no hole is drawn (lina-app#231)", async () => {
       await openApp(page, "#/", "&hub=round22");
       const group = page.getByTestId("section-finished");
       await group.locator(".more-row").getByRole("button").click();
@@ -3628,9 +3628,9 @@ const drivers = {
       const drawn = (await group.locator("li[data-testid=row] .title:not(.is-kind)").allInnerTexts()).map((title) => title.trim().replace(/ ×\d+$/, ""));
       const grey = await group.locator("li[data-testid=row] .title.is-kind").allInnerTexts();
       const cut = drawn.filter((title) => !titles.some((each) => each === title || each.startsWith(title + " (")));
-      const holes = drawn.filter((title) => /\(\s*\)|\(\d+\)|@|^[·,]|^(용|을|를)\s/.test(title));
+      const holes = drawn.filter((title) => /\(\s*\)|\(\d+\)|^[·,]|^(용|을|를)\s/.test(title));
       check(after.head === cards && after.all === cards, "opened: " + JSON.stringify(after) + " of " + cards + " cards");
-      check(cut.length === 0 && holes.length === 0 && JSON.stringify(grey) === JSON.stringify(["제목 없는 7건"]), "cut " + JSON.stringify(cut) + ", holes " + JSON.stringify(holes) + ", grey " + JSON.stringify(grey));
+      check(cut.length === 0 && holes.length === 0 && JSON.stringify(grey) === JSON.stringify(["제목 없는 1건"]), "cut " + JSON.stringify(cut) + ", holes " + JSON.stringify(holes) + ", grey " + JSON.stringify(grey));
       return after.rows + " lines for " + after.all + " cards: " + drawn.length + " titles as written, grey " + grey.join("");
     });
     await step("on the hub's shape served as the core (round 22, its newest finished cards listed last), 완료's first line opens the newest card on the first read, with the fold opened and closed, after a reload drawn from the kept copy and back from a detail (lina-app#231)", async () => {
@@ -3782,10 +3782,11 @@ const drivers = {
       check(now === (wide ? 1 : 0), "the now line shows " + now + " times at " + page.viewportSize().width);
       return wide ? "now line from plain.now" : "no now line on a phone";
     });
-    await step("a work card with no checked title: its row and its detail's head are titled by its goal, its own title under the head, its kind read from that title", async () => {
+    await step("a work card with no checked title: its row and its detail's head lead with its own title, its goal the line under it, its kind read from that title", async () => {
       const row = home().locator('li:has(> a[href="#/cards/k-102"])');
       const title = row.locator(".title");
-      check((await title.innerText()).trim() === "결제 화면 개편", "the card's row is named " + (await row.locator(".title").allInnerTexts()).join(""));
+      check((await title.innerText()).trim() === "위키: 결제 화면 문서 정리", "the card's row is named " + (await row.locator(".title").allInnerTexts()).join(""));
+      check((await row.innerText()).includes("결제 화면 개편"), "the card's goal is not the line under its own title: " + (await row.innerText()).replace(/\s+/g, " "));
       check((await row.locator(".title.is-kind").count()) === 0, "the card's own title is drawn as a kind word");
       const icon = (await row.locator(".kind").getAttribute("data-kind"))?.trim();
       check(icon === "docs", "the card's kind is " + icon);
@@ -3809,7 +3810,7 @@ const drivers = {
       check((await detail.getByTestId("card-now").count()) === 0, "the detail shows a now line");
       const text = await detail.innerText();
       check(!/payment|card-form|editing/.test(text), "raw text in the detail: " + text.slice(0, 120));
-      return "row: 결제 화면 개편 · " + state + "; detail: " + kind + ", " + head + ", no now line";
+      return "row: 위키: 결제 화면 문서 정리 · " + state + "; detail: " + kind + ", " + head + ", no now line";
     });
     await step("a card's detail: now, to-dos, then one round list (기록), each round's head the link to its worker run", async () => {
       await openApp(page, "#/cards/k-101");
@@ -3863,7 +3864,7 @@ const drivers = {
       check(weight === "400", "the no-start line has weight " + weight);
       const line = (await page.getByTestId("round").nth(1).getByTestId("round-line").innerText()).trim();
       check(line === "오류 문구 초안을 남김", "the no-start round's line reads " + line);
-      const head = await page.locator(".detail-head .sub").first().evaluate((sub) => ({ state: getComputedStyle(sub.querySelector(".state")).color, time: getComputedStyle(sub.querySelector(".time")).color, grey: getComputedStyle(document.querySelector(".detail-head [data-testid=card-own-title]")).color }));
+      const head = await page.locator(".detail-head .sub").first().evaluate((sub) => ({ state: getComputedStyle(sub.querySelector(".state")).color, time: getComputedStyle(sub.querySelector(".time")).color, grey: getComputedStyle(document.querySelector(".detail-head [data-testid=card-goal]")).color }));
       check(head.state === "rgb(255, 59, 48)" && head.time === head.grey, "the stopped head reads state " + head.state + ", time " + head.time);
       return heads.join(" | ") + "; " + line + "; head state red, time grey";
     });
@@ -3920,9 +3921,12 @@ const drivers = {
       const label = await page.locator(".detail-title").evaluate((title) => getComputedStyle(title).color);
       // Each row is one event, time · one sentence (lina-app#128).
       const said = rows.map((row) => row.text.replace(/^(어제 )?\d\d:\d\d · /, "")).join(" | ");
-      check(rows.every((row) => /^(어제 )?\d\d:\d\d · \S/.test(row.text)) && said === "요약을 표로 옮기는 중 ×3 | 접힌 기록 1건 | 도구 사용 4번 | 변경마다 한 줄 요약을 붙이는 중", "the going round reads " + rows.map((row) => row.text).join(" | "));
-      // Its raw English line folds into one dim 접힌 기록 line, which opens to it (lina-app#241).
-      check(rows[0].colour === label && rows[1].colour !== label && rows[2].colour !== label && rows[3].colour === label, "sentence and dim colours " + JSON.stringify(rows.map((row) => row.colour)) + ", label " + label);
+      check(rows.every((row) => /^(어제 )?\d\d:\d\d · \S/.test(row.text)) && said === "요약을 표로 옮기는 중 ×3 | 도구 사용 4번 | 변경마다 한 줄 요약을 붙이는 중", "the going round reads " + rows.map((row) => row.text).join(" | "));
+      // Its raw English line folds into the timeline's one dim 접힌 기록 line, after the last block, which opens to it (lina-app#241).
+      const folds = await timeline.locator(".timeline-row").evaluateAll((items) => items.map((item) => item.getAttribute("data-kind")));
+      const foldText = (await timeline.locator("[data-kind=folded]").innerText()).trim();
+      check(folds.filter((kind) => kind === "folded").length === 1 && folds.at(-1) === "folded" && /^(어제 )?\d\d:\d\d · 접힌 기록 1건$/.test(foldText.replace(/\s+/g, " ")), "the one folded line is not last: " + JSON.stringify(folds) + " " + foldText);
+      check(rows[0].colour === label && rows[1].colour !== label && rows[2].colour === label, "sentence and dim colours " + JSON.stringify(rows.map((row) => row.colour)) + ", label " + label);
       const noStart = (await blocks.nth(2).getByTestId("timeline-no-start").innerText()).trim();
       check(noStart === "시작 기록 없음", "the start-unknown round reads " + noStart);
       const text = await timeline.innerText();
@@ -3944,7 +3948,7 @@ const drivers = {
       const header = (await page.getByTestId("freshness").innerText()).trim();
       check(!header.includes("요약 중단됨") && (await page.getByTestId("summaries-stopped").count()) === 0, "the header reads " + JSON.stringify(header));
       const row = page.getByTestId("screen-running").locator('li:has(> a[href="#/cards/k-102"])');
-      check((await row.locator(".title").innerText()).trim() === "결제 화면 개편", "the card with no checked lines is not named by its goal");
+      check((await row.locator(".title").innerText()).trim() === "위키: 결제 화면 문서 정리", "the card with no checked lines does not lead with its own title: " + (await row.locator(".title").innerText()));
       if (!wide) await phoneRules(page, "summaries stopped @390");
       await openApp(page, "#/status", "&writer=stopped");
       const rows = await page.getByRole("list", { name: "점검", exact: true }).getByTestId("summaries-check").allInnerTexts();

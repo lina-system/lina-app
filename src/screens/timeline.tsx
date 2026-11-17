@@ -46,18 +46,9 @@ function timed(at: number, text: string, now: number): string {
   return [clockAt(at, now), text].join(SEP);
 }
 
-/**
- * One row of a block. A run of rows that do not stand whole is one folded line that opens to them as the record holds
- * them (lina-app#241): 접힌 댓글 when they are all comments, else 접힌 기록.
- */
-function Row({ row, owner, folded, count }: { row: TimelineRow; owner: string; folded: readonly TimelineRow[]; count: number }) {
+/** One row of a block that stands whole: a block's rows that do not are the timeline's one folded line (Timeline). */
+function Row({ row, owner, count }: { row: TimelineRow; owner: string; count: number }) {
   const { now } = useApp();
-  if (folded.length)
-    return (
-      <li class="timeline-row is-dim" data-kind="folded">
-        <FoldLine label={folded.every((each) => each.kind === "comment") ? W.foldedRun(folded.length) : DETAIL_WORD.foldedRecords(folded.length)} held={folded.map((each) => ({ at: each.at, by: null, text: each.source ?? "" }))} at={row.at} />
-      </li>
-    );
   if (row.kind === "tools")
     return (
       <li class="timeline-row is-dim" data-kind="tools">
@@ -83,14 +74,16 @@ function Row({ row, owner, folded, count }: { row: TimelineRow; owner: string; f
 /**
  * A round's head is one history line, `time · what happened` (lina-app#123, #142): a going round its start and 진행 중,
  * an ended one its end (its start when the end is not on record) and its outcome, `×n` when it stands for n rounds of
- * that outcome in a row (lina-app#236), then its result line when it stands whole or the one sentence it reads (timelineBlocks). No round number
+ * that outcome in a row (lina-app#236), then its result line when it stands whole or the one sentence it reads (timelineBlocks).
+ * A closed round with neither reads its outcome's one sentence instead (W.outcomeSaid, criterion 2). No round number
  * (lina-app#61). Comments between rounds head their block with 댓글.
  */
 function head(block: TimelineBlock, now: number): string {
   if (block.type === "comment") return W.comments;
   const at = block.outcome === "going" ? (block.start ?? block.end) : (block.end ?? block.start);
-  const outcome = block.count > 1 ? `${W.outcome[block.outcome]} ${W.repeated(block.count)}` : W.outcome[block.outcome];
-  return [at === null ? "" : clockAt(at, now), outcome, block.result].filter(Boolean).join(SEP);
+  const repeated = block.count > 1 ? ` ${W.repeated(block.count)}` : "";
+  const words = block.result || block.outcome === "going" ? [`${W.outcome[block.outcome]}${repeated}`, block.result] : [`${W.outcomeSaid[block.outcome]}${repeated}`];
+  return [at === null ? "" : clockAt(at, now), ...words].filter(Boolean).join(SEP);
 }
 
 /**
@@ -101,8 +94,9 @@ function head(block: TimelineBlock, now: number): string {
 function Block({ block, owner, link, modelRun }: { block: TimelineBlock; owner: string; link: string | null; modelRun: string | null }) {
   const { now } = useApp();
   const [open, setOpen] = useState(true);
-  // A said row, a comment row or a report line that does not stand whole is folded (timelineBlocks); the round still shows its head.
-  const rows = historyLines(block.rows.map((row) => ({ row, at: row.at, text: row.kind === "tools" ? "" : row.text })));
+  // A said row, a comment row or a report line that does not stand whole is folded (timelineBlocks) into the timeline's one
+  // folded line, never a line between two rounds; the round still shows its head.
+  const rows = historyLines(block.rows.filter((row) => !folded(row)).map((row) => ({ row, at: row.at, text: row.kind === "tools" ? "" : row.text })));
   const title = head(block, now);
   return (
     <details class="timeline-block" open={open} onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)} data-testid="timeline-block" data-outcome={block.type === "round" ? block.outcome : "comment"}>
@@ -120,11 +114,31 @@ function Block({ block, owner, link, modelRun }: { block: TimelineBlock; owner: 
       {rows.length ? (
         <ul class="timeline-rows">
           {rows.map((line, index) => (
-            <Row key={`${line.at}:${index}`} row={line.row} owner={owner} folded={line.held.map((held) => held.row)} count={line.count} />
+            <Row key={`${line.at}:${index}`} row={line.row} owner={owner} count={line.count} />
           ))}
         </ul>
       ) : null}
     </details>
+  );
+}
+
+/** A row that does not stand whole (timelineBlocks): no line of its own. */
+const folded = (row: TimelineRow) => row.kind !== "tools" && row.text === null;
+
+/**
+ * Every row of the timeline's blocks that does not stand whole, newest first, as one folded line after the last block
+ * (criterion 2): 접힌 댓글 when they are all comments, else 접힌 기록, at the newest one's time as every line reads a time. It
+ * opens to each as the record holds it, with its time (lina-app#241), so no line between two rounds is a folded one.
+ */
+function FoldedRows({ blocks }: { blocks: readonly TimelineBlock[] }) {
+  const rows = blocks.flatMap((block) => block.rows.filter(folded)).sort((a, b) => b.at - a.at);
+  if (!rows.length) return null;
+  return (
+    <ul class="timeline-rows">
+      <li class="timeline-row is-dim" data-kind="folded">
+        <FoldLine label={rows.every((row) => row.kind === "comment") ? W.foldedRun(rows.length) : DETAIL_WORD.foldedRecords(rows.length)} held={rows.map((row) => ({ at: row.at, by: null, text: row.source ?? "" }))} at={rows[0].at} />
+      </li>
+    </ul>
   );
 }
 
@@ -189,6 +203,7 @@ export function Timeline({ runs, live, link = () => null, modelRun = () => null,
       {blocks.map((block) => (
         <Block key={block.key} block={block} owner={owner} link={block.type === "round" ? link(block.runId, block.n, block.at) : null} modelRun={block.type === "round" ? modelRun(block.runId, block.n, block.at) : null} />
       ))}
+      <FoldedRows blocks={blocks} />
     </Box>
   );
 }

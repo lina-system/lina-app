@@ -17,6 +17,8 @@ const LONG_REPLY = [
   "2. 검토 받기",
   "- [문서](https://example.com/docs)는 새 탭에서 열려요",
   "- [x](javascript:alert(1)) 는 링크가 아니에요",
+  "- [ ] 배포 공지 쓰기",
+  "- [x] 변경 목록 확인",
   "",
   '<img src=x onerror="window.__xss = 1"> 는 글자로만 보여요.',
   "",
@@ -130,6 +132,16 @@ test("a long reply draws its markdown inside the bubble: the code block and the 
   expect(await page.evaluate(() => (window as { __xss?: number }).__xss)).toBeUndefined();
   await expect(reply).toContainText('<img src=x onerror="window.__xss = 1">');
   await expect(reply.locator("blockquote")).toHaveText("배포 뒤에는 상태 탭을 확인해 주세요.");
+  // A task list item is a read-only check named for its state, not its box as written (lina-app#190).
+  await expect(reply.getByRole("checkbox")).toHaveCount(2);
+  const open = reply.getByRole("checkbox", { name: "완료 안 됨" });
+  const done = reply.getByRole("checkbox", { name: "완료", exact: true });
+  await expect(open).not.toBeChecked();
+  await expect(open).toBeDisabled();
+  await expect(done).toBeChecked();
+  await expect(done).toBeDisabled();
+  await expect(reply.locator("li.md-task")).toHaveText(["배포 공지 쓰기", "변경 목록 확인"]);
+  await expect(reply).not.toContainText("[ ]");
   const boxes = await reply.evaluate((element) => {
     const bubble = element.querySelector(".talk-bubble")!.getBoundingClientRect();
     const sideways = (selector: string) => {

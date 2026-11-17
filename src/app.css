@@ -1681,6 +1681,18 @@ button:disabled {
   margin-top: 2px;
 }
 
+/* A task list item: its read-only check stands where the bullet would. */
+.md li.md-task {
+  list-style: none;
+  margin-left: -1.3em;
+}
+
+.md-check {
+  margin: 0 6px 0 0;
+  vertical-align: -2px;
+  accent-color: var(--accent);
+}
+
 .md code {
   padding: 1px 4px;
   border-radius: 4px;

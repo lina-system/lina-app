@@ -1,16 +1,18 @@
 import type { ComponentChildren, VNode } from "preact";
+import { W } from "./words";
 
 /**
  * The markdown an agent's reply in 대화 draws (lina-app#187). It builds Preact elements and never inserts HTML: what a
  * reply writes as HTML stays text. `src/markdown.test.tsx` holds every rule.
  *
  * Drawn: **bold** and __bold__, *italic* and _italic_ (an underscore inside a word is not a mark), `inline code`,
- * fenced code blocks (``` or ~~~), bullet lists (- * +), numbered lists (1. or 1)), > blockquotes, # headings (as
- * bold text), --- rules, tables (a header row, a |---| row, then body rows; :--- and ---: align a column), and
- * [text](address) links to http, https and mailto, opened in a new tab with rel="noopener noreferrer".
+ * fenced code blocks (``` or ~~~), bullet lists (- * +), numbered lists (1. or 1)), task list items (`[ ]` and `[x]`
+ * after a list mark, as a read-only check named for its state), > blockquotes, # headings (as bold text), --- rules,
+ * tables (a header row, a |---| row, then body rows; :--- and ---: align a column), and [text](address) links to
+ * http, https and mailto, opened in a new tab with rel="noopener noreferrer".
  *
  * Not drawn, shown as written: raw HTML, images, bare addresses, links to any other scheme, strikethrough,
- * underline-style headings, footnotes and task boxes. A nested list item is drawn as an item of the same list.
+ * underline-style headings and footnotes. A nested list item is drawn as an item of the same list.
  *
  * A mark with no end yet is text, so a reply that streams in shows `**굵` and a code fence with no closing line as
  * written until the closing mark arrives.
@@ -26,6 +28,7 @@ const RULE = /^ {0,3}([-*_])(?:\s*\1){2,}\s*$/;
 const BULLET = /^\s*[-*+]\s+(.*)$/;
 const NUMBER = /^\s*(\d{1,9})[.)]\s+(.*)$/;
 const TABLE_RULE = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
+const TASK = /^\[([ xX])\]\s+(.*)$/;
 
 function startsBlock(lines: readonly string[], at: number): boolean {
   const line = lines[at];
@@ -100,7 +103,17 @@ function blocks(lines: readonly string[]): VNode[] {
         else break;
         at += 1;
       }
-      const children = items.map((item, index) => <li key={index}>{breaks(item.map(inline))}</li>);
+      const children = items.map((item, index) => {
+        const task = TASK.exec(item[0]);
+        if (!task) return <li key={index}>{breaks(item.map(inline))}</li>;
+        const done = task[1] !== " ";
+        return (
+          <li key={index} class="md-task">
+            <input type="checkbox" class="md-check" checked={done} disabled aria-label={done ? W.done : W.notDone} />
+            {breaks([task[2], ...item.slice(1)].map(inline))}
+          </li>
+        );
+      });
       out.push(
         numbered ? (
           <ol key={key} start={Number(numbered[1])}>
@@ -300,14 +313,14 @@ function closing(text: string, at: number, mark: string): number {
 
 /**
  * One line of a reply as plain words, for an agent row's preview (lina-app#187): its first line with words, without
- * a heading's, quote's or list item's mark, emphasis and code marks, or a link's address. A code fence and a rule are
+ * a heading's, quote's or list item's mark (a task item's box too), emphasis and code marks, or a link's address. A code fence and a rule are
  * not words; a table row reads its cells.
  */
 export function plainLine(text: string): string {
   const line = text.split("\n").find((each) => each.trim() && !FENCE.test(each) && !RULE.test(each) && !TABLE_RULE.test(each)) ?? "";
   return line
     .replace(/^\s*(?:>\s?)+/, "")
-    .replace(/^\s*(?:#{1,6}\s+|[-*+]\s+|\d{1,9}[.)]\s+)/, "")
+    .replace(/^\s*(?:#{1,6}\s+|(?:[-*+]|\d{1,9}[.)])\s+(?:\[[ xX]\]\s+)?)/, "")
     .replace(/!?\[([^\]\n]+)\]\([^()\s]+(?:\([^()\s]*\)[^()\s]*)*\)/g, "$1")
     .replace(/(`+)(.+?)\1/g, "$2")
     .replace(/(\*\*|__)(?=\S)(.+?)(?<=\S)\1/g, "$2")

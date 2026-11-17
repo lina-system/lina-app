@@ -1432,7 +1432,8 @@ describe("agent talk", () => {
     await waitFor(() => expect(view.getByTestId("agent-talk")).toBeTruthy());
   });
 
-  test("each agent row shows the first line of its last message, or one plain line when there is none (lina-app#143)", async () => {
+  test("each agent row shows the first line of the agent's last message, or one plain line when there is none (lina-app#143, #190)", async () => {
+    // ag-3 holds the owner's message alone: the agent has said nothing yet (lina-app#190).
     class Multiline extends SyntheticSource {
       override async agentTalkHistory(agent: string) {
         const result = await super.agentTalkHistory(agent);
@@ -1445,7 +1446,7 @@ describe("agent talk", () => {
       const row = (index: number) => view.getByTestId(wide ? `nav-talk-${index}` : `talk-agent-${index}`);
       await waitFor(() => expect(row(0).querySelector("[data-testid=talk-preview]")?.textContent).toBe("변경 목록을 모으는 중이에요. 배포 순서는 답을 기다려요."));
       await waitFor(() => expect(row(1).querySelector("[data-testid=talk-preview]")?.textContent).toBe("아직 나눈 대화 없음"));
-      await waitFor(() => expect(row(2).querySelector("[data-testid=talk-preview]")?.textContent).toBe("배포 전에 확인"));
+      await waitFor(() => expect(row(2).querySelector("[data-testid=talk-preview]")?.textContent).toBe("아직 나눈 대화 없음"));
       view.unmount();
     }
   });
@@ -3028,11 +3029,12 @@ describe("the run's own timeline", () => {
     const rows = [...going.querySelectorAll(".timeline-row")].map((row) => [row.getAttribute("data-kind"), row.classList.contains("is-dim"), row.textContent]);
     expect(rows).toEqual([
       ["said", false, expect.stringMatching(/^(어제 )?\d\d:\d\d · 요약을 표로 옮기는 중 ×3$/)],
-      ["folded", true, expect.stringMatching(/^(어제 )?\d\d:\d\d · 접힌 기록 1건$/)],
       ["tools", true, expect.stringMatching(/^(어제 )?\d\d:\d\d · 도구 사용 4번$/)],
       ["said", false, expect.stringMatching(/^(어제 )?\d\d:\d\d · 변경마다 한 줄 요약을 붙이는 중$/)],
     ]);
     expect(going.querySelector("[data-testid=timeline-result]")).toBeNull();
+    // Its raw row is the timeline's one folded line, after the last round (criterion 2).
+    expect([...view.getByTestId("timeline").querySelectorAll("li.timeline-row")].at(-1)?.getAttribute("data-kind")).toBe("folded");
     const text = screenText(view.getByTestId("timeline"));
     expect(text).not.toMatch(/Running|npm|packages|3f2a1c9|run 3/);
     expect(text).not.toContain("가린 문장");
@@ -3112,12 +3114,12 @@ describe("the run's own timeline", () => {
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const block = view.getByTestId("timeline-block");
     expect(block.getAttribute("data-outcome")).toBe("ended");
-    expect(block.querySelector(".timeline-head")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 완료$/);
+    expect(block.querySelector(".timeline-head")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 작업을 마쳤다$/);
     expect(block.querySelector("[data-testid=timeline-result]")).toBeNull();
     const text = screenText(view.getByTestId("timeline"));
     expect(text).not.toMatch(/index-structure|benchmark|3f2a1c9/);
-    fireEvent.click(within(block).getByRole("button", { name: /접힌 기록 1건$/ }));
-    expect(within(block).getByTestId("held-text").textContent).toBe("index-structure benchmark v2 done (3f2a1c9)");
+    fireEvent.click(within(view.getByTestId("timeline")).getByRole("button", { name: /접힌 기록 1건$/ }));
+    expect(within(view.getByTestId("timeline")).getByTestId("held-text").textContent).toBe("index-structure benchmark v2 done (3f2a1c9)");
     expect(text).not.toContain("가린 문장");
   });
 

@@ -66,23 +66,23 @@ for (const wide of [true, false]) {
     expect(heads(view)).toEqual([
       "검토 통과 · 가상 검사를 통과해서 합쳤다.",
       "검토 통과 · Playwright로 두 폭 화면을 다시 찍었다.",
-      "검토 필요",
+      "검토를 통과하지 못했다",
       `검토 통과 · ${LONG}`,
       "검토 통과 · 가상 알림 문구를 두 줄로 나눴다.",
-      "중단됨",
+      "작업이 중단됐다",
     ]);
     for (const head of view.getAllByTestId("timeline-block").map((block) => block.querySelector(".timeline-head")!)) expect(head.textContent).toMatch(new RegExp(`^${TIME} · `));
     const text = view.getByTestId("timeline").textContent ?? "";
     expect(text).not.toMatch(/t_ab12cd34|t_cd34ef56|OT-FAKE|notes\/fake|Fake Review|Merged the fake|…/);
   });
 
-  test(`a long sentence stands whole in its line and a round's fold still opens to its report as written (${width})`, async () => {
+  test(`a long sentence stands whole in its line and the timeline's one fold still opens to a round's report as written (${width})`, async () => {
     const view = await open(wide);
     const blocks = view.getAllByTestId("timeline-block");
     expect(blocks[3].querySelector(".timeline-head")?.textContent?.endsWith(LONG)).toBe(true);
-    const fold = within(blocks[0]).getByRole("button", { name: /접힌 기록 1건$/ });
+    const fold = within(view.getByTestId("timeline")).getByRole("button", { name: /접힌 기록 5건$/ });
     fireEvent.click(fold);
-    expect(within(blocks[0]).getAllByTestId("held-text").map((held) => held.textContent)).toEqual([REPORT]);
+    expect(within(view.getByTestId("timeline")).getAllByTestId("held-text")[0].textContent).toBe(REPORT);
   });
 }
 
@@ -117,7 +117,9 @@ for (const wide of [true, false]) {
     expect(lines.filter((line) => line.includes("가상 알림 문구를 두 줄로 나눴다."))).toHaveLength(1);
     const rounds = view.getAllByTestId("round");
     expect(rounds).toHaveLength(2);
-    expect(within(rounds[0]).queryByTestId("round-line")).toBeNull();
-    expect(within(rounds[1]).getByTestId("round-line").textContent).toBe("가상 알림 문구를 두 줄로 나눴다.");
+    // Round 1 reads the comment; round 2, with no line, is the one 이전 기록 group after it (criterion 2).
+    expect(within(rounds[0]).getByTestId("round-line").textContent).toBe("가상 알림 문구를 두 줄로 나눴다.");
+    expect(rounds[1].closest("[data-testid=round-fold]")).not.toBeNull();
+    expect(within(rounds[1]).queryByTestId("round-line")).toBeNull();
   });
 }

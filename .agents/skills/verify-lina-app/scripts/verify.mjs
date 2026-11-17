@@ -1751,7 +1751,7 @@ const drivers = {
       const kind = (await detail.getByTestId("kind").innerText()).trim();
       check(kind === "문서", "the kind reads " + kind);
       check((await detail.getByTestId("card-now").count()) === 0, "the card shows a now line");
-      return head + " / " + own + "; " + kind + "; no now line";
+      return head + " / " + goal + "; " + kind + "; no now line";
     });
     await step("a worker record's comment rows have no author: they read through the one gate, never as saved, whole or folded (lina-app#230, #236)", async () => {
       // k-102's record (r2) holds an agent's English verdict note and a note the core cut inside a word at 300 characters.

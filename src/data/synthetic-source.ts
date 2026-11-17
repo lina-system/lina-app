@@ -546,6 +546,13 @@ export const NOW_SCENE = {
   /** Stopped on the owner's decision with no ask, no block reason and no comment. */
   bare: "k-463",
   bareTitle: "가짜 배포 차례 정하기",
+  /** A hub card stopped on feedback as the hub serves it: no `waitingOn` at all and no question in the work inbox. */
+  hubWait: "hermes:t_4670",
+  hubWaitTitle: "가짜 빌드 기기에 새 판 고정하기",
+  /** A hub card stopped on feedback with no `waitingOn` and a question of its own in the work inbox. */
+  hubAsked: "hermes:t_4680",
+  hubAskedTitle: "가짜 안내 화면 차례 고르기",
+  hubQuestion: "가짜 안내 화면 둘 중 어느 쪽을 먼저 낼지 정해 주세요.",
 } as const;
 
 /**
@@ -554,8 +561,9 @@ export const NOW_SCENE = {
  * would pass and a going round with one tool step: one with a checked now line of 40 letters or fewer; one with none and
  * nothing it waits for, its newest comments English hand-out lines and a receipt; one with none and a question in the work
  * inbox. A card waiting on review whose checked now line is over 40 letters, with the core's ask. A card stopped on
- * feedback the core says nobody is asked for (`waitingOn: null`), with one bot comment. And a card stopped on the owner's
- * decision with nothing of why.
+ * feedback the core says nobody is asked for (`waitingOn: null`), with one bot comment. A card stopped on the owner's
+ * decision with nothing of why. And two hub cards (`hermes:<id>`) stopped on feedback with no `waitingOn` at all, as the
+ * hub serves its own: one with no question in the work inbox, one with its question there.
  */
 export function nowScene(scene: Scene): Scene {
   const now = scene.now;
@@ -569,6 +577,11 @@ export function nowScene(scene: Scene): Scene {
     ({ ...template, id, title, goalTitle: null, agent: agents[0], plain: { title, now: plainNow, result: null }, reason: null, waitingOn: null, retry: null, ask: null, todoProgress: { done: 0, total: 0 }, readOnly: true, endedAt: null, ...fields }) as SceneCard;
   const comment = (id: number, author: string, body: string, ago: number) => ({ id, author, body, createdAt: now - ago * MIN });
   const going = { state: "in_progress" as const, elapsedSeconds: 35 * MIN, lastHeartbeatAt: now - MIN };
+  // The hub's own card leaves `waitingOn` out (its core has no such field), and `retry` with it.
+  const hubStop = (id: string, title: string, hours: number): SceneCard => {
+    const { waitingOn: _, retry: __, ...shape } = card(id, title, { state: "stopped", reason: "feedback", elapsedSeconds: hours * 3600, now: null, lastHeartbeatAt: now - hours * 3600 });
+    return shape as SceneCard;
+  };
   const cards = [
     card(N.told, N.toldTitle, { ...going, now: N.botSaid }, N.toldNow),
     // The hub's `now` is its newest comment as written: the last hand-out line.
@@ -577,6 +590,8 @@ export function nowScene(scene: Scene): Scene {
     card(N.waiting, N.waitingTitle, { state: "waiting", reason: "review", ask: N.ask, elapsedSeconds: 50 * MIN, now: N.ownerNote, lastHeartbeatAt: now - 20 * MIN }, N.longNow),
     card(N.device, N.deviceTitle, { state: "stopped", reason: "feedback", waitingOn: null, retry: "none", elapsedSeconds: 3 * 3600, now: N.deviceSaid, lastHeartbeatAt: now - 2 * 3600 }),
     card(N.bare, N.bareTitle, { agent: agents[1], state: "stopped", reason: "decision", waitingOn: "owner", retry: "none", elapsedSeconds: 4 * 3600, now: null, lastHeartbeatAt: now - 3 * 3600 }),
+    hubStop(N.hubWait, N.hubWaitTitle, 5),
+    hubStop(N.hubAsked, N.hubAskedTitle, 6),
   ];
   const report = (id: number) => comment(id, agents[0], `[가짜 보고 17:24] ${N.botSaid}`, 34);
   const comments: Record<string, WorkCardDetail["comments"]> = {
@@ -593,6 +608,8 @@ export function nowScene(scene: Scene): Scene {
     [N.waiting]: [comment(4611, "owner", N.ownerNote, 30), report(4612)],
     [N.device]: [comment(4621, agents[0], N.deviceSaid, 2 * 60)],
     [N.bare]: [],
+    [N.hubWait]: [],
+    [N.hubAsked]: [comment(4681, agents[0], N.hubQuestion, 5 * 60)],
   };
   const runs: Record<string, string> = { [N.told]: N.toldRun, [N.going]: N.goingRun, [N.asking]: N.askingRun };
   const details = Object.fromEntries(
@@ -602,7 +619,8 @@ export function nowScene(scene: Scene): Scene {
     Object.entries(runs).map(([cardId, id]): [string, RunRecord] => [id, { ...scene.records.r1, id, cardId, rounds: [{ run: 1, startedAt: now - 35 * MIN, endedAt: null, endKnown: false, startUnknown: false, result: null, verdict: null, stopped: false, rows: [{ at: now - 30 * MIN, kind: "tools", text: null, count: 1 }] }], comments: [], errors: [] }]),
   );
   const question = { agent: agents[0], askedAt: now - 20 * MIN, body: N.question, cardId: N.asking, commentId: 4653, title: N.askingTitle };
-  return { ...scene, cards: { ...scene.cards, cards: [...scene.cards.cards, ...cards] }, cardDetails: { ...scene.cardDetails, ...details }, records: { ...scene.records, ...records }, inbox: { ...scene.inbox, questions: [...scene.inbox.questions, question] } };
+  const hubQuestion = { agent: agents[0], askedAt: now - 5 * 3600, body: N.hubQuestion, cardId: N.hubAsked, commentId: 4681, title: N.hubAskedTitle };
+  return { ...scene, cards: { ...scene.cards, cards: [...scene.cards.cards, ...cards] }, cardDetails: { ...scene.cardDetails, ...details }, records: { ...scene.records, ...records }, inbox: { ...scene.inbox, questions: [...scene.inbox.questions, question, hubQuestion] } };
 }
 
 function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {

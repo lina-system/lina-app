@@ -1,4 +1,4 @@
-import { render, waitFor, within } from "@testing-library/preact";
+import { fireEvent, render, waitFor, within } from "@testing-library/preact";
 import { afterEach, expect, test, vi } from "vitest";
 import { App } from "./app";
 import { Store } from "./data/store";
@@ -105,3 +105,24 @@ test("a feedback stop nobody asks the owner for reads 다른 일 대기 alone; a
   expect(bare.textContent).not.toMatch(/이유 기록 없음|읽기 전용/);
   expect(bare.querySelector("[data-testid=read-only]")).toBeNull();
 });
+
+// The hub sends no `waitingOn` on its own cards: a feedback stop there waits on the owner only when its question is in
+// the work inbox, on its row and in its detail head alike, and only that one comes first among the stops.
+for (const wide of [true, false])
+  test(`a hub card stopped on feedback reads 피드백 대기 only when its question is in the work inbox (${wide ? 1280 : 390})`, async () => {
+    const list = await open("#/running", wide);
+    const row = (id: string) => list.container.querySelector(`a[href="#/cards/${encodeURIComponent(id)}"] [data-testid=state]`)?.textContent ?? null;
+    // The stopped group draws its first rows and folds the rest in its `외 n개`: open it.
+    for (const button of [...list.container.querySelectorAll(".more-row button")]) fireEvent.click(button);
+    await waitFor(() => expect(row(N.hubWait)).toBe("중단됨 · 다른 일 대기"));
+    expect(row(N.hubAsked)).toBe("중단됨 · 피드백 대기");
+    list.unmount();
+    const first = await open(`#/cards/${encodeURIComponent(N.hubWait)}`, wide);
+    const waiting = await frame(first);
+    await waitFor(() => expect(waiting.querySelector(".detail-head [data-testid=state]")?.textContent).toBe("중단됨 · 다른 일 대기"));
+    expect(waiting.querySelector(".detail-head")?.textContent).not.toMatch(/피드백 대기|결정 대기|답할 곳/);
+    first.unmount();
+    const asked = await frame(await open(`#/cards/${encodeURIComponent(N.hubAsked)}`, wide));
+    await waitFor(() => expect(within(asked).getByTestId("stop-why").textContent).toBe("피드백 대기"));
+    expect(within(asked).getByTestId("answer-where").textContent).toMatch(/^답할 곳 · \S+ 대화$/);
+  });

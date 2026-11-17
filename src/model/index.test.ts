@@ -328,6 +328,35 @@ test("a stop reads its reason first in the core's real shapes, and a scheduled o
   for (const card of all) expect(model.cards.get(card.id)?.stop?.words, card.id).not.toMatch(/보류|진행 대기|(확인 필요).*\1/);
 });
 
+// G138: the hub sends no `waitingOn` on its own cards (`hermes:<id>`), so a decision or feedback stop there waits on the
+// owner only when the core says so or its question is in the work inbox; a card of any other id still reads no
+// `waitingOn` as the owner's, and the stopped group puts only the owner's rows first.
+test("a hub card's decision or feedback stop with no waitingOn waits on the owner only with its question in the work inbox", () => {
+  const scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
+  const stopped = (id: string, reason: string, extra: Partial<CardSummary> = {}) => ({ ...summary(id, "가짜 기기에 새 판 고정하기", null, "stopped"), reason, ...extra });
+  const cards = [
+    stopped("hermes:t_1", "feedback"),
+    stopped("hermes:t_2", "decision"),
+    stopped("hermes:t_3", "feedback"),
+    stopped("hermes:t_4", "feedback", { waitingOn: "owner" }),
+    stopped("hermes:t_5", "feedback", { waitingOn: null }),
+    stopped("k-old", "feedback"),
+  ];
+  const question = { ...scene.inbox.questions[0], cardId: "hermes:t_3", commentId: 9301 };
+  const model = homeModel({ ...scene, cards: { cards: [...scene.cards.cards, ...cards] }, inbox: { ...scene.inbox, questions: [...scene.inbox.questions, question] } });
+  const stop = (id: string) => model.cards.get(id)?.stop;
+  expect(stop("hermes:t_1")).toEqual({ words: "다른 일 대기", known: true, owner: false, retry: false });
+  expect(stop("hermes:t_2")).toEqual({ words: "다른 일 대기", known: true, owner: false, retry: false });
+  expect(stop("hermes:t_3")).toEqual({ words: "피드백 대기", known: true, owner: true, retry: false });
+  expect(stop("hermes:t_4")).toEqual({ words: "피드백 대기", known: true, owner: true, retry: false });
+  expect(stop("hermes:t_5")).toEqual({ words: "다른 일 대기", known: true, owner: false, retry: false });
+  expect(stop("k-old")).toEqual({ words: "피드백 대기", known: true, owner: true, retry: false });
+  const rows = model.running.sections[0].rows.map((row) => row.id);
+  const firstOther = model.running.sections[0].rows.findIndex((row) => !row.stop?.owner);
+  expect(rows.indexOf("hermes:t_3")).toBeLessThan(firstOther);
+  expect(rows.indexOf("hermes:t_1")).toBeGreaterThanOrEqual(firstOther);
+});
+
 // lina-app#124: the work tab's first screen reads at a glance.
 
 test("no row is untitled: work nothing names is not listed, no line counts it, and it stays in the lookup", () => {

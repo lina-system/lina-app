@@ -25,7 +25,8 @@ afterEach(() => {
 });
 
 const frame = (container: Element) => container.querySelector("[data-testid=detail-frame] article.detail");
-const rows = (container: Element) => [...(frame(container)?.querySelectorAll("[data-testid=timeline] li") ?? [])].map((row) => row.textContent);
+// The history's round lines: what folds is one line after them, whose count grows as records land.
+const rows = (container: Element) => [...(frame(container)?.querySelectorAll("[data-testid=timeline] .timeline-head") ?? [])].map((row) => row.textContent);
 const comments = (container: Element) => frame(container)?.querySelector("[data-testid=card-comments]") ?? null;
 const head = (container: Element) => frame(container)?.querySelector("h1")?.textContent;
 

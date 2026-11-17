@@ -619,18 +619,13 @@ function roundLines(rounds: readonly Round[], notes: readonly RoundNote[]): Map<
 }
 
 /**
- * The rounds in order, each run of rounds whose own line may not show gathered into one group (lina-app#161): it is one
- * 이전 기록 N건 row, not one row per round.
+ * The rounds in order, every round whose own line may not show gathered into one group after the last (lina-app#161,
+ * criterion 2): it is one 이전 기록 N건 row, not one row per round, and never a row between two rounds' lines.
  */
 function roundGroups(rounds: readonly Round[], lines: Map<Round, string | null>): (Round | Round[])[] {
-  const groups: (Round | Round[])[] = [];
-  for (const round of rounds) {
-    const last = groups.at(-1);
-    if (round.line === null || lines.get(round)) groups.push(round);
-    else if (Array.isArray(last)) last.push(round);
-    else groups.push([round]);
-  }
-  return groups;
+  const shows = (round: Round) => round.line === null || Boolean(lines.get(round));
+  const folded = rounds.filter((round) => !shows(round));
+  return [...rounds.filter(shows), ...(folded.length ? [folded] : [])];
 }
 
 /**

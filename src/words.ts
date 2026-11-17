@@ -368,6 +368,8 @@ export const W = {
   repeated: (n: number) => `×${n}`,
   result: "결과",
   outcome: { accepted: "검토 통과", rejected: "검토 필요", stopped: "중단됨", ended: "완료", unknown: "완료 기록 없음", going: "진행 중" },
+  /** A closed round's one sentence when nothing it left stands whole (criterion 2): what its outcome says, never its word alone. */
+  outcomeSaid: { accepted: "검토를 통과했다", rejected: "검토를 통과하지 못했다", stopped: "작업이 중단됐다", ended: "작업을 마쳤다", unknown: "완료 기록이 없다" },
   yesterday: "어제",
 
   pushRow: "알림 받기",

@@ -3028,11 +3028,12 @@ describe("the run's own timeline", () => {
     const rows = [...going.querySelectorAll(".timeline-row")].map((row) => [row.getAttribute("data-kind"), row.classList.contains("is-dim"), row.textContent]);
     expect(rows).toEqual([
       ["said", false, expect.stringMatching(/^(어제 )?\d\d:\d\d · 요약을 표로 옮기는 중 ×3$/)],
-      ["folded", true, expect.stringMatching(/^(어제 )?\d\d:\d\d · 접힌 기록 1건$/)],
       ["tools", true, expect.stringMatching(/^(어제 )?\d\d:\d\d · 도구 사용 4번$/)],
       ["said", false, expect.stringMatching(/^(어제 )?\d\d:\d\d · 변경마다 한 줄 요약을 붙이는 중$/)],
     ]);
     expect(going.querySelector("[data-testid=timeline-result]")).toBeNull();
+    // Its raw row is the timeline's one folded line, after the last round (criterion 2).
+    expect([...view.getByTestId("timeline").querySelectorAll("li.timeline-row")].at(-1)?.getAttribute("data-kind")).toBe("folded");
     const text = screenText(view.getByTestId("timeline"));
     expect(text).not.toMatch(/Running|npm|packages|3f2a1c9|run 3/);
     expect(text).not.toContain("가린 문장");
@@ -3112,12 +3113,12 @@ describe("the run's own timeline", () => {
     await waitFor(() => expect(view.getByTestId("timeline")).toBeTruthy());
     const block = view.getByTestId("timeline-block");
     expect(block.getAttribute("data-outcome")).toBe("ended");
-    expect(block.querySelector(".timeline-head")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 완료$/);
+    expect(block.querySelector(".timeline-head")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 작업을 마쳤다$/);
     expect(block.querySelector("[data-testid=timeline-result]")).toBeNull();
     const text = screenText(view.getByTestId("timeline"));
     expect(text).not.toMatch(/index-structure|benchmark|3f2a1c9/);
-    fireEvent.click(within(block).getByRole("button", { name: /접힌 기록 1건$/ }));
-    expect(within(block).getByTestId("held-text").textContent).toBe("index-structure benchmark v2 done (3f2a1c9)");
+    fireEvent.click(within(view.getByTestId("timeline")).getByRole("button", { name: /접힌 기록 1건$/ }));
+    expect(within(view.getByTestId("timeline")).getByTestId("held-text").textContent).toBe("index-structure benchmark v2 done (3f2a1c9)");
     expect(text).not.toContain("가린 문장");
   });
 

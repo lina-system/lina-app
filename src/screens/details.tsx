@@ -615,7 +615,7 @@ export function roundHead(round: Round, now: number): string {
  */
 function roundLines(rounds: readonly Round[], notes: readonly RoundNote[]): Map<Round, string | null> {
   const used = new Set<string>();
-  return new Map(rounds.map((round) => [round, (round.line === null ? null : wholeText(round.line)) ?? roundSentence({ result: round.line, said: [], end: round.endedAt }, notes, used)]));
+  return new Map(rounds.map((round) => [round, (round.line === null ? null : wholeText(round.line)) ?? roundSentence({ result: round.line, said: [], start: round.startedAt, end: round.endedAt }, notes, used)]));
 }
 
 /**

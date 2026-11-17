@@ -172,14 +172,10 @@ export type TimelineBlock =
     }
   | { readonly type: "comment"; readonly key: string; readonly at: number; readonly rows: readonly TimelineRow[] };
 
-/** A bot's text made as a round ended: the record's note on it, or a comment on the card (criterion 2). */
+/** A bot's comment on the card made as a round ended (criterion 2). A record's own comments are the owner's words (a verdict note, a cancel reason; board-client.yaml) and are never one. */
 export interface RoundNote {
   readonly at: number;
   readonly text: string;
-  /** The core cut it at its length (a record row): its last piece may be a part of a sentence. */
-  readonly cut?: boolean;
-  /** The worker run whose record holds it: only that run's rounds read it. A comment on the card has none. */
-  readonly run?: string;
 }
 
 /** How long after a round's end a note still speaks of it. */
@@ -189,13 +185,12 @@ const NOTE_AFTER = 30 * 60;
  * The one sentence a closed round's line reads when its report line does not stand whole (criterion 2): the first whole
  * sentence that says what came of it (historySentences) and that no newer round reads (`used`, filled newest first):
  * its report line's, then its said rows' (tails the core kept of longer texts), then those of the notes made from a
- * minute before its end (never before its own start) to half an hour after it, oldest first: a comment on the card, or its own run's record note
- * (`run`), never another run's. Null when none stands: the line reads its outcome alone.
+ * minute before its end (never before its own start) to half an hour after it, oldest first: a comment on the card. Null when none stands: the line reads its outcome alone.
  */
-export function roundSentence(round: { readonly result: string | null; readonly said: readonly (string | null)[]; readonly start?: number | null; readonly end: number | null; readonly run?: string }, notes: readonly RoundNote[], used: Set<string>): string | null {
+export function roundSentence(round: { readonly result: string | null; readonly said: readonly (string | null)[]; readonly start?: number | null; readonly end: number | null }, notes: readonly RoundNote[], used: Set<string>): string | null {
   const end = round.end;
-  const near = end === null ? [] : notes.filter((note) => (note.run === undefined || note.run === round.run) && note.at >= Math.max(end - 60, round.start ?? Number.NEGATIVE_INFINITY) && note.at <= end + NOTE_AFTER).sort((a, b) => a.at - b.at);
-  const sentences = [...historySentences(round.result), ...round.said.flatMap((text) => historySentences(text, { opens: true, ends: true })), ...near.flatMap((note) => historySentences(note.text, { ends: note.cut }))];
+  const near = end === null ? [] : notes.filter((note) => note.at >= Math.max(end - 60, round.start ?? Number.NEGATIVE_INFINITY) && note.at <= end + NOTE_AFTER).sort((a, b) => a.at - b.at);
+  const sentences = [...historySentences(round.result), ...round.said.flatMap((text) => historySentences(text, { opens: true, ends: true })), ...near.flatMap((note) => historySentences(note.text))];
   const sentence = sentences.find((each) => !used.has(each)) ?? null;
   if (sentence) used.add(sentence);
   return sentence;
@@ -229,10 +224,8 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
   const gated = (rows: readonly RecordRow[], ended = false): TimelineRow[] =>
     shown(rows).map((row) => (row.kind === "tools" ? { ...row, source: null } : { ...row, text: ended && row.kind === "said" ? null : wholeText(row.text), source: row.text }));
   const blocks: TimelineBlock[] = [];
-  // What a closed round whose report line does not stand whole left to read its sentence from, and every note: the
-  // card's comments, and each record's notes kept with the run whose record holds them.
+  // What a closed round whose report line does not stand whole left to read its sentence from.
   const sources = new Map<TimelineBlock, Parameters<typeof roundSentence>[0]>();
-  const every: RoundNote[] = [...notes];
   // A card's worker runs may each serve the card's one record: a round or a comment read twice is drawn once
   // (lina-app#153).
   const seen = new Set<string>();
@@ -262,9 +255,8 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
         count: 1,
       };
       blocks.push(block);
-      if (outcome !== "going" && result === null) sources.set(block, { result: round.result, said: round.rows.filter((row) => row.kind === "said").map((row) => row.text), start: round.startedAt, end: round.endedAt ?? round.startedAt, run: id });
+      if (outcome !== "going" && result === null) sources.set(block, { result: round.result, said: round.rows.filter((row) => row.kind === "said").map((row) => row.text), start: round.startedAt, end: round.endedAt ?? round.startedAt });
     });
-    every.push(...record.comments.filter((row) => row.text && !isMachineNotice(row.text)).map((row) => ({ at: row.at, text: row.text ?? "", cut: true, run: id })));
     for (const comment of gated(record.comments)) if (first(`comment:${comment.at}:${comment.source}`)) blocks.push({ type: "comment", key: `${id}:c:${comment.at}`, at: comment.at, rows: [comment] });
   }
   // Comments made one after another between rounds are one 댓글 block. A round with nothing drawn in it but the outcome
@@ -274,7 +266,7 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
   const used = new Set<string>();
   const read = blocks.sort((a, b) => b.at - a.at).map((block) => {
     const source = sources.get(block);
-    const sentence = source ? roundSentence(source, every, used) : null;
+    const sentence = source ? roundSentence(source, notes, used) : null;
     return sentence && block.type === "round" ? { ...block, result: sentence } : block;
   });
   for (const block of read) {

@@ -85,3 +85,39 @@ for (const wide of [true, false]) {
     expect(within(blocks[0]).getAllByTestId("held-text").map((held) => held.textContent)).toEqual([REPORT]);
   });
 }
+
+// PR #260 review: the card's own round lines read the same window. A bot's comment made after round 1 ended and before
+// round 2 began is round 1's line; round 2's window starts at its own start, so it does not take it.
+for (const wide of [true, false]) {
+  const width = wide ? "1280" : "390";
+
+  test(`a card's round line never reads a comment made before that round began (${width})`, async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: wide, media: query, addEventListener() {}, removeEventListener() {} }));
+    const base = new SyntheticSource({ now: NOW }).scene;
+    const done = base.cardDetails["k-105"];
+    const ID_ONLY = "OT-FAKE0303 omo/OT-FAKE0303";
+    const first = { start: NOW - 5 * 3600, end: NOW - 5 * 3600 + 600 };
+    const second = { start: first.end + 120, end: first.end + 130 };
+    const run = (id: number, span: { start: number; end: number }) => ({ id, profile: null, status: "done", outcome: null, startedAt: span.start, endedAt: span.end, lastHeartbeatAt: span.end, summary: ID_ONLY, live: false });
+    const comment = { id: 9002, author: "worker-a", body: "가상 알림 문구를 두 줄로 나눴다.", createdAt: first.end + 100 };
+    // The worker runs hold no record, so the card draws its own round lines (the Timeline's fallback).
+    const detail = {
+      ...done,
+      runs: [run(2, second), run(1, first)],
+      comments: [...done.comments, comment],
+      workerRuns: [
+        { ...done.workerRuns[0], id: "r5", firstSeenAt: first.start + 30 },
+        { ...done.workerRuns[0], id: "r6", firstSeenAt: second.start + 5 },
+      ],
+    };
+    window.history.replaceState(null, "", "/app/#/cards/k-105");
+    const view = render(<App store={new Store(new SyntheticSource({ now: NOW, scene: { ...base, cardDetails: { ...base.cardDetails, "k-105": detail as typeof done }, records: Object.fromEntries(Object.entries(base.records).filter(([id]) => id !== "r5" && id !== "r6")) } }))} />);
+    await waitFor(() => expect(view.getAllByTestId("round").length).toBeGreaterThan(0));
+    const lines = view.queryAllByTestId("round-line").map((line) => line.textContent ?? "");
+    expect(lines.filter((line) => line.includes("가상 알림 문구를 두 줄로 나눴다."))).toHaveLength(1);
+    const rounds = view.getAllByTestId("round");
+    expect(rounds).toHaveLength(2);
+    expect(within(rounds[0]).queryByTestId("round-line")).toBeNull();
+    expect(within(rounds[1]).getByTestId("round-line").textContent).toBe("가상 알림 문구를 두 줄로 나눴다.");
+  });
+}

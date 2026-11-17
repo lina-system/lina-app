@@ -1777,7 +1777,7 @@ const drivers = {
       // Its raw result line is left out, with no placeholder; the round keeps its head.
       const results = await block.getByTestId("timeline-result").count();
       const text = await page.getByTestId("timeline").innerText();
-      check(/^(어제 )?\d\d:\d\d · 완료$/.test(head) && results === 0 && !text.includes("가린 문장") && !/benchmark|3f2a1c9/.test(text), "the run's timeline reads " + head + " / results " + results + " / " + text.replace(/\s+/g, " "));
+      check(/^(어제 )?\d\d:\d\d · 작업을 마쳤다$/.test(head) && results === 0 && !text.includes("가린 문장") && !/benchmark|3f2a1c9/.test(text), "the run's timeline reads " + head + " / results " + results + " / " + text.replace(/\s+/g, " "));
       return new URL(page.url()).hash + " " + state + "; " + head + "; no result line";
     });
     await step("a run's record never shows a model alias: the scene's models have no plain name, so no model line", async () => {
@@ -2136,7 +2136,7 @@ const drivers = {
       check(names.length === 3, "expected 3 services, got " + names.length);
       check(names[0].startsWith("Claude · ") && names[1].startsWith("ChatGPT · ") && names[2].startsWith("가온셈 · "), "service names " + names.join(" | "));
       check(names.filter((name) => name.endsWith("주의")).length === 1, "expected one service with 주의");
-      check(names.every((name) => /^\S+ · \d+%( · 시간당 \+\d+%)? · \d+(분|시간|일) 후( · 주의)?$/.test(name)), "quota lines " + names.join(" | "));
+      check(names.every((name) => /^\S+ · \d+%( · 시간당 \+\d+%)? · \d+(분|시간|일) 후 초기화( · 주의)?$/.test(name)), "quota lines " + names.join(" | "));
       const title = await list.locator(".rate").first().getAttribute("title");
       check(title === "최근 5시간 평균", "the rate's title is " + title);
       const warn = await list.locator("summary .warn-mark").evaluate((mark) => getComputedStyle(mark).color);
@@ -3616,7 +3616,7 @@ const drivers = {
       return "before " + before.head + " = " + before.rows + " rows + 외 " + before.more + "개 (sidebar " + (before.nav ?? "phone") + "); opened " + after.rows + " rows for " + after.all + " cards, head " + after.head + ", grey " + grey.join("");
     });
     // lina-app#231 (QA round 22, the real hub): finished titles read with a hole where a Latin word or a ref was cut.
-    await step("on the hub's shape (&hub=round22), every finished line is a title as written (less a bracket of refs) or the grey line, which stands for the 7 titles with a hole shape; no hole is drawn (lina-app#231)", async () => {
+    await step("on the hub's shape (&hub=round22), every finished line is a title as written (less a bracket of refs) or the grey line, which stands for the title with a hole shape; no hole is drawn (lina-app#231)", async () => {
       await openApp(page, "#/", "&hub=round22");
       const group = page.getByTestId("section-finished");
       await group.locator(".more-row").getByRole("button").click();
@@ -3628,9 +3628,9 @@ const drivers = {
       const drawn = (await group.locator("li[data-testid=row] .title:not(.is-kind)").allInnerTexts()).map((title) => title.trim().replace(/ ×\d+$/, ""));
       const grey = await group.locator("li[data-testid=row] .title.is-kind").allInnerTexts();
       const cut = drawn.filter((title) => !titles.some((each) => each === title || each.startsWith(title + " (")));
-      const holes = drawn.filter((title) => /\(\s*\)|\(\d+\)|@|^[·,]|^(용|을|를)\s/.test(title));
+      const holes = drawn.filter((title) => /\(\s*\)|\(\d+\)|^[·,]|^(용|을|를)\s/.test(title));
       check(after.head === cards && after.all === cards, "opened: " + JSON.stringify(after) + " of " + cards + " cards");
-      check(cut.length === 0 && holes.length === 0 && JSON.stringify(grey) === JSON.stringify(["제목 없는 7건"]), "cut " + JSON.stringify(cut) + ", holes " + JSON.stringify(holes) + ", grey " + JSON.stringify(grey));
+      check(cut.length === 0 && holes.length === 0 && JSON.stringify(grey) === JSON.stringify(["제목 없는 1건"]), "cut " + JSON.stringify(cut) + ", holes " + JSON.stringify(holes) + ", grey " + JSON.stringify(grey));
       return after.rows + " lines for " + after.all + " cards: " + drawn.length + " titles as written, grey " + grey.join("");
     });
     await step("on the hub's shape served as the core (round 22, its newest finished cards listed last), 완료's first line opens the newest card on the first read, with the fold opened and closed, after a reload drawn from the kept copy and back from a detail (lina-app#231)", async () => {

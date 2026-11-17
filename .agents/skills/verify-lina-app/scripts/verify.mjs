@@ -1836,6 +1836,33 @@ const drivers = {
     // that opens what it holds, whole and as written, with its time and its author's name, without moving the detail's
     // scroll; 접기 closes it where it was. An ended round's said rows and report lines that do not stand whole fold the same
     // way, and a stop's reason is never cut: whole, three lines with 더 보기, or one folded line that opens.
+    await step("a card's worker run with no record reads one 읽기 실패: 기록 line, opened from its card or by its address (lina-app#110)", async () => {
+      const failed = async (from) => {
+        await page.getByTestId("screen-run").getByTestId("timeline-error").first().waitFor();
+        const lines = await page.getByTestId("screen-run").getByTestId("timeline-error").allInnerTexts();
+        check(lines.length === 1 && lines[0].trim() === "읽기 실패: 기록", from + " reads " + JSON.stringify(lines));
+      };
+      await openApp(page, "#/cards/k-104");
+      await page.getByTestId("worker-runs").getByRole("link").first().click();
+      await page.waitForURL(/#\/cards\/k-104\/runs\/1$/);
+      await failed("k-104's run line");
+      for (const card of ["k-103", "k-104", "k-105"]) {
+        await openApp(page, `#/cards/${card}/runs/1`);
+        await failed(`#/cards/${card}/runs/1`);
+      }
+      return "k-104 from its run line, k-103, k-104, k-105 by address: one 읽기 실패: 기록 line";
+    });
+    await step("a finished worker run of a running card reads its own end, not the card's state (lina-app#61)", async () => {
+      await openApp(page, "#/cards/k-101/runs/1");
+      await page.getByTestId("run-state").waitFor();
+      const ended = (await page.getByTestId("run-state").innerText()).trim();
+      check(ended === "완료", "r9 reads " + ended);
+      await openApp(page, "#/cards/k-101/runs/3");
+      await page.getByTestId("run-state").waitFor();
+      const going = (await page.getByTestId("run-state").innerText()).trim();
+      check(going === "진행 중", "r1 reads " + going);
+      return "k-101 runs/1 " + ended + ", runs/3 " + going;
+    });
     await step("on the hub's shape (&hub=round24), a folded comment line opens to each comment whole without moving the detail, and 접기 closes it where it was", async () => {
       await openApp(page, "#/cards/k-101", "&hub=round24");
       const box = page.getByTestId("card-comments");

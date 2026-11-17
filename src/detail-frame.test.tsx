@@ -176,11 +176,7 @@ describe("one stop reason on the row and its detail", () => {
     for (const row of rows) {
       const view = await open(row.href, { wide: true, source: new SyntheticSource({ now: source.scene.now, endedRuns: true }) });
       const head = (await frame(view)).querySelector(".detail-head") as Element;
-      // The row beside the open detail, as the list draws it now (one in the stopped group's fold is not drawn): a stop whose
-      // reason is the newest bot comment's sentence reads it once the card's detail is read (G138), on the row and the head alike.
-      const listed = () => view.getByTestId("screen-running").querySelector(`li:has(> a[href="${row.href}"]) [data-testid=state]`)?.textContent ?? row.state;
-      await waitFor(() => expect(head.querySelector("[data-testid=state]")?.textContent, row.href).toBe(listed()));
-      expect(listed(), row.href).toContain(row.state);
+      await waitFor(() => expect(head.querySelector("[data-testid=state]")?.textContent, row.href).toBe(row.state));
       expect(head.querySelector(".time")?.textContent ?? "", row.href).toBe(row.time);
       view.unmount();
     }

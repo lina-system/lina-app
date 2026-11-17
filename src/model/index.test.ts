@@ -148,8 +148,7 @@ test("a goal's title that would show raw text does not name a row: a stopped car
 test("a stopped row says why and who it waits on from what the core serves, and is plain when the core does not say", () => {
   const scene = generateScene(SYNTHETIC_SEED, { now: NOW, endedRuns: true });
   const model = endedModel(scene);
-  // No ask and no block reason: the newest bot comment's sentence is why (G138).
-  expect(model.cards.get("k-107")?.stop).toEqual({ words: "피드백 대기 · 영수증에 카드사 이름을 넣을지 정해 주세요.", known: true, owner: true, retry: false });
+  expect(model.cards.get("k-107")?.stop).toEqual({ words: "피드백 대기", known: true, owner: true, retry: false });
   expect(model.cards.get("k-103")?.stop).toEqual({ words: "응답 없음", known: false, owner: false, retry: true });
   expect(model.cards.get("r14")?.stop).toEqual({ words: "응답 없음", known: false, owner: false, retry: true });
   expect(model.cards.get("k-101")?.stop).toBeNull();

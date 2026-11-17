@@ -1,6 +1,6 @@
 import type { ItemDetail, RecordRound, RecordRow, RunRecord } from "../api/client";
 import { STATE_WORD, stateLabel, W } from "../words";
-import { historySentences, nowSentenceOf, STATE_ONLY, wholeText } from "./fold";
+import { historySentences, STATE_ONLY, wholeText } from "./fold";
 import { holds } from "./rounds";
 
 /** Who writes machine notices on a card (the dispatcher's and the worker's receipts): never a history line. */
@@ -30,16 +30,6 @@ export function ownerWrote(author: string | null | undefined, owner?: string | n
 export function isMachineNotice(text: string | null | undefined, author?: string | null, owner?: string | null): boolean {
   if (ownerWrote(author, owner)) return false;
   return (author ? MACHINE_AUTHORS.has(author) : false) || MACHINE_TAG.test(text ?? "") || HANDOUT.test(text ?? "");
-}
-
-/**
- * The one sentence the newest of a card's bot comments says of its work (G138): the first that may say what it does now
- * (nowSentenceOf). The owner's comments, machine notices and a state word alone are no bot's word of its work; a newest
- * one with no such sentence gives none, so an older comment never speaks for the work as it is now.
- */
-export function botSentence(comments: readonly { readonly author: string | null; readonly body: string; readonly createdAt: number }[], owner?: string | null): string | null {
-  const newest = comments.filter((comment) => !ownerWrote(comment.author, owner) && !isMachineNotice(comment.body, comment.author, owner) && !STATE_ONLY.has(wholeText(comment.body) ?? "")).sort((a, b) => b.createdAt - a.createdAt)[0];
-  return newest ? nowSentenceOf(newest.body) : null;
 }
 
 /** A comment's history line (lina-app#236): the owner's words as saved (lina-app#226), a bot's whole text or none (wholeText). */

@@ -23,12 +23,11 @@ import type {
   WorkInbox,
   WorkState,
 } from "../api/client";
-import { BANNED_WORDS, CRUMB, KIND_TITLE, SEP, SOURCE_WORD, STATE_WORD, STOP_WAIT, STOP_WORD, W, reasonWord, stateLabel } from "../words";
+import { BANNED_WORDS, CRUMB, KIND_TITLE, NOW_WORD, SEP, SOURCE_WORD, STATE_WORD, STOP_WAIT, STOP_WORD, W, reasonWord, stateLabel } from "../words";
 import { href } from "../router";
 import { clockAt } from "../time";
 import { checksView, type ChecksView } from "./checks";
-import { foldReason, holdsRefsOnly, nowSentenceOf, sentenceMayShow, unitMayShow, unitOf, withoutLatin, withoutRefs } from "./fold";
-import { botSentence } from "./timeline";
+import { foldReason, holdsRefsOnly, nowMayShow, sentenceMayShow, unitMayShow, unitOf, withoutLatin, withoutRefs } from "./fold";
 import { cardKind, type CardKind } from "./kind";
 import { ocxView, usageViews, type OcxView, type UsageRangeView } from "./usage";
 
@@ -771,7 +770,7 @@ export function buildModel(input: ModelInput, now: number): Model {
       const blockReason = workInbox?.blocked.find((entry) => entry.cardId === card.id)?.blockReason;
       const asked = (workInbox?.questions ?? []).some((question) => question.cardId === card.id);
       const own = workCardRow(card, detail, receivedAt, cardRuns);
-      const doing = cardNow(card as CardSummary, detail?.comments, blockReason, items?.owner?.id);
+      const doing = cardNow(card, asked);
       const row = { ...contextRow({ ...own, now: doing?.text ?? null }, goal, fallback, false, { ...card, asked }), goalTitle: (card as CardSummary).goalTitle ?? cardGoal.get(card.id)?.title ?? null };
       // Every card is a row (lina-app#225). One nothing else names is named by its ask (a stopped card's, lina-app#156),
       // then, unless it is finished, by the Hangul words of its own title (lina-app#214); the ask is said after the stop's
@@ -784,9 +783,7 @@ export function buildModel(input: ModelInput, now: number): Model {
       // The whole reason the inbox keeps (lina-app#171): the core cuts its ask at a length, so a cut ask reads from it.
       const whole = card.state === "stopped" ? stopReasonText(blockReason) : null;
       const drawn = whole && !whole.folded ? whole.text : null;
-      // A decision or feedback stop with no ask and no block reason reads why from the newest bot comment's one sentence of
-      // its work (G138), by the gate of what a card does now.
-      const reason = (said !== null && CUT_END.test(said) ? (drawn ?? said) : (said ?? drawn)) ?? (whole === null && card.state === "stopped" && card.reason !== null && Object.hasOwn(STOP_WAIT, card.reason) ? botSentence(detail?.comments ?? [], items?.owner?.id) : null);
+      const reason = said !== null && CUT_END.test(said) ? (drawn ?? said) : (said ?? drawn);
       // An ask that names the row is its reason already; the detail still shows the inbox's whole reason under it.
       const stop = row.stop ? (ask !== null && ask === title ? (whole ? { ...row.stop, reason: { lead: row.stop.words, ...whole } } : row.stop) : stopWithReason(row.stop, reason, whole)) : row.stop;
       return { row: { ...row, title, name: title ?? (card.state === "done" ? W.cards : KIND_TITLE[row.work]), stop, ask: null, ...(card.state === "stopped" ? { asked: retryAsked(input.cardDetails[card.id], row.stateAt) } : {}) }, listed: !isEnded(card) };
@@ -1077,21 +1074,35 @@ export function cardCount(lines: readonly CardRow[]): number {
 }
 
 /**
- * What a card does now, in one sentence (G138): its row's second line, its detail's 지금 and its going round's line in 기록
- * read it from here, so they never say two things. Only a card still at work, waiting or stopped has one. The core's
- * checked now line first (`plain.now`), then the newest bot comment's first sentence that may say what it does (botSentence),
- * then the first such sentence of why it waits (the work inbox's block reason, its ask); `from` says which. A stopped card's
- * why is its head's (its stop words and reason), so it reads none of those. Null when none reads: the screens then say
- * nothing of it.
+ * A card's state as a short sentence of what it waits for (G138), from the values the app already has and only as far as
+ * the core says: the owner's answer (`waitingOn: owner`, or a question of the card's in the work inbox) reads its wait
+ * word (결정 대기, 피드백 대기); another to-do, an agent, a review, a gate or a set time reads what it waits for. Null
+ * for any other: what the card does is never guessed.
  */
-export function cardNow(card: Pick<WorkCardSummary, "state" | "plain"> & { readonly ask?: string | null }, comments: readonly Pick<WorkCardDetail["comments"][number], "author" | "body" | "createdAt">[] | undefined, blockReason: string | null | undefined, owner?: string | null): { readonly text: string; readonly from: "plain" | "comment" | "reason" } | null {
+function waitLine(card: Pick<CardSummary, "reason" | "waitingOn" | "retry">, asked: boolean): string | null {
+  const { reason, waitingOn, retry } = card;
+  if (waitingOn === "owner" || asked) return (reason && STOP_WAIT[reason]) || (asked ? STOP_WAIT.decision : W.needsCheck);
+  if (waitingOn?.startsWith("agent:")) return NOW_WORD.agent;
+  if (reason === "blocked_by_item") return NOW_WORD.item;
+  if (reason === "review") return NOW_WORD.review;
+  if (reason === "gate") return NOW_WORD.gate;
+  if (reason === "hold" && retry === "scheduled") return NOW_WORD.time;
+  return null;
+}
+
+/**
+ * What a card does now, as one short line (G138): its row's second line, its detail's 지금 and its going round's line in
+ * 기록 read it from here, so they never say two things. Only a card at work, waiting or stopped has one: the core's checked
+ * now line when it passes the 40-letter gate (nowMayShow), else what its state says it waits for (waitLine). A stopped
+ * card's wait is its head's already, so it reads only the core's line. No bot comment, block reason or ask is read: with
+ * neither, null, and the screens say its state alone.
+ */
+export function cardNow(card: Pick<WorkCardSummary, "state" | "plain"> & Pick<CardSummary, "reason" | "waitingOn" | "retry">, asked = false): { readonly text: string; readonly from: "plain" | "state" } | null {
   if (card.state !== "in_progress" && card.state !== "waiting" && card.state !== "stopped") return null;
-  if (card.plain.now) return { text: card.plain.now, from: "plain" };
-  const said = botSentence(comments ?? [], owner);
-  if (said) return { text: said, from: "comment" };
+  if (card.plain.now && nowMayShow(card.plain.now)) return { text: card.plain.now.trim(), from: "plain" };
   if (card.state === "stopped") return null;
-  const reason = [blockReason, card.ask].map(nowSentenceOf).find((text) => text !== null);
-  return reason ? { text: reason, from: "reason" } : null;
+  const wait = waitLine(card, asked);
+  return wait ? { text: wait, from: "state" } : null;
 }
 
 /**

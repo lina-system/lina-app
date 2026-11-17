@@ -2644,7 +2644,8 @@ describe("work cards", () => {
     expect(within(detail).getByTestId("card-goal").textContent).toContain("결제 화면 개편");
     expect(head?.classList.contains("is-kind")).toBe(false);
     expect(within(detail).getByTestId("kind").textContent).toBe("문서");
-    expect(within(detail).queryByTestId("card-now")).toBeNull();
+    // No checked now line, and its question is in the work inbox: its top line is the wait for the owner's decision (G138).
+    expect(within(detail).getByTestId("card-now").textContent).toBe("지금결정 대기");
     // A row is titled by its goal first (lina-app#122), unless another group of the tab draws that title as its line 1:
     // then by its own name, the goal's the second line (lina-app#242).
     const row = within(view.getByTestId("screen-running")).getAllByTestId("row").find((item) => item.querySelector("a")?.getAttribute("href") === "#/cards/k-102");

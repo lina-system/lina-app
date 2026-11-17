@@ -563,6 +563,15 @@ export const BANNED_WORDS = ["세션", "일꾼", "회차", "판정", "장부", "
 /** lina-app#156: what a stopped card that waits on the owner waits for, by the core's reason; no person is named. */
 export const STOP_WAIT: Readonly<Record<string, string>> = { decision: "결정 대기", feedback: "피드백 대기" };
 
+/** G138: what a card at work or waiting waits for, as its top line, when the core says so and gives no now line of its own. */
+export const NOW_WORD = {
+  item: "다른 일을 기다리는 중",
+  agent: "다른 에이전트를 기다리는 중",
+  review: "검토를 기다리는 중",
+  gate: "검사를 기다리는 중",
+  time: "정한 시각을 기다리는 중",
+} as const;
+
 /**
  * lina-app#156: the name a tool reads by on the status tab, by the key the hub serves for a runner or an owner's tool.
  * An alias reads as the tool it runs; a key the table does not know reads as it is, its `-command` suffix dropped.

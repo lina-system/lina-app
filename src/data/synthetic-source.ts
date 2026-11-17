@@ -517,20 +517,32 @@ export function round24Scene(scene: Scene): Scene {
 
 /** The made-up ids and words of the cards `&hub=now` adds (G138). */
 export const NOW_SCENE = {
-  /** Going: no checked now line, a bot's progress comment with label letters, English hand-out lines and a receipt after it. */
+  /** A bot comment on every going card that the old gate would pass: it never stands as a card's top line. */
+  botSaid: "가짜 묶음 셋을 나눠 맡겼다.",
+  ownerNote: "가짜 첫 묶음부터 먼저 봐 줘",
+  /** Going, with a checked now line of 40 letters or fewer: its top line. */
+  told: "k-464",
+  toldTitle: "가짜 목록 차례 맞추기",
+  toldRun: "w-4640",
+  toldNow: "가짜 목록 셋을 차례로 맞추는 중",
+  /** Going, no checked now line, nothing the core says it waits for, English hand-out lines and a receipt: no top line. */
   going: "k-460",
   goingTitle: "가짜 묶음 나눠 맡기기",
   goingRun: "w-4600",
-  doing: "묶음 A·B·C를 일꾼 셋에 병렬로 맡겼다.",
-  ownerNote: "A부터 먼저 봐 줘",
-  /** Waiting: the owner's comment alone, and the core's ask, which says what it waits for. */
+  /** Going, no checked now line, a question of its own in the work inbox: it waits on the owner's decision. */
+  asking: "k-465",
+  askingTitle: "가짜 알림 문구 고르기",
+  askingRun: "w-4650",
+  question: "가짜 알림 문구 둘 중 어느 쪽으로 할지 정해 주세요.",
+  /** Waiting on review, its checked now line over 40 letters: it reads what its state says it waits for. */
   waiting: "k-461",
   waitingTitle: "가짜 검토 결과 모으기",
-  waits: "가짜 일꾼 셋의 결과를 기다림",
-  /** Stopped on feedback nobody asks the owner for (a device to come back): its why is its newest bot comment's sentence. */
+  longNow: "가짜 검토 결과 세 묶음을 받아서 하나로 합치고 빠진 칸이 있는지 처음부터 끝까지 다시 확인하는 중",
+  ask: "가짜 결과 셋을 기다림",
+  /** Stopped on feedback the core says nobody asks the owner for (a device to come back), with one bot comment. */
   device: "k-462",
   deviceTitle: "가짜 기기 다시 잇기",
-  deviceWhy: "가짜 기기가 돌아오면 이어서 붙인다.",
+  deviceSaid: "가짜 기기가 돌아오면 이어서 붙인다.",
   /** Stopped on the owner's decision with no ask, no block reason and no comment. */
   bare: "k-463",
   bareTitle: "가짜 배포 차례 정하기",
@@ -538,11 +550,12 @@ export const NOW_SCENE = {
 
 /**
  * The hub's shapes of cards at work and waiting (`&hub=now`, G138), on top of round 24's, field by field as the hub
- * serves them, in made-up words (NOW_SCENE), every card read-only. A going card with no checked now line whose newest bot
- * comment says what it does with label letters (`A·B·C`), English worker hand-out lines and a receipt after it, the owner's
- * comment before it and a going round with one tool step. A waiting card with only the owner's comment and the core's ask.
- * A card stopped on feedback the core says nobody is asked for (`waitingOn: null`), with one bot comment. And a card
- * stopped on the owner's decision with nothing of why.
+ * serves them, in made-up words (NOW_SCENE), every card read-only. Three going cards, each with a bot comment the old gate
+ * would pass and a going round with one tool step: one with a checked now line of 40 letters or fewer; one with none and
+ * nothing it waits for, its newest comments English hand-out lines and a receipt; one with none and a question in the work
+ * inbox. A card waiting on review whose checked now line is over 40 letters, with the core's ask. A card stopped on
+ * feedback the core says nobody is asked for (`waitingOn: null`), with one bot comment. And a card stopped on the owner's
+ * decision with nothing of why.
  */
 export function nowScene(scene: Scene): Scene {
   const now = scene.now;
@@ -552,41 +565,44 @@ export function nowScene(scene: Scene): Scene {
   const detail = scene.cardDetails[template?.id ?? ""];
   const agents = scene.items.agents.map((agent) => agent.id);
   if (!template || !detail || agents.length < 2) return scene;
-  const card = (id: string, title: string, fields: Partial<SceneCard>): SceneCard =>
-    ({ ...template, id, title, goalTitle: null, agent: agents[0], plain: { title, now: null, result: null }, reason: null, waitingOn: null, retry: null, ask: null, todoProgress: { done: 0, total: 0 }, readOnly: true, endedAt: null, ...fields }) as SceneCard;
+  const card = (id: string, title: string, fields: Partial<SceneCard>, plainNow: string | null = null): SceneCard =>
+    ({ ...template, id, title, goalTitle: null, agent: agents[0], plain: { title, now: plainNow, result: null }, reason: null, waitingOn: null, retry: null, ask: null, todoProgress: { done: 0, total: 0 }, readOnly: true, endedAt: null, ...fields }) as SceneCard;
   const comment = (id: number, author: string, body: string, ago: number) => ({ id, author, body, createdAt: now - ago * MIN });
+  const going = { state: "in_progress" as const, elapsedSeconds: 35 * MIN, lastHeartbeatAt: now - MIN };
   const cards = [
+    card(N.told, N.toldTitle, { ...going, now: N.botSaid }, N.toldNow),
     // The hub's `now` is its newest comment as written: the last hand-out line.
-    card(N.going, N.goingTitle, { state: "in_progress", elapsedSeconds: 35 * MIN, now: "Assigned worker w-4603 to run 3 (lane C)", lastHeartbeatAt: now - MIN }),
-    card(N.waiting, N.waitingTitle, { state: "waiting", reason: "review", ask: N.waits, elapsedSeconds: 50 * MIN, now: N.ownerNote, lastHeartbeatAt: now - 20 * MIN }),
-    card(N.device, N.deviceTitle, { state: "stopped", reason: "feedback", waitingOn: null, retry: "none", elapsedSeconds: 3 * 3600, now: N.deviceWhy, lastHeartbeatAt: now - 2 * 3600 }),
+    card(N.going, N.goingTitle, { ...going, now: "Assigned worker w-4603 to run 3 (lane C)" }),
+    card(N.asking, N.askingTitle, { ...going, now: N.question }),
+    card(N.waiting, N.waitingTitle, { state: "waiting", reason: "review", ask: N.ask, elapsedSeconds: 50 * MIN, now: N.ownerNote, lastHeartbeatAt: now - 20 * MIN }, N.longNow),
+    card(N.device, N.deviceTitle, { state: "stopped", reason: "feedback", waitingOn: null, retry: "none", elapsedSeconds: 3 * 3600, now: N.deviceSaid, lastHeartbeatAt: now - 2 * 3600 }),
     card(N.bare, N.bareTitle, { agent: agents[1], state: "stopped", reason: "decision", waitingOn: "owner", retry: "none", elapsedSeconds: 4 * 3600, now: null, lastHeartbeatAt: now - 3 * 3600 }),
   ];
+  const report = (id: number) => comment(id, agents[0], `[가짜 보고 17:24] ${N.botSaid}`, 34);
   const comments: Record<string, WorkCardDetail["comments"]> = {
+    [N.told]: [comment(4641, "owner", N.ownerNote, 60), report(4642)],
     [N.going]: [
       comment(4601, "owner", N.ownerNote, 60),
-      comment(4602, agents[0], `[가짜 보고 17:24] ${N.doing} 셋이 끝나면 한 판으로 모은다.`, 34),
+      report(4602),
       comment(4603, agents[0], "Assigned worker w-4601 to run 1 (lane A)", 33),
       comment(4604, agents[0], "Assigned worker w-4602 to run 2 (lane B)", 33),
       comment(4605, agents[0], "Assigned worker w-4603 to run 3 (lane C)", 33),
       comment(4606, "lina-worker", "[받음] 가짜 묶음을 넘겨받음", 32),
     ],
-    [N.waiting]: [comment(4611, "owner", N.ownerNote, 30)],
-    [N.device]: [comment(4621, agents[0], N.deviceWhy, 2 * 60)],
+    [N.asking]: [report(4652), comment(4653, agents[0], N.question, 20)],
+    [N.waiting]: [comment(4611, "owner", N.ownerNote, 30), report(4612)],
+    [N.device]: [comment(4621, agents[0], N.deviceSaid, 2 * 60)],
     [N.bare]: [],
   };
+  const runs: Record<string, string> = { [N.told]: N.toldRun, [N.going]: N.goingRun, [N.asking]: N.askingRun };
   const details = Object.fromEntries(
-    cards.map((each) => [each.id, { ...detail, id: each.id, title: each.title, agent: each.agent, state: each.state, reason: each.reason, plain: each.plain, now: each.now, elapsedSeconds: each.elapsedSeconds, lastHeartbeatAt: each.lastHeartbeatAt, endedAt: null, readOnly: true, todoProgress: each.todoProgress, todos: [], gates: [], runs: [], comments: comments[each.id], workerRuns: each.id === N.going ? [{ id: N.goingRun, kind: "lina-worker" as const, firstSeenAt: now - 35 * MIN, lastSeenAt: now - MIN }] : [] } satisfies WorkCardDetail]),
+    cards.map((each) => [each.id, { ...detail, id: each.id, title: each.title, agent: each.agent, state: each.state, reason: each.reason, plain: each.plain, now: each.now, elapsedSeconds: each.elapsedSeconds, lastHeartbeatAt: each.lastHeartbeatAt, endedAt: null, readOnly: true, todoProgress: each.todoProgress, todos: [], gates: [], runs: [], comments: comments[each.id], workerRuns: runs[each.id] ? [{ id: runs[each.id], kind: "lina-worker" as const, firstSeenAt: now - 35 * MIN, lastSeenAt: now - MIN }] : [] } satisfies WorkCardDetail]),
   );
-  const record: RunRecord = {
-    ...scene.records.r1,
-    id: N.goingRun,
-    cardId: N.going,
-    rounds: [{ run: 1, startedAt: now - 35 * MIN, endedAt: null, endKnown: false, startUnknown: false, result: null, verdict: null, stopped: false, rows: [{ at: now - 30 * MIN, kind: "tools", text: null, count: 1 }] }],
-    comments: [],
-    errors: [],
-  };
-  return { ...scene, cards: { ...scene.cards, cards: [...scene.cards.cards, ...cards] }, cardDetails: { ...scene.cardDetails, ...details }, records: { ...scene.records, [N.goingRun]: record } };
+  const records = Object.fromEntries(
+    Object.entries(runs).map(([cardId, id]): [string, RunRecord] => [id, { ...scene.records.r1, id, cardId, rounds: [{ run: 1, startedAt: now - 35 * MIN, endedAt: null, endKnown: false, startUnknown: false, result: null, verdict: null, stopped: false, rows: [{ at: now - 30 * MIN, kind: "tools", text: null, count: 1 }] }], comments: [], errors: [] }]),
+  );
+  const question = { agent: agents[0], askedAt: now - 20 * MIN, body: N.question, cardId: N.asking, commentId: 4653, title: N.askingTitle };
+  return { ...scene, cards: { ...scene.cards, cards: [...scene.cards.cards, ...cards] }, cardDetails: { ...scene.cardDetails, ...details }, records: { ...scene.records, ...records }, inbox: { ...scene.inbox, questions: [...scene.inbox.questions, question] } };
 }
 
 function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {

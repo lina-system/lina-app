@@ -687,7 +687,7 @@ function AnswerWhere({ agent = null }: { agent?: string | null }) {
   ) : null;
 }
 
-/** What a card does now as its 지금 box says it (cardNow): a stopped card's head already says the sentence when it is its stop's reason. */
+/** What a card does now as its 지금 box says it (cardNow): none on a stopped card whose head already says the same words. */
 function nowShown(text: string | null | undefined, state: WorkState, stop: CardRow["stop"]): string | null {
   if (!text) return null;
   return state === "stopped" && [stop?.words, stop?.reason?.text].some((said) => said?.includes(text)) ? null : text;
@@ -1064,7 +1064,7 @@ export function CardScreen({ id }: { id: string }) {
   const askHere = Boolean(ask && !readOnly && !everyQuestion.length && !answering(`answer:${id}`));
   // What the card does now (G138), from the one function its row reads too: the 지금 box and its going round's line in 기록.
   const summary = store.get("cards")?.cards.find((card) => card.id === id) as CardSummary | undefined;
-  const doing = cardNow({ state, plain: detail.plain, ask: summary?.ask }, detail.comments, store.get("inbox")?.blocked.find((entry) => entry.cardId === id)?.blockReason, ownerId);
+  const doing = cardNow({ state, plain: detail.plain, reason, waitingOn: summary?.waitingOn, retry: summary?.retry }, everyQuestion.length > 0);
   const nowLine = nowShown(doing?.text, state, row?.stop);
   // A card with nothing of its own yet (a planned one: no to-do, run, line or comment) says so in one line under its head,
   // never a blank frame (lina-app#179).

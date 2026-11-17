@@ -402,6 +402,36 @@ export function historySentences(text: string | null | undefined, { opens = fals
     .filter(historyMayShow);
 }
 
+/** A label a sentence of work going on may hold (nowMayShow): one capital letter standing alone, as in `묶음 A·B·C`. */
+const LABEL_LETTER = /(?<![A-Za-z0-9_])[A-Z](?![A-Za-z0-9_])/g;
+/** Abbreviations a person reads as words in a sentence of work going on (nowMayShow). */
+const NOW_ABBREVIATIONS = /(?<![A-Za-z0-9_])(?:PR|CI|UI|QA|API)(?![A-Za-z0-9_])/g;
+/** How long the one sentence of work going on may be: one line of a detail's head box. */
+const NOW_LETTERS = 120;
+/** The screens' own banned Hangul words (BANNED_WORDS): words the app never writes, which a bot's sentence of its work may hold (`일꾼 셋에 맡겼다`). */
+const BANNED_HANGUL = BANNED_WORDS.filter((word) => HANGUL.test(word));
+
+/**
+ * Whether one sentence may say what a card is doing now (G138): the one gate (unitMayShow) with its label letters
+ * (`A·B·C`) and common abbreviations (`PR`, `CI`) read as words, never with English text, a path, a command, an address,
+ * an id, a hash, an issue number or a code name in it, and at most 120 letters. Unlike a history line (historyMayShow) it
+ * need not say the work is done: the work is still going. The words the app never writes itself (BANNED_WORDS) are the
+ * bot's own here: the sentence says what the bot said it does.
+ */
+export function nowMayShow(sentence: string): boolean {
+  if (!HANGUL.test(sentence) || [...sentence].length > NOW_LETTERS || ENGLISH.test(sentence) || INTERNAL.test(sentence)) return false;
+  if (RULES.some(([reason, rule]) => reason !== "fragment" && rule.test(sentence))) return false;
+  const read = BANNED_HANGUL.reduce((text, word) => text.replaceAll(word, "낱말"), sentence.replace(NOW_ABBREVIATIONS, "낱말").replace(LABEL_LETTER, "낱말"));
+  return unitMayShow(read);
+}
+
+/** The first sentence of a bot's text that may say what a card is doing now (nowMayShow), less a list's mark before it; null when none may. */
+export function nowSentenceOf(text: string | null | undefined): string | null {
+  const unit = unitOf(text);
+  if (STATE_ONLY.has(unit)) return null;
+  return unit.split(PIECES).map((piece) => piece.trim().replace(ITEM_MARK, "")).find(nowMayShow) ?? null;
+}
+
 /** Whether a bracket's inside is refs, ids or hashes and their separators alone: no word, so cutting it leaves no hole (lina-app#233). */
 export function holdsRefsOnly(inner: string): boolean {
   return inner.trim() !== "" && !inner.replace(ONE_REF, "").replace(/[\s·,]+/g, "");

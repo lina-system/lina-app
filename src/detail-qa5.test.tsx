@@ -75,10 +75,11 @@ test("item 1: the head reads the name of the row that was tapped; the card's own
   expect(differs).toBeGreaterThan(0);
 });
 
-test("item 2: a read-only card says it cannot be changed here, in neutral words, and makes no claim that the owner must act", async () => {
+test("item 2: a read-only card has no line saying so (G138), and makes no claim that the owner must act", async () => {
   const view = await open("#/cards/k-112", readOnlyScene());
   const card = within(await frame(view));
-  expect(card.getByTestId("read-only").textContent).toBe("읽기 전용 · 여기서는 바꿀 수 없음");
+  expect(card.queryByTestId("read-only")).toBeNull();
+  expect(view.getByTestId("detail-frame").textContent).not.toContain("읽기 전용");
   expect(card.getByTestId("decision").textContent).toContain("카드 번호를 앞 여섯 자리까지 표시할지 결정 필요");
   expect(card.queryByRole("textbox")).toBeNull();
   const state = view.getByTestId("detail-frame").querySelector(".detail-head [data-testid=state]")?.textContent ?? "";
@@ -90,7 +91,7 @@ test("item 2: a writable card waiting on the owner keeps its answer box and its 
   const view = await open("#/cards/k-112", scene());
   const card = within(await frame(view));
   expect(card.getByTestId("card-answer")).toBeTruthy();
-  expect(view.getByTestId("detail-frame").querySelector(".detail-head [data-testid=state]")?.textContent).toBe("중단됨 · 결정 대기 · 이유 기록 없음");
+  expect(view.getByTestId("detail-frame").querySelector(".detail-head [data-testid=state]")?.textContent).toBe("중단됨 · 결정 대기");
 });
 
 /** T2 as the real core serves it after the owner answered: still waiting on a decision, the decision answered, the answer stored as a comment of kind answer. */

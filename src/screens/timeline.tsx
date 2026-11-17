@@ -46,15 +46,9 @@ function timed(at: number, text: string, now: number): string {
   return [clockAt(at, now), text].join(SEP);
 }
 
-/** One row of a block that stands whole: a block's rows that do not are the timeline's one folded line (Timeline). */
+/** One row of a block that stands whole: a block's rows that do not, tool steps among them, are the timeline's one folded line (Timeline). */
 function Row({ row, owner, count }: { row: TimelineRow; owner: string; count: number }) {
   const { now } = useApp();
-  if (row.kind === "tools")
-    return (
-      <li class="timeline-row is-dim" data-kind="tools">
-        {timed(row.at, W.toolSteps(row.count), now)}
-      </li>
-    );
   if (row.kind === "comment")
     // A comment row whose words stand whole is one line; its author is the tooltip.
     return (
@@ -96,7 +90,7 @@ function Block({ block, owner, link, modelRun }: { block: TimelineBlock; owner: 
   const [open, setOpen] = useState(true);
   // A said row, a comment row or a report line that does not stand whole is folded (timelineBlocks) into the timeline's one
   // folded line, never a line between two rounds; the round still shows its head.
-  const rows = historyLines(block.rows.filter((row) => !folded(row)).map((row) => ({ row, at: row.at, text: row.kind === "tools" ? "" : row.text })));
+  const rows = historyLines(block.rows.filter((row) => !folded(row)).map((row) => ({ row, at: row.at, text: row.text })));
   const title = head(block, now);
   return (
     <details class="timeline-block" open={open} onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)} data-testid="timeline-block" data-outcome={block.type === "round" ? block.outcome : "comment"}>
@@ -122,8 +116,8 @@ function Block({ block, owner, link, modelRun }: { block: TimelineBlock; owner: 
   );
 }
 
-/** A row that does not stand whole (timelineBlocks): no line of its own. */
-const folded = (row: TimelineRow) => row.kind !== "tools" && row.text === null;
+/** A row that does not stand whole, or a tool step (timelineBlocks): no line of its own. */
+const folded = (row: TimelineRow) => row.text === null;
 
 /**
  * Every row of the timeline's blocks that does not stand whole, newest first, as one folded line after the last block
@@ -174,9 +168,10 @@ export function PastEvents({ events }: { events: readonly PastEvent[] }) {
  * `fallback` is what stands when the record is not shown: under the one error line when its read failed, or
  * alone while there is no record. `boxed` says the page draws the record's comments between rounds in its own 댓글 box
  * (a card, lina-app#174): the timeline then has no comment block, so the page has one 댓글 section. `notes` are the bots'
- * comments on the card, which a closed round's line may read its sentence from (roundSentence).
+ * comments on the card, which a closed round's line may read its sentence from (roundSentence). `doing` is what the card does
+ * now (cardNow), which its going round's line reads (G138).
  */
-export function Timeline({ runs, live, link = () => null, modelRun = () => null, fallback = null, boxed = false, notes = [] }: { runs: readonly string[]; live: (runId: string) => boolean; link?: (runId: string, n: number, at: number) => string | null; modelRun?: (runId: string, n: number, at: number) => string | null; fallback?: ComponentChildren; boxed?: boolean; notes?: readonly RoundNote[] }) {
+export function Timeline({ runs, live, link = () => null, modelRun = () => null, fallback = null, boxed = false, notes = [], doing = null }: { runs: readonly string[]; live: (runId: string) => boolean; link?: (runId: string, n: number, at: number) => string | null; modelRun?: (runId: string, n: number, at: number) => string | null; fallback?: ComponentChildren; boxed?: boolean; notes?: readonly RoundNote[]; doing?: string | null }) {
   const { model, store, now } = useApp();
   if (runs.some((id) => store.status("record", id) === "failed"))
     return (
@@ -193,7 +188,7 @@ export function Timeline({ runs, live, link = () => null, modelRun = () => null,
     const record = store.get("record", id);
     return record ? [{ id, record }] : [];
   });
-  const blocks = timelineBlocks(records, live, now, notes)
+  const blocks = timelineBlocks(records, live, now, notes, doing)
     .filter((block) => !(boxed && block.type === "comment"))
     .flatMap((block) => plainBlock(block) ?? []);
   if (!blocks.length) return <>{fallback}</>;

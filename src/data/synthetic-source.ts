@@ -515,6 +515,80 @@ export function round24Scene(scene: Scene): Scene {
   };
 }
 
+/** The made-up ids and words of the cards `&hub=now` adds (G138). */
+export const NOW_SCENE = {
+  /** Going: no checked now line, a bot's progress comment with label letters, English hand-out lines and a receipt after it. */
+  going: "k-460",
+  goingTitle: "가짜 묶음 나눠 맡기기",
+  goingRun: "w-4600",
+  doing: "묶음 A·B·C를 일꾼 셋에 병렬로 맡겼다.",
+  ownerNote: "A부터 먼저 봐 줘",
+  /** Waiting: the owner's comment alone, and the core's ask, which says what it waits for. */
+  waiting: "k-461",
+  waitingTitle: "가짜 검토 결과 모으기",
+  waits: "가짜 일꾼 셋의 결과를 기다림",
+  /** Stopped on feedback nobody asks the owner for (a device to come back): its why is its newest bot comment's sentence. */
+  device: "k-462",
+  deviceTitle: "가짜 기기 다시 잇기",
+  deviceWhy: "가짜 기기가 돌아오면 이어서 붙인다.",
+  /** Stopped on the owner's decision with no ask, no block reason and no comment. */
+  bare: "k-463",
+  bareTitle: "가짜 배포 차례 정하기",
+} as const;
+
+/**
+ * The hub's shapes of cards at work and waiting (`&hub=now`, G138), on top of round 24's, field by field as the hub
+ * serves them, in made-up words (NOW_SCENE), every card read-only. A going card with no checked now line whose newest bot
+ * comment says what it does with label letters (`A·B·C`), English worker hand-out lines and a receipt after it, the owner's
+ * comment before it and a going round with one tool step. A waiting card with only the owner's comment and the core's ask.
+ * A card stopped on feedback the core says nobody is asked for (`waitingOn: null`), with one bot comment. And a card
+ * stopped on the owner's decision with nothing of why.
+ */
+export function nowScene(scene: Scene): Scene {
+  const now = scene.now;
+  const MIN = 60;
+  const N = NOW_SCENE;
+  const template = scene.cards.cards.find((card) => card.state === "in_progress");
+  const detail = scene.cardDetails[template?.id ?? ""];
+  const agents = scene.items.agents.map((agent) => agent.id);
+  if (!template || !detail || agents.length < 2) return scene;
+  const card = (id: string, title: string, fields: Partial<SceneCard>): SceneCard =>
+    ({ ...template, id, title, goalTitle: null, agent: agents[0], plain: { title, now: null, result: null }, reason: null, waitingOn: null, retry: null, ask: null, todoProgress: { done: 0, total: 0 }, readOnly: true, endedAt: null, ...fields }) as SceneCard;
+  const comment = (id: number, author: string, body: string, ago: number) => ({ id, author, body, createdAt: now - ago * MIN });
+  const cards = [
+    // The hub's `now` is its newest comment as written: the last hand-out line.
+    card(N.going, N.goingTitle, { state: "in_progress", elapsedSeconds: 35 * MIN, now: "Assigned worker w-4603 to run 3 (lane C)", lastHeartbeatAt: now - MIN }),
+    card(N.waiting, N.waitingTitle, { state: "waiting", reason: "review", ask: N.waits, elapsedSeconds: 50 * MIN, now: N.ownerNote, lastHeartbeatAt: now - 20 * MIN }),
+    card(N.device, N.deviceTitle, { state: "stopped", reason: "feedback", waitingOn: null, retry: "none", elapsedSeconds: 3 * 3600, now: N.deviceWhy, lastHeartbeatAt: now - 2 * 3600 }),
+    card(N.bare, N.bareTitle, { agent: agents[1], state: "stopped", reason: "decision", waitingOn: "owner", retry: "none", elapsedSeconds: 4 * 3600, now: null, lastHeartbeatAt: now - 3 * 3600 }),
+  ];
+  const comments: Record<string, WorkCardDetail["comments"]> = {
+    [N.going]: [
+      comment(4601, "owner", N.ownerNote, 60),
+      comment(4602, agents[0], `[가짜 보고 17:24] ${N.doing} 셋이 끝나면 한 판으로 모은다.`, 34),
+      comment(4603, agents[0], "Assigned worker w-4601 to run 1 (lane A)", 33),
+      comment(4604, agents[0], "Assigned worker w-4602 to run 2 (lane B)", 33),
+      comment(4605, agents[0], "Assigned worker w-4603 to run 3 (lane C)", 33),
+      comment(4606, "lina-worker", "[받음] 가짜 묶음을 넘겨받음", 32),
+    ],
+    [N.waiting]: [comment(4611, "owner", N.ownerNote, 30)],
+    [N.device]: [comment(4621, agents[0], N.deviceWhy, 2 * 60)],
+    [N.bare]: [],
+  };
+  const details = Object.fromEntries(
+    cards.map((each) => [each.id, { ...detail, id: each.id, title: each.title, agent: each.agent, state: each.state, reason: each.reason, plain: each.plain, now: each.now, elapsedSeconds: each.elapsedSeconds, lastHeartbeatAt: each.lastHeartbeatAt, endedAt: null, readOnly: true, todoProgress: each.todoProgress, todos: [], gates: [], runs: [], comments: comments[each.id], workerRuns: each.id === N.going ? [{ id: N.goingRun, kind: "lina-worker" as const, firstSeenAt: now - 35 * MIN, lastSeenAt: now - MIN }] : [] } satisfies WorkCardDetail]),
+  );
+  const record: RunRecord = {
+    ...scene.records.r1,
+    id: N.goingRun,
+    cardId: N.going,
+    rounds: [{ run: 1, startedAt: now - 35 * MIN, endedAt: null, endKnown: false, startUnknown: false, result: null, verdict: null, stopped: false, rows: [{ at: now - 30 * MIN, kind: "tools", text: null, count: 1 }] }],
+    comments: [],
+    errors: [],
+  };
+  return { ...scene, cards: { ...scene.cards, cards: [...scene.cards.cards, ...cards] }, cardDetails: { ...scene.cardDetails, ...details }, records: { ...scene.records, [N.goingRun]: record } };
+}
+
 function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
   switch (name) {
     case "board":
@@ -942,7 +1016,7 @@ export class SyntheticSource implements Source {
   private readonly signing = new Set<string>();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; hubRound23?: boolean; hubRound24?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean; serialRecordMs?: number | null; longCard?: boolean } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; hubRound23?: boolean; hubRound24?: boolean; hubNow?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean; serialRecordMs?: number | null; longCard?: boolean } = {}) {
     this.slowRecords = options.slowRecords ?? false;
     this.serialRecordMs = options.serialRecordMs ?? null;
     this.staleNext = options.settings === "stale";
@@ -968,7 +1042,7 @@ export class SyntheticSource implements Source {
         settings: options.settings === "stale" || options.settings === "race" ? null : options.settings,
         power: options.power,
       });
-    const scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : options.hubRound23 ? round23Scene(generated) : options.hubRound24 ? round24Scene(generated) : generated;
+    const scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : options.hubRound23 ? round23Scene(generated) : options.hubRound24 ? round24Scene(generated) : options.hubNow ? nowScene(round24Scene(generated)) : generated;
     this.scene = options.longCard ? longCardScene(scene) : scene;
   }
 

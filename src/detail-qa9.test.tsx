@@ -95,11 +95,12 @@ test("a card with folded comments and a record has one 댓글 heading", async ()
   expect(within(card).getByTestId("card-comments").textContent).toContain("변경 목록은 표로 보여 주세요");
 });
 
-test("a stopped row waiting on feedback with no reason sentence says 이유 기록 없음, in the row and the detail", async () => {
+test("a stopped row waiting on feedback with no reason sentence says its state words alone, in the row and the detail (G138)", async () => {
   const view = await open("#/cards/k-134", hub());
-  expect(within(rowOf(view, "k-134")).getByTestId("state").textContent).toBe("중단됨 · 피드백 대기 · 이유 기록 없음");
+  expect(within(rowOf(view, "k-134")).getByTestId("state").textContent).toBe("중단됨 · 피드백 대기");
   const card = within(await frame(view));
-  expect(card.getByTestId("stop-why").textContent).toBe("피드백 대기 · 이유 기록 없음");
+  expect(card.getByTestId("stop-why").textContent).toBe("피드백 대기");
+  expect(card.queryByText("이유 기록 없음", { exact: false })).toBeNull();
   expect(card.queryByText("initial_status", { exact: false })).toBeNull();
 });
 
@@ -125,7 +126,7 @@ test("a read-only card waiting on the owner names its agent and links to that ag
   const agent = source.scene.items.agents[1];
   const view = await open("#/cards/k-135", source);
   const card = within(await frame(view));
-  expect(card.getByTestId("read-only").textContent).toBe("읽기 전용 · 여기서는 바꿀 수 없음");
+  expect(card.queryByTestId("read-only")).toBeNull();
   const where = card.getByTestId("answer-where");
   expect(where.textContent).toBe(`답할 곳 · ${agent.name} 대화`);
   expect(within(where).getByRole("link").getAttribute("href")).toBe(`#/talk/${agent.id}`);
@@ -133,12 +134,12 @@ test("a read-only card waiting on the owner names its agent and links to that ag
   expect(card.queryByRole("button", { name: "보내기" })).toBeNull();
 });
 
-test("a read-only card whose owner the response does not give keeps the read-only line alone", async () => {
+test("a read-only card whose owner the response does not give has no line of where to answer, nor one saying it is read-only", async () => {
   const { scene } = hub();
   const cards = scene.cards.cards.map((card) => (card.id === "k-135" ? { ...card, agent: null } : card));
   const cardDetails = { ...scene.cardDetails, "k-135": { ...scene.cardDetails["k-135"], agent: null } };
   const view = await open("#/cards/k-135", new SyntheticSource({ now: scene.now, scene: { ...scene, cards: { cards }, cardDetails } }));
   const card = within(await frame(view));
-  expect(card.getByTestId("read-only").textContent).toBe("읽기 전용 · 여기서는 바꿀 수 없음");
+  expect(card.queryByTestId("read-only")).toBeNull();
   expect(card.queryByTestId("answer-where")).toBeNull();
 });

@@ -78,7 +78,7 @@ function realShaped(): SyntheticSource {
   return new SyntheticSource({ now: scene.now, scene: { ...scene, cards: { cards }, cardDetails, inbox } });
 }
 
-test("a read-only card with a question shows the question and no place to answer; one line says it cannot be changed here", async () => {
+test("a read-only card with a question shows the question and no place to answer, and no line saying it is read-only (G138)", async () => {
   const view = await open("#/cards/k-112", realShaped());
   const card = within(await frame(view));
   expect(card.getByTestId("decision").textContent).toContain("카드 번호를 앞 여섯 자리까지 표시할지 결정 필요");
@@ -86,7 +86,7 @@ test("a read-only card with a question shows the question and no place to answer
   expect(card.queryByTestId("card-answer")).toBeNull();
   expect(card.queryByRole("textbox")).toBeNull();
   expect(card.queryByRole("button", { name: "보내기" })).toBeNull();
-  expect(card.getByTestId("read-only").textContent).toBe("읽기 전용 · 여기서는 바꿀 수 없음");
+  expect(card.queryByTestId("read-only")).toBeNull();
 });
 
 test("a writable card keeps its answer place and has no read-only line", async () => {

@@ -2,7 +2,7 @@ import { Fragment, type ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, RecordRow, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
-import { doneFor, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, ownTitle, runRow, todoState, wholeTitle, type CardRow, type ItemLine, type Model, type StopReasonText } from "../model";
+import { cardNow, doneFor, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, ownTitle, runRow, todoState, waitsOnOwner, wholeTitle, type CardRow, type CardSummary, type ItemLine, type Model, type StopReasonText } from "../model";
 import { foldReason, wholeText } from "../model/fold";
 import { plainText } from "../model/plain";
 import { holds } from "../model/rounds";
@@ -672,31 +672,25 @@ function CardComments({ lines }: { lines: ReturnType<typeof cardCommentLines> })
 }
 
 /**
- * The one line a read-only card has where the owner would write (lina-app#149): it cannot be changed here (lina-app#153).
- * A card that waits on the owner adds where to answer (lina-app#171): the 대화 of the agent that owns it, when the card
- * names one the app knows. Text and a link only: no write.
+ * Where to answer a read-only card that waits on the owner (lina-app#171): the 대화 of the agent that owns it, when the card
+ * names one the app knows. Text and a link only: a read-only card has no write control at all (lina-app#149), so no line
+ * says it cannot be changed (G138).
  */
-function ReadOnlyLine({ agent = null, waits = false }: { agent?: string | null; waits?: boolean }) {
+function AnswerWhere({ agent = null }: { agent?: string | null }) {
   const { model } = useApp();
-  const owner = waits ? model.agents.find((each) => each.id === agent) : undefined;
-  return (
-    <>
-      <span class="sub" data-testid="read-only">
-        {W.readOnlyHere}
-      </span>
-      {owner ? (
-        <span class="sub answer-where" data-testid="answer-where">
-          {`${ROUND9_WORD.answerWhere}${SEP}`}
-          <Link href={href({ name: "talk", id: owner.id })}>{ROUND9_WORD.talkWith(owner.name)}</Link>
-        </span>
-      ) : null}
-    </>
-  );
+  const owner = model.agents.find((each) => each.id === agent);
+  return owner ? (
+    <span class="sub answer-where" data-testid="answer-where">
+      {`${ROUND9_WORD.answerWhere}${SEP}`}
+      <Link href={href({ name: "talk", id: owner.id })}>{ROUND9_WORD.talkWith(owner.name)}</Link>
+    </span>
+  ) : null;
 }
 
-/** Whether a stopped card waits on the owner's answer: its row says so, or the core's reason does. */
-function waitsOnOwner(state: WorkState, reason: string | null, row: CardRow | undefined): boolean {
-  return state === "stopped" && (Boolean(row?.stop?.owner) || reason === "decision" || reason === "feedback");
+/** What a card does now as its 지금 box says it (cardNow): a stopped card's head already says the sentence when it is its stop's reason. */
+function nowShown(text: string | null | undefined, state: WorkState, stop: CardRow["stop"]): string | null {
+  if (!text) return null;
+  return state === "stopped" && [stop?.words, stop?.reason?.text].some((said) => said?.includes(text)) ? null : text;
 }
 
 /**
@@ -807,13 +801,11 @@ function OwnTitleLine({ own, title }: { own: string | null; title: string | null
  */
 /** Whether the state line already says why a stopped card stopped: its row's stop words follow 중단됨 there (lina-app#156). */
 function stateSaysWhy(state: WorkState, reason: string | null, row: CardRow | undefined, readOnly: boolean): boolean {
-  const onOwner = Boolean(row?.stop?.owner) || reason === "decision" || reason === "feedback";
-  return state === "stopped" && Boolean(row?.stop) && !(readOnly && onOwner);
+  return state === "stopped" && Boolean(row?.stop) && !(readOnly && waitsOnOwner(state, reason, row));
 }
 
 function HeadState({ state, reason, row, time, readOnly = false }: { state: WorkState; reason: string | null; row: CardRow | undefined; time: string; readOnly?: boolean }) {
-  const onOwner = Boolean(row?.stop?.owner) || reason === "decision" || reason === "feedback";
-  if (readOnly && onOwner) return <StateTime state={state} time={time} />;
+  if (readOnly && waitsOnOwner(state, reason, row)) return <StateTime state={state} time={time} />;
   // A reason longer than the row says is said whole under the state line, which keeps the words before it (lina-app#171).
   const stop = state === "stopped" && row?.stop ? { ...row.stop, words: row.stop.reason?.lead ?? stopReason(row).word } : undefined;
   return <StateTime state={state} reason={reason} stop={stop} time={time} />;
@@ -994,9 +986,9 @@ export function CardScreen({ id }: { id: string }) {
               {[W.goals, led.goal].join(SEP)}
             </span>
           ) : null}
-          {row.readOnly ? <ReadOnlyLine agent={row.agent} waits={waitsOnOwner(row.state, row.reason, row)} /> : null}
+          {row.readOnly && waitsOnOwner(row.state, row.reason, row) ? <AnswerWhere agent={row.agent} /> : null}
         </CardHead>
-        {row.now && row.state === "in_progress" ? (
+        {nowShown(row.now, row.state, row.stop) ? (
           <Box title={W.now} testid="card-now">
             <p class="box-text">{row.now}</p>
           </Box>
@@ -1070,7 +1062,10 @@ export function CardScreen({ id }: { id: string }) {
   const foldLine = model.home.finished.rows.find((line) => line.fold?.some((card) => card.id === id));
   const fold = foldLine?.fold;
   const askHere = Boolean(ask && !readOnly && !everyQuestion.length && !answering(`answer:${id}`));
-  const nowLine = detail.plain.now && state === "in_progress" ? detail.plain.now : null;
+  // What the card does now (G138), from the one function its row reads too: the 지금 box and its going round's line in 기록.
+  const summary = store.get("cards")?.cards.find((card) => card.id === id) as CardSummary | undefined;
+  const doing = cardNow({ state, plain: detail.plain, ask: summary?.ask }, detail.comments, store.get("inbox")?.blocked.find((entry) => entry.cardId === id)?.blockReason, ownerId);
+  const nowLine = nowShown(doing?.text, state, row?.stop);
   // A card with nothing of its own yet (a planned one: no to-do, run, line or comment) says so in one line under its head,
   // never a blank frame (lina-app#179).
   const nothing = !fold && !questions.length && !askHere && !nowLine && !detail.plain.result && !detail.todos.length && kept && !workerRuns.length && !commentLines.length;
@@ -1086,7 +1081,7 @@ export function CardScreen({ id }: { id: string }) {
           </span>
         ) : null}
         {state === "in_progress" && detail.todoProgress.total > 0 ? <Progress done={detail.todoProgress.done} total={detail.todoProgress.total} word /> : null}
-        {readOnly ? <ReadOnlyLine agent={row?.agent ?? detail.agent} waits={waitsOnOwner(state, reason, row)} /> : null}
+        {readOnly && waitsOnOwner(state, reason, row) ? <AnswerWhere agent={row?.agent ?? detail.agent} /> : null}
       </CardHead>
       <FoldMembers id={id} fold={fold} byAgent={foldLine?.title === null && new Set(fold?.map((card) => card.agent)).size > 1} />
       {/* Each question with the place to answer it, keyed as its 수신함 row, so answering here hides that row too. */}
@@ -1148,6 +1143,7 @@ export function CardScreen({ id }: { id: string }) {
             runs={workerRuns.map((worker) => worker.id).filter((runId) => !pending || landed.has(runId))}
             boxed
             notes={notes}
+            doing={doing?.text ?? null}
             live={(runId) => runLive(model, runId)}
             link={(runId, n, at) => workerLink(roundRun(runId, n, at))}
             modelRun={roundRun}
@@ -1243,7 +1239,7 @@ function CardRunScreen({ id, cardId, cardLoading = false }: { id: string; cardId
           {W.readFailed(W.record)}
         </p>
       ) : (
-        <Timeline runs={[id]} live={(runId) => runLive(model, runId)} />
+        <Timeline runs={[id]} live={(runId) => runLive(model, runId)} doing={card?.now ?? null} />
       )}
     </article>
   );
@@ -1343,7 +1339,7 @@ export function RunScreen({ id }: { id: string }) {
           </ul>
         </Box>
       ) : null}
-      <Timeline runs={[id]} live={(runId) => runLive(model, runId)} fallback={store.status("record", id) === "failed" ? null : <PastEvents events={past} />} />
+      <Timeline runs={[id]} live={(runId) => runLive(model, runId)} doing={run.state === "in_progress" ? run.plain.now : null} fallback={store.status("record", id) === "failed" ? null : <PastEvents events={past} />} />
     </article>
   );
 }

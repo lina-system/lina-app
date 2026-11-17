@@ -83,7 +83,7 @@ describe("a stopped row says why it stopped (lina-app#156 item 3)", () => {
     const list = view.getByRole("list", { name: STATE_WORD.stopped });
     const state = (id: string) => rowOf(list, id)?.querySelector("[data-testid=state]")?.textContent;
     expect(state("k-stop-2")).toBe(`${STATE_WORD.stopped} · 결정 대기 · 가짜 문구 둘 중 하나 고르기`);
-    expect(state("k-stop-3")).toBe(`${STATE_WORD.stopped} · 피드백 대기 · 이유 기록 없음`);
+    expect(state("k-stop-3")).toBe(`${STATE_WORD.stopped} · 피드백 대기`);
     for (const each of list.querySelectorAll("[data-testid=state]")) expect(each.textContent).not.toContain(`${SYNTHETIC_OWNER.name} `);
     expect(list.textContent).not.toMatch(/준 기다림|확인 필요/);
     // The ask is said once, in the state line.

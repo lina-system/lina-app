@@ -353,8 +353,6 @@ export const W = {
   folded: "접힌 댓글",
   /** A run of comments with nothing left to read, one line (lina-app#149). */
   foldedRun: (n: number) => (n > 1 ? `접힌 댓글 ${n}건` : "접힌 댓글"),
-  /** A card from a board the core only reads (lina#481): it is changed there, never here. */
-  readOnly: "읽기 전용 · 칸반에서 변경",
   /** An old done card whose history the core does not keep (`detail: false`). */
   noHistory: "기록 보관 안 됨",
   noStart: "시작 기록 없음",
@@ -452,8 +450,6 @@ export const W = {
   rollbackConfirm: "이전 설정으로 되돌리기",
 
   // lina-app#153: the detail frame, UI QA round 5.
-  /** A card the core only reads (lina#481): it cannot be changed from the app, with no board named. */
-  readOnlyHere: "읽기 전용 · 여기서는 바꿀 수 없음",
   /** An answered decision's slot: its question and the owner's answer (`질문 · 답`). */
   answer: "답",
   /** The history line of an answered decision, by its kind word (질문에 답함). */
@@ -656,8 +652,6 @@ export const RUN_LINE_WORD = {
 
 /** lina-app#171: the detail's words added in UI QA round 9. */
 export const ROUND9_WORD = {
-  /** A stop that waits on the owner's decision or feedback with no sentence of why, after its word. */
-  noReasonRecord: "이유 기록 없음",
   /** The head of a folded line's cards, in its detail. */
   foldMembers: (n: number) => `묶인 작업 ${n}건`,
   /** Where the owner answers a read-only card that waits on them: its agent's 대화. */

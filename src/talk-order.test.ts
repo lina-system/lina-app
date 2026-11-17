@@ -7,7 +7,7 @@ import { withTurns, type Sent, type ThreadLine } from "./screens/talk";
 const line = (key: string, mine: boolean, text: string, id?: string): ThreadLine => ({ key, mine, text, at: null, state: "kept", ...(id ? { id } : {}) });
 
 function turn(key: string, message: string, over: Partial<Sent>): Sent {
-  return { key, message, reply: "", state: "done", id: null, after: null, base: null, from: null, at: 100, replyAt: 101, told: false, ...over };
+  return { key, message, reply: "", state: "done", id: null, after: null, prior: null, base: null, from: null, at: 100, replyAt: 101, told: false, ...over };
 }
 
 const earlier = [line("a", true, "어디까지 왔어요?", "m_u1"), line("b", false, "변경 목록을 모으는 중이에요.", "m_a1")];
@@ -53,4 +53,12 @@ test("every sent message is drawn once: the history's turn leaves the outbox, th
   expect(shown.confirmed).toEqual([again]);
   expect(shown.lines.map((each) => each.key)).toEqual(["a", "b", "t1-mine", "t1", "c", "d"]);
   expect(new Set(shown.lines.map((each) => each.key)).size).toBe(shown.lines.length);
+});
+
+test("a turn that failed right after one whose read had not landed is drawn after that turn, not before it", () => {
+  // A came back whole; B went out before the read holding A landed, so the anchor of B is the line before A. By the time B
+  // is drawn the history holds A (confirmed, gone from the outbox) and not B.
+  const failed = turn("t2", "그럼 롤백은요?", { state: "failed", reply: "롤백은", id: "m_u4", after: "m_a1", prior: "m_u3", base: 2, from: 3 });
+  const shown = withTurns(kept, 4, [failed]);
+  expect(said(shown.lines)).toEqual(["me:어디까지 왔어요?", "agent:변경 목록을 모으는 중이에요.", "me:다시 알려 주세요", "agent:금요일 오후예요.", "me:그럼 롤백은요?", "agent:롤백은"]);
 });

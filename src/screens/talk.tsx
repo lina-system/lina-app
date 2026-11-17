@@ -554,6 +554,12 @@ export interface Sent {
   /** The id of the newest history line this page had applied when the turn went out (null: none, or an older core). */
   readonly after: string | null;
   /**
+   * The id of the turn this page sent just before, still in the outbox when this one went out (null: none, or an older
+   * core). Its read may not have landed yet, so `after` can lie before it; where the history holds it, this turn goes
+   * after its reply.
+   */
+  readonly prior: string | null;
+  /**
    * How many messages the core's history held at the newest read this page had applied when the turn went out (null:
    * none applied yet). The history holds the turn only from there on, so an earlier exchange that reads the same is
    * never taken for it.
@@ -661,9 +667,12 @@ function unsure(kept: readonly ThreadLine[], read: number, turn: Sent): boolean 
 function placeOf(kept: readonly ThreadLine[], turn: Sent, held: readonly number[] | undefined): number | null {
   if (held) return turn.id !== null ? held[0] : null;
   if (turn.state !== "failed" || turn.base === null) return null;
-  if (turn.after === null) return turn.base === 0 ? 0 : null;
-  const after = kept.findIndex((line) => line.id === turn.after);
-  return after < 0 ? null : after + 1;
+  const anchor = turn.after === null ? (turn.base === 0 ? 0 : null) : kept.findIndex((line) => line.id === turn.after) + 1 || null;
+  // The turn sent just before, where the history holds it: this one is after its reply, not before it.
+  const prior = turn.prior === null ? -1 : kept.findIndex((line) => line.id === turn.prior);
+  if (prior < 0) return anchor;
+  const answer = kept[prior + 1];
+  return Math.max(anchor ?? 0, prior + (answer && !answer.mine ? 2 : 1));
 }
 
 /**
@@ -830,7 +839,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
     // that read for 30 s, lina-app#154); a read still out may then hold it, which `withTurns` finds.
     const box = outbox(store.source, agent);
     const sentAt = Date.now() / 1000;
-    const turn: Sent = { key: `t${++sentKeys}`, message, reply: "", state: "sending", id: null, after: box.last, base: box.known, from: null, at: sentAt, replyAt: sentAt, told: false };
+    const turn: Sent = { key: `t${++sentKeys}`, message, reply: "", state: "sending", id: null, after: box.last, prior: box.turns.at(-1)?.id ?? null, base: box.known, from: null, at: sentAt, replyAt: sentAt, told: false };
     box.turns.push(turn);
     box.window?.redraw();
     const before = lastLinesOf(store.source).get(agent);

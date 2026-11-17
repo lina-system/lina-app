@@ -50,3 +50,12 @@ test("a stop with no sentence of why reads its words alone, and one nobody asks 
   await expect(device.locator(".detail-head [data-testid=state]").first()).toHaveText("중단됨 · 다른 일 대기");
   await expect(device.locator(".detail-head")).not.toContainText(/피드백 대기|이유 기록 없음|읽기 전용|가짜 기기가/);
 });
+
+test("a hub card stopped on feedback with no waitingOn reads 피드백 대기 only when its question is in the work inbox", async ({ page }) => {
+  const waiting = await openCard(page, "hermes%3At_4670");
+  await expect(waiting.locator(".detail-head [data-testid=state]").first()).toHaveText("중단됨 · 다른 일 대기");
+  await expect(waiting.locator(".detail-head")).not.toContainText(/피드백 대기|결정 대기|답할 곳/);
+  const asked = await openCard(page, "hermes%3At_4680");
+  await expect(asked.getByTestId("stop-why")).toHaveText("피드백 대기");
+  await expect(asked.getByTestId("answer-where")).toHaveText(/^답할 곳 · \S+ 대화$/);
+});

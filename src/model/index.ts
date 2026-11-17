@@ -624,6 +624,8 @@ export function runRow(run: RunCard): CardRow {
 }
 
 const newestFirst = (pick: (row: CardRow) => number | null) => (a: CardRow, b: CardRow) => (pick(b) ?? 0) - (pick(a) ?? 0);
+/** The id prefix of a card the hub serves from its Hermes board (`hermes:<id>`). */
+const HUB_CARD = "hermes:";
 /** The stopped group's order: rows that wait on the owner first, then the newest stop. */
 const stoppedOrder = (a: CardRow, b: CardRow) => Number(Boolean(b.stop?.owner)) - Number(Boolean(a.stop?.owner)) || newestFirst((card) => card.stateAt)(a, b);
 
@@ -684,14 +686,14 @@ export function buildModel(input: ModelInput, now: number): Model {
   // What the core says about a stop (lina#629); absent and null both mean it does not say. `waitUntil` (epoch seconds)
   // is when a time wait ends, read only when the core sends it (lina-app#160).
   // `asked`: the work inbox holds a question of the card's (G138), so the owner's answer is what it waits for.
-  type StopFacts = { readonly waitingOn?: string | null; readonly retry?: string | null; readonly waitUntil?: number | null; readonly asked?: boolean };
+  type StopFacts = { readonly id: string; readonly waitingOn?: string | null; readonly retry?: string | null; readonly waitUntil?: number | null; readonly asked?: boolean };
   const contextRow = (row: CardRow, goal: string | null, fallback: string | null, isRun: boolean, facts: StopFacts): CardRow => {
     // The goal names the row first (lina-app#122); the kind of work is the icon only, never the title. With no title
     // at all the row is not drawn (lina-app#124); its own page still says 제목 없음.
     const title = goal ?? row.title ?? fallback;
     return { ...row, title, name: title ?? W.untitled, stop: row.state === "stopped" ? stopWords(row.reason, isRun, facts) : null };
   };
-  const stopWords = (reason: string | null, isRun: boolean, { waitingOn, retry, waitUntil, asked = false }: StopFacts): NonNullable<CardRow["stop"]> => {
+  const stopWords = (reason: string | null, isRun: boolean, { id, waitingOn, retry, waitUntil, asked = false }: StopFacts): NonNullable<CardRow["stop"]> => {
     // Why it waits, never on whom: no person's name in the state line (lina-app#156). The reason decides the word first,
     // whoever has to act (lina-app#160): a gate, a budget or a run the core gave up on is not a bare 확인 필요.
     const scheduled = retry === "scheduled";
@@ -702,8 +704,9 @@ export function buildModel(input: ModelInput, now: number): Model {
     const again = !scheduled && reason !== "blocked_by_item";
     const answer = { words: (reason && STOP_WAIT[reason]) || W.needsCheck, known: true, owner: true, retry: false };
     // The owner's answer is what it waits for when the core says so (`waitingOn`, a question of its in the work inbox), or
-    // for a decision or feedback stop when the core does not say who acts (no `waitingOn` at all).
-    const onOwner = waitingOn === "owner" || asked || (waitingOn === undefined && (reason === "decision" || reason === "feedback"));
+    // for a decision or feedback stop when the core does not say who acts (no `waitingOn` at all). The hub sends no
+    // `waitingOn` on its own cards (`hermes:<id>`) at all, so there only its question says the owner is asked (G138).
+    const onOwner = waitingOn === "owner" || asked || (waitingOn === undefined && !id.startsWith(HUB_CARD) && (reason === "decision" || reason === "feedback"));
     if (onOwner) return why ? { words: why, known: true, owner: true, retry: again } : answer;
     // An agent that starts another run by itself is no reviewer: the retry words below say so.
     if (waitingOn?.startsWith("agent:") && !scheduled) {

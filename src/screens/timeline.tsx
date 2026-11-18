@@ -231,8 +231,9 @@ export function Timeline({ runs, live, link = () => null, modelRun = () => null,
 /**
  * A card's 기록 (G138, lina-app#269): one line per step of its history, newest first, `time · what it did`, each round's
  * verdict a small mark beside the line it ended in (cardHistory), and every sentence or verdict with no line of its own
- * one folded line under them. Its rounds' blocks are no line: a card the core has no history for yet keeps them, its
- * worker runs' box or the read's error line under one 이전 기록 fold, closed, so nothing on it reads before it opens.
+ * one folded line under them. Its rounds' blocks are no line: a card the core has no history for yet keeps them or its
+ * worker runs' box under one 이전 기록 fold, closed, so nothing on it reads before it opens. A failed record read is one
+ * error line on top either way, and with steps its worker runs' box stands open under them.
  */
 function CardRecord({ history, runs, live, link, modelRun, fallback, doing }: { history: readonly PlainHistoryLine[]; runs: readonly string[]; live: (runId: string) => boolean; link: (runId: string, n: number, at: number) => string | null; modelRun: (runId: string, n: number, at: number) => string | null; fallback: ComponentChildren; doing: string | null }) {
   const { model, store, now } = useApp();
@@ -241,18 +242,26 @@ function CardRecord({ history, runs, live, link, modelRun, fallback, doing }: { 
     return record ? [{ id, record }] : [];
   });
   const { lines, folded: unread } = cardHistory(history, records, live, now);
+  const failed = runs.some((id) => store.status("record", id) === "failed");
+  const error = failed ? (
+    <p class="write-error" role="alert" data-testid="timeline-error">
+      {W.readFailed(W.record)}
+    </p>
+  ) : null;
+  // A failed read keeps the steps: the error line stands over them and the worker links under them, open.
   if (lines.length)
     return (
       <Box title={W.record} testid="timeline">
+        {error}
         <ul class="timeline-rows is-history">
           {lines.map((line) => (
             <HistoryLine key={`${line.at}:${line.text}`} line={line} link={link} />
           ))}
         </ul>
         <FoldedRows rows={unread} />
+        {failed ? fallback : null}
       </Box>
     );
-  const failed = runs.some((id) => store.status("record", id) === "failed");
   const blocks = failed ? [] : timelineBlocks(records, live, now, { doing, comments: false }).flatMap((block) => plainBlock(block) ?? []);
   const owner = agentName(model, store.get("items")?.owner?.id);
   const earlier = blocks.length ? (
@@ -273,11 +282,7 @@ function CardRecord({ history, runs, live, link, modelRun, fallback, doing }: { 
   if (!earlier && !failed) return null;
   return (
     <Box title={W.record} testid="timeline">
-      {failed ? (
-        <p class="write-error" role="alert" data-testid="timeline-error">
-          {W.readFailed(W.record)}
-        </p>
-      ) : null}
+      {error}
       {earlier ? (
         <details class="timeline-earlier" data-testid="earlier-records">
           <summary class="timeline-earlier-head" data-testid="earlier-records-head">{DETAIL_WORD.earlier}</summary>

@@ -89,3 +89,12 @@ test("(f) a step the card moves past while open is a new line on top, the lines 
   expect(view.getAllByTestId("history-line").slice(1)).toEqual(before);
   expect(view.getByTestId("card-now").textContent).toContain("가짜 화면을 카드에 올리는 중");
 });
+
+test("a stopped card with steps alone reads them, never 아직 기록 없음 above them (G138)", async () => {
+  const source = new SyntheticSource({ now: NOW, hubRound26: true });
+  const [, bare] = ROUND26.stops;
+  source.scene.cardDetails[bare.id].plain.history = [step(90, "가짜 연결 상태를 다시 살핌")];
+  const { view } = open(bare.id, source);
+  await waitFor(() => expect(view.getAllByTestId("history-line")).toHaveLength(1));
+  expect(view.queryByTestId("card-nothing")).toBeNull();
+});

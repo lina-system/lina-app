@@ -1063,9 +1063,9 @@ export function CardScreen({ id }: { id: string }) {
   const summary = store.get("cards")?.cards.find((card) => card.id === id) as CardSummary | undefined;
   const doing = cardNow({ state, plain: detail.plain, reason, waitingOn: summary?.waitingOn, retry: summary?.retry }, everyQuestion.length > 0);
   const nowLine = nowShown(doing?.text, state, row?.stop);
-  // A card with nothing of its own yet (a planned one: no to-do, run, line or comment) says so in one line under its head,
+  // A card with nothing of its own yet (a planned one: no to-do, step, run, line or comment) says so in one line under its head,
   // never a blank frame (lina-app#179).
-  const nothing = !fold && !questions.length && !askHere && !nowLine && !detail.plain.result && !detail.todos.length && kept && !workerRuns.length && !commentLines.length;
+  const nothing = !fold && !questions.length && !askHere && !nowLine && !detail.plain.result && !detail.todos.length && !detail.plain.history?.length && kept && !workerRuns.length && !commentLines.length;
   return (
     <article class="detail" data-testid="screen-card">
       <CardHead work={row?.work ?? "code"} title={title} untitled={unlisted ? W.loading : undefined}>

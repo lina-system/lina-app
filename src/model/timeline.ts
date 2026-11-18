@@ -1,6 +1,6 @@
 import type { ItemDetail, RecordRound, RecordRow, RunRecord } from "../api/client";
 import { STATE_WORD, stateLabel, W } from "../words";
-import { historySentences, STATE_ONLY, wholeText } from "./fold";
+import { historySentences, nowMayShow, STATE_ONLY, wholeText } from "./fold";
 import { holds } from "./rounds";
 
 /** Who writes machine notices on a card (the dispatcher's and the worker's receipts): never a history line. */
@@ -171,32 +171,31 @@ export type TimelineBlock =
       readonly outcome: Outcome;
       /** Its rows, newest first: a report line that does not stand whole is a folded row of its own at the round's end. */
       readonly rows: readonly TimelineRow[];
-      /** The round's report line when it stands whole (wholeText), else the one sentence its line reads (roundSentence); on a round still going, what the card does now (cardNow, G138). */
+      /** The round's report line when it stands on its line (roundResult), else the one sentence of its own it reads (roundSentence); on a round still going, what the card does now (cardNow, G138). */
       readonly result: string | null;
       /** How many rounds of this outcome with nothing else in them, one after another, the block stands for (`×n`, lina-app#236). */
       readonly count: number;
     }
   | { readonly type: "comment"; readonly key: string; readonly at: number; readonly rows: readonly TimelineRow[] };
 
-/** A bot's comment on the card made as a round ended (criterion 2). A record's own comments are the owner's words (a verdict note, a cancel reason; board-client.yaml) and are never one. */
-export interface RoundNote {
-  readonly at: number;
-  readonly text: string;
+/**
+ * A closed round's report line as the sentence after its verdict (lina-app#269): whole (wholeText) and one the card's now
+ * line would pass (nowMayShow), else null and it folds.
+ */
+export function roundResult(text: string | null | undefined): string | null {
+  const whole = wholeText(text);
+  return whole && nowMayShow(whole) ? whole : null;
 }
 
-/** How long after a round's end a note still speaks of it. */
-const NOTE_AFTER = 30 * 60;
-
 /**
- * The one sentence a closed round's line reads when its report line does not stand whole (criterion 2): the first whole
- * sentence that says what came of it (historySentences) and that no newer round reads (`used`, filled newest first):
- * its report line's, then its said rows' (tails the core kept of longer texts), then those of the notes made from a
- * minute before its end (never before its own start) to half an hour after it, oldest first: a comment on the card. Null when none stands: the line reads its outcome alone.
+ * The one sentence a closed round's line reads when its report line does not stand on it (roundResult, criterion 2): the
+ * first sentence of the round's own that says what came of it (historySentences) and that no newer round reads (`used`,
+ * filled newest first): its report line's, then its said rows' (tails the core kept of longer texts). A comment on the
+ * card is never one (lina-app#269): it is another event than the verdict, and stays in the 댓글 box. Null when none
+ * stands: the line reads its outcome alone.
  */
-export function roundSentence(round: { readonly result: string | null; readonly said: readonly (string | null)[]; readonly start?: number | null; readonly end: number | null }, notes: readonly RoundNote[], used: Set<string>): string | null {
-  const end = round.end;
-  const near = end === null ? [] : notes.filter((note) => note.at >= Math.max(end - 60, round.start ?? Number.NEGATIVE_INFINITY) && note.at <= end + NOTE_AFTER).sort((a, b) => a.at - b.at);
-  const sentences = [...historySentences(round.result), ...round.said.flatMap((text) => historySentences(text, { opens: true, ends: true })), ...near.flatMap((note) => historySentences(note.text))];
+export function roundSentence(round: { readonly result: string | null; readonly said: readonly (string | null)[] }, used: Set<string>): string | null {
+  const sentences = [...historySentences(round.result), ...round.said.flatMap((text) => historySentences(text, { opens: true, ends: true }))];
   const sentence = sentences.find((each) => !used.has(each)) ?? null;
   if (sentence) used.add(sentence);
   return sentence;
@@ -219,12 +218,12 @@ export function outcomeOf(round: RecordRound, newest: boolean, live: boolean, no
 /**
  * The timeline of one or more worker runs' records: one block per round and one per run of comments made while no
  * round was going, newest first, their rows newest first too. `live` says whether a run is still going (its own state, or its card's for a run the
- * board does not list). `notes` are the bots' comments on the card, which a closed round's line may read (roundSentence).
- * `doing` is the one sentence of what the card does now (cardNow): a going round's line reads it, and its tool steps are
- * then no row. A tool step is never a line of its own (G138): with no such sentence it folds with the rows that do not
- * stand whole, and the fold opens to its count.
+ * board does not list). `doing` is the one sentence of what the card does now (cardNow): a going round's line reads it, and
+ * its tool steps are then no row. A tool step is never a line of its own (G138): with no such sentence it folds with the
+ * rows that do not stand whole, and the fold opens to its count. `comments: false` leaves out the comment blocks (a card
+ * draws them in its own 댓글 box) before rounds are counted, so the rounds around one still read as one line (lina-app#269).
  */
-export function timelineBlocks(records: readonly { readonly id: string; readonly record: RunRecord }[], live: (runId: string) => boolean, now: number, notes: readonly RoundNote[] = [], doing: string | null = null): TimelineBlock[] {
+export function timelineBlocks(records: readonly { readonly id: string; readonly record: RunRecord }[], live: (runId: string) => boolean, now: number, { doing = null, comments = true }: { readonly doing?: string | null; readonly comments?: boolean } = {}): TimelineBlock[] {
   // A machine notice is no row; rows read newest first, as every history (lina-app#149).
   const shown = <R extends RecordRow>(rows: readonly R[]) => rows.filter((row) => row.kind !== "comment" || !isMachineNotice(row.text)).sort((a, b) => b.at - a.at);
   // A comment row (an agent's note the core cut at 300 characters) and a going round's said row (what its worker says
@@ -246,7 +245,7 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
       // A round stands at the time its head reads: a going round's start, an ended one's end (its start when the end
       // is not on record).
       const at = (outcome === "going" ? (round.startedAt ?? round.endedAt) : (round.endedAt ?? round.startedAt)) ?? round.rows[0]?.at ?? 0;
-      const result = outcome === "going" ? doing : wholeText(round.result);
+      const result = outcome === "going" ? doing : roundResult(round.result);
       // A going round that reads what the card does now needs no count of its tool steps.
       const rows = outcome === "going" && doing ? round.rows.filter((row) => row.kind !== "tools") : round.rows;
       // A report line that does not stand whole is folded at the round's end, never lost (lina-app#241).
@@ -266,25 +265,26 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
         count: 1,
       };
       blocks.push(block);
-      if (outcome !== "going" && result === null) sources.set(block, { result: round.result, said: round.rows.filter((row) => row.kind === "said").map((row) => row.text), start: round.startedAt, end: round.endedAt ?? round.startedAt });
+      if (outcome !== "going" && result === null) sources.set(block, { result: round.result, said: round.rows.filter((row) => row.kind === "said").map((row) => row.text) });
     });
-    for (const comment of gated(record.comments)) if (first(`comment:${comment.at}:${comment.source}`)) blocks.push({ type: "comment", key: `${id}:c:${comment.at}`, at: comment.at, rows: [comment] });
+    if (comments) for (const comment of gated(record.comments)) if (first(`comment:${comment.at}:${comment.source}`)) blocks.push({ type: "comment", key: `${id}:c:${comment.at}`, at: comment.at, rows: [comment] });
   }
-  // Comments made one after another between rounds are one 댓글 block. A round with nothing drawn in it but the outcome
-  // of the round before it is that round's line, counted (lina-app#153, #236: `검토 통과 ×n` at the newest time); what it
-  // folds joins that round's rows, so its folded line holds it (lina-app#241).
+  // Comments made one after another between rounds are one 댓글 block. A round with nothing drawn in it but its outcome,
+  // after a round of the same outcome with nothing drawn either, is that round's line, counted (lina-app#153, #236, #269:
+  // `검토를 통과했다 ×n` at the newest time); a line with a sentence or another outcome is never in the count. What it folds
+  // joins that round's rows, so its folded line holds it (lina-app#241).
   const merged: TimelineBlock[] = [];
   const used = new Set<string>();
   const read = blocks.sort((a, b) => b.at - a.at).map((block) => {
     const source = sources.get(block);
-    const sentence = source ? roundSentence(source, notes, used) : null;
+    const sentence = source ? roundSentence(source, used) : null;
     return sentence && block.type === "round" ? { ...block, result: sentence } : block;
   });
+  const bare = (block: TimelineBlock) => block.type === "round" && !block.result && block.rows.every((row) => row.text === null);
   for (const block of read) {
     const last = merged.at(-1);
-    const nothingDrawn = block.rows.every((row) => row.text === null);
     if (block.type === "comment" && last?.type === "comment") merged[merged.length - 1] = { ...last, rows: shown([...last.rows, ...block.rows]) };
-    else if (block.type === "round" && last?.type === "round" && nothingDrawn && !block.result && block.outcome === last.outcome) merged[merged.length - 1] = { ...last, count: last.count + 1, rows: [...last.rows, ...block.rows] };
+    else if (block.type === "round" && last?.type === "round" && bare(block) && bare(last) && block.outcome === last.outcome) merged[merged.length - 1] = { ...last, count: last.count + 1, rows: [...last.rows, ...block.rows] };
     else merged.push(block);
   }
   return merged;

@@ -167,7 +167,11 @@ export function CardRowView({ card, dim = false, bare = false, kindIcon = true, 
   const action = card.readOnly ? undefined : offered;
   const time = cardTime(card, now);
   const progress = wide && card.state === "in_progress" && card.progress ? card.progress : null;
-  const label = [agentName(model, card.agent), card.name, card.sub ?? "", card.ask ?? "", stateWords(card.state, card.reason, card.stop), progress ? W.todoProgress(progress.done, progress.total) : ""].filter(Boolean).join(SEP);
+  const state = stateWords(card.state, card.reason, card.stop);
+  const label = [agentName(model, card.agent), card.name, card.sub ?? "", card.ask ?? "", state, progress ? W.todoProgress(progress.done, progress.total) : ""].filter(Boolean).join(SEP);
+  // What the card does now (cardNow) under its state line: a going card's on a wide screen, a waiting or stopped card's
+  // at every width (lina-app#269), unless its state line already says those words.
+  const nowLine = card.now && (card.state === "in_progress" ? wide : (card.state === "waiting" || card.state === "stopped") && !state.includes(card.now)) ? card.now : null;
   // No title: the kind word (a card's detail) or 제목 없음 (a list row) stands in its place, grey.
   const titleClass = card.title ? "title" : "title is-kind";
   return (
@@ -197,7 +201,11 @@ export function CardRowView({ card, dim = false, bare = false, kindIcon = true, 
               </span>
             ) : null}
             <StateTime state={card.state} reason={card.reason} stop={card.stop} time={time} />
-            {wide && card.now && card.state === "in_progress" ? <span class="sub now one-line">{card.now}</span> : null}
+            {nowLine ? (
+              <span class="sub now one-line" data-testid="row-now">
+                {nowLine}
+              </span>
+            ) : null}
           </span>
         )}
         {progress ? <Progress done={progress.done} total={progress.total} /> : null}

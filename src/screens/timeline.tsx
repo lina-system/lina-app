@@ -3,7 +3,7 @@ import { useState } from "preact/hooks";
 import type { Settings } from "../api/client";
 import { plainText } from "../model/plain";
 import { runModelLine } from "../model/settings";
-import { historyLines, timelineBlocks, type RoundNote, type TimelineBlock, type TimelineRow } from "../model/timeline";
+import { historyLines, timelineBlocks, type TimelineBlock, type TimelineRow } from "../model/timeline";
 import { linkClick } from "../router";
 import { clockAt } from "../time";
 import { agentName, Box, useApp } from "../ui/parts";
@@ -68,7 +68,7 @@ function Row({ row, owner, count }: { row: TimelineRow; owner: string; count: nu
 /**
  * A round's head is one history line, `time · what happened` (lina-app#123, #142): a going round its start and 진행 중,
  * an ended one its end (its start when the end is not on record) and its outcome, `×n` when it stands for n rounds of
- * that outcome in a row (lina-app#236), then its result line when it stands whole or the one sentence it reads (timelineBlocks).
+ * that outcome in a row (lina-app#236), then its result line or the one sentence of its own it reads (timelineBlocks), never a comment's (lina-app#269).
  * A closed round with neither reads its outcome's one sentence instead (W.outcomeSaid, criterion 2). No round number
  * (lina-app#61). Comments between rounds head their block with 댓글.
  */
@@ -167,11 +167,11 @@ export function PastEvents({ events }: { events: readonly PastEvent[] }) {
  * its rounds: that page names the model once, under its head. A card passes the worker run each round was.
  * `fallback` is what stands when the record is not shown: under the one error line when its read failed, or
  * alone while there is no record. `boxed` says the page draws the record's comments between rounds in its own 댓글 box
- * (a card, lina-app#174): the timeline then has no comment block, so the page has one 댓글 section. `notes` are the bots'
- * comments on the card, which a closed round's line may read its sentence from (roundSentence). `doing` is what the card does
- * now (cardNow), which its going round's line reads (G138).
+ * (a card, lina-app#174): the timeline then has no comment block, so the page has one 댓글 section, and the rounds around
+ * a comment count as one line (lina-app#269). `doing` is what the card does now (cardNow), which its going round's line
+ * reads (G138).
  */
-export function Timeline({ runs, live, link = () => null, modelRun = () => null, fallback = null, boxed = false, notes = [], doing = null }: { runs: readonly string[]; live: (runId: string) => boolean; link?: (runId: string, n: number, at: number) => string | null; modelRun?: (runId: string, n: number, at: number) => string | null; fallback?: ComponentChildren; boxed?: boolean; notes?: readonly RoundNote[]; doing?: string | null }) {
+export function Timeline({ runs, live, link = () => null, modelRun = () => null, fallback = null, boxed = false, doing = null }: { runs: readonly string[]; live: (runId: string) => boolean; link?: (runId: string, n: number, at: number) => string | null; modelRun?: (runId: string, n: number, at: number) => string | null; fallback?: ComponentChildren; boxed?: boolean; doing?: string | null }) {
   const { model, store, now } = useApp();
   if (runs.some((id) => store.status("record", id) === "failed"))
     return (
@@ -188,9 +188,7 @@ export function Timeline({ runs, live, link = () => null, modelRun = () => null,
     const record = store.get("record", id);
     return record ? [{ id, record }] : [];
   });
-  const blocks = timelineBlocks(records, live, now, notes, doing)
-    .filter((block) => !(boxed && block.type === "comment"))
-    .flatMap((block) => plainBlock(block) ?? []);
+  const blocks = timelineBlocks(records, live, now, { doing, comments: !boxed }).flatMap((block) => plainBlock(block) ?? []);
   if (!blocks.length) return <>{fallback}</>;
   const owner = agentName(model, store.get("items")?.owner?.id);
   return (

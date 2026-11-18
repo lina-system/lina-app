@@ -6,8 +6,8 @@ import { Store } from "./data/store";
 import { SyntheticSource } from "./data/synthetic-source";
 import { W } from "./words";
 
-// Criterion 2 (the real hub, 11-17): every line of a card's 기록 reads `time · one sentence`. A round whose report, rows
-// and the bots' notes hold no whole sentence read its outcome word alone (`09:05 · 검토 통과`); it now reads its outcome's
+// Criterion 2 (the real hub, 11-17): every line of a card's 기록 reads `time · one sentence`. A round whose report and
+// rows hold no sentence a now line would pass (lina-app#269) read its outcome word alone (`09:05 · 검토 통과`); it now reads its outcome's
 // one fixed sentence. What does not stand whole is one folded line after the last round, never a line between two
 // rounds, and it still opens to every text as written (a report the whole-text gate refuses folds even when its head reads its sentence).
 // Every text is made up.
@@ -111,26 +111,27 @@ for (const wide of [true, false]) {
 
   test(`a round with no whole sentence reads its outcome's one sentence, never its outcome word alone (${width})`, async () => {
     const view = await open(wide, scene(), 6);
-    expect(heads(view).map(words)).toEqual(["검토를 통과했다", "작업이 중단됐다", "검토 필요 · Playwright로 두 폭 화면을 다시 찍었다.", "검토를 통과했다", `완료 · ${LONG}`, "검토를 통과했다"]);
+    expect(heads(view).map(words)).toEqual(["검토를 통과했다", "작업이 중단됐다", "검토를 통과하지 못했다", "검토를 통과했다", "작업을 마쳤다", "검토를 통과했다"]);
     for (const head of heads(view)) {
       expect(head).toMatch(new RegExp(`^${TIME} · `));
       expect(OUTCOME_WORDS).not.toContain(words(head));
     }
     const text = view.getByTestId("timeline").textContent ?? "";
-    expect(text).not.toMatch(/t_ab12cd34|OT-FAKE|omo\/|Ask:|…/);
+    expect(text).not.toMatch(/t_ab12cd34|OT-FAKE|omo\/|Ask:|Playwright|…/);
   });
 
-  test(`a long sentence stands whole, and the folded texts are one line after the last round that opens to them as written (${width})`, async () => {
+  test(`a sentence longer than a now line folds, and the folded texts are one line after the last round that opens to them as written (${width})`, async () => {
     const view = await open(wide, scene(), 6);
-    expect(heads(view)[4].endsWith(LONG)).toBe(true);
+    expect(heads(view).some((head) => head.includes(LONG))).toBe(false);
     expect(order(view)).toEqual(["head", "head", "head", "head", "head", "head", "fold"]);
-    const fold = within(view.getByTestId("timeline")).getByRole("button", { name: new RegExp(`^${TIME} · 접힌 기록 4건$`) });
+    const fold = within(view.getByTestId("timeline")).getByRole("button", { name: new RegExp(`^${TIME} · 접힌 기록 5건$`) });
     fireEvent.click(fold);
-    expect(within(view.getByTestId("timeline")).getAllByTestId("held-text").map((held) => held.textContent)).toEqual([BRANCH, PLAYWRIGHT, ASK, CLOSED]);
+    expect(within(view.getByTestId("timeline")).getAllByTestId("held-text").map((held) => held.textContent)).toEqual([BRANCH, PLAYWRIGHT, ASK, CLOSED, LONG]);
   });
 
   test(`the hub's big card shape reads time · one sentence on every round line, with one folded line at its end (${width})`, async () => {
-    const view = await open(wide, hubScene(), 9);
+    // A round with a sentence never counts the bare rounds after it (lina-app#269): only two bare ones in a row are one line.
+    const view = await open(wide, hubScene(), 11);
     const lines = heads(view);
     for (const head of lines) {
       expect(head).toMatch(new RegExp(`^${TIME} · \\S`));

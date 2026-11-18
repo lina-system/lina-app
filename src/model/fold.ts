@@ -341,10 +341,6 @@ export function wholeText(text: string | null | undefined): string | null {
   return fits && unitMayShow(unit) ? unit : null;
 }
 
-/** A Latin word as a history sentence may hold it: a tool's, a product's or a device's name (`Playwright`, `PR`, `npm`). */
-const NAME_WORD = /[A-Za-z][A-Za-z0-9.+-]*/g;
-/** English text, never drawn: three Latin words or more in a row (`Fake Review Bot`), or a Latin lead-in (`For you:`). */
-const ENGLISH = /[A-Za-z][\w.+-]*(?:[\s,]+[A-Za-z][\w.+-]*){2,}|^[A-Za-z][A-Za-z ]*:/;
 /**
  * What a person never reads in a sentence: an issue ref, a card or run id, a hash, a code name, and a Latin word with a
  * digit glued to it, an internal label or name (`N1`, `D1~D7`, `land-app233b`, `23px`).
@@ -377,20 +373,10 @@ function saysDone(sentence: string): boolean {
 }
 
 /**
- * Whether one sentence may stand as a closed history line (criterion 2): whole, by the one gate (unitMayShow) with each
- * Latin word read as a word, so a tool's or a device's name stays; never with an id, a ref, a hash, a code name, a path,
- * a command or an address in it, never English text (ENGLISH), and only when it says what came of the work (saysDone).
- * Read only by the history's lines: a title keeps its own rule.
- */
-export function historyMayShow(sentence: string): boolean {
-  if (!HANGUL.test(sentence) || ENGLISH.test(sentence) || INTERNAL.test(sentence)) return false;
-  if (RULES.some(([reason, rule]) => reason !== "fragment" && rule.test(sentence))) return false;
-  return unitMayShow(sentence.replace(NAME_WORD, "낱말")) && saysDone(sentence);
-}
-
-/**
- * The sentences of a bot's text a closed history line may read, in its order, each whole (historyMayShow) and less only a
- * list's mark before it: never a part of one, never two joined. `opens`: the text may open inside a sentence (the tail
+ * The sentences of a round's own text its closed line may read after its verdict (lina-app#269), in its order, each
+ * whole and less only a list's mark before it: one the card's now line would pass (nowMayShow: 40 letters or fewer, no
+ * Latin word, number label, device name, path or hash) that says what came of the work (saysDone). Never a part of one,
+ * never two joined. `opens`: the text may open inside a sentence (the tail
  * the core kept of a longer one), so its first piece is none; `ends`: it may end inside one (a note the core cut), so
  * its last piece is one only when it ends on an end mark.
  */
@@ -399,7 +385,7 @@ export function historySentences(text: string | null | undefined, { opens = fals
   return pieces
     .filter((piece, index) => !(opens && index === 0) && !(ends && index === pieces.length - 1 && !/[.!?。]$/.test(piece)))
     .map((piece) => piece.trim().replace(ITEM_MARK, ""))
-    .filter(historyMayShow);
+    .filter((piece) => nowMayShow(piece) && saysDone(piece));
 }
 
 /** How long the core's now line may be to stand as a card's top line: one short line at 390 (G138). The core's own cap is 60. */

@@ -4,7 +4,7 @@ import { useEffect, useState } from "preact/hooks";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { AgentTalkEvent, RouteName, RunnerCell, WorkCardSummary } from "./api/client";
 import { App } from "./app";
-import { AGENT_REPLY_DELTAS, APP_FIRST_LINE, STREAM_TICK_MS, SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS } from "./data/synthetic-source";
+import { AGENT_REPLY_DELTAS, APP_FIRST_LINE, ROUND26, STREAM_TICK_MS, SYNTHETIC_REPLY_AFTER, SyntheticSource, TALK_FRAME_MS, TALK_REPLY_DELTAS } from "./data/synthetic-source";
 import type { ReadResult, Source } from "./data/source";
 import { BACKOFF_MAX_MS, LIVE_SETTLE_MS } from "./data/live";
 import { FINISHED_SHOWN, Store } from "./data/store";
@@ -3193,6 +3193,17 @@ describe("the run's own timeline", () => {
     expect([...view.getByTestId("worker-runs").querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual(["#/cards/k-101/runs/3", "#/cards/k-101/runs/2", "#/cards/k-101/runs/1"]);
     expect(view.getByTestId("card-now").textContent).toContain("변경마다 한 줄 요약을 붙이는 중");
     expect(within(view.getByTestId("card-comments")).getAllByTestId("history-row")).toHaveLength(4);
+  });
+
+  test("a failed record read on a card with steps keeps its steps and still shows the error line and its worker links (G138)", async () => {
+    const view = await open(`#/cards/${ROUND26.going.id}`, { wide: true, source: new FailingSource((name) => (name === "record" ? "failed" : null), { now: Math.floor(Date.now() / 1000), hubRound26: true }) });
+    await waitFor(() => expect(view.getByTestId("timeline-error").textContent).toBe("읽기 실패: 기록"));
+    const record = view.getByTestId("timeline");
+    expect(within(record).getAllByTestId("history-line").map((line: HTMLElement) => line.querySelector(".timeline-text")?.textContent?.replace(/^.* · /, ""))).toEqual([...ROUND26.going.history]);
+    const links = [...view.getByTestId("worker-runs").querySelectorAll("a")];
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([`#/cards/${ROUND26.going.id}/runs/1`]);
+    // The links stand open beside the steps, never inside a closed fold.
+    expect(links.every((link) => !link.closest("details:not([open])"))).toBe(true);
   });
 });
 

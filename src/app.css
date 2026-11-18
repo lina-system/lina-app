@@ -776,6 +776,30 @@ button:disabled {
   padding-left: 12px;
 }
 
+/* A card's history line (G138): its sentence wraps, and each verdict mark stays whole beside it. */
+.timeline-row.is-step {
+  overflow-wrap: anywhere;
+}
+
+.timeline-mark {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--separator);
+  border-radius: 6px;
+  color: var(--label-2);
+  font-size: var(--text-small);
+  line-height: 18px;
+  white-space: nowrap;
+  text-decoration: none;
+  vertical-align: 1px;
+}
+
+.timeline-earlier > summary {
+  cursor: pointer;
+  color: var(--label-2);
+}
+
 .timeline-row.is-comment {
   display: grid;
   gap: 2px;

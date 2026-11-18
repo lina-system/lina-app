@@ -1055,7 +1055,6 @@ export function CardScreen({ id }: { id: string }) {
   const records = workerRuns.flatMap((worker) => store.get("record", worker.id)?.comments ?? []);
   const ownerId = store.get("items")?.owner?.id;
   const commentLines = cardCommentLines(detail.comments, records, ownerId);
-  const recordFailed = workerRuns.some((worker) => store.status("record", worker.id) === "failed");
   const lines = roundLines(rounds);
   const foldLine = model.home.finished.rows.find((line) => line.fold?.some((card) => card.id === id));
   const fold = foldLine?.fold;
@@ -1064,9 +1063,7 @@ export function CardScreen({ id }: { id: string }) {
   const summary = store.get("cards")?.cards.find((card) => card.id === id) as CardSummary | undefined;
   const doing = cardNow({ state, plain: detail.plain, reason, waitingOn: summary?.waitingOn, retry: summary?.retry }, everyQuestion.length > 0);
   const nowLine = nowShown(doing?.text, state, row?.stop);
-  // A card with nothing of its own yet (a planned one: no to-do, run, line or comment) says so in one line under its head,
-  // never a blank frame (lina-app#179).
-  const nothing = !fold && !questions.length && !askHere && !nowLine && !detail.plain.result && !detail.todos.length && kept && !workerRuns.length && !commentLines.length;
+  const nothing = cardShowsNothing({ kept, fold: Boolean(fold), questions: questions.length + (askHere ? 1 : 0), now: Boolean(nowLine), result: Boolean(detail.plain.result), todos: detail.todos.length, steps: detail.plain.history?.length ?? 0, workers: workerRuns.length, comments: commentLines.length });
   return (
     <article class="detail" data-testid="screen-card">
       <CardHead work={row?.work ?? "code"} title={title} untitled={unlisted ? W.loading : undefined}>
@@ -1140,13 +1137,15 @@ export function CardScreen({ id }: { id: string }) {
           <Timeline
             runs={workerRuns.map((worker) => worker.id).filter((runId) => !pending || landed.has(runId))}
             boxed
+            history={detail.plain.history ?? []}
+            workers={{ ids: workerRuns.map((worker) => worker.id), href: workerLink, draw: (ids) => <WorkerRows ids={ids} model={model} seen={seen} state={workerStateOf} link={workerLink} /> }}
             doing={doing?.text ?? null}
             live={(runId) => runLive(model, runId)}
             link={(runId, n, at) => workerLink(roundRun(runId, n, at))}
             modelRun={roundRun}
             fallback={
               workerRuns.length ? (
-                <Box title={recordFailed ? undefined : W.record} testid="worker-runs">
+                <Box testid="worker-runs">
                   {/* A round's own line is its content, its ids cut; rounds whose line would show a path or a command are no
                       comment: each run of them is one folded 이전 기록 N건 row, their worker runs inside (lina-app#157, #161). */}
                   {roundGroups(rounds, lines).map((group) =>
@@ -1171,6 +1170,15 @@ export function CardScreen({ id }: { id: string }) {
       )}
     </article>
   );
+}
+
+/**
+ * Whether a card has nothing of its own to show yet (lina-app#179), the one place its 아직 기록 없음 line is decided: no
+ * folded line, question or answer place, now or result line, to-do, step (G138), worker run (each linked from 기록:
+ * CardWorkers) or comment. An old card the core keeps no history for says 기록 보관 안 됨 instead.
+ */
+function cardShowsNothing(card: { readonly kept: boolean; readonly fold: boolean; readonly questions: number; readonly now: boolean; readonly result: boolean; readonly todos: number; readonly steps: number; readonly workers: number; readonly comments: number }): boolean {
+  return card.kept && !card.fold && !card.questions && !card.now && !card.result && !card.todos && !card.steps && !card.workers && !card.comments;
 }
 
 /** One round of the worker runs' 기록 box: its head, its own line when one may show, and its worker runs. */

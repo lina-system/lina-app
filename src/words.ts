@@ -603,6 +603,10 @@ export const DETAIL_WORD = {
   decidedSinceStop: "결정 기록 있음 · 상태는 아직 중단됨",
   /** Lines of a history that are not comments and have no sentence a person may read. */
   earlierRecords: (n: number) => `이전 기록 ${n}건`,
+  /** A card's record from before the core kept its history (G138): one fold, closed, that holds it whole. */
+  earlier: "이전 기록",
+  /** A card's worker runs no line of its steps links: one fold, closed, that opens to their rows (G138). */
+  workerRuns: (n: number) => `작업 실행 ${n}건`,
   /** A worker run's record rows that do not stand whole: one line with their count, which opens to them (lina-app#161, #241). */
   foldedRecords: (n: number) => `접힌 기록 ${n}건`,
   /** A stop's reason that the one gate does not pass: one line that opens to all of it (lina-app#241). */

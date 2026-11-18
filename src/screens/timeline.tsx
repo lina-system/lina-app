@@ -1,9 +1,9 @@
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import type { Settings } from "../api/client";
+import type { PlainHistoryLine, Settings } from "../api/client";
 import { plainText } from "../model/plain";
 import { runModelLine } from "../model/settings";
-import { historyLines, timelineBlocks, type TimelineBlock, type TimelineRow } from "../model/timeline";
+import { cardHistory, historyLines, timelineBlocks, type CardHistoryLine, type TimelineBlock, type TimelineRow } from "../model/timeline";
 import { linkClick } from "../router";
 import { clockAt } from "../time";
 import { agentName, Box, useApp } from "../ui/parts";
@@ -120,12 +120,12 @@ function Block({ block, owner, link, modelRun }: { block: TimelineBlock; owner: 
 const folded = (row: TimelineRow) => row.text === null;
 
 /**
- * Every row of the timeline's blocks that does not stand whole, newest first, as one folded line after the last block
- * (criterion 2): 접힌 댓글 when they are all comments, else 접힌 기록, at the newest one's time as every line reads a time. It
+ * Every row of the timeline that does not stand whole, newest first, as one folded line after the last line (criterion
+ * 2): 접힌 댓글 when they are all comments, else 접힌 기록, at the newest one's time as every line reads a time. It
  * opens to each as the record holds it, with its time (lina-app#241), so no line between two rounds is a folded one.
  */
-function FoldedRows({ blocks }: { blocks: readonly TimelineBlock[] }) {
-  const rows = blocks.flatMap((block) => block.rows.filter(folded)).sort((a, b) => b.at - a.at);
+function FoldedRows({ rows: given }: { rows: readonly TimelineRow[] }) {
+  const rows = given.filter(folded).sort((a, b) => b.at - a.at);
   if (!rows.length) return null;
   return (
     <ul class="timeline-rows">
@@ -133,6 +133,59 @@ function FoldedRows({ blocks }: { blocks: readonly TimelineBlock[] }) {
         <FoldLine label={rows.every((row) => row.kind === "comment") ? W.foldedRun(rows.length) : DETAIL_WORD.foldedRecords(rows.length)} held={rows.map((row) => ({ at: row.at, by: null, text: row.source ?? "" }))} at={rows[0].at} />
       </li>
     </ul>
+  );
+}
+
+/**
+ * A card's history line (G138): `time · what it did`, then the verdicts of the rounds that ended in it as small marks,
+ * each the link to its round's worker run when there is one to open.
+ */
+function HistoryLine({ line, link }: { line: CardHistoryLine; link: (runId: string, n: number, at: number) => string | null }) {
+  const { now } = useApp();
+  return (
+    <li class="timeline-row is-step" data-kind="step" data-testid="history-line">
+      <span class="timeline-text">{timed(line.at, line.text, now)}</span>
+      {line.marks.map((mark) => {
+        const href = link(mark.runId, mark.n, mark.at);
+        const word = `${W.outcome[mark.outcome]}${mark.count > 1 ? ` ${W.repeated(mark.count)}` : ""}`;
+        return href ? (
+          <a key={`${mark.outcome}:${mark.at}`} class="timeline-mark" href={href} onClick={linkClick} data-testid="history-mark" data-outcome={mark.outcome}>
+            {word}
+          </a>
+        ) : (
+          <span key={`${mark.outcome}:${mark.at}`} class="timeline-mark" data-testid="history-mark" data-outcome={mark.outcome}>
+            {word}
+          </span>
+        );
+      })}
+    </li>
+  );
+}
+
+/**
+ * A card's worker runs (G138, lina-app#269): every one its detail names, the page of each, and how its list draws them
+ * (the card's worker rows, each at the time the card first saw it). The record links a run from a verdict mark or a
+ * round's head; every run none of them links is in that list, so each worker run's page is reachable from its card
+ * whatever its record holds: steps or none, rounds or none, a round going or ended.
+ */
+export interface CardWorkers {
+  readonly ids: readonly string[];
+  readonly href: (runId: string) => string;
+  readonly draw: (ids: readonly string[]) => ComponentChildren;
+}
+
+/**
+ * Under a card's steps, its worker runs no mark links (CardWorkers) as one fold, closed: `작업 실행 N건`, which opens to
+ * their worker rows. A hub card whose many worker runs serve one record would otherwise stand dozens of rows under its
+ * steps; folded, each run's page is still one press away.
+ */
+function WorkerFold({ children }: { children: { readonly count: number; readonly rows: ComponentChildren } | null }) {
+  if (!children) return null;
+  return (
+    <details class="timeline-earlier" data-testid="worker-fold">
+      <summary class="timeline-earlier-head">{DETAIL_WORD.workerRuns(children.count)}</summary>
+      {children.rows}
+    </details>
   );
 }
 
@@ -169,10 +222,12 @@ export function PastEvents({ events }: { events: readonly PastEvent[] }) {
  * alone while there is no record. `boxed` says the page draws the record's comments between rounds in its own 댓글 box
  * (a card, lina-app#174): the timeline then has no comment block, so the page has one 댓글 section, and the rounds around
  * a comment count as one line (lina-app#269). `doing` is what the card does now (cardNow), which its going round's line
- * reads (G138).
+ * reads (G138). `history` is a card's steps (`plain.history`, G138): given, its lines are the 기록 (CardRecord), and
+ * `workers` its worker runs, each linked from it once (CardWorkers).
  */
-export function Timeline({ runs, live, link = () => null, modelRun = () => null, fallback = null, boxed = false, doing = null }: { runs: readonly string[]; live: (runId: string) => boolean; link?: (runId: string, n: number, at: number) => string | null; modelRun?: (runId: string, n: number, at: number) => string | null; fallback?: ComponentChildren; boxed?: boolean; doing?: string | null }) {
+export function Timeline({ runs, live, link = () => null, modelRun = () => null, fallback = null, boxed = false, doing = null, history, workers }: { runs: readonly string[]; live: (runId: string) => boolean; link?: (runId: string, n: number, at: number) => string | null; modelRun?: (runId: string, n: number, at: number) => string | null; fallback?: ComponentChildren; boxed?: boolean; doing?: string | null; history?: readonly PlainHistoryLine[]; workers?: CardWorkers }) {
   const { model, store, now } = useApp();
+  if (history) return <CardRecord history={history} runs={runs} live={live} link={link} modelRun={modelRun} fallback={fallback} doing={doing} workers={workers} />;
   if (runs.some((id) => store.status("record", id) === "failed"))
     return (
       <>
@@ -196,7 +251,82 @@ export function Timeline({ runs, live, link = () => null, modelRun = () => null,
       {blocks.map((block) => (
         <Block key={block.key} block={block} owner={owner} link={block.type === "round" ? link(block.runId, block.n, block.at) : null} modelRun={block.type === "round" ? modelRun(block.runId, block.n, block.at) : null} />
       ))}
-      <FoldedRows blocks={blocks} />
+      <FoldedRows rows={blocks.flatMap((block) => block.rows)} />
+    </Box>
+  );
+}
+
+/**
+ * A card's 기록 (G138, lina-app#269): one line per step of its history, newest first, `time · what it did`, each round's
+ * verdict a small mark beside the line it ended in (cardHistory), and every sentence or verdict with no line of its own
+ * one folded line under them. Its rounds' blocks are no line: a card the core has no history for yet keeps them or its
+ * worker runs' box under one 이전 기록 fold, closed, so nothing on it reads before it opens. A failed record read is one
+ * error line on top either way, and with steps its worker runs' box stands open under them. Every worker run no mark or
+ * round head links is a worker row (CardWorkers): under the steps, or in the fold beside the rounds.
+ */
+function CardRecord({ history, runs, live, link, modelRun, fallback, doing, workers }: { history: readonly PlainHistoryLine[]; runs: readonly string[]; live: (runId: string) => boolean; link: (runId: string, n: number, at: number) => string | null; modelRun: (runId: string, n: number, at: number) => string | null; fallback: ComponentChildren; doing: string | null; workers?: CardWorkers }) {
+  const { model, store, now } = useApp();
+  const records = runs.flatMap((id) => {
+    const record = store.get("record", id);
+    return record ? [{ id, record }] : [];
+  });
+  const { lines, folded: unread } = cardHistory(history, records, live, now);
+  const failed = runs.some((id) => store.status("record", id) === "failed");
+  const error = failed ? (
+    <p class="write-error" role="alert" data-testid="timeline-error">
+      {W.readFailed(W.record)}
+    </p>
+  ) : null;
+  // The card's worker runs no mark or round head links to (CardWorkers): its worker rows, once each. Only a run whose
+  // record read is over (`runs`) is one, so a row never stands for a run whose rounds are still on their way (lina-app#217).
+  const unlinked = (links: readonly (string | null)[]): { readonly count: number; readonly rows: ComponentChildren } | null => {
+    const linked = new Set(links);
+    const ids = workers?.ids.filter((id) => runs.includes(id) && !linked.has(workers.href(id))) ?? [];
+    return workers && ids.length ? { count: ids.length, rows: workers.draw(ids) } : null;
+  };
+  // A failed read keeps the steps: the error line stands over them and the worker runs' box under them, open; otherwise
+  // the worker runs no mark links (one going now, one whose record holds no round) are rows under them.
+  if (lines.length)
+    return (
+      <Box title={W.record} testid="timeline">
+        {error}
+        <ul class="timeline-rows is-history">
+          {lines.map((line) => (
+            <HistoryLine key={`${line.at}:${line.text}`} line={line} link={link} />
+          ))}
+        </ul>
+        <FoldedRows rows={unread} />
+        {failed ? fallback : <WorkerFold>{unlinked(lines.flatMap((line) => line.marks.map((mark) => link(mark.runId, mark.n, mark.at))))}</WorkerFold>}
+      </Box>
+    );
+  const blocks = failed ? [] : timelineBlocks(records, live, now, { doing, comments: false }).flatMap((block) => plainBlock(block) ?? []);
+  const owner = agentName(model, store.get("items")?.owner?.id);
+  const earlier = blocks.length ? (
+    <>
+      {blocks.map((block) => (
+        <Block key={block.key} block={block} owner={owner} link={block.type === "round" ? link(block.runId, block.n, block.at) : null} modelRun={block.type === "round" ? modelRun(block.runId, block.n, block.at) : null} />
+      ))}
+      <FoldedRows rows={[...unread, ...blocks.flatMap((block) => block.rows)]} />
+      {unlinked(blocks.map((block) => (block.type === "round" ? link(block.runId, block.n, block.at) : null)))?.rows}
+    </>
+  ) : fallback ? (
+    <>
+      {fallback}
+      <FoldedRows rows={unread} />
+    </>
+  ) : unread.length ? (
+    <FoldedRows rows={unread} />
+  ) : null;
+  if (!earlier && !failed) return null;
+  return (
+    <Box title={W.record} testid="timeline">
+      {error}
+      {earlier ? (
+        <details class="timeline-earlier" data-testid="earlier-records">
+          <summary class="timeline-earlier-head" data-testid="earlier-records-head">{DETAIL_WORD.earlier}</summary>
+          {earlier}
+        </details>
+      ) : null}
     </Box>
   );
 }

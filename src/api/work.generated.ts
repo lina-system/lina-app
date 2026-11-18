@@ -183,6 +183,22 @@ export interface components {
             commentId: number;
             title: string;
         };
+        /** @description A card detail's checked lines: the list row's PlainLines plus its history (G138). The list response keeps PlainLines. */
+        PlainDetailLines: {
+            /** @description The card's steps, newest first, at most 40. Missing or empty when the core has none. */
+            history?: components["schemas"]["PlainHistoryLine"][];
+            now: string | null;
+            result: string | null;
+            title: string | null;
+        };
+        /** @description One step of a card's history (G138): a now line the card moved past, as one past-tense sentence. Checked as the now line is, plus the past-tense check: at most 40 letters, one sentence, no English word, number, path, hash, device name or worker id, and no bot's name as its subject. */
+        PlainHistoryLine: {
+            /** @description When that now line started (when its writer stored it), epoch seconds. */
+            at: number;
+            text: string;
+            /** @description When it changed to another sentence, epoch seconds; null when backfilled or for the last line. */
+            until: number | null;
+        };
         /** @description Checked model-written lines (lina#151). A field that failed its check, or was never written, is null; the raw source text is never served in its place. */
         PlainLines: {
             now: string | null;
@@ -215,7 +231,7 @@ export interface components {
             /** @description The card's last heartbeat (epoch seconds); null when it has none (lina#577). */
             lastHeartbeatAt?: number | null;
             now: string | null;
-            plain: components["schemas"]["PlainLines"];
+            plain: components["schemas"]["PlainDetailLines"];
             /** @description The card lives on a board the core only reads (lina#481); every write to it is refused with 409. */
             readOnly?: boolean;
             reason: components["schemas"]["Reason"];

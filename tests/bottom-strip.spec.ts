@@ -52,6 +52,8 @@ test("at 390 the strip covers no line of a long card's sheet at any scroll", asy
   await expect(page.getByTestId("freshness-line")).toHaveText("연결 중");
   const body = page.locator(".detail-sheet-body");
   await expect(body.getByTestId("timeline")).toBeVisible();
+  // k-101 has no steps (G138): its record lines are its 이전 기록 fold, opened as a reader does.
+  await body.getByTestId("earlier-records-head").click();
   const strip = (await page.locator(".bottombar").boundingBox())!;
   expect(strip.height).toBe(44);
   const end = await body.evaluate((element) => element.scrollHeight - element.clientHeight);

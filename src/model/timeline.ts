@@ -1,4 +1,4 @@
-import type { ItemDetail, RecordRound, RecordRow, RunRecord } from "../api/client";
+import type { ItemDetail, PlainHistoryLine, RecordRound, RecordRow, RunRecord } from "../api/client";
 import { STATE_WORD, stateLabel, W } from "../words";
 import { historySentences, nowMayShow, STATE_ONLY, wholeText } from "./fold";
 import { holds } from "./rounds";
@@ -288,4 +288,60 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
     else merged.push(block);
   }
   return merged;
+}
+
+/** A closed round's verdict as a small mark beside a card's history line (G138): its outcome, how many rounds it stands for, and the first round's run, number and time for its link. */
+export interface HistoryMark {
+  readonly outcome: Exclude<Outcome, "going">;
+  readonly count: number;
+  readonly runId: string;
+  readonly n: number;
+  readonly at: number;
+}
+
+/** One line of a card's history (G138): the time its step started and the one sentence of what it did, with the verdicts of the rounds that ended in it. */
+export interface CardHistoryLine {
+  readonly at: number;
+  readonly text: string;
+  readonly marks: readonly HistoryMark[];
+}
+
+/**
+ * A card's history as its 기록 reads it (G138, lina-app#269): one line per step the core served (`plain.history`), newest
+ * first, `time · what it did`. A sentence the card's now line would not pass (nowMayShow) is no line and folds; the same
+ * sentence twice in a row is one line at its newest time. A closed round's verdict is no line: it is a mark beside the
+ * line whose step held the round's end (the newest line that started at or before it, so the step just before when none
+ * held it), and one with no such line folds. A missing or empty history has no line, so the old record folds whole
+ * with its verdicts.
+ */
+export function cardHistory(history: readonly PlainHistoryLine[] | null | undefined, records: readonly { readonly id: string; readonly record: RunRecord }[], live: (runId: string) => boolean, now: number): { lines: CardHistoryLine[]; folded: TimelineRow[] } {
+  const folded: TimelineRow[] = [];
+  const lines: { at: number; from: number; text: string; marks: HistoryMark[] }[] = [];
+  const steps = (history ?? []).map((step, index) => ({ step, index })).sort((a, b) => b.step.at - a.step.at || a.index - b.index);
+  for (const { step } of steps) {
+    const text = step.text.trim();
+    const last = lines.at(-1);
+    if (!nowMayShow(text)) folded.push({ at: step.at, kind: "said", text: null, count: 1, source: step.text });
+    else if (last?.text === text) last.from = step.at;
+    else lines.push({ at: step.at, from: step.at, text, marks: [] });
+  }
+  const seen = new Set<string>();
+  // With no line, the old record folds whole and holds its rounds' verdicts itself.
+  if (lines.length) for (const { id, record } of records)
+    record.rounds.forEach((round, index) => {
+      const outcome = outcomeOf(round, index === 0, live(id), now);
+      const end = round.endedAt ?? round.startedAt;
+      if (outcome === "going" || end === null || seen.has(`${round.run}:${round.startedAt}:${round.endedAt}`)) return;
+      seen.add(`${round.run}:${round.startedAt}:${round.endedAt}`);
+      const line = lines.find((each) => each.from <= end);
+      if (!line) {
+        folded.push({ at: end, kind: "said", text: null, count: 1, source: W.outcomeSaid[outcome] });
+        return;
+      }
+      const same = line.marks.findIndex((mark) => mark.outcome === outcome);
+      const mark = { outcome, count: 1, runId: id, n: round.run ?? record.rounds.length - index, at: end };
+      if (same < 0) line.marks.push(mark);
+      else line.marks[same] = { ...line.marks[same], count: line.marks[same].count + 1 };
+    });
+  return { lines: lines.map(({ at, text, marks }) => ({ at, text, marks })), folded: folded.sort((a, b) => b.at - a.at) };
 }

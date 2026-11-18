@@ -259,6 +259,16 @@ async function openApp(page, hash, query = "", line = "") {
   await freshnessReads(page, line);
 }
 
+// A card the core serves no steps for keeps its old record (its rounds, its worker runs' box) in one closed 이전 기록
+// fold (G138, lina-app#269): a drive that reads that record opens it as a reader does. Outside a card's own page, nothing.
+async function openEarlier(page) {
+  const hash = new URL(page.url()).hash;
+  if (!hash.startsWith("#/cards/") || hash.includes("/runs/")) return;
+  const fold = page.getByTestId("screen-card").getByTestId("earlier-records");
+  await fold.waitFor({ state: "attached", timeout: 10_000 });
+  if (!(await fold.evaluate((element) => element.open))) await fold.getByTestId("earlier-records-head").click();
+}
+
 // An empty line draws nothing, so it is waited for attached, not visible.
 async function freshnessReads(page, line) {
   await page.getByTestId("freshness-line").filter({ hasText: new RegExp("^" + line + "$") }).waitFor({ state: "attached", timeout: 10_000 });
@@ -1668,6 +1678,7 @@ const drivers = {
       const state = await page.locator(".detail-head .sub").first().innerText();
       check(/^진행 중 · 시작 \d+분 전$/.test(state), "state reads " + state);
       await page.getByTestId("timeline").waitFor();
+      await openEarlier(page);
       const heads = await page.locator(".detail .box-head").allInnerTexts();
       // One round list: the record's blocks; the worker runs' box does not stand beside them.
       check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "기록", "댓글"]), "boxes " + heads.join(", "));
@@ -1691,6 +1702,7 @@ const drivers = {
     // bar. A card's worker run is named by the card and its place among the card's worker runs, after a reload too.
     await step("on the hub's shape (&hub=round23), no link on a card holds a task id; a round's head opens its run by its place, and a reload keeps the page", async () => {
       await openApp(page, "#/cards/k-101", "&hub=round23");
+      await openEarlier(page);
       await page.getByTestId("timeline-link").first().waitFor();
       const hrefs = await page.locator("a[href]").evaluateAll((links) => links.map((link) => link.getAttribute("href")));
       const named = hrefs.filter((href) => /OT-[A-Z]+\d+/.test(href) || href.startsWith("#/runs/"));
@@ -1716,6 +1728,7 @@ const drivers = {
     // opened the card's first run. Each head opens the run it was recorded from; a run of two rounds both times.
     await step("on &hub=round24, k-450's record blocks each open their own worker run, and the page a head opens holds that block", async () => {
       await openApp(page, "#/cards/k-450", "&hub=round24");
+      await openEarlier(page);
       await page.getByTestId("timeline-link").first().waitFor();
       const links = page.getByTestId("timeline-link");
       const hrefs = await links.evaluateAll((items) => items.map((item) => item.getAttribute("href")));
@@ -1734,6 +1747,7 @@ const drivers = {
     await step("on &hub=round24, k-830's worker run page reads its card's name, the goal's title, as the card's head does, never 제목 없음", async () => {
       await openApp(page, "#/cards/k-830", "&hub=round24");
       const cardHead = (await page.getByTestId("screen-card").locator(".detail-title").innerText()).trim();
+      await openEarlier(page);
       await page.getByTestId("timeline-link").first().waitFor();
       const target = await page.getByTestId("timeline-link").first().getAttribute("href");
       check(target === "#/cards/k-830/runs/1", "the round's head links to " + target);
@@ -1759,6 +1773,10 @@ const drivers = {
       const opened = Date.now();
       await page.getByRole("list", { name: "진행 중인 작업" }).getByRole("link", { name: /릴리스 노트 정리/ }).click();
       const detail = page.getByTestId("screen-card");
+      // k-101 has no steps (G138): its record is the closed 이전 기록 fold, which a reader opens as soon as it stands.
+      const fold = detail.getByTestId("earlier-records");
+      await fold.waitFor({ state: "attached", timeout: 2_000 }).catch(() => check(false, "no 이전 기록 fold within 2 s of opening the card"));
+      await fold.getByTestId("earlier-records-head").click();
       const first = detail.getByTestId("timeline").locator("li").first();
       await first.waitFor({ timeout: 2_000 }).catch(() => check(false, "no history row within 2 s of opening the card"));
       const drawn = Date.now() - opened;
@@ -1824,6 +1842,7 @@ const drivers = {
       for (const hash of ["#/runs/r1", "#/cards/k-101", "#/runs/r8", "#/runs/r6"]) {
         await openApp(page, hash);
         await page.getByTestId("timeline").waitFor();
+        await openEarlier(page);
         const shown = await page.locator("article.detail").innerText();
         check(!/model-[a-z]/.test(shown), hash + " shows a model alias: " + shown.replace(/\s+/g, " ").slice(0, 160));
         check((await page.getByTestId("run-model").count()) === 0, hash + " draws a model line");
@@ -1838,6 +1857,7 @@ const drivers = {
       const state = (await page.getByTestId("run-state").innerText()).trim();
       check(title === "릴리스 노트 정리" && state === "진행 중", "r1 reads " + title + " / " + state);
       await openApp(page, "#/cards/k-104");
+      await openEarlier(page);
       await page.getByTestId("worker-runs").waitFor();
       const lines = await page.getByTestId("worker-runs").getByRole("link").evaluateAll((items) => items.map((item) => item.getAttribute("aria-label")));
       // One line per run, its time and state word; the card's title is its head's, never repeated (lina-app#142).
@@ -1861,6 +1881,7 @@ const drivers = {
       // &hub=round23: k-105's worker run r5 holds the hub's long card's record shape, ten rounds, most accepted with an
       // English report line, so their heads hold the outcome alone.
       await openApp(page, "#/cards/k-105", "&hub=round23");
+      await openEarlier(page);
       const heads = page.getByTestId("timeline").locator(".timeline-head");
       await heads.first().waitFor();
       const lines = (await heads.allInnerTexts()).map((line) => line.trim().replace(/^(?:어제 )?\d\d:\d\d · /, ""));
@@ -1873,6 +1894,7 @@ const drivers = {
       // &hub=round25: k-470's seven verdict rounds, bots' comments on the card made as they ended, the record's own
       // comments between three bare rounds.
       await openApp(page, "#/cards/k-470", "&hub=round25");
+      await openEarlier(page);
       const heads = page.getByTestId("timeline").locator(".timeline-head");
       await heads.first().waitFor();
       const lines = (await heads.allInnerTexts()).map((line) => line.trim().replace(/^(?:어제 )?\d\d:\d\d · /, ""));
@@ -1880,6 +1902,23 @@ const drivers = {
       const text = await page.getByTestId("timeline").innerText();
       check(!/[A-Za-z]/.test(text) && !["가짜 검사를 모두 통과했다.", "가짜 정리를 마쳤다.", "가짜 묶음을 다시 나눴다."].some((note) => text.includes(note)), "a comment or raw text in k-470's 기록: " + text.replace(/\s+/g, " "));
       return lines.join(" | ");
+    });
+    await step("on &hub=round26, a card's 기록 reads one line per step, time · what it did, each verdict a small mark beside its step; a card with no steps reads one closed 이전 기록 fold (G138, lina-app#269)", async () => {
+      const read = async (hash) => {
+        await openApp(page, hash, "&hub=round26");
+        const lines = page.getByTestId("timeline").getByTestId("history-line");
+        await lines.first().waitFor();
+        return lines.evaluateAll((items) => items.map((item) => [(item.querySelector(".timeline-text")?.textContent ?? "").replace(/^(?:어제 )?\d\d:\d\d · /, ""), [...item.querySelectorAll("[data-testid=history-mark]")].map((mark) => mark.textContent)]));
+      };
+      const going = await read("#/cards/k-480");
+      check(JSON.stringify(going) === JSON.stringify([["가짜 안내 문구 셋을 고쳐 씀", []], ["가짜 검사 넷을 돌려 모두 통과함", ["검토 통과"]], ["가짜 안내 화면의 빈칸을 찾음", []]]), "k-480's 기록 reads " + JSON.stringify(going));
+      const done = await read("#/cards/k-481");
+      check(JSON.stringify(done.map(([, marks]) => marks)) === JSON.stringify([[], ["검토 통과"], [], ["검토 필요"], []]) && done.every(([text]) => !/검토|[A-Za-z]/.test(text) || text === "고친 묶음을 다시 검토받아 통과함" || text === "검토에서 받은 지적 둘을 고침"), "k-481's 기록 reads " + JSON.stringify(done));
+      await openApp(page, "#/cards/k-482", "&hub=round26");
+      const fold = page.getByTestId("earlier-records");
+      await fold.waitFor();
+      check(!(await fold.evaluate((element) => element.open)) && (await page.getByTestId("history-line").count()) === 0 && !(await page.getByTestId("timeline-block").first().isVisible()), "k-482's old record is not one closed fold");
+      return going.length + " lines on k-480, " + done.length + " on k-481; k-482 one closed 이전 기록";
     });
     // lina-app#241, &hub=round24: the hub's long card shapes, field by field, in made-up words. A folded line is a button
     // that opens what it holds, whole and as written, with its time and its author's name, without moving the detail's
@@ -1892,6 +1931,7 @@ const drivers = {
         check(lines.length === 1 && lines[0].trim() === "읽기 실패: 기록", from + " reads " + JSON.stringify(lines));
       };
       await openApp(page, "#/cards/k-104");
+      await openEarlier(page);
       await page.getByTestId("worker-runs").getByRole("link").first().click();
       await page.waitForURL(/#\/cards\/k-104\/runs\/1$/);
       await failed("k-104's run line");
@@ -1914,6 +1954,7 @@ const drivers = {
     });
     await step("on the hub's shape (&hub=round24), a folded comment line opens to each comment whole without moving the detail, and 접기 closes it where it was", async () => {
       await openApp(page, "#/cards/k-101", "&hub=round24");
+      await openEarlier(page);
       const box = page.getByTestId("card-comments");
       await box.waitFor();
       const fold = box.getByRole("button", { name: /접힌 댓글 2건$/ });
@@ -1941,6 +1982,7 @@ const drivers = {
       return lines.length + " lines; opened 2 whole at scroll " + before.top + ", the line at y " + Math.round(before.y) + " before, open and after 접기";
     });
     await step("on &hub=round24, no 기록 line of an ended round is a fragment or joins events; its folds open to the rows and report lines as written", async () => {
+      await openEarlier(page);
       const timeline = page.getByTestId("timeline");
       const said = (await timeline.locator("[data-kind=said]").allInnerTexts()).map((line) => line.trim().replace(/^(?:어제 )?\d\d:\d\d · /, ""));
       check(said.every((line) => !/ \/ |^[.~]|\|$|[A-Za-z]/.test(line)), "a said line is a fragment or joins events: " + JSON.stringify(said));
@@ -1984,8 +2026,9 @@ const drivers = {
       const heads = [];
       for (const [hash, testid] of [["#/cards/k-101", "timeline"], ["#/cards/k-103", "worker-runs"]]) {
         await openApp(page, hash, "&hub=round11");
+        await openEarlier(page);
         await page.getByTestId(testid).waitFor();
-        heads.push((await page.getByTestId(testid).locator(".box-head").first().innerText()).trim());
+        heads.push((await page.getByTestId("timeline").locator(".box-head").first().innerText()).trim());
       }
       check(heads.every((head) => head === "기록"), "the run history reads " + heads.join(" / "));
       await openApp(page, "#/cards/k-106", "&hub=round11");
@@ -2009,6 +2052,7 @@ const drivers = {
     };
     const botSaid = "가짜 묶음 셋을 나눠 맡겼다.";
     const topOf = async () => {
+      await openEarlier(page);
       const head = page.getByTestId("timeline").locator(".timeline-head").first();
       await head.waitFor({ timeout: 10_000 });
       return (await head.innerText()).trim().replace(/^(어제 )?\d\d:\d\d · 진행 중(?: · )?/, "");
@@ -3914,6 +3958,7 @@ const drivers = {
       await openApp(page, "#/cards/k-101");
       const detail = page.getByTestId("screen-card");
       await detail.getByTestId("timeline").waitFor();
+      await openEarlier(page);
       const heads = await detail.locator(":scope > .box > .box-head").allInnerTexts();
       check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "기록", "댓글"]), "the boxes read " + JSON.stringify(heads));
       const rounds = await detail.getByTestId("timeline-link").allInnerTexts();
@@ -3956,6 +4001,7 @@ const drivers = {
       return lines.join(" | ");
     });
     await step("a round with no start on record is one dim line when it holds content; an end alone shows nothing", async () => {
+      await openEarlier(page);
       const heads = await page.getByTestId("round").locator(".round-head").allInnerTexts();
       check(heads.length === 2 && /^(어제 )?\d\d:\d\d · 중단됨$/.test(heads[0]) && heads[1] === "시작 기록 없음", "the rounds read " + JSON.stringify(heads));
       const weight = await page.getByTestId("round").nth(1).locator(".round-head").evaluate((head) => getComputedStyle(head).fontWeight);
@@ -4005,6 +4051,7 @@ const drivers = {
       await openApp(page, "#/cards/k-101");
       const timeline = page.getByTestId("timeline");
       await timeline.waitFor();
+      await openEarlier(page);
       const heads = await page.locator(".detail > .box > .box-head").allInnerTexts();
       check(heads.slice(-2).join(",") === "기록,댓글", "the timeline is not between the boxes and the comments: " + heads.join(", "));
       const blocks = timeline.getByTestId("timeline-block");

@@ -98,3 +98,21 @@ test("a stopped card with steps alone reads them, never 아직 기록 없음 abo
   await waitFor(() => expect(view.getAllByTestId("history-line")).toHaveLength(1));
   expect(view.queryByTestId("card-nothing")).toBeNull();
 });
+
+test("a worker run going now that no step's mark links to stays a link under the steps, and a linked run is never drawn twice (G138)", async () => {
+  const linked = open(ROUND26.going.id);
+  await waitFor(() => expect(linked.view.getAllByTestId("history-mark")).toHaveLength(1));
+  expect(linked.view.queryAllByTestId("history-run")).toHaveLength(0);
+  linked.view.unmount();
+  // The same card with only its round going now: no verdict, so no mark links its worker run.
+  const source = new SyntheticSource({ now: NOW, hubRound26: true });
+  const record = source.scene.records[ROUND26.going.run];
+  record.rounds = record.rounds.filter((round) => round.endedAt === null);
+  const { view } = open(ROUND26.going.id, source);
+  await waitFor(() => expect(view.getAllByTestId("history-run")).toHaveLength(1));
+  expect(view.getAllByTestId("history-line")).toHaveLength(ROUND26.going.history.length);
+  expect(view.queryAllByTestId("history-mark")).toHaveLength(0);
+  const run = view.getByTestId("history-run").querySelector("a")!;
+  expect(run.getAttribute("href")).toBe(`#/cards/${ROUND26.going.id}/runs/1`);
+  expect(run.textContent).toMatch(new RegExp(`^${TIME} · ${W.outcome.going}$`));
+});

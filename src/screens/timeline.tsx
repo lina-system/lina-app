@@ -1,9 +1,9 @@
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import type { PlainHistoryLine, Settings } from "../api/client";
+import type { PlainHistoryLine, RunRecord, Settings } from "../api/client";
 import { plainText } from "../model/plain";
 import { runModelLine } from "../model/settings";
-import { cardHistory, historyLines, timelineBlocks, type CardHistoryLine, type TimelineBlock, type TimelineRow } from "../model/timeline";
+import { cardHistory, historyLines, outcomeOf, timelineBlocks, type CardHistoryLine, type TimelineBlock, type TimelineRow } from "../model/timeline";
 import { linkClick } from "../router";
 import { clockAt } from "../time";
 import { agentName, Box, useApp } from "../ui/parts";
@@ -162,6 +162,38 @@ function HistoryLine({ line, link }: { line: CardHistoryLine; link: (runId: stri
   );
 }
 
+/**
+ * The worker runs of a card whose steps no mark links to (G138): a run going now, whose round has no verdict yet, or one
+ * whose rounds ended before the steps. One line each under the steps, `time · state` (진행 중 at its newest round's
+ * start, else 중단됨 or 완료 at its end, never a verdict word), the link to that run, so its page stays reachable.
+ */
+function RunLinks({ records, live, link, linked }: { records: readonly { readonly id: string; readonly record: RunRecord }[]; live: (runId: string) => boolean; link: (runId: string, n: number, at: number) => string | null; linked: ReadonlySet<string> }) {
+  const { now } = useApp();
+  const seen = new Set(linked);
+  const rows = records.flatMap(({ id, record }) => {
+    const round = record.rounds[0];
+    if (!round) return [];
+    const outcome = outcomeOf(round, true, live(id), now);
+    const at = outcome === "going" ? (round.startedAt ?? round.endedAt) : (round.endedAt ?? round.startedAt);
+    const href = at === null ? null : link(id, round.run ?? record.rounds.length, at);
+    if (at === null || !href || seen.has(href)) return [];
+    seen.add(href);
+    return [{ href, at, word: outcome === "going" || outcome === "stopped" ? W.outcome[outcome] : W.outcome.ended }];
+  });
+  if (!rows.length) return null;
+  return (
+    <ul class="timeline-rows">
+      {rows.map((row) => (
+        <li key={row.href} class="timeline-row is-dim" data-kind="run" data-testid="history-run">
+          <a class="timeline-link" href={row.href} onClick={linkClick}>
+            {timed(row.at, row.word, now)}
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /** One past event of a run the record does not hold: when, and one sentence. */
 export interface PastEvent {
   readonly at: number;
@@ -248,7 +280,9 @@ function CardRecord({ history, runs, live, link, modelRun, fallback, doing }: { 
       {W.readFailed(W.record)}
     </p>
   ) : null;
-  // A failed read keeps the steps: the error line stands over them and the worker links under them, open.
+  // A failed read keeps the steps: the error line stands over them and the worker links under them, open. Otherwise a
+  // worker run no mark links to (the one going now) is a line of its own under them.
+  const linked = new Set(lines.flatMap((line) => line.marks.flatMap((mark) => link(mark.runId, mark.n, mark.at) ?? [])));
   if (lines.length)
     return (
       <Box title={W.record} testid="timeline">
@@ -258,6 +292,7 @@ function CardRecord({ history, runs, live, link, modelRun, fallback, doing }: { 
             <HistoryLine key={`${line.at}:${line.text}`} line={line} link={link} />
           ))}
         </ul>
+        {failed ? null : <RunLinks records={records} live={live} link={link} linked={linked} />}
         <FoldedRows rows={unread} />
         {failed ? fallback : null}
       </Box>

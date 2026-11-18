@@ -1122,6 +1122,21 @@ const drivers = {
       check(JSON.stringify(lines) === JSON.stringify(wide ? ["가짜 목록 셋을 차례로 맞추는 중", "결정 대기", null] : [null, null, null]), "the running rows' now lines read " + JSON.stringify(lines));
       return device + " / " + bare + "; now lines " + JSON.stringify(lines);
     });
+    await step("on &hub=round25, a stopped or waiting row reads the card's now line under its state line at every width, and one with none its state line alone (lina-app#269)", async () => {
+      await openApp(page, "#/running", "&hub=round25");
+      const list = page.getByTestId("screen-running");
+      for (const more of await list.locator(".more-row button").all()) await more.click();
+      const nowOf = async (id) => {
+        const line = list.locator(`a[href="#/cards/${id}"] [data-testid=row-now]`);
+        return (await line.count()) ? (await line.innerText()).trim() : null;
+      };
+      const lines = [];
+      for (const id of ["k-471", "k-472", "k-473", "k-474", "k-475"]) lines.push(await nowOf(id));
+      check(JSON.stringify(lines) === JSON.stringify(["가짜 기기 재시작 승인을 기다리는 중", "가짜 화면 배포 확인을 기다리는 중", "가짜 로그인 승인과 앱 다시 로그인을 기다리는 중", null, "가짜 검사 결과를 기다리는 중"]), "the stopped and waiting rows' now lines read " + JSON.stringify(lines));
+      const cut = await list.locator("[data-testid=row-now]").evaluateAll((lines) => lines.filter((line) => line.scrollWidth > line.clientWidth + 1).map((line) => line.textContent));
+      check(cut.length === 0, "now lines cut: " + JSON.stringify(cut));
+      return "now lines " + JSON.stringify(lines);
+    });
   },
 
   async due(page, step) {
@@ -1852,6 +1867,18 @@ const drivers = {
       check(JSON.stringify(lines) === JSON.stringify(["검토를 통과했다 ×3", "작업이 중단됐다", "검토 통과 · 백업 기록 마지막 달을 다시 살폈다.", "작업이 중단됐다", "검토를 통과했다 ×4"]), "k-105's 기록 heads read " + JSON.stringify(lines));
       const text = await page.getByTestId("timeline").innerText();
       check(!/[A-Za-z]/.test(text), "raw record text in k-105's 기록: " + text.replace(/\s+/g, " "));
+      return lines.join(" | ");
+    });
+    await step("a round's head says its verdict and after it only a short sentence of the round's own, never a bot's comment; bare rounds of one verdict are one ×n line across the boxed comments (lina-app#269)", async () => {
+      // &hub=round25: k-470's seven verdict rounds, bots' comments on the card made as they ended, the record's own
+      // comments between three bare rounds.
+      await openApp(page, "#/cards/k-470", "&hub=round25");
+      const heads = page.getByTestId("timeline").locator(".timeline-head");
+      await heads.first().waitFor();
+      const lines = (await heads.allInnerTexts()).map((line) => line.trim().replace(/^(?:어제 )?\d\d:\d\d · /, ""));
+      check(JSON.stringify(lines) === JSON.stringify(["검토 통과 · 가짜 보고 화면을 다시 읽고 고쳤다.", "검토를 통과했다", "검토를 통과하지 못했다", "검토를 통과했다 ×3", "검토를 통과하지 못했다"]), "k-470's 기록 heads read " + JSON.stringify(lines));
+      const text = await page.getByTestId("timeline").innerText();
+      check(!/[A-Za-z]/.test(text) && !["가짜 검사를 모두 통과했다.", "가짜 정리를 마쳤다.", "가짜 묶음을 다시 나눴다."].some((note) => text.includes(note)), "a comment or raw text in k-470's 기록: " + text.replace(/\s+/g, " "));
       return lines.join(" | ");
     });
     // lina-app#241, &hub=round24: the hub's long card shapes, field by field, in made-up words. A folded line is a button

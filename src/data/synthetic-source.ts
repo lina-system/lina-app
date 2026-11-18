@@ -689,6 +689,65 @@ export function round25Scene(scene: Scene): Scene {
   return { ...scene, cards: { ...scene.cards, cards: [...scene.cards.cards, ...cards] }, cardDetails: { ...scene.cardDetails, ...details, [R.card]: doneDetail }, records: { ...scene.records, [R.run]: record } };
 }
 
+/** The made-up ids and words of `&hub=round26` (G138, lina-app#269): cards whose detail serves its steps (`plain.history`). */
+export const ROUND26 = {
+  /** A going card: its now line and three steps, newest first, one round that passed review in the second. */
+  going: { id: "k-480", title: "가짜 안내 화면 다시 찍기", run: "w-4801", now: "가짜 안내 화면 둘을 다시 찍는 중", history: ["가짜 안내 문구 셋을 고쳐 씀", "가짜 검사 넷을 돌려 모두 통과함", "가짜 안내 화면의 빈칸을 찾음"] },
+  /** A finished card: five steps, a round sent back in the second oldest and one that passed in the newest. */
+  done: { id: "k-481", title: "가짜 알림 묶음 정리", run: "w-4811", history: ["가짜 정리 결과를 카드에 남김", "고친 묶음을 다시 검토받아 통과함", "검토에서 받은 지적 둘을 고침", "가짜 알림 묶음을 넷으로 나눔", "가짜 알림 목록을 처음부터 읽음"] },
+  /** A card from before the core kept steps: no history, its record's verdict rounds only. */
+  old: { id: "k-482", title: "가짜 옛 보고 옮기기", run: "w-4821" },
+  /** Stopped cards: one with one step, one with none. */
+  stops: [
+    { id: "k-483", title: "가짜 배포 자리 바꾸기", reason: "decision", now: "가짜 배포 승인을 기다리는 중", history: ["가짜 배포 자리 둘을 비교해 정리함"] },
+    { id: "k-484", title: "가짜 연결 다시 잇기", reason: "feedback", now: null, history: [] },
+  ],
+} as const;
+
+/**
+ * The shapes of G138's card history (`&hub=round26`, lina-app#269), in made-up words (ROUND26): a card's detail serves
+ * its steps newest first, each when it started and when it moved on, as the core's contract says. k-480 is going (its
+ * now line and three steps), k-481 finished (five steps and two verdict rounds), k-482 an old finished card with no
+ * steps and two verdict rounds, k-483 and k-484 stopped with one step and none.
+ */
+export function round26Scene(scene: Scene): Scene {
+  const now = scene.now;
+  const MIN = 60;
+  const R = ROUND26;
+  const template = scene.cards.cards.find((card) => card.state === "in_progress");
+  const detail = scene.cardDetails[template?.id ?? ""];
+  const agents = scene.items.agents.map((agent) => agent.id);
+  if (!template || !detail || !agents.length) return scene;
+  // Steps newest first, the newest started `newest` minutes ago and each `gap` minutes before the next; a step ends where the next starts.
+  const steps = (texts: readonly string[], newest: number, gap: number, open: boolean) =>
+    texts.map((text, index) => ({ at: now - (newest + index * gap) * MIN, until: index === 0 ? (open ? null : now - (newest - gap / 2) * MIN) : now - (newest + (index - 1) * gap) * MIN, text }));
+  const card = (id: string, title: string, fields: Partial<SceneCard>, plainNow: string | null = null): SceneCard =>
+    ({ ...template, id, title, goalTitle: null, agent: agents[0], plain: { title, now: plainNow, result: null }, reason: null, waitingOn: null, retry: null, ask: null, now: null, todoProgress: { done: 0, total: 0 }, readOnly: true, endedAt: null, ...fields }) as SceneCard;
+  const round = (run: number, start: number, end: number | null, verdict: "accepted" | "rejected" | null): RunRecord["rounds"][number] => ({ run, startedAt: now - start * MIN, endedAt: end === null ? null : now - end * MIN, endKnown: end !== null, startUnknown: false, result: null, verdict, stopped: false, rows: end === null ? [{ at: now - 2 * MIN, kind: "tools", text: null, count: 3 }] : [] });
+  const record = (id: string, cardId: string, rounds: RunRecord["rounds"]): RunRecord => ({ ...scene.records.r1, id, cardId, at: now, rounds, comments: [], errors: [] });
+  const worker = (id: string, first: number, last: number) => [{ id, kind: "lina-worker" as const, firstSeenAt: now - first * MIN, lastSeenAt: now - last * MIN }];
+  const going = card(R.going.id, R.going.title, { state: "in_progress", elapsedSeconds: 50 * MIN, lastHeartbeatAt: now - MIN }, R.going.now);
+  const done = card(R.done.id, R.done.title, { state: "done", elapsedSeconds: 5 * 3600, endedAt: now - 60 * MIN, lastHeartbeatAt: now - 60 * MIN });
+  const old = card(R.old.id, R.old.title, { state: "done", elapsedSeconds: 3 * 3600, endedAt: now - 26 * 3600, lastHeartbeatAt: now - 26 * 3600 });
+  const stops = R.stops.map((stop, index) => card(stop.id, stop.title, { agent: agents[index % agents.length], state: "stopped", reason: stop.reason, waitingOn: "owner", retry: "none", elapsedSeconds: (index + 2) * 3600, lastHeartbeatAt: now - (index + 2) * 3600 }, stop.now));
+  const of = (each: SceneCard, history: readonly { at: number; until: number | null; text: string }[], workerRuns: WorkCardDetail["workerRuns"]): WorkCardDetail => ({ ...detail, id: each.id, title: each.title, agent: each.agent, state: each.state, reason: each.reason, plain: { ...each.plain, history: [...history] }, now: each.now, elapsedSeconds: each.elapsedSeconds, lastHeartbeatAt: each.lastHeartbeatAt, endedAt: each.endedAt ?? null, readOnly: true, todoProgress: each.todoProgress, todos: [], gates: [], runs: [], comments: [], workerRuns });
+  const details: Record<string, WorkCardDetail> = {
+    // The going card's now line is its step going now: its history holds only the steps it moved past.
+    [going.id]: of(going, steps(R.going.history, 12, 12, false), worker(R.going.run, 50, 1)),
+    [done.id]: of(done, steps(R.done.history, 70, 50, false), worker(R.done.run, 300, 60)),
+    [old.id]: { ...of(old, [], worker(R.old.run, 29 * 60, 26 * 60)), plain: old.plain },
+    ...Object.fromEntries(stops.map((stop, index) => [stop.id, of(stop, steps(R.stops[index].history, (index + 2) * 60 + 30, 40, true), [])])),
+  };
+  const records = {
+    // Going: a round that passed review ended inside its second newest step (24–12 minutes ago), and the round going now.
+    [R.going.run]: record(R.going.run, going.id, [round(2, 15, null, null), round(1, 50, 18, "accepted")]),
+    // Finished: a round sent back inside its second oldest step (220–170 minutes ago), one that passed in its second newest.
+    [R.done.run]: record(R.done.run, done.id, [round(2, 160, 100, "accepted"), round(1, 260, 200, "rejected")]),
+    [R.old.run]: record(R.old.run, old.id, [round(2, 27 * 60, 26 * 60, "accepted"), round(1, 29 * 60, 28 * 60, "rejected")]),
+  };
+  return { ...scene, cards: { ...scene.cards, cards: [...scene.cards.cards, going, done, old, ...stops] }, cardDetails: { ...scene.cardDetails, ...details }, records: { ...scene.records, ...records } };
+}
+
 function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
   switch (name) {
     case "board":
@@ -1116,7 +1175,7 @@ export class SyntheticSource implements Source {
   private readonly signing = new Set<string>();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; hubRound23?: boolean; hubRound24?: boolean; hubRound25?: boolean; hubNow?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean; serialRecordMs?: number | null; longCard?: boolean } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; hubRound23?: boolean; hubRound24?: boolean; hubRound25?: boolean; hubRound26?: boolean; hubNow?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean; serialRecordMs?: number | null; longCard?: boolean } = {}) {
     this.slowRecords = options.slowRecords ?? false;
     this.serialRecordMs = options.serialRecordMs ?? null;
     this.staleNext = options.settings === "stale";
@@ -1142,7 +1201,7 @@ export class SyntheticSource implements Source {
         settings: options.settings === "stale" || options.settings === "race" ? null : options.settings,
         power: options.power,
       });
-    const scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : options.hubRound23 ? round23Scene(generated) : options.hubRound24 ? round24Scene(generated) : options.hubRound25 ? round25Scene(generated) : options.hubNow ? nowScene(round24Scene(generated)) : generated;
+    const scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : options.hubRound23 ? round23Scene(generated) : options.hubRound24 ? round24Scene(generated) : options.hubRound25 ? round25Scene(generated) : options.hubRound26 ? round26Scene(generated) : options.hubNow ? nowScene(round24Scene(generated)) : generated;
     this.scene = options.longCard ? longCardScene(scene) : scene;
   }
 
@@ -1448,6 +1507,19 @@ export class SyntheticSource implements Source {
     if (!round) return;
     round.rows.push({ at: Math.floor(nowSeconds()), kind: "said", text, count: 1 });
     this.changed({ source: "worker", kind: "progress", id: runId });
+  }
+
+  /**
+   * A card moves on to its next step, as the core's history writer does (G138): the step it was on becomes the newest
+   * line of its history, its now line says the new one, and a `kanban` change event names the card.
+   */
+  cardMovesOn(cardId: string, done: string, next: string | null): void {
+    const card = this.scene.cardDetails[cardId];
+    if (!card) return;
+    const at = Math.floor(nowSeconds());
+    const history = card.plain.history ?? [];
+    card.plain = { ...card.plain, now: next, history: [{ at: history[0]?.until ?? at, until: at, text: done }, ...history].slice(0, 40) };
+    this.changed({ source: "kanban", kind: "progress", id: cardId });
   }
 
   /** Every open connection drops, as on sleep or a network change. */

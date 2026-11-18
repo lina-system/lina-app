@@ -74,6 +74,7 @@ export type WorkGoal = Work["schemas"]["WorkGoal"];
 export type WorkCardList = Work["schemas"]["WorkCardList"];
 export type WorkCardSummary = Work["schemas"]["WorkCardSummary"];
 export type WorkCardDetail = Work["schemas"]["WorkCardDetail"];
+export type PlainHistoryLine = Work["schemas"]["PlainHistoryLine"];
 export type WorkInbox = Work["schemas"]["Inbox"];
 
 /** The work settings (settings-client.yaml, lina#256): the keys, their revisions, rollback and OCX's models. */

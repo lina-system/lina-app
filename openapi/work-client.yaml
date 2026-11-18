@@ -2,7 +2,8 @@
 # plus the optional WorkCardSummary/WorkCardDetail fields endedAt and lastHeartbeatAt that lina#577 adds (lina-app#100)
 # and the optional WorkCardSummary fields waitingOn and retry that lina#629 adds (lina-app#119),
 # and the optional readOnly (WorkCardSummary, WorkCardDetail, WorkGoal) and detail (WorkCardSummary) fields that
-# lina#481 adds (lina-app#149).
+# lina#481 adds (lina-app#149),
+# and the optional detail-only plain.history (PlainHistoryLine, PlainDetailLines) the core adds for G138 (lina-app#269).
 # Work endpoints the app reads: goals, work cards, their worker runs and the owner inbox.
 # Served by plugins/kanban/dashboard/work_api.py under /api/plugins/kanban/work, behind the
 # dashboard auth gate (session token). lina-app's scripts/generate-client.mjs can point
@@ -192,6 +193,51 @@ components:
           type: string
           nullable: true
           maxLength: 80
+    PlainHistoryLine:
+      type: object
+      additionalProperties: false
+      description: >
+        One step of a card's history (G138): a now line the card moved past, as one past-tense sentence. Checked as
+        the now line is, plus the past-tense check: at most 40 letters, one sentence, no English word, number, path,
+        hash, device name or worker id, and no bot's name as its subject.
+      required: [at, until, text]
+      properties:
+        at:
+          type: integer
+          description: When that now line started (when its writer stored it), epoch seconds.
+        until:
+          type: integer
+          nullable: true
+          description: When it changed to another sentence, epoch seconds; null when backfilled or for the last line.
+        text:
+          type: string
+          maxLength: 40
+    PlainDetailLines:
+      type: object
+      additionalProperties: false
+      description: >
+        A card detail's checked lines: the list row's PlainLines plus its history (G138). The list response keeps
+        PlainLines.
+      required: [title, now, result]
+      properties:
+        title:
+          type: string
+          nullable: true
+          maxLength: 25
+        now:
+          type: string
+          nullable: true
+          maxLength: 60
+        result:
+          type: string
+          nullable: true
+          maxLength: 80
+        history:
+          type: array
+          maxItems: 40
+          description: The card's steps, newest first, at most 40. Missing or empty when the core has none.
+          items:
+            $ref: "#/components/schemas/PlainHistoryLine"
     WorkCardSummary:
       type: object
       additionalProperties: false
@@ -374,7 +420,7 @@ components:
           nullable: true
           maxLength: 120
         plain:
-          $ref: "#/components/schemas/PlainLines"
+          $ref: "#/components/schemas/PlainDetailLines"
         endedAt:
           type: integer
           nullable: true

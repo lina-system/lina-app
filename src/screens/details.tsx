@@ -1055,7 +1055,6 @@ export function CardScreen({ id }: { id: string }) {
   const records = workerRuns.flatMap((worker) => store.get("record", worker.id)?.comments ?? []);
   const ownerId = store.get("items")?.owner?.id;
   const commentLines = cardCommentLines(detail.comments, records, ownerId);
-  const recordFailed = workerRuns.some((worker) => store.status("record", worker.id) === "failed");
   const lines = roundLines(rounds);
   const foldLine = model.home.finished.rows.find((line) => line.fold?.some((card) => card.id === id));
   const fold = foldLine?.fold;
@@ -1140,13 +1139,14 @@ export function CardScreen({ id }: { id: string }) {
           <Timeline
             runs={workerRuns.map((worker) => worker.id).filter((runId) => !pending || landed.has(runId))}
             boxed
+            history={detail.plain.history ?? []}
             doing={doing?.text ?? null}
             live={(runId) => runLive(model, runId)}
             link={(runId, n, at) => workerLink(roundRun(runId, n, at))}
             modelRun={roundRun}
             fallback={
               workerRuns.length ? (
-                <Box title={recordFailed ? undefined : W.record} testid="worker-runs">
+                <Box testid="worker-runs">
                   {/* A round's own line is its content, its ids cut; rounds whose line would show a path or a command are no
                       comment: each run of them is one folded 이전 기록 N건 row, their worker runs inside (lina-app#157, #161). */}
                   {roundGroups(rounds, lines).map((group) =>

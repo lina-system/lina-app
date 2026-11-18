@@ -70,6 +70,8 @@ for (const { kind, list, row: rowSelector, prepare, inside } of KINDS) {
 
     const frame = page.getByTestId("detail-frame");
     if (inside) {
+      // k-101 has no steps (G138): its rounds sit in its closed 이전 기록 fold, opened first as a reader does.
+      await frame.getByTestId("earlier-records-head").click();
       await frame.locator(inside).first().click();
       await expect(frame.getByTestId("screen-run")).toBeVisible();
     }

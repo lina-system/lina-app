@@ -15,6 +15,14 @@ test("the core's now line stands only as one sentence of 40 letters or fewer wit
     expect(nowMayShow(line), line).toBe(false);
 });
 
+test("a now or history line with a change number, an address or the hub machine's old name is refused, as the core's check_now (G138)", () => {
+  // The core brief's own sentences; the owner's Korean machine names and a dated or counted number pass.
+  for (const line of ["34·36·37·39번 변경을 메인에 합침", "주문 기능을 마지막 44번 변경까지 메인에 합침", "허브맥 접속이 끊겨 일을 쉬고 재로그인을 기다림", "허브 맥 재부팅 시험 승인을 기다리는 중", "변경 12를 되돌림", "커밋 3을 다시 읽음", "가짜 기기 10.0.0.1에 다시 접속함"])
+    expect(nowMayShow(line), line).toBe(false);
+  for (const line of ["리나맥 관리자 실행과 권한 허용을 기다리는 중", "리나허브 오씨엑스 홈을 한 번 재시작하고 준비 상태 확인함", "옛 허브 맥 폐기 확정을 반영함", "11-10·11-11·11-17 계획 수치를 정정했다", "5개 항목을 확인함"])
+    expect(nowMayShow(line), line).toBe(true);
+});
+
 test("a card's top line reads the core's now line first, else the wait its state says, else none", () => {
   expect(cardNow({ ...going, plain: plain("가짜 목록 셋을 차례로 맞추는 중") })).toEqual({ text: "가짜 목록 셋을 차례로 맞추는 중", from: "plain" });
   // Over 40 letters: no now line, so the state's words.

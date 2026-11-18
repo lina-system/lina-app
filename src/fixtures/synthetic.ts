@@ -312,7 +312,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     { id: "r6", title: "index-structure benchmark v2", state: "waiting", reason: "review", agent: agentId(1), kind: "research", todo: null, host: machines[0], startedAt: now - 6 * HOUR, endedAt: now - 5 * HOUR, now: null, plain: plain("색인 구조 다시 비교", null, "새 색인이 느린 질의에서 두 배 빠름") },
     { id: "r7", title: "guide-draft.md pass", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: null, host: machines[1], startedAt: now - 50 * MIN, endedAt: now - 30 * MIN, now: null, plain: plain("가이드 초안 다듬기", null, "용어 표를 맨 앞으로 옮김") },
     { id: "r8", title: "guide-draft.md pass", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: null, host: machines[0], startedAt: now - 2 * DAY - 40 * MIN, endedAt: now - 2 * DAY, now: null, plain: plain("가이드 초안 다듬기", null, "첫 화면 설명을 세 문장으로 줄임") },
-    { id: "r9", title: "release-notes: collect merged PRs (round 1)", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[0], startedAt: now - 3 * HOUR, endedAt: now - 2 * HOUR - 40 * MIN, now: null, plain: plain("변경 목록 모으기", null, "병합된 변경 41개를 모음") },
+    { id: "r9", title: "release-notes: collect merged PRs (round 1)", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[0], startedAt: now - 3 * HOUR, endedAt: now - 2 * HOUR - 40 * MIN, now: null, plain: plain("변경 목록 모으기", null, "병합된 변경을 41개 모음") },
     { id: "r10", title: "release-notes: collect merged PRs (round 2)", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[1], startedAt: now - HOUR, endedAt: now - 40 * MIN, now: null, plain: plain("변경 목록 모으기", null, "문서만 바뀐 변경을 따로 묶음") },
   ] satisfies Omit<RunCard, "model" | "settingsRevision">[]).map((run): RunCard => ({ ...run, ...modelFields(run.id) }));
 
@@ -1219,7 +1219,7 @@ function records(now: number): Record<string, RunRecord> {
           rows: [row(now - 45 * MIN, "comment", "변경마다 한 줄 요약을 붙여 주세요")],
         },
         // Round 1 (r9's): its start fell out of the kept history; it ends where r9 ends.
-        { run: null, startedAt: null, endedAt: now - 2 * HOUR - 40 * MIN, endKnown: true, startUnknown: true, result: "병합된 변경 41개를 모음", verdict: null, stopped: false, rows: [] },
+        { run: null, startedAt: null, endedAt: now - 2 * HOUR - 40 * MIN, endKnown: true, startUnknown: true, result: "병합된 변경을 41개 모음", verdict: null, stopped: false, rows: [] },
       ],
       comments: [row(now - 90 * MIN, "comment", "문서만 바뀐 변경은 따로 묶어 주세요."), row(now - 25 * MIN, "comment", "변경 목록은 표로 보여 주세요")],
       errors: [],

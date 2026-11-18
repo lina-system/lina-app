@@ -290,13 +290,17 @@ export function timelineBlocks(records: readonly { readonly id: string; readonly
   return merged;
 }
 
-/** A closed round's verdict as a small mark beside a card's history line (G138): its outcome, how many rounds it stands for, and the first round's run, number and time for its link. */
+/**
+ * A closed round's verdict as a small mark beside a card's history line (G138): its outcome, how many rounds it stands for,
+ * the first round's run, number and time for its link, and the newest of their ends, the time the mark reads.
+ */
 export interface HistoryMark {
   readonly outcome: Exclude<Outcome, "going">;
   readonly count: number;
   readonly runId: string;
   readonly n: number;
   readonly at: number;
+  readonly last: number;
 }
 
 /** One line of a card's history (G138): the time its step started and the one sentence of what it did, with the verdicts of the rounds that ended in it. */
@@ -339,9 +343,9 @@ export function cardHistory(history: readonly PlainHistoryLine[] | null | undefi
         return;
       }
       const same = line.marks.findIndex((mark) => mark.outcome === outcome);
-      const mark = { outcome, count: 1, runId: id, n: round.run ?? record.rounds.length - index, at: end };
+      const mark = { outcome, count: 1, runId: id, n: round.run ?? record.rounds.length - index, at: end, last: end };
       if (same < 0) line.marks.push(mark);
-      else line.marks[same] = { ...line.marks[same], count: line.marks[same].count + 1 };
+      else line.marks[same] = { ...line.marks[same], count: line.marks[same].count + 1, last: Math.max(line.marks[same].last, end) };
     });
   return { lines: lines.map(({ at, text, marks }) => ({ at, text, marks })), folded: folded.sort((a, b) => b.at - a.at) };
 }

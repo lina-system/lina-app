@@ -138,7 +138,8 @@ function FoldedRows({ rows: given }: { rows: readonly TimelineRow[] }) {
 
 /**
  * A card's history line (G138): `time · what it did`, then the verdicts of the rounds that ended in it as small marks,
- * each the link to its round's worker run when there is one to open.
+ * each the link to its round's worker run when there is one to open. A mark reads its round's end time before its word
+ * (W.mark, the newest end for `×n`), so it reads as that round's event and never as the card's state now.
  */
 function HistoryLine({ line, link }: { line: CardHistoryLine; link: (runId: string, n: number, at: number) => string | null }) {
   const { now } = useApp();
@@ -147,7 +148,7 @@ function HistoryLine({ line, link }: { line: CardHistoryLine; link: (runId: stri
       <span class="timeline-text">{timed(line.at, line.text, now)}</span>
       {line.marks.map((mark) => {
         const href = link(mark.runId, mark.n, mark.at);
-        const word = `${W.outcome[mark.outcome]}${mark.count > 1 ? ` ${W.repeated(mark.count)}` : ""}`;
+        const word = `${clockAt(mark.last, now)} ${W.mark[mark.outcome]}${mark.count > 1 ? ` ${W.repeated(mark.count)}` : ""}`;
         return href ? (
           <a key={`${mark.outcome}:${mark.at}`} class="timeline-mark" href={href} onClick={linkClick} data-testid="history-mark" data-outcome={mark.outcome}>
             {word}

@@ -368,6 +368,11 @@ export const W = {
   result: "결과",
   outcome: { accepted: "검토 통과", rejected: "검토 필요", stopped: "중단됨", ended: "완료", unknown: "완료 기록 없음", going: "진행 중" },
   /** A closed round's one sentence when nothing it left stands whole (criterion 2): what its outcome says, never its word alone. */
+  /**
+   * A closed round's verdict as a mark beside a card's history line (G138), after its time: that round's event, so never a
+   * word a card's state or reason reads (중단됨, 완료, 검토 필요), which would read as the card's state now.
+   */
+  mark: { accepted: "검토 통과", rejected: "검토 지적", stopped: "작업 중단", ended: "작업 완료", unknown: "완료 기록 없음" },
   outcomeSaid: { accepted: "검토를 통과했다", rejected: "검토를 통과하지 못했다", stopped: "작업이 중단됐다", ended: "작업을 마쳤다", unknown: "완료 기록이 없다" },
   yesterday: "어제",
 

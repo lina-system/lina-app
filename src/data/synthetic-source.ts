@@ -697,10 +697,13 @@ export const ROUND26 = {
   done: { id: "k-481", title: "가짜 알림 묶음 정리", run: "w-4811", history: ["가짜 정리 결과를 카드에 남김", "고친 묶음을 다시 검토받아 통과함", "검토에서 받은 지적 둘을 고침", "가짜 알림 묶음을 넷으로 나눔", "가짜 알림 목록을 처음부터 읽음"] },
   /** A card from before the core kept steps: no history, its record's verdict rounds only. */
   old: { id: "k-482", title: "가짜 옛 보고 옮기기", run: "w-4821" },
-  /** Stopped cards: one with one step, one with none. */
+  /**
+   * Stopped cards: one with one step, one with none. `refused` are older steps the core's check_now refuses (a change
+   * number, the hub machine's old name, G138): they fold, so the first reads one line still.
+   */
   stops: [
-    { id: "k-483", title: "가짜 배포 자리 바꾸기", reason: "decision", now: "가짜 배포 승인을 기다리는 중", history: ["가짜 배포 자리 둘을 비교해 정리함"] },
-    { id: "k-484", title: "가짜 연결 다시 잇기", reason: "feedback", now: null, history: [] },
+    { id: "k-483", title: "가짜 배포 자리 바꾸기", reason: "decision", now: "가짜 배포 승인을 기다리는 중", history: ["가짜 배포 자리 둘을 비교해 정리함"], refused: ["가짜 7·8번 변경을 메인에 합침", "허브맥 가짜 연결이 끊겨 다시 기다림"] },
+    { id: "k-484", title: "가짜 연결 다시 잇기", reason: "feedback", now: null, history: [], refused: [] },
   ],
 } as const;
 
@@ -736,7 +739,7 @@ export function round26Scene(scene: Scene): Scene {
     [going.id]: of(going, steps(R.going.history, 12, 12, false), worker(R.going.run, 50, 1)),
     [done.id]: of(done, steps(R.done.history, 70, 50, false), worker(R.done.run, 300, 60)),
     [old.id]: { ...of(old, [], worker(R.old.run, 29 * 60, 26 * 60)), plain: old.plain },
-    ...Object.fromEntries(stops.map((stop, index) => [stop.id, of(stop, steps(R.stops[index].history, (index + 2) * 60 + 30, 40, true), [])])),
+    ...Object.fromEntries(stops.map((stop, index) => [stop.id, of(stop, steps([...R.stops[index].history, ...R.stops[index].refused], (index + 2) * 60 + 30, 40, true), [])])),
   };
   const records = {
     // Going: a round that passed review ended inside its second newest step (24–12 minutes ago), and the round going now.
@@ -840,8 +843,8 @@ export function longCardScene(scene: Scene): Scene {
     rounds:
       index === runs.length - 1
         ? []
-        : [{ run: 1, startedAt: start, endedAt: start + 15 * 60, endKnown: true, startUnknown: false, result: `가상 묶음 ${index + 1}번을 정리했다.`, verdict: "accepted", stopped: false, rows: [{ at: start + 5 * 60, kind: "said", text: `가상 묶음 ${index + 1}번의 줄을 다시 읽었다.`, count: 1 }] }],
-    comments: index % 5 === 0 ? [{ at: start + 10 * 60, kind: "comment", text: `가상 묶음 ${index + 1}번 메모를 남겼다.`, count: 1 }] : [],
+        : [{ run: 1, startedAt: start, endedAt: start + 15 * 60, endKnown: true, startUnknown: false, result: `가상 묶음 ${index + 1}개를 정리했다.`, verdict: "accepted", stopped: false, rows: [{ at: start + 5 * 60, kind: "said", text: `가상 묶음 ${index + 1}개의 줄을 다시 읽었다.`, count: 1 }] }],
+    comments: index % 5 === 0 ? [{ at: start + 10 * 60, kind: "comment", text: `가상 묶음 ${index + 1}개에 메모를 남겼다.`, count: 1 }] : [],
     errors: [],
   }));
   return {

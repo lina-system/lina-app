@@ -117,7 +117,7 @@ describe("history rows (lina-app#123)", () => {
     const heads = view.getAllByTestId("timeline-block").map((block) => block.querySelector(".timeline-head")?.textContent ?? "");
     const rounds = heads.filter((head) => head !== "댓글");
     for (const head of rounds) expect(head).toMatch(EVENT);
-    expect(rounds).toContainEqual(expect.stringMatching(new RegExp(`^${TIME} · 완료 · 병합된 변경 41개를 모음$`)));
+    expect(rounds).toContainEqual(expect.stringMatching(new RegExp(`^${TIME} · 완료 · 병합된 변경을 41개 모음$`)));
     // Every line under a head is one line too: a comment row carries no author line of its own.
     for (const row of view.getByTestId("timeline").querySelectorAll("li.timeline-row")) expect(row.textContent).toMatch(EVENT);
   });

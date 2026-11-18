@@ -46,11 +46,11 @@ async function whole(page: Page, id: string, lines: readonly string[], marks: re
 }
 
 test("a going card's record reads its steps, the verdict a mark beside the step its round ended in", async ({ page }, info) => {
-  await whole(page, "k-480", ["가짜 안내 문구 셋을 고쳐 씀", "가짜 검사 넷을 돌려 모두 통과함", "가짜 안내 화면의 빈칸을 찾음"], [[], ["검토 통과"], []], info);
+  await whole(page, "k-480", ["가짜 안내 문구 셋을 고쳐 씀", "가짜 검사 넷을 돌려 모두 통과함", "가짜 안내 화면의 빈칸을 찾음"], [[], [`${TIME} 검토 통과`], []], info);
 });
 
 test("a finished card's record reads its five steps and two verdict marks", async ({ page }, info) => {
-  await whole(page, "k-481", ["가짜 정리 결과를 카드에 남김", "고친 묶음을 다시 검토받아 통과함", "검토에서 받은 지적 둘을 고침", "가짜 알림 묶음을 넷으로 나눔", "가짜 알림 목록을 처음부터 읽음"], [[], ["검토 통과"], [], ["검토 필요"], []], info);
+  await whole(page, "k-481", ["가짜 정리 결과를 카드에 남김", "고친 묶음을 다시 검토받아 통과함", "검토에서 받은 지적 둘을 고침", "가짜 알림 묶음을 넷으로 나눔", "가짜 알림 목록을 처음부터 읽음"], [[], [`${TIME} 검토 통과`], [], [`${TIME} 검토 지적`], []], info);
 });
 
 test("a card with no steps reads one closed 이전 기록 fold, its old lines hidden until it opens", async ({ page }, info) => {

@@ -2802,7 +2802,7 @@ describe("work cards", () => {
     expect(links.map((link) => link.textContent)).toEqual([
       expect.stringMatching(/^(어제 )?\d\d:\d\d · 진행 중 · 변경마다 한 줄 요약을 붙이는 중$/),
       expect.stringMatching(/^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/),
-      expect.stringMatching(/^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/),
+      expect.stringMatching(/^(어제 )?\d\d:\d\d · 완료 · 병합된 변경을 41개 모음$/),
     ]);
     // r1, r10 and r9 by their place among k-101's worker runs (lina-app#238).
     expect(links.map((link) => link.getAttribute("href"))).toEqual(["#/cards/k-101/runs/3", "#/cards/k-101/runs/2", "#/cards/k-101/runs/1"]);
@@ -3020,7 +3020,7 @@ describe("the run's own timeline", () => {
     expect(titles[0]).toMatch(/^(어제 )?\d\d:\d\d · 진행 중 · 변경마다 한 줄 요약을 붙이는 중$/);
     expect(titles[1]).toMatch(/^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/);
     // No start on record: the end alone, no dangling dash; the dim line below says the start is missing.
-    expect(titles[2]).toMatch(/^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/);
+    expect(titles[2]).toMatch(/^(어제 )?\d\d:\d\d · 완료 · 병합된 변경을 41개 모음$/);
     expect(titles.join("\n")).not.toMatch(/ –|^–/m);
   });
 
@@ -3047,7 +3047,7 @@ describe("the run's own timeline", () => {
     const blocks = view.getAllByTestId("timeline-block");
     expect(blocks[2].querySelector("[data-testid=timeline-no-start]")?.textContent).toBe("시작 기록 없음");
     // The round's result is its head's sentence: one line, no second result line (lina-app#142).
-    expect(blocks[2].querySelector(".timeline-head")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/);
+    expect(blocks[2].querySelector(".timeline-head")?.textContent).toMatch(/^(어제 )?\d\d:\d\d · 완료 · 병합된 변경을 41개 모음$/);
     expect(blocks[2].querySelector("[data-testid=timeline-result]")).toBeNull();
     // The owner's requests between rounds read in the 댓글 box, newest first, one time · sentence line each (lina-app#171).
     const comments = within(view.getByTestId("card-comments")).getAllByTestId("history-row");
@@ -3654,7 +3654,7 @@ describe("a card's detail (lina-app#128)", () => {
     const lines = [...rounds, ...[...timeline.querySelectorAll("li.timeline-row")].map((row) => row.textContent ?? "")];
     expect(lines.length).toBeGreaterThan(5);
     for (const line of lines) expect(line).toMatch(EVENT);
-    expect(lines).toContainEqual(expect.stringMatching(new RegExp(`^${TIME} · 완료 · 병합된 변경 41개를 모음$`)));
+    expect(lines).toContainEqual(expect.stringMatching(new RegExp(`^${TIME} · 완료 · 병합된 변경을 41개 모음$`)));
   });
 
   test("a finished run outside any card lists its past events newest first: what it left, then started", async () => {

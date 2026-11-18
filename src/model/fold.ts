@@ -390,16 +390,23 @@ export function historySentences(text: string | null | undefined, { opens = fals
 
 /** How long the core's now line may be to stand as a card's top line: one short line at 390 (G138). The core's own cap is 60. */
 const NOW_LETTERS = 40;
+/**
+ * What the core's check_now refuses in a checked line (G138), the same patterns: a change, issue or commit number
+ * (`34·36번 변경`, `변경 44`), an IPv4 address, and the hub machine's old name unless it is named as the old one (`옛 허브 맥`).
+ * The owner's own Korean names for machines (리나허브, 리나맥) stay.
+ */
+const NOW_REFUSED = [/[0-9]+\s*번/u, /(?:이슈|변경|커밋|풀 리퀘스트)\s*[0-9]+/u, /[0-9]{1,3}(?:\.[0-9]{1,3}){3}/u, /허브맥|(?<!옛 )허브 맥/u];
 
 /**
  * Whether the core's checked now line (`plain.now`) may stand as a card's top line (G138): one sentence of at most 40
  * letters, on one line, that the one gate passes (unitMayShow: no Latin letter, so no English word or worker id; no ref,
- * so no card id or issue number) and that holds no path, command, address or hash. A line that fails is no now line.
+ * so no card id or issue number) and that holds no path, command, address or hash, nor what the core refuses (NOW_REFUSED).
+ * A line that fails is no now line.
  */
 export function nowMayShow(line: string): boolean {
   const text = line.trim();
   if (!text || [...text].length > NOW_LETTERS || text.includes("\n") || text.split(PIECES).length > 1 || INTERNAL.test(text)) return false;
-  if (RULES.some(([reason, rule]) => reason !== "fragment" && rule.test(text))) return false;
+  if (RULES.some(([reason, rule]) => reason !== "fragment" && rule.test(text)) || NOW_REFUSED.some((rule) => rule.test(text))) return false;
   return unitMayShow(text);
 }
 

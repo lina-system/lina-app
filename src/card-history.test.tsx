@@ -5,7 +5,7 @@ import { App } from "./app";
 import { Store } from "./data/store";
 import { ROUND26, SyntheticSource } from "./data/synthetic-source";
 import { cardHistory } from "./model/timeline";
-import { W } from "./words";
+import { REASON_WORDS, STATE_WORDS, W } from "./words";
 
 // G138, lina-app#269 (the hub's card records, 11-18): a card's 기록 read `검토를 통과했다` and `검토 통과 ×3 · ...`, its
 // rounds' verdicts, and never what each step did. Its lines are now the core's steps (`plain.history`), `time · what it
@@ -45,7 +45,7 @@ test("(b) a round's verdict is a mark beside the step it ended in, and one with 
   const { view } = open(ROUND26.done.id);
   await waitFor(() => expect(view.getAllByTestId("history-mark")).toHaveLength(2));
   const marks = view.getAllByTestId("history-line").map((line) => [...line.querySelectorAll("[data-testid=history-mark]")].map((mark) => mark.textContent));
-  expect(marks).toEqual([[], [W.outcome.accepted], [], [W.outcome.rejected], []]);
+  expect(marks.map((each) => each.map((mark) => mark?.replace(new RegExp(`^${TIME} `), "")))).toEqual([[], [W.mark.accepted], [], [W.mark.rejected], []]);
   const { lines, folded } = cardHistory([step(30, "가짜 표를 다시 맞춤", 10), step(60, "가짜 표를 처음 읽음", 30)], records([round(2, NOW - 20 * 60, "accepted"), round(1, NOW - 90 * 60, "rejected")]), () => false, NOW);
   expect(lines.map((line) => line.marks.map((mark) => mark.outcome))).toEqual([["accepted"], []]);
   expect(folded.map((row) => row.source)).toEqual([W.outcomeSaid.rejected]);
@@ -59,6 +59,33 @@ test("(c) a step with a Latin word or over 40 letters is no line and folds as wr
   const { lines, folded } = cardHistory([step(10, latin), step(20, longer), step(30, long)], [], () => false, NOW);
   expect(lines.map((line) => line.text)).toEqual([long]);
   expect(folded.map((row) => [row.text, row.source])).toEqual([[null, latin], [null, longer]]);
+});
+
+test("(g) a step with a change number or the hub machine's old name is no line and folds; the owner's machine names stay (G138)", async () => {
+  const refused = ["34·36·37·39번 변경을 메인에 합침", "허브 맥 재부팅 시험 승인을 기다리는 중"];
+  const { lines, folded } = cardHistory([step(10, "리나허브 준비 상태를 확인함", 5), step(20, refused[0], 10), step(30, refused[1], 20), step(40, "옛 허브 맥 폐기 확정을 반영함", 30)], [], () => false, NOW);
+  expect(lines.map((line) => line.text)).toEqual(["리나허브 준비 상태를 확인함", "옛 허브 맥 폐기 확정을 반영함"]);
+  expect(folded.map((row) => [row.text, row.source])).toEqual(refused.map((text) => [null, text]));
+  // The synthetic scene's stopped card holds one of each: its record reads its one step, the two in its folded line.
+  const [stop] = ROUND26.stops;
+  const { view } = open(stop.id);
+  await waitFor(() => expect(view.getAllByTestId("history-line")).toHaveLength(1));
+  expect(texts(view)).toEqual([...stop.history]);
+  const record = view.getByTestId("timeline").textContent ?? "";
+  for (const text of stop.refused) expect(record).not.toContain(text);
+});
+
+test("(h) a verdict mark reads its round's end time and a word of that round, never a card's state word", async () => {
+  for (const word of Object.values(W.mark)) expect([...STATE_WORDS, ...REASON_WORDS], word).not.toContain(word);
+  const { view } = open(ROUND26.done.id);
+  await waitFor(() => expect(view.getAllByTestId("history-mark")).toHaveLength(2));
+  for (const mark of view.getAllByTestId("history-mark")) {
+    expect(mark.textContent).toMatch(new RegExp(`^${TIME} \\S`));
+    expect(STATE_WORDS).not.toContain(mark.textContent?.replace(new RegExp(`^${TIME} `), ""));
+  }
+  // Three rounds sent back in one step are one mark at the newest end.
+  const { lines } = cardHistory([step(60, "가짜 표를 세 번 고침")], records([round(3, NOW - 10 * 60, "rejected"), round(2, NOW - 20 * 60, "rejected"), round(1, NOW - 30 * 60, "rejected")]), () => false, NOW);
+  expect(lines[0].marks.map((mark) => [mark.count, mark.last])).toEqual([[3, NOW - 10 * 60]]);
 });
 
 test("(d) a card with no steps has no record line: its old record is one 이전 기록 fold, closed", async () => {

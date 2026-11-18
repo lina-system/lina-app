@@ -623,6 +623,72 @@ export function nowScene(scene: Scene): Scene {
   return { ...scene, cards: { ...scene.cards, cards: [...scene.cards.cards, ...cards] }, cardDetails: { ...scene.cardDetails, ...details }, records: { ...scene.records, ...records }, inbox: { ...scene.inbox, questions: [...scene.inbox.questions, question, hubQuestion] } };
 }
 
+/** The made-up ids and words of `&hub=round25` (lina-app#269). */
+export const ROUND25 = {
+  /** A finished card whose record holds verdict rounds, with bots' comments made as they ended. */
+  card: "k-470",
+  cardTitle: "가짜 기록 판정 정리",
+  run: "w-4701",
+  /** The one round report that stands after its verdict: a short Korean sentence that says what came of it. */
+  shown: "가짜 보고 화면을 다시 읽고 고쳤다.",
+  /** Round reports that fold: Latin words and a handle, a sentence longer than a now line, Latin words again. */
+  latin: "fake-review 요청함, `@fake-bot` 확인 대기.",
+  long: "가짜 시험 넷을 모두 통과했고 넓은 폭과 좁은 폭에서 화면 둘을 다시 찍어 맞추었다.",
+  rejected: "가짜 1차 run 결과를 읽고 reject했다.",
+  /** Bots' comments on the card made as rounds ended: one with Latin words and a device's name, short Korean ones. */
+  noteLatin: "fake-mac에서 Playwright로 다시 확인함.",
+  noteKorean: ["가짜 검사를 모두 통과했다.", "가짜 정리를 마쳤다.", "가짜 묶음을 다시 나눴다."],
+  /** The record's own comments between three rounds that left nothing: the card draws them in its 댓글 box. */
+  between: ["가짜 진행 메모를 남겼다.", "가짜 진행 메모를 다시 남겼다."],
+  /** Stopped cards with the core's checked now line, one stopped card with none, and a waiting card with one. */
+  stops: [
+    { id: "k-471", title: "가짜 기기 다시 켜기", reason: "decision", now: "가짜 기기 재시작 승인을 기다리는 중" },
+    { id: "k-472", title: "가짜 보고 화면 내보내기", reason: "feedback", now: "가짜 화면 배포 확인을 기다리는 중" },
+    { id: "k-473", title: "가짜 로그인 연결하기", reason: "decision", now: "가짜 로그인 승인과 앱 다시 로그인을 기다리는 중" },
+    { id: "k-474", title: "가짜 백업 자리 옮기기", reason: "decision", now: null },
+  ],
+  waiting: { id: "k-475", title: "가짜 검사 다시 돌리기", reason: "review", now: "가짜 검사 결과를 기다리는 중" },
+} as const;
+
+/**
+ * The hub's shapes of lina-app#269 (`&hub=round25`), in made-up words (ROUND25). k-470, a finished card whose one worker
+ * run's record holds seven verdict rounds, newest first: one whose report is a short Korean sentence, one whose report
+ * holds Latin words and a handle with a bot's comment in Latin and a device's name made as it ended, one rejected whose
+ * report is longer than a now line with a Korean comment after it, three accepted that left nothing, with the record's own
+ * comments between them and Korean comments after them, and one rejected whose report holds Latin words. And four
+ * stopped cards, three with the core's checked now line and one with none, and a waiting card with one.
+ */
+export function round25Scene(scene: Scene): Scene {
+  const now = scene.now;
+  const hour = 3600;
+  const R = ROUND25;
+  const template = scene.cards.cards.find((card) => card.state === "in_progress");
+  const detail = scene.cardDetails[template?.id ?? ""];
+  const agents = scene.items.agents.map((agent) => agent.id);
+  if (!template || !detail || agents.length < 2) return scene;
+  const card = (id: string, title: string, fields: Partial<SceneCard>, plainNow: string | null = null): SceneCard =>
+    ({ ...template, id, title, goalTitle: null, agent: agents[0], plain: { title, now: plainNow, result: null }, reason: null, waitingOn: null, retry: null, ask: null, now: null, todoProgress: { done: 0, total: 0 }, readOnly: true, endedAt: null, ...fields }) as SceneCard;
+  // Round n ends n hours ago (round 1 the oldest, 7 hours ago); each takes 40 minutes.
+  const round = (run: number, verdict: "accepted" | "rejected", result: string | null): RunRecord["rounds"][number] => {
+    const endedAt = now - (8 - run) * hour;
+    return { run, startedAt: endedAt - 40 * 60, endedAt, endKnown: true, startUnknown: false, result, verdict, stopped: false, rows: [] };
+  };
+  const endOf = (run: number) => now - (8 - run) * hour;
+  const rounds = [round(7, "accepted", R.shown), round(6, "accepted", R.latin), round(5, "rejected", R.long), round(4, "accepted", null), round(3, "accepted", null), round(2, "accepted", null), round(1, "rejected", R.rejected)];
+  const comment = (id: number, body: string, at: number) => ({ id, author: agents[0], body, createdAt: at });
+  const comments = [comment(4706, R.noteLatin, endOf(6) + 60), comment(4705, R.noteKorean[0], endOf(5) + 60), comment(4704, R.noteKorean[1], endOf(4) + 60), comment(4703, R.noteKorean[2], endOf(3) + 60)];
+  const done = card(R.card, R.cardTitle, { state: "done", elapsedSeconds: 7 * hour, endedAt: endOf(7), lastHeartbeatAt: endOf(7) });
+  const doneDetail = { ...detail, id: done.id, title: done.title, agent: done.agent, state: done.state, reason: null, plain: done.plain, now: null, elapsedSeconds: done.elapsedSeconds, lastHeartbeatAt: done.lastHeartbeatAt, endedAt: done.endedAt, readOnly: true, todoProgress: done.todoProgress, todos: [], gates: [], runs: [], comments, workerRuns: [{ id: R.run, kind: "lina-worker" as const, firstSeenAt: endOf(1) - hour, lastSeenAt: endOf(7) }] } satisfies WorkCardDetail;
+  const record: RunRecord = { ...scene.records.r1, id: R.run, cardId: R.card, at: endOf(7), rounds, comments: R.between.map((text, index) => ({ at: endOf(3 - index) + 30 * 60, kind: "comment" as const, text, count: 1 })), errors: [] };
+  const stops = R.stops.map((stop, index) => card(stop.id, stop.title, { agent: agents[index % 2], state: "stopped", reason: stop.reason, waitingOn: "owner", retry: "none", elapsedSeconds: (index + 1) * 86_400, lastHeartbeatAt: now - (index + 1) * 86_400 }, stop.now));
+  const waiting = card(R.waiting.id, R.waiting.title, { agent: agents[1], state: "waiting", reason: R.waiting.reason, elapsedSeconds: 2 * hour, lastHeartbeatAt: now - hour }, R.waiting.now);
+  const cards = [done, ...stops, waiting];
+  const details = Object.fromEntries(
+    [...stops, waiting].map((each) => [each.id, { ...detail, id: each.id, title: each.title, agent: each.agent, state: each.state, reason: each.reason, plain: each.plain, now: each.now, elapsedSeconds: each.elapsedSeconds, lastHeartbeatAt: each.lastHeartbeatAt, endedAt: null, readOnly: true, todoProgress: each.todoProgress, todos: [], gates: [], runs: [], comments: [], workerRuns: [] } satisfies WorkCardDetail]),
+  );
+  return { ...scene, cards: { ...scene.cards, cards: [...scene.cards.cards, ...cards] }, cardDetails: { ...scene.cardDetails, ...details, [R.card]: doneDetail }, records: { ...scene.records, [R.run]: record } };
+}
+
 function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
   switch (name) {
     case "board":
@@ -1050,7 +1116,7 @@ export class SyntheticSource implements Source {
   private readonly signing = new Set<string>();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; hubRound23?: boolean; hubRound24?: boolean; hubNow?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean; serialRecordMs?: number | null; longCard?: boolean } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; hubRound23?: boolean; hubRound24?: boolean; hubRound25?: boolean; hubNow?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean; serialRecordMs?: number | null; longCard?: boolean } = {}) {
     this.slowRecords = options.slowRecords ?? false;
     this.serialRecordMs = options.serialRecordMs ?? null;
     this.staleNext = options.settings === "stale";
@@ -1076,7 +1142,7 @@ export class SyntheticSource implements Source {
         settings: options.settings === "stale" || options.settings === "race" ? null : options.settings,
         power: options.power,
       });
-    const scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : options.hubRound23 ? round23Scene(generated) : options.hubRound24 ? round24Scene(generated) : options.hubNow ? nowScene(round24Scene(generated)) : generated;
+    const scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : options.hubRound23 ? round23Scene(generated) : options.hubRound24 ? round24Scene(generated) : options.hubRound25 ? round25Scene(generated) : options.hubNow ? nowScene(round24Scene(generated)) : generated;
     this.scene = options.longCard ? longCardScene(scene) : scene;
   }
 

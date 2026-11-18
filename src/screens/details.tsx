@@ -7,7 +7,7 @@ import { foldReason, wholeText } from "../model/fold";
 import { plainText } from "../model/plain";
 import { holds } from "../model/rounds";
 import { stopReason } from "../model/stop-reason";
-import { answerOf, commentHistory, decisionHistory, goalHistory, historyLines, isMachineNotice, outcomeOf, ownerWrote, roundSentence, type RoundNote } from "../model/timeline";
+import { answerOf, commentHistory, decisionHistory, goalHistory, historyLines, isMachineNotice, outcomeOf, ownerWrote, roundResult, roundSentence } from "../model/timeline";
 import type { CardKind } from "../model/kind";
 import { isRunId, newestFirst, type Store } from "../data/store";
 import { back, baseOf, href, isFrame, navigate, parse, tabOf, type Route } from "../router";
@@ -610,12 +610,12 @@ export function roundHead(round: Round, now: number): string {
 }
 
 /**
- * Each round's own line as history reads it, newest first (lina-app#157, #236, criterion 2): its line whole (wholeText),
- * else the one sentence it or the bots' notes made as it ended read (roundSentence), else none.
+ * Each round's own line as history reads it, newest first (lina-app#157, #236, criterion 2): its line when it stands on
+ * it (roundResult), else the one sentence of it that does (roundSentence), else none: never a comment's (lina-app#269).
  */
-function roundLines(rounds: readonly Round[], notes: readonly RoundNote[]): Map<Round, string | null> {
+function roundLines(rounds: readonly Round[]): Map<Round, string | null> {
   const used = new Set<string>();
-  return new Map(rounds.map((round) => [round, (round.line === null ? null : wholeText(round.line)) ?? roundSentence({ result: round.line, said: [], start: round.startedAt, end: round.endedAt }, notes, used)]));
+  return new Map(rounds.map((round) => [round, roundResult(round.line) ?? roundSentence({ result: round.line, said: [] }, used)]));
 }
 
 /**
@@ -1056,9 +1056,7 @@ export function CardScreen({ id }: { id: string }) {
   const ownerId = store.get("items")?.owner?.id;
   const commentLines = cardCommentLines(detail.comments, records, ownerId);
   const recordFailed = workerRuns.some((worker) => store.status("record", worker.id) === "failed");
-  // The bots' comments on the card, which a closed round's line may read its sentence from (criterion 2).
-  const notes: RoundNote[] = detail.comments.filter((comment) => !ownerWrote(comment.author, ownerId) && !isMachineNotice(comment.body, comment.author, ownerId)).map((comment) => ({ at: comment.createdAt, text: comment.body }));
-  const lines = roundLines(rounds, notes);
+  const lines = roundLines(rounds);
   const foldLine = model.home.finished.rows.find((line) => line.fold?.some((card) => card.id === id));
   const fold = foldLine?.fold;
   const askHere = Boolean(ask && !readOnly && !everyQuestion.length && !answering(`answer:${id}`));
@@ -1142,7 +1140,6 @@ export function CardScreen({ id }: { id: string }) {
           <Timeline
             runs={workerRuns.map((worker) => worker.id).filter((runId) => !pending || landed.has(runId))}
             boxed
-            notes={notes}
             doing={doing?.text ?? null}
             live={(runId) => runLive(model, runId)}
             link={(runId, n, at) => workerLink(roundRun(runId, n, at))}

@@ -337,9 +337,10 @@ test("an owner's comment in a record is never read as a round's result", () => {
   expect(blocks.flatMap((block) => (block.type === "round" ? [[block.at, block.result]] : []))).toEqual([[1000, null]]);
 });
 
-// PR #260 review: two rounds of one worker run. A card comment made between them, after the first ended and before the
-// second began, is the first round's: the second's end-relative window must not take it.
-test("a note made before a round began is not read by that round, only by the one it followed (PR #260)", () => {
+// lina-app#269: a round's line reads only what the round itself left. Its report line in English with a device's name, or
+// longer than a now line, folds; a round with no sentence of its own reads its outcome alone, and two of them in a row
+// with the record's comments between them are one line when the card draws those comments in its own box.
+test("a round's sentence is its own short Korean one, and bare rounds of one verdict are one line around a comment block (lina-app#269)", () => {
   const record = {
     at: 2000,
     cardId: "k-1",
@@ -347,12 +348,32 @@ test("a note made before a round began is not read by that round, only by the on
     errors: [],
     model: null,
     settingsRevision: null,
-    comments: [],
-    rounds: [round({ run: 2, startedAt: 1080, endedAt: 1100, endKnown: true }), round({ run: 1, startedAt: 900, endedAt: 1000, endKnown: true })],
+    rounds: [
+      round({ run: 5, startedAt: 1700, endedAt: 1800, endKnown: true, verdict: "accepted", result: "가짜 화면 넷을 다시 읽고 고쳤다." }),
+      round({ run: 4, startedAt: 1500, endedAt: 1600, endKnown: true, verdict: "accepted", result: "fake-mac에서 Playwright로 다시 확인함." }),
+      round({ run: 3, startedAt: 1300, endedAt: 1400, endKnown: true, verdict: "accepted", result: `${"가".repeat(38)}를 고쳤다.` }),
+      round({ run: 2, startedAt: 1100, endedAt: 1200, endKnown: true, verdict: "accepted" }),
+      round({ run: 1, startedAt: 900, endedAt: 1000, endKnown: true, verdict: "rejected", result: "가짜 첫 판을 되돌렸다." }),
+    ],
+    comments: [
+      { at: 1450, kind: "comment", text: "가짜 검사를 통과했다.", count: 1 },
+      { at: 1250, kind: "comment", text: "가짜 검사를 다시 통과했다.", count: 1 },
+    ],
   } as unknown as RunRecord;
-  const blocks = timelineBlocks([{ id: "w1", record }], () => false, 3000, [{ at: 1050, text: "가짜 검사를 통과했다." }]);
-  expect(blocks.flatMap((block) => (block.type === "round" ? [[block.n, block.at, block.result]] : []))).toEqual([
-    [2, 1100, null],
-    [1, 1000, "가짜 검사를 통과했다."],
+  const heads = (comments: boolean) => timelineBlocks([{ id: "w1", record }], () => false, 3000, { comments }).map((block) => (block.type === "round" ? [block.n, block.outcome, block.count, block.result] : ["comment"]));
+  expect(heads(false)).toEqual([
+    [5, "accepted", 1, "가짜 화면 넷을 다시 읽고 고쳤다."],
+    [4, "accepted", 3, null],
+    [1, "rejected", 1, "가짜 첫 판을 되돌렸다."],
+  ]);
+  // A run's own page draws the comments between its rounds, so they stay apart there.
+  expect(heads(true)).toEqual([
+    [5, "accepted", 1, "가짜 화면 넷을 다시 읽고 고쳤다."],
+    [4, "accepted", 1, null],
+    ["comment"],
+    [3, "accepted", 1, null],
+    ["comment"],
+    [2, "accepted", 1, null],
+    [1, "rejected", 1, "가짜 첫 판을 되돌렸다."],
   ]);
 });

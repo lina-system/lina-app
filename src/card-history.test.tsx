@@ -90,7 +90,7 @@ test("(f) a step the card moves past while open is a new line on top, the lines 
   expect(view.getByTestId("card-now").textContent).toContain("가짜 화면을 카드에 올리는 중");
 });
 
-test("a stopped card with steps alone reads them, never 아직 기록 없음 above them (G138)", async () => {
+test("(P2-c) a stopped card with steps alone reads them, never 아직 기록 없음 above them (G138)", async () => {
   const source = new SyntheticSource({ now: NOW, hubRound26: true });
   const [, bare] = ROUND26.stops;
   source.scene.cardDetails[bare.id].plain.history = [step(90, "가짜 연결 상태를 다시 살핌")];
@@ -99,20 +99,32 @@ test("a stopped card with steps alone reads them, never 아직 기록 없음 abo
   expect(view.queryByTestId("card-nothing")).toBeNull();
 });
 
-test("a worker run going now that no step's mark links to stays a link under the steps, and a linked run is never drawn twice (G138)", async () => {
-  const linked = open(ROUND26.going.id);
-  await waitFor(() => expect(linked.view.getAllByTestId("history-mark")).toHaveLength(1));
-  expect(linked.view.queryAllByTestId("history-run")).toHaveLength(0);
-  linked.view.unmount();
-  // The same card with only its round going now: no verdict, so no mark links its worker run.
+/** The links to a card's worker run page in its 기록: open, or in the fold of its unlinked worker runs, one press away. */
+const runLinks = (view: ReturnType<typeof render>, id: string) =>
+  [...(view.getByTestId("timeline") as HTMLElement).querySelectorAll<HTMLAnchorElement>(`a[href="#/cards/${id}/runs/1"]`)].filter((link) => !link.closest("details:not([open])") || link.closest("details")?.matches("[data-testid=worker-fold]"));
+
+/** k-480 of `&hub=round26` (three steps) with its worker run's record holding only the rounds `keep` leaves. */
+function goingCard(keep: (round: RunRecord["rounds"][number]) => boolean) {
   const source = new SyntheticSource({ now: NOW, hubRound26: true });
   const record = source.scene.records[ROUND26.going.run];
-  record.rounds = record.rounds.filter((round) => round.endedAt === null);
-  const { view } = open(ROUND26.going.id, source);
-  await waitFor(() => expect(view.getAllByTestId("history-run")).toHaveLength(1));
-  expect(view.getAllByTestId("history-line")).toHaveLength(ROUND26.going.history.length);
+  record.rounds = record.rounds.filter(keep);
+  return open(ROUND26.going.id, source);
+}
+
+test("(P2-a) a card with steps whose worker run has only its round going now links that run's page once", async () => {
+  const linked = open(ROUND26.going.id);
+  await waitFor(() => expect(linked.view.getAllByTestId("history-mark")).toHaveLength(1));
+  expect(runLinks(linked.view, ROUND26.going.id)).toHaveLength(1);
+  linked.view.unmount();
+  const { view } = goingCard((round) => round.endedAt === null);
+  await waitFor(() => expect(view.getAllByTestId("history-line")).toHaveLength(ROUND26.going.history.length));
+  await waitFor(() => expect(runLinks(view, ROUND26.going.id)).toHaveLength(1));
   expect(view.queryAllByTestId("history-mark")).toHaveLength(0);
-  const run = view.getByTestId("history-run").querySelector("a")!;
-  expect(run.getAttribute("href")).toBe(`#/cards/${ROUND26.going.id}/runs/1`);
-  expect(run.textContent).toMatch(new RegExp(`^${TIME} · ${W.outcome.going}$`));
+});
+
+test("(P2-b) a card with steps whose worker run's record holds no round still links that run's page", async () => {
+  const { view } = goingCard(() => false);
+  await waitFor(() => expect(view.getAllByTestId("history-line")).toHaveLength(ROUND26.going.history.length));
+  await waitFor(() => expect(runLinks(view, ROUND26.going.id)).toHaveLength(1));
+  expect(view.queryByTestId("timeline-error")).toBeNull();
 });

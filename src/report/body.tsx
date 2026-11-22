@@ -168,18 +168,23 @@ function Lightbox({ images, at, onMove, onClose }: { images: readonly Shown[]; a
     close.current?.focus();
     return () => opener?.focus?.();
   }, []);
+  // The keys read the gallery as it is now, as the buttons do: an image that loads later changes the steps and the
+  // callbacks without moving the open image (lina-app#274).
+  const current = useRef({ prev, next, onMove, onClose });
+  current.current = { prev, next, onMove, onClose };
   useLayoutEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-      else if (event.key === "ArrowLeft" && prev !== null) onMove(prev);
-      else if (event.key === "ArrowRight" && next !== null) onMove(next);
+      const now = current.current;
+      if (event.key === "Escape") now.onClose();
+      else if (event.key === "ArrowLeft" && now.prev !== null) now.onMove(now.prev);
+      else if (event.key === "ArrowRight" && now.next !== null) now.onMove(now.next);
       else return;
       event.preventDefault();
       event.stopPropagation();
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [at, prev, next]);
+  }, []);
   return createPortal(
     <div class="report-lightbox" role="dialog" aria-modal="true" aria-label={image.caption || REPORT_WORD.image} data-testid="report-lightbox" onClick={(event) => event.target === event.currentTarget && onClose()}>
       <div class="report-lightbox-bar">

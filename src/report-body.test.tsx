@@ -253,3 +253,25 @@ describe("the large image's place", () => {
     expect(document.querySelector("[data-testid=report-lightbox]")).toBeNull();
   });
 });
+
+// lina-app#274 (Codex r4659640946): the large view's keys follow the gallery as it is now, like its buttons.
+test("after a middle image loads, ArrowRight from the first opens it, as the next button does", async () => {
+  const answers = new Map<number, (image: ReportImage) => void>();
+  const load = (position: number) => new Promise<ReportImage>((resolve) => answers.set(position, resolve));
+  const give = (position: number) => answers.get(position)?.({ ok: true, url: `/test-images/${position}.svg`, release() {} });
+  const view = body(['![가](images/0 "첫째")', "", '![나](images/1 "둘째")', "", '![다](images/2 "셋째")'].join("\n"), load);
+  await waitFor(() => expect(answers.size).toBe(3));
+  give(0);
+  give(2);
+  await waitFor(() => expect(view.container.querySelectorAll(".report-body img")).toHaveLength(2));
+  fireEvent.click(view.getByRole("button", { name: "그림 크게 보기: 첫째" }));
+  give(1);
+  await waitFor(() => expect(view.container.querySelectorAll(".report-body img")).toHaveLength(3));
+  const caption = () => document.querySelector("[data-testid=report-lightbox] .report-lightbox-caption")?.textContent;
+  fireEvent.keyDown(window, { key: "ArrowRight" });
+  expect(caption()).toBe("둘째");
+  fireEvent.keyDown(window, { key: "ArrowLeft" });
+  expect(caption()).toBe("첫째");
+  fireEvent.click(within(view.getByTestId("report-lightbox")).getByRole("button", { name: "다음 그림" }));
+  expect(caption()).toBe("둘째");
+});

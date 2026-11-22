@@ -795,6 +795,32 @@ button:disabled {
   vertical-align: 1px;
 }
 
+/* On a phone a mark that opens its run is a 44 pt tap target (features/phone.md); its pill stays the 20 px one, drawn
+   inside it, so the line grows to hold the target and no mark covers another line or link. */
+.stack a.timeline-mark {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border-color: transparent;
+  vertical-align: middle;
+}
+
+.stack a.timeline-mark::before {
+  content: "";
+  position: absolute;
+  inset: 12px 0;
+  border: 1px solid var(--separator);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.stack a.timeline-mark:active::before {
+  background: var(--fill);
+}
+
 .timeline-earlier > summary {
   cursor: pointer;
   color: var(--label-2);

@@ -228,7 +228,7 @@ function PanelReport({ id, version }: { id: string; version?: number }) {
     if (stack.length > 1) back();
     else navigate(defaultListFor({ name: "report", id }), { replace: true });
   };
-  return <ReportView id={id} version={version} onClose={wide ? close : undefined} />;
+  return <ReportView id={id} version={version} onClose={wide ? close : undefined} onEscape={close} />;
 }
 
 /**

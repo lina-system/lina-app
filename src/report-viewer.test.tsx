@@ -184,3 +184,39 @@ test("the inspector marks an edit after going back to the newest version, and a 
   expect(within(inspector()).queryByTestId("report-updated")).toBeNull();
   expect(within(inspector()).queryByTestId("report-versions")).toBeNull();
 });
+
+test("a click on a report page link's own text opens the viewer, as a click on the link does", async () => {
+  const { view } = await open("#/talk/ag-1", true);
+  const link = await waitFor(() => view.getByRole("link", { name: "오류 예시" }));
+  const text = link.firstChild as Text;
+  expect(text.nodeType).toBe(Node.TEXT_NODE);
+  text.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
+  await waitFor(() => expect(window.location.hash).toBe(`#/reports/${REPORT_IDS.broken}`));
+});
+
+test("an earlier version's head reads that version's own time, not the newest one", async () => {
+  const { view, source } = await open(`#/reports/${REPORT_IDS.long}?v=1`, true);
+  const v1 = source.scene.reports[REPORT_IDS.long].versions[0];
+  const newest = source.scene.reports[REPORT_IDS.long].versions.at(-1);
+  await waitFor(() => expect(view.getByTestId("report").dataset.version).toBe("1"));
+  const time = view.getByTestId("report-time");
+  expect(time.getAttribute("dateTime")).toBe(new Date(v1.at * 1000).toISOString());
+  expect(time.getAttribute("dateTime")).not.toBe(new Date((newest?.at ?? 0) * 1000).toISOString());
+});
+
+test("Escape closes the large image first, then the inspector; the conversation stays", async () => {
+  const { view } = await open("#/talk/ag-1", true);
+  fireEvent.click(await waitFor(() => view.getAllByTestId("report-card")[0]));
+  const inspector = await waitFor(() => view.getByTestId("report-inspector"));
+  const image = await waitFor(() => within(inspector).getAllByRole("button", { name: /^그림 크게 보기/ })[0]);
+  fireEvent.click(image);
+  expect(document.querySelector("[data-testid=report-lightbox]")).not.toBeNull();
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(document.querySelector("[data-testid=report-lightbox]")).toBeNull();
+  expect(view.getByTestId("report-inspector")).toBeTruthy();
+  fireEvent.keyDown(document, { key: "Escape" });
+  await waitFor(() => expect(view.queryByTestId("report-inspector")).toBeNull());
+  expect(window.location.hash).toBe("#/talk/ag-1");
+  expect(view.getByTestId("agent-talk")).toBeTruthy();
+});
+

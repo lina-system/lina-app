@@ -24,7 +24,11 @@ export function openReport(id: string): void {
  */
 export function reportLinkClick(event: MouseEvent): void {
   if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-  const anchor = (event.target as Element | null)?.closest?.("a[href]");
+  // A click can reach the bubble with the link's text node as its target (an accessibility press, some engines): the
+  // link is then that node's parent.
+  const target = event.target as Node | null;
+  const element = target instanceof Element ? target : (target?.parentElement ?? null);
+  const anchor = element?.closest("a[href]");
   const id = anchor ? reportOfPage(anchor.getAttribute("href") ?? "") : null;
   if (!id) return;
   event.preventDefault();
@@ -109,7 +113,25 @@ function savedSize(): TextSize {
  * pane. The open report follows the core's change event in place, with a small mark when a newer version came in, and
  * every earlier version is one tap away.
  */
-export function ReportView({ id, version, onClose }: { id: string; version?: number; onClose?: () => void }) {
+/**
+ * The viewer's Escape (lina-app#50): it closes the inspector, the pane or the sheet, as Esc closes a detail pane
+ * (details.tsx FrameClose). Esc typed while a syllable is composed, already taken (the large image takes it first and
+ * closes only itself), or while the bell's list is open, is not this one's.
+ */
+function useEscape(close: (() => void) | undefined): void {
+  useEffect(() => {
+    if (!close) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.isComposing || event.defaultPrevented || document.querySelector(".popover")) return;
+      event.preventDefault();
+      close();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [close]);
+}
+
+export function ReportView({ id, version, onClose, onEscape }: { id: string; version?: number; onClose?: () => void; onEscape?: () => void }) {
   const { model, store, now } = useApp();
   const key = reportKey(id, version);
   const report = store.get("report", key);
@@ -118,6 +140,7 @@ export function ReportView({ id, version, onClose }: { id: string; version?: num
   const [history, setHistory] = useState(false);
   // The version on screen when the viewer opened or the owner last looked at the mark.
   const [seen, setSeen] = useState<number | null>(null);
+  useEscape(onEscape ?? onClose);
   useEffect(() => {
     if (report && seen === null && version === undefined) setSeen(report.version);
   }, [report?.version]);
@@ -146,6 +169,8 @@ export function ReportView({ id, version, onClose }: { id: string; version?: num
     );
   }
   const updated = version === undefined && seen !== null && report.version > seen;
+  // The time of the version on screen: `updatedAt` is the report's newest change, an earlier version's is its own (`versions[].at`).
+  const shownAt = report.versions.find((each) => each.version === report.shownVersion)?.at ?? report.updatedAt;
   const goal = report.goal ? (store.get("item", report.goal)?.title ?? model.items.get(report.goal)?.title ?? null) : null;
   const versions = [...report.versions].sort((a, b) => b.version - a.version);
   const show = (n: number) => navigate({ name: "report", id, ...(n === report.version ? {} : { version: n }) }, { replace: true });
@@ -169,8 +194,8 @@ export function ReportView({ id, version, onClose }: { id: string; version?: num
         <p class="report-meta">
           <span>{agentName(model, report.agent) || report.agent}</span>
           {SEP}
-          <time dateTime={new Date(report.updatedAt * 1000).toISOString()} title={dateClock(report.updatedAt)}>
-            {`${REPORT_WORD.updated} ${ago(Math.max(0, now - report.updatedAt))}`}
+          <time dateTime={new Date(shownAt * 1000).toISOString()} title={dateClock(shownAt)} data-testid="report-time">
+            {`${REPORT_WORD.updated} ${ago(Math.max(0, now - shownAt))}`}
           </time>
           {SEP}
           <span>{REPORT_WORD.version(report.shownVersion)}</span>

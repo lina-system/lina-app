@@ -253,9 +253,11 @@ function savedWidth(): number {
 
 /**
  * The inspector on a wide window (lina-app#50): the report beside the conversation, which stays usable. Its left edge
- * drags (or takes the arrow keys) to make it wider or narrower, and the width is kept for the next report.
+ * drags (or takes the arrow keys) to make it wider or narrower, and the width is kept for the next report. It `fits` only
+ * while the window holds the chat's 360 px, its line and the inspector's 320 px; else the report takes the narrow
+ * screen's sheet and the kept width waits for a wider window (lina-app#274).
  */
-export function useInspectorWidth(panes: { current: HTMLElement | null }): { width: number; handle: ComponentChildren } {
+export function useInspectorWidth(panes: { current: HTMLElement | null }): { width: number; fits: boolean; handle: ComponentChildren } {
   const [width, setWidth] = useState(savedWidth);
   // The panes' room as laid out, its fraction kept (clientWidth rounds it), measured again when the window resizes. It
   // is their parent's width: the panes themselves grow past a narrowed window to hold a wide inspector.
@@ -299,7 +301,7 @@ export function useInspectorWidth(panes: { current: HTMLElement | null }): { wid
       aria-label={REPORT_WORD.resize}
       aria-valuenow={shown}
       aria-valuemin={MIN_WIDTH}
-      aria-valuemax={Number.isFinite(max) ? Math.max(MIN_WIDTH, max) : undefined}
+      aria-valuemax={Number.isFinite(max) ? max : undefined}
       tabIndex={0}
       data-testid="report-resize"
       onPointerDown={(event) => {
@@ -324,7 +326,7 @@ export function useInspectorWidth(panes: { current: HTMLElement | null }): { wid
       }}
     />
   );
-  return { width: shown, handle };
+  return { width: shown, fits: max >= MIN_WIDTH, handle };
 }
 
 /** How far down a sheet must be dragged to close: a quarter of its height (the old panel's rule, lina-app#50). */

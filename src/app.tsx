@@ -703,6 +703,11 @@ function TalkShell({ route, frame, stack }: { route: Route; frame: Route | null;
     if (stack.length > 1 && stack[stack.length - 2] === card) back();
     else navigate(card, { replace: true });
   };
+  // A window that cannot hold the chat's 360 px, its line and the inspector's 320 px shows the report alone in the
+  // narrow screen's sheet over this screen, which stays as it was (lina-app#274); the layout stays wide.
+  const inspected = report && inspector.fits ? report : null;
+  const sheeted = report && !inspector.fits ? report : null;
+  const drag = useSheetDrag(toCard, sheeted ? sheeted.id : "");
   return (
     <div class="split is-talk" data-layout="wide" data-tab="talk">
       <aside class="sidebar">
@@ -724,18 +729,18 @@ function TalkShell({ route, frame, stack }: { route: Route; frame: Route | null;
             <Bell />
           </div>
         </header>
-        <div class="talk-panes" data-testid="panes" ref={panes} style={report ? { "--inspector": `${inspector.width}px` } : undefined}>
+        <div class="talk-panes" data-testid="panes" ref={panes} style={inspected ? { "--inspector": `${inspector.width}px` } : undefined}>
           <section class="pane talk-pane" aria-label={titleOf(windowRoute, model, store)}>
             {agent ? <AgentTalk key={agent} agent={agent} /> : <p class="empty" data-testid="pick-agent">{W.pickAgent}</p>}
           </section>
-          {report ? (
+          {inspected ? (
             // The inspector (lina-app#50): the report beside the conversation, resizable and closeable; a second report
             // replaces its content.
-            <aside class="pane card-pane is-report" aria-label={titleOf(report, model, store)} data-testid="report-inspector">
+            <aside class="pane card-pane is-report" aria-label={titleOf(inspected, model, store)} data-testid="report-inspector">
               {inspector.handle}
-              <ReportView key={report.id} id={report.id} version={report.version} onClose={toCard} />
+              <ReportView key={inspected.id} id={inspected.id} version={inspected.version} onClose={toCard} />
             </aside>
-          ) : frame ? (
+          ) : frame && !report ? (
             <aside key={href(frame)} class="pane card-pane is-goal" aria-label={titleOf(frame, model, store)} data-testid="card-pane">
               <button type="button" class="back card-back" onClick={toCard} data-testid="back">
                 <BackIcon />
@@ -750,6 +755,11 @@ function TalkShell({ route, frame, stack }: { route: Route; frame: Route | null;
           ) : null}
         </div>
       </div>
+      {sheeted ? (
+        <FrameSheet label={titleOf(sheeted, model, store)} drag={drag} onClose={toCard}>
+          <ReportView key={sheeted.id} id={sheeted.id} version={sheeted.version} onEscape={toCard} />
+        </FrameSheet>
+      ) : null}
     </div>
   );
 }
@@ -881,31 +891,43 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
         <span />
       </footer>
       {sheet ? (
-        <>
-          <div class="detail-scrim" aria-hidden="true" onClick={goBack} />
-          <section
-            class={reportSheet ? "detail-sheet is-report" : "detail-sheet"}
-            role="dialog"
-            aria-modal="true"
-            aria-label={titleOf(sheet, model, store)}
-            data-testid="detail-frame"
-            data-frame="sheet"
-            data-height={reportSheet ? drag.height : undefined}
-            style={reportSheet && drag.offset > 0 ? { transform: `translateY(${drag.offset}px)`, transition: "none" } : undefined}
-          >
-            <div class="detail-sheet-bar" {...(reportSheet ? drag.bar : {})} data-testid={reportSheet ? "report-sheet-bar" : undefined}>
-              <span class="detail-sheet-grabber" aria-hidden="true" />
-              <button type="button" class="text-button" onClick={goBack} data-testid="frame-close">
-                {W.close}
-              </button>
-            </div>
-            <div class="detail-sheet-body" ref={sheetRef}>
-              <Screen key={href(sheet)} route={sheet} />
-            </div>
-          </section>
-        </>
+        <FrameSheet label={titleOf(sheet, model, store)} drag={reportSheet ? drag : null} onClose={goBack} body={sheetRef}>
+          <Screen key={href(sheet)} route={sheet} />
+        </FrameSheet>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The one detail frame as a sheet rising over the screen it was opened from, which stays under the scrim (lina-app#142):
+ * a bar with its grab handle and `닫기`, then the frame. A report's sheet (`drag`) opens at half and drags (lina-app#50).
+ */
+function FrameSheet({ label, drag, onClose, body, children }: { label: string; drag: ReturnType<typeof useSheetDrag> | null; onClose: () => void; body?: RefObject<HTMLDivElement | null>; children: ComponentChildren }) {
+  return (
+    <>
+      <div class="detail-scrim" aria-hidden="true" onClick={onClose} />
+      <section
+        class={drag ? "detail-sheet is-report" : "detail-sheet"}
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+        data-testid="detail-frame"
+        data-frame="sheet"
+        data-height={drag ? drag.height : undefined}
+        style={drag && drag.offset > 0 ? { transform: `translateY(${drag.offset}px)`, transition: "none" } : undefined}
+      >
+        <div class="detail-sheet-bar" {...(drag ? drag.bar : {})} data-testid={drag ? "report-sheet-bar" : undefined}>
+          <span class="detail-sheet-grabber" aria-hidden="true" />
+          <button type="button" class="text-button" onClick={onClose} data-testid="frame-close">
+            {W.close}
+          </button>
+        </div>
+        <div class="detail-sheet-body" ref={body}>
+          {children}
+        </div>
+      </section>
+    </>
   );
 }
 

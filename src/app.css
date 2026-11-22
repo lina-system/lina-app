@@ -4485,3 +4485,13 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 .detail-sheet.is-report .report {
   padding-bottom: 24px;
 }
+
+/* A wide window too narrow for the report's inspector beside the chat shows the report in this sheet, under the
+   window's toolbar rather than the phone's bar (lina-app#274). */
+.split > .detail-scrim {
+  inset: calc(var(--safe-top) + var(--toolbar)) 0 0;
+}
+
+.split > .detail-sheet.is-report[data-height="full"] {
+  top: calc(var(--safe-top) + var(--toolbar) + 12px);
+}

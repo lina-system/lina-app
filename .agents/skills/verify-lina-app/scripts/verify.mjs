@@ -4695,9 +4695,33 @@ const drivers = {
         const narrowed = await page.getByTestId("report-resize").evaluate((element) => ({ now: Number(element.getAttribute("aria-valuenow")), max: Number(element.getAttribute("aria-valuemax")) }));
         const narrowChat = await page.getByTestId("agent-talk").boundingBox();
         check(narrowed.now === narrowed.max && narrowChat.width >= 360, "at 1100 " + JSON.stringify(narrowed) + ", chat " + narrowChat.width + " px");
+        // Too narrow for the chat's 360 px, its line and the inspector's 320 px (lina-app#274): at 920 the report alone is
+        // the narrow screen's sheet over a window that stays wide; 닫기 leaves the chat and the kept width as they were; at
+        // 921 the inspector stands again at its narrowest.
+        const frame = page.getByTestId("detail-frame");
+        const asSheet = async (at) => {
+          await frame.waitFor();
+          await frame.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+          const look = await page.evaluate(() => ({ frame: document.querySelector("[data-testid=detail-frame]")?.getAttribute("data-frame"), height: document.querySelector("[data-testid=detail-frame]")?.getAttribute("data-height"), inspector: Boolean(document.querySelector("[data-testid=report-inspector]")), wide: Boolean(document.querySelector("[data-layout=wide]")), overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
+          check(look.frame === "sheet" && look.height === "half" && !look.inspector && look.wide && look.overflow === 0, "at " + at + " " + JSON.stringify(look));
+          return look;
+        };
+        await page.setViewportSize({ width: 920, height: size.height });
+        await asSheet(920);
+        await frame.getByTestId("frame-close").click();
+        await frame.waitFor({ state: "detached" });
+        const stored = await page.evaluate(() => localStorage.getItem("lina.report.width"));
+        check(new URL(page.url()).hash === "#/talk/ag-1" && stored === String(restored), "closed at 920: " + page.url() + ", kept " + stored);
+        await page.getByTestId("report-card").first().click();
+        await asSheet(920);
+        await page.setViewportSize({ width: 921, height: size.height });
+        await page.getByTestId("report-inspector").waitFor();
+        const narrowest = await page.getByTestId("report-resize").evaluate((element) => Number(element.getAttribute("aria-valuenow")));
+        const chat921 = await page.getByTestId("agent-talk").boundingBox();
+        check(narrowest === 320 && chat921.width >= 360 && (await frame.count()) === 0, "at 921 the inspector is " + narrowest + " px, chat " + chat921.width + " px");
         await page.setViewportSize(size);
         await page.waitForFunction((width) => Number(document.querySelector("[data-testid=report-resize]").getAttribute("aria-valuenow")) === width, restored);
-        return before + " -> " + after + " px; widest " + separator.max + " px, chat " + chat.width + " px; back to " + restored + "; at 1100 " + narrowed.now + " px, chat " + narrowChat.width + " px";
+        return before + " -> " + after + " px; widest " + separator.max + " px, chat " + chat.width + " px; back to " + restored + "; at 1100 " + narrowed.now + " px, chat " + narrowChat.width + " px; at 920 the sheet, closed and reopened; at 921 the inspector at " + narrowest + " px, chat " + chat921.width + " px";
       }
       const bar = await page.getByTestId("report-sheet-bar").boundingBox();
       await page.mouse.move(bar.x + 40, bar.y + bar.height / 2);

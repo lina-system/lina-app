@@ -72,6 +72,53 @@ test("a kept width wider than the window leaves the conversation 360 px inside i
   }
 });
 
+test("a window too narrow for the chat's 360 px, its line and the document's 320 px opens the report in the narrow screen's sheet, its kept width untouched (lina-app#274)", async () => {
+  window.localStorage.setItem("lina.report.width", "680");
+  for (const [room, sheet] of [
+    [680.4, true],
+    [681, false],
+  ] as const) {
+    const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const width = this.querySelector(":scope > [data-testid=panes]") ? room : 0;
+      return { x: 0, y: 0, left: 0, top: 0, right: width, bottom: 0, width, height: 0, toJSON: () => ({}) } as DOMRect;
+    });
+    try {
+      const { view } = await open("#/talk/ag-1", true);
+      const chat = view.container.querySelector<HTMLElement>(".talk-pane")!;
+      chat.style.borderRightWidth = "0.5px";
+      chat.style.borderRightStyle = "solid";
+      const talk = within(view.getByTestId("agent-talk"));
+      await waitFor(() => expect(talk.getAllByTestId("report-card")).toHaveLength(2));
+      fireEvent.click(talk.getAllByTestId("report-card")[0]);
+      if (sheet) {
+        // 680.4 - 360 - 0.5 = 319.9: no 320 for the document, so the report alone is the sheet; the window stays wide.
+        const frame = await waitFor(() => view.getByTestId("detail-frame"));
+        expect([frame.getAttribute("data-frame"), frame.getAttribute("role"), frame.getAttribute("aria-modal"), frame.getAttribute("data-height")]).toEqual(["sheet", "dialog", "true", "half"]);
+        await waitFor(() => expect(within(frame).getByRole("heading", { level: 1 }).textContent).toBe("가상 릴리스 변경 정리 · 중간 보고"));
+        expect(within(frame).getByTestId("report-sheet-bar")).toBeTruthy();
+        expect(within(frame).queryByTestId("report-close")).toBeNull();
+        expect(view.queryByTestId("report-inspector")).toBeNull();
+        expect(view.queryByTestId("report-resize")).toBeNull();
+        expect(view.container.querySelector("[data-layout=wide]")).not.toBeNull();
+        expect(view.getByRole("textbox", { name: "메시지" })).toBeTruthy();
+        fireEvent.click(within(frame).getByTestId("frame-close"));
+        await waitFor(() => expect(view.queryByTestId("detail-frame")).toBeNull());
+        expect(window.location.hash).toBe("#/talk/ag-1");
+        expect(window.localStorage.getItem("lina.report.width")).toBe("680");
+      } else {
+        // 681 - 360 - 0.5 = 320.5: the inspector stands at 320, its narrowest, and no sheet is drawn.
+        const edge = await waitFor(() => view.getByTestId("report-resize"));
+        expect([edge.getAttribute("aria-valuenow"), edge.getAttribute("aria-valuemax")]).toEqual(["320", "320"]);
+        expect(view.queryByTestId("detail-frame")).toBeNull();
+      }
+      view.unmount();
+    } finally {
+      rect.mockRestore();
+    }
+  }
+  window.localStorage.removeItem("lina.report.width");
+});
+
 test("a report has its own address, opens in the detail frame and reads one version by query", () => {
   expect(parse(`#/reports/${REPORT_IDS.long}`)).toEqual({ name: "report", id: REPORT_IDS.long });
   expect(parse(`#/reports/${REPORT_IDS.long}?v=2`)).toEqual({ name: "report", id: REPORT_IDS.long, version: 2 });

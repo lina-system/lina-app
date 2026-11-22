@@ -259,6 +259,10 @@ const NESTED_BODY = [
   "| 이름 | 화면 |",
   "| --- | --- |",
   '| 가상 표 | ![칸](images/2 "칸 안의 그림") |',
+  "",
+  "코어가 주지 않는 그림은 한 줄로 알립니다:",
+  "",
+  '![빠진 그림](images/9 "불러오지 못하는 그림")',
 ].join("\n");
 
 /** The four reports at `now`: the long one with three versions (k-101, G1), the legacy one, the broken one, and one whose images sit only inside blocks. */

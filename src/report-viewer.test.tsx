@@ -220,3 +220,8 @@ test("Escape closes the large image first, then the inspector; the conversation 
   expect(view.getByTestId("agent-talk")).toBeTruthy();
 });
 
+test("the nested-image report also holds an image the core does not give, shown as one line", async () => {
+  const { view } = await open(`#/reports/${REPORT_IDS.nested}`, true);
+  await waitFor(() => expect(view.getByTestId("report-image-failed").textContent).toBe("[그림: 불러오지 못하는 그림] 그림을 불러오지 못함"));
+  expect(view.getByTestId("report").querySelectorAll(".report-body img")).toHaveLength(3);
+});

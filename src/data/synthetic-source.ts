@@ -1,5 +1,5 @@
 import { SETTINGS_HISTORY, type ActionResult, type AddItemRequest, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type BoardSnapshot, type ChangeEvent, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemDetail, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type RunRecord, type Settings, type SettingsAuditLine, type SettingsModel, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest, type WorkCardDetail, type WorkState } from "../api/client";
-import { editedReport, reportImageData, reportMessages, reportOf, summaryOf, syntheticReports } from "../fixtures/reports";
+import { editedReport, REPORT_IDS, reportImageData, reportMessages, reportOf, SLOW_IMAGE_MS, summaryOf, syntheticReports } from "../fixtures/reports";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type PowerVariant, type Scene, type SettingsVariant } from "../fixtures/synthetic";
 import { localDay, type CardSummary } from "../model";
 import { mergePatch } from "../model/settings";
@@ -1230,6 +1230,8 @@ export class SyntheticSource implements Source {
 
   async reportImage(id: string, position: number): Promise<ReportImage> {
     const report = this.scene.reports[id];
+    // The slow report's first image comes late, after the others (lina-app#274).
+    if (report && id === REPORT_IDS.slow && position === 0) await new Promise((resolve) => setTimeout(resolve, SLOW_IMAGE_MS));
     const url = report ? reportImageData(position, report.imageRevision ?? 0) : null;
     return url ? { ok: true, url, release: () => {} } : { ok: false, status: 404 };
   }

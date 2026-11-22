@@ -4762,6 +4762,30 @@ const drivers = {
       check(failed.length === 1 && failed[0].includes("그림을 불러오지 못함"), "the image the core does not give reads " + JSON.stringify(failed));
       return placed.join(", ") + "; one image not given";
     });
+    await step("a late first image does not move the large image open on the third", async () => {
+      await openApp(page, "#/reports/rep_6c1e8d3f5a27", "&reports=demo");
+      const view = wide ? page.getByTestId("detail-pane") : page.getByTestId("detail-frame");
+      await view.locator(".report-body img").nth(1).waitFor({ state: "attached", timeout: 10_000 });
+      check((await view.getByTestId("report-image-loading").count()) === 1, "the first image is not still loading");
+      await view.getByRole("button", { name: "그림 크게 보기: 셋째 그림" }).click();
+      const box = page.getByTestId("report-lightbox");
+      const read = async () => [await text(box.locator(".report-lightbox-caption")), await text(box.getByTestId("report-lightbox-count"))];
+      const before = await read();
+      await view.locator(".report-body img").nth(2).waitFor({ state: "attached", timeout: 10_000 });
+      const after = await read();
+      check(JSON.stringify(before) === JSON.stringify(["셋째 그림", "2 / 2"]) && JSON.stringify(after) === JSON.stringify(["셋째 그림", "3 / 3"]), "the large image read " + JSON.stringify(before) + " then " + JSON.stringify(after));
+      await page.keyboard.press("Escape");
+      return before.join(" ") + " -> " + after.join(" ");
+    });
+    await step("a share chart with a negative value is refused with its source; bar and line draw theirs", async () => {
+      await openApp(page, "#/reports/rep_7d4b2e9a1c06", "&reports=demo");
+      const view = wide ? page.getByTestId("detail-pane") : page.getByTestId("detail-frame");
+      await view.getByTestId("report-block-broken").nth(1).waitFor({ timeout: 10_000 });
+      const errors = await view.getByTestId("report-block-broken").locator(".report-block-error").allInnerTexts();
+      const kinds = await view.locator(".chart").evaluateAll((charts) => charts.map((chart) => chart.getAttribute("data-kind")));
+      check(errors.length === 2 && errors.every((line) => line.includes("비율 차트에 음수 값")) && JSON.stringify(kinds) === JSON.stringify(["bar", "line"]), "errors " + JSON.stringify(errors) + ", charts " + JSON.stringify(kinds));
+      return errors.join(" | ") + "; drawn " + kinds.join(", ");
+    });
     await step("open a report of broken blocks: each shows its source and one error line", async () => {
       await openApp(page, "#/reports/" + BROKEN, "&reports=demo");
       const broken = (wide ? page.getByTestId("detail-pane") : page.getByTestId("detail-frame")).getByTestId("report-block-broken");

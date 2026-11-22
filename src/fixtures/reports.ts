@@ -5,7 +5,10 @@ import type { Report, ReportSummary } from "../api/client";
  * report text. `&reports=demo` puts them in the scene, links the long one to k-101 and goal G1, and has the first agent
  * send reference lines for them in its window. The images are SVG drawn here, served as the report's own images 0-2.
  */
-export const REPORT_IDS = { long: "rep_5e1f0a7c2b90", legacy: "rep_0b5d3c6e8a14", broken: "rep_9c2e7f41d6a3", nested: "rep_3a7c0e5f9b21" } as const;
+export const REPORT_IDS = { long: "rep_5e1f0a7c2b90", legacy: "rep_0b5d3c6e8a14", broken: "rep_9c2e7f41d6a3", nested: "rep_3a7c0e5f9b21", slow: "rep_6c1e8d3f5a27", negative: "rep_7d4b2e9a1c06" } as const;
+
+/** How late the synthetic core answers the slow report's first image (rep_6c1e8d3f5a27, images/0). */
+export const SLOW_IMAGE_MS = 2500;
 
 /** The page address a reference line carries: the core's `/reports/<id>/page` on a host that resolves nowhere. */
 export function pageOf(id: string): string {
@@ -265,6 +268,48 @@ const NESTED_BODY = [
   '![빠진 그림](images/9 "불러오지 못하는 그림")',
 ].join("\n");
 
+const SLOW_BODY = [
+  "첫째 그림이 늦게 옵니다. 그 전에 셋째 그림을 크게 열어 두면, 첫째가 온 뒤에도 셋째가 그대로 보여야 합니다.",
+  "",
+  '![첫째](images/0 "첫째 그림, 늦게 옴")',
+  "",
+  '![둘째](images/1 "둘째 그림") ![셋째](images/2 "셋째 그림")',
+].join("\n");
+
+const NEGATIVE_BODY = [
+  "비율 차트는 음수를 받지 않고 원문과 이유를 보여 줍니다. 막대와 선 차트는 음수를 그립니다.",
+  "",
+  "```lina:chart share 가상 손익 비율",
+  "| 항목 | 값 |",
+  "| --- | ---: |",
+  "| 가 | -10 |",
+  "| 나 | 20 |",
+  "```",
+  "",
+  "```lina:chart stacked 가상 월별 비율",
+  "| 달 | 가 | 나 |",
+  "| --- | ---: | ---: |",
+  "| 1월 | 3 | 4 |",
+  "| 2월 | 5 | −2 |",
+  "```",
+  "",
+  "```lina:chart bar 가상 손익",
+  "| 달 | 손익 |",
+  "| --- | ---: |",
+  "| 1월 | 12 |",
+  "| 2월 | -8 |",
+  "| 3월 | 5 |",
+  "```",
+  "",
+  "```lina:chart line 가상 기온",
+  "| 날 | 기온 |",
+  "| --- | ---: |",
+  "| 월 | -3 |",
+  "| 화 | 1 |",
+  "| 수 | -1 |",
+  "```",
+].join("\n");
+
 /** The four reports at `now`: the long one with three versions (k-101, G1), the legacy one, the broken one, and one whose images sit only inside blocks. */
 export function syntheticReports(now: number, agents: readonly string[], options: { card: string; goal: string }): Record<string, SceneReport> {
   const base = { private: false, page: "" };
@@ -284,6 +329,14 @@ export function syntheticReports(now: number, agents: readonly string[], options
     [REPORT_IDS.nested]: {
       summary: { ...base, id: REPORT_IDS.nested, agent: agents[0], card: null, goal: null, createdAt: now - 30 * MIN, page: `/reports/${REPORT_IDS.nested}/page` },
       versions: [{ version: 1, at: now - 30 * MIN, title: "가상 블록 안 그림 예시", summary: "접힌 곳·상자·표 칸의 그림", body: NESTED_BODY }],
+    },
+    [REPORT_IDS.slow]: {
+      summary: { ...base, id: REPORT_IDS.slow, agent: agents[0], card: null, goal: null, createdAt: now - 20 * MIN, page: `/reports/${REPORT_IDS.slow}/page` },
+      versions: [{ version: 1, at: now - 20 * MIN, title: "가상 늦은 그림 예시", summary: "첫째 그림이 늦게 오는 보고서", body: SLOW_BODY }],
+    },
+    [REPORT_IDS.negative]: {
+      summary: { ...base, id: REPORT_IDS.negative, agent: agents[0], card: null, goal: null, createdAt: now - 10 * MIN, page: `/reports/${REPORT_IDS.negative}/page` },
+      versions: [{ version: 1, at: now - 10 * MIN, title: "가상 음수 차트 예시", summary: "비율 차트의 음수와 막대·선 차트의 음수", body: NEGATIVE_BODY }],
     },
     [REPORT_IDS.broken]: {
       summary: { ...base, id: REPORT_IDS.broken, agent: agents[1] ?? agents[0], card: null, goal: null, createdAt: now - HOUR, page: `/reports/${REPORT_IDS.broken}/page` },

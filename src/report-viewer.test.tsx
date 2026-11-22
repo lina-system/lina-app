@@ -242,3 +242,10 @@ test("the viewer's Escape leaves a large image's layer to close itself, whenever
   fireEvent.keyDown(document, { key: "Escape" });
   await waitFor(() => expect(view.queryByTestId("report-inspector")).toBeNull());
 });
+
+test("the negative-chart report shows its share charts as refused with their source, and draws its bar and line charts", async () => {
+  const { view } = await open(`#/reports/${REPORT_IDS.negative}`, true);
+  await waitFor(() => expect(view.getAllByTestId("report-block-broken")).toHaveLength(2));
+  expect(view.getAllByTestId("report-block-broken").map((block) => block.querySelector(".report-block-error")?.textContent)).toEqual(['차트 블록을 그리지 못함: 비율 차트에 음수 값 "-10"', '차트 블록을 그리지 못함: 비율 차트에 음수 값 "−2"']);
+  expect([...view.getByTestId("report").querySelectorAll(".chart")].map((chart) => chart.getAttribute("data-kind"))).toEqual(["bar", "line"]);
+});

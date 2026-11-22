@@ -207,7 +207,7 @@ export function ReportView({ id, version, onClose }: { id: string; version?: num
           ))}
         </ol>
       ) : null}
-      <ReportBody key={key} reportId={id} body={report.body} imageUrl={(position) => store.source.reportImage(id, position)} />
+      <ReportBody key={key} reportId={id} body={report.body} loadImage={(position, signal) => store.source.reportImage(id, position, signal)} />
     </article>
   );
 }

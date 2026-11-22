@@ -486,6 +486,8 @@ export const REPORT_WORD = {
   failed: "보고서를 읽지 못함",
   /** An image whose address is not one of the report's own files is not drawn. */
   imageOutside: "보고서 밖 그림이라 보이지 않음",
+  /** One of the report's own images the core did not give (refused, gone or no answer). */
+  imageFailed: "그림을 불러오지 못함",
   imageOpen: (caption: string) => `그림 크게 보기: ${caption}`,
   imagePrev: "이전 그림",
   imageNext: "다음 그림",

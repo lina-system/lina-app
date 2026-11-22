@@ -4050,6 +4050,11 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
   cursor: zoom-in;
 }
 
+.report-image.is-loading {
+  aspect-ratio: 16 / 9;
+  cursor: default;
+}
+
 .report-image img {
   display: block;
   width: 100%;

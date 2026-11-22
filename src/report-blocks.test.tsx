@@ -16,7 +16,7 @@ beforeEach(() => {
 });
 
 function body(text: string) {
-  return render(<ReportBody reportId="rep_5e1f0a7c2b90" body={text} imageUrl={(n) => `/i/${n}`} />);
+  return render(<ReportBody reportId="rep_5e1f0a7c2b90" body={text} loadImage={async (n) => ({ ok: true, url: `/i/${n}`, release() {} })} />);
 }
 
 const TABLE = ["| 기기 | 사용 | 남음 |", "| --- | ---: | ---: |", "| 가-1 | 412 | 88 |", "| 가-2 | 1,230 | 270 |"];

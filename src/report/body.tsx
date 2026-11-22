@@ -1,5 +1,6 @@
 import type { VNode } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
+import type { ReportImage } from "../data/source";
 import { docBlocks, type DocImage, type DocRules } from "../markdown";
 import { REPORT_WORD } from "../words";
 import { blockFence } from "./blocks";
@@ -19,14 +20,55 @@ interface Shown {
   readonly caption: string;
 }
 
+/** A position's image: still loading, drawn from an address, or refused. */
+type Loaded = string | "failed";
+
+/**
+ * Loads the report's own images at these places through the page's source (with its credentials) and releases every
+ * address it made when the report or its places change, or the body goes. A late answer after that is released at once.
+ */
+function useImages(reportId: string, positions: readonly number[], load: (position: number, signal: AbortSignal) => Promise<ReportImage>): ReadonlyMap<number, Loaded> {
+  const [loaded, setLoaded] = useState<ReadonlyMap<number, Loaded>>(new Map());
+  const key = `${reportId}:${positions.join(",")}`;
+  useEffect(() => {
+    const abort = new AbortController();
+    const releases: (() => void)[] = [];
+    setLoaded(new Map());
+    for (const position of positions)
+      void load(position, abort.signal).then((image) => {
+        if (image.ok && abort.signal.aborted) return image.release();
+        if (image.ok) releases.push(() => image.release());
+        if (!abort.signal.aborted) setLoaded((before) => new Map(before).set(position, image.ok ? image.url : "failed"));
+      });
+    return () => {
+      abort.abort();
+      for (const release of releases) release();
+    };
+  }, [key]);
+  return loaded;
+}
+
 /**
  * A report's body (lina-app#114, #83): the reply markdown with headings, report blocks, tables and the report's own
  * images. An image is drawn wide with its caption under it (its title, else its alt), several in one paragraph side by
  * side; a tap opens it large, with the document's other images one step away.
  */
-export function ReportBody({ reportId, body, imageUrl }: { reportId: string; body: string; imageUrl: (position: number) => string }) {
+export function ReportBody({ reportId, body, loadImage }: { reportId: string; body: string; loadImage: (position: number, signal: AbortSignal) => Promise<ReportImage> }) {
   const [open, setOpen] = useState<number | null>(null);
   const shown: Shown[] = [];
+  // The report's own image places, in document order, read by the same rules before the body is drawn.
+  const positions: number[] = [];
+  const collect: DocRules = {
+    fence: blockFence((lines) => docBlocks(lines, collect)),
+    image: (image, key) => {
+      const position = ownImage(reportId, image.src);
+      if (position !== null && !positions.includes(position)) positions.push(position);
+      return <span key={key} />;
+    },
+    gallery: (images, key) => <span key={key}>{images}</span>,
+  };
+  docBlocks(body, collect);
+  const images = useImages(reportId, positions, loadImage);
   const rules: DocRules = {
     fence: blockFence((lines) => docBlocks(lines, rules)),
     image: (image, key) => imageNode(image, key),
@@ -46,11 +88,26 @@ export function ReportBody({ reportId, body, imageUrl }: { reportId: string; bod
           {REPORT_WORD.imageOutside}
         </span>
       );
-    const index = shown.push({ url: imageUrl(position), caption }) - 1;
+    const url = images.get(position);
+    if (url === "failed")
+      return (
+        <span key={key} class="report-image-outside" data-testid="report-image-failed">
+          {caption ? `[${REPORT_WORD.image}: ${caption}] ` : ""}
+          {REPORT_WORD.imageFailed}
+        </span>
+      );
+    if (url === undefined)
+      return (
+        <span key={key} class="report-figure">
+          <span class="report-image is-loading" role="img" aria-label={caption || REPORT_WORD.image} aria-busy="true" data-testid="report-image-loading" />
+          {caption ? <span class="report-caption">{caption}</span> : null}
+        </span>
+      );
+    const index = shown.push({ url, caption }) - 1;
     return (
       <span key={key} class="report-figure">
         <button type="button" class="report-image" onClick={() => setOpen(index)} aria-label={REPORT_WORD.imageOpen(caption || REPORT_WORD.image)}>
-          <img src={shown[index].url} alt={image.alt} loading="lazy" decoding="async" />
+          <img src={url} alt={image.alt} decoding="async" />
         </button>
         {caption ? <span class="report-caption">{caption}</span> : null}
       </span>

@@ -5,7 +5,7 @@ import { localDay, type CardSummary } from "../model";
 import { mergePatch } from "../model/settings";
 import { currentSettings, historyView, invalidDetail, modelsView, revisionOf, settingsView, validate, writeRevision } from "./synthetic-settings";
 import { base64UrlBytes, type PushManagerLike, type PushSubscriptionLike } from "../push";
-import { nowSeconds, type AgentTalkResult, type ChangeHandlers, type ChangeSocket, type ReadResult, type Renewal, type Source, type TalkResult, type WriteResult } from "./source";
+import { nowSeconds, type AgentTalkResult, type ReportImage, type ChangeHandlers, type ChangeSocket, type ReadResult, type Renewal, type Source, type TalkResult, type WriteResult } from "./source";
 
 /** The cards as the core pages them (lina#729): every unfinished card, the newest `limit` finished ones, and their total. */
 function finishedPage(list: Scene["cards"], limit: number): Routes["cards"] {
@@ -1228,8 +1228,9 @@ export class SyntheticSource implements Source {
     this.scene = this.reportsDemo ? reportsScene(long) : long;
   }
 
-  reportImage(id: string, position: number): string {
-    return (this.scene.reports[id] && reportImageData(position)) ?? `/reports/${encodeURIComponent(id)}/images/${position}`;
+  async reportImage(id: string, position: number): Promise<ReportImage> {
+    const url = this.scene.reports[id] ? reportImageData(position) : null;
+    return url ? { ok: true, url, release: () => {} } : { ok: false, status: 404 };
   }
 
   /** The report's agent edits it (verify.mjs, `window.__linaReportElsewhere`): a new version and the core's `reports` event. */

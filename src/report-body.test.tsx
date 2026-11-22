@@ -198,3 +198,58 @@ test("the large image is drawn in the page's body, outside the report, and its E
   expect(document.querySelector("[data-testid=report-lightbox]")).toBeNull();
   expect(outside).not.toHaveBeenCalled();
 });
+
+// lina-app#274 (Codex r4659537402): the large image keeps the image it was opened on while others finish loading, are
+// read again on a new revision, or go.
+describe("the large image's place", () => {
+  const deferred = () => {
+    const answers = new Map<number, (image: ReportImage) => void>();
+    const load = (position: number) => new Promise<ReportImage>((resolve) => answers.set(position, resolve));
+    const give = (position: number, url = `/test-images/${position}.svg`) => answers.get(position)?.({ ok: true, url, release() {} });
+    return { answers, load, give };
+  };
+  const caption = () => document.querySelector("[data-testid=report-lightbox] .report-lightbox-caption")?.textContent;
+  const count = () => document.querySelector("[data-testid=report-lightbox-count]")?.textContent;
+
+  test("an earlier image that arrives late does not move the open one", async () => {
+    const { answers, load, give } = deferred();
+    const view = body(['![가](images/0 "첫째")', "", '![나](images/1 "둘째")', "", '![다](images/2 "셋째")'].join("\n"), load);
+    await waitFor(() => expect(answers.size).toBe(3));
+    give(1);
+    give(2);
+    await waitFor(() => expect(view.container.querySelectorAll("img")).toHaveLength(2));
+    fireEvent.click(view.getByRole("button", { name: "그림 크게 보기: 셋째" }));
+    expect([caption(), count()]).toEqual(["셋째", "2 / 2"]);
+    give(0);
+    await waitFor(() => expect(view.container.querySelectorAll(".report-body img")).toHaveLength(3));
+    expect([caption(), count()]).toEqual(["셋째", "3 / 3"]);
+    fireEvent.click(within(view.getByTestId("report-lightbox")).getByRole("button", { name: "이전 그림" }));
+    expect(caption()).toBe("둘째");
+  });
+
+  test("one image written twice opens where it was pressed, and stays there on a new revision", async () => {
+    const text = ['![가](images/0 "앞의 같은 그림")', "", '![나](images/1 "가운데")', "", '![다](images/0 "뒤의 같은 그림")'].join("\n");
+    const make = (revision: string) => async (position: number): Promise<ReportImage> => ({ ok: true, url: `/${revision}/${position}.svg`, release() {} });
+    const view = render(<ReportBody reportId={ID} body={text} revision="a" loadImage={make("a")} />);
+    await waitFor(() => expect(view.container.querySelectorAll(".report-body img")).toHaveLength(3));
+    fireEvent.click(view.getByRole("button", { name: "그림 크게 보기: 뒤의 같은 그림" }));
+    expect([caption(), count()]).toEqual(["뒤의 같은 그림", "3 / 3"]);
+    view.rerender(<ReportBody reportId={ID} body={text} revision="b" loadImage={make("b")} />);
+    await waitFor(() => expect(document.querySelector("[data-testid=report-lightbox] img")?.getAttribute("src")).toBe("/b/0.svg"));
+    expect([caption(), count()]).toEqual(["뒤의 같은 그림", "3 / 3"]);
+  });
+
+  test("an open image a new revision refuses closes the large view; it does not jump to another image", async () => {
+    const text = ['![가](images/0 "첫째")', "", '![나](images/1 "둘째")'].join("\n");
+    const view = render(<ReportBody reportId={ID} body={text} revision="a" loadImage={loaded} />);
+    await waitFor(() => expect(view.container.querySelectorAll(".report-body img")).toHaveLength(2));
+    fireEvent.click(view.getByRole("button", { name: "그림 크게 보기: 둘째" }));
+    const refusing = async (position: number): Promise<ReportImage> => (position === 1 ? { ok: false, status: 404 } : loaded(position));
+    view.rerender(<ReportBody reportId={ID} body={text} revision="b" loadImage={refusing} />);
+    await waitFor(() => expect(view.getByTestId("report-image-failed")).toBeTruthy());
+    expect(document.querySelector("[data-testid=report-lightbox]")).toBeNull();
+    view.rerender(<ReportBody reportId={ID} body={text} revision="c" loadImage={loaded} />);
+    await waitFor(() => expect(view.container.querySelectorAll(".report-body img")).toHaveLength(2));
+    expect(document.querySelector("[data-testid=report-lightbox]")).toBeNull();
+  });
+});

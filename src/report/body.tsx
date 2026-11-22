@@ -17,6 +17,8 @@ export function ownImage(reportId: string, src: string): number | null {
 }
 
 interface Shown {
+  /** The image's place in the document: its position and which of that position's occurrences it is (`0#1`). */
+  readonly key: string;
   readonly url: string;
   readonly caption: string;
 }
@@ -72,7 +74,8 @@ function useImages(reportId: string, revision: string, positions: readonly numbe
  * side; a tap opens it large, with the document's other images one step away.
  */
 export function ReportBody({ reportId, body, revision = "", loadImage }: { reportId: string; body: string; revision?: string; loadImage: (position: number, signal: AbortSignal) => Promise<ReportImage> }) {
-  const [open, setOpen] = useState<number | null>(null);
+  // The open image by its place in the document, not by its index among the images loaded so far (lina-app#274).
+  const [open, setOpen] = useState<string | null>(null);
   const shown: Shown[] = [];
   // The report's own image places, in document order, read by the same rules before the body is drawn.
   const positions: number[] = [];
@@ -96,9 +99,12 @@ export function ReportBody({ reportId, body, revision = "", loadImage }: { repor
       </div>
     ),
   };
+  const occurrences = new Map<number, number>();
   function imageNode(image: DocImage, key: number): VNode {
     const caption = image.title ?? image.alt;
     const position = ownImage(reportId, image.src);
+    const occurrence = position === null ? 0 : (occurrences.get(position) ?? 0) + 1;
+    if (position !== null) occurrences.set(position, occurrence);
     if (position === null)
       return (
         <span key={key} class="report-image-outside" data-testid="report-image-outside">
@@ -121,10 +127,11 @@ export function ReportBody({ reportId, body, revision = "", loadImage }: { repor
           {caption ? <span class="report-caption">{caption}</span> : null}
         </span>
       );
-    const index = shown.push({ url, caption }) - 1;
+    const place = `${position}#${occurrence}`;
+    shown.push({ key: place, url, caption });
     return (
       <span key={key} class="report-figure">
-        <button type="button" class="report-image" onClick={() => setOpen(index)} aria-label={REPORT_WORD.imageOpen(caption || REPORT_WORD.image)}>
+        <button type="button" class="report-image" onClick={() => setOpen(place)} aria-label={REPORT_WORD.imageOpen(caption || REPORT_WORD.image)}>
           <img src={url} alt={image.alt} decoding="async" />
         </button>
         {caption ? <span class="report-caption">{caption}</span> : null}
@@ -132,10 +139,15 @@ export function ReportBody({ reportId, body, revision = "", loadImage }: { repor
     );
   }
   const blocks = docBlocks(body, rules);
+  const at = open === null ? -1 : shown.findIndex((each) => each.key === open);
+  // The open image is not drawn any more (refused, or gone from the body): the large view closes, never moves on.
+  useEffect(() => {
+    if (open !== null && at < 0) setOpen(null);
+  }, [open, at]);
   return (
     <>
       <div class="md report-body">{blocks}</div>
-      {open !== null && shown[open] ? <Lightbox images={shown} at={open} onMove={setOpen} onClose={() => setOpen(null)} /> : null}
+      {at >= 0 ? <Lightbox images={shown} at={at} onMove={(index) => setOpen(shown[index].key)} onClose={() => setOpen(null)} /> : null}
     </>
   );
 }

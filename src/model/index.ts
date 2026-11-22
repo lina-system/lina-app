@@ -1094,6 +1094,19 @@ function waitLine(card: Pick<CardSummary, "reason" | "waitingOn" | "retry">, ask
 }
 
 /**
+ * Whether a now line only says again, in other words, the reason the row's state line already reads (lina-app#273): the
+ * wait sentences waitLine makes from a review, another to-do or the owner's answer (검토 필요 and 검토를 기다리는 중). A
+ * row shows one of the two; the detail's 지금 keeps the sentence. A line of the core's own, or one that adds what the
+ * reason does not say (a set time), is not a restatement.
+ */
+export function restatesReason(reason: string | null, now: string | null | undefined): boolean {
+  if (!reason || !now) return false;
+  if (reason === "review") return now === NOW_WORD.review;
+  if (reason === "blocked_by_item") return now === NOW_WORD.item;
+  return Object.hasOwn(STOP_WAIT, reason) && now === STOP_WAIT[reason];
+}
+
+/**
  * What a card does now, as one short line (G138): its row's second line, its detail's 지금 and its going round's line in
  * 기록 read it from here, so they never say two things. Only a card at work, waiting or stopped has one: the core's checked
  * now line when it passes the 40-letter gate (nowMayShow), else what its state says it waits for (waitLine). A stopped

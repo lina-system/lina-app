@@ -1911,7 +1911,9 @@ const drivers = {
         return lines.evaluateAll((items) => items.map((item) => [(item.querySelector(".timeline-text")?.textContent ?? "").replace(/^(?:어제 )?\d\d:\d\d · /, ""), [...item.querySelectorAll("[data-testid=history-mark]")].map((mark) => mark.textContent)]));
       };
       const going = await read("#/cards/k-480");
-      check(JSON.stringify(going) === JSON.stringify([["가짜 안내 문구 셋을 고쳐 씀", []], ["가짜 검사 넷을 돌려 모두 통과함", ["검토 통과"]], ["가짜 안내 화면의 빈칸을 찾음", []]]), "k-480's 기록 reads " + JSON.stringify(going));
+      // A verdict mark reads its round's time before its word (dbb9a81, card-detail.md): `18:08 검토 통과`.
+      const marks = going.map(([, mark]) => mark.map((each) => each.replace(/^(어제 )?\d\d:\d\d /, "")));
+      check(JSON.stringify(going.map(([line]) => line)) === JSON.stringify(["가짜 안내 문구 셋을 고쳐 씀", "가짜 검사 넷을 돌려 모두 통과함", "가짜 안내 화면의 빈칸을 찾음"]) && JSON.stringify(marks) === JSON.stringify([[], ["검토 통과"], []]) && going[1][1].every((mark) => /^(어제 )?\d\d:\d\d 검토 통과$/.test(mark)), "k-480's 기록 reads " + JSON.stringify(going));
       const done = await read("#/cards/k-481");
       check(JSON.stringify(done.map(([, marks]) => marks)) === JSON.stringify([[], ["검토 통과"], [], ["검토 필요"], []]) && done.every(([text]) => !/검토|[A-Za-z]/.test(text) || text === "고친 묶음을 다시 검토받아 통과함" || text === "검토에서 받은 지적 둘을 고침"), "k-481's 기록 reads " + JSON.stringify(done));
       await openApp(page, "#/cards/k-482", "&hub=round26");
@@ -3963,7 +3965,7 @@ const drivers = {
       check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "기록", "댓글"]), "the boxes read " + JSON.stringify(heads));
       const rounds = await detail.getByTestId("timeline-link").allInnerTexts();
       check(
-        rounds.length === 3 && /^(어제 )?\d\d:\d\d · 진행 중 · 변경마다 한 줄 요약을 붙이는 중$/.test(rounds[0]) && /^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/.test(rounds[1]) && /^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/.test(rounds[2]),
+        rounds.length === 3 && /^(어제 )?\d\d:\d\d · 진행 중 · 변경마다 한 줄 요약을 붙이는 중$/.test(rounds[0]) && /^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/.test(rounds[1]) && /^(어제 )?\d\d:\d\d · 완료 · 병합된 변경을 41개 모음$/.test(rounds[2]),
         "the rounds read " + JSON.stringify(rounds),
       );
       // Round 1's end is r9's own end (2시간 40분 전), so the head and the run agree.

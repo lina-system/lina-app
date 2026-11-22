@@ -3,7 +3,7 @@ import { useContext, useState } from "preact/hooks";
 import { BOARD_BASE, type WorkState } from "../api/client";
 import { bootstrapOptions, type AppLabel } from "../data/http-source";
 import type { Store } from "../data/store";
-import type { CardRow, ItemLine, Model, Section } from "../model";
+import { restatesReason, type CardRow, type ItemLine, type Model, type Section } from "../model";
 import { linkClick } from "../router";
 import { ago, duration, total } from "../time";
 import { KIND_WORD, SEP, STATE_WORD, stateLabel, W } from "../words";
@@ -171,7 +171,7 @@ export function CardRowView({ card, dim = false, bare = false, kindIcon = true, 
   const label = [agentName(model, card.agent), card.name, card.sub ?? "", card.ask ?? "", state, progress ? W.todoProgress(progress.done, progress.total) : ""].filter(Boolean).join(SEP);
   // What the card does now (cardNow) under its state line: a going card's on a wide screen, a waiting or stopped card's
   // at every width (lina-app#269), unless its state line already says those words.
-  const nowLine = card.now && (card.state === "in_progress" ? wide : (card.state === "waiting" || card.state === "stopped") && !state.includes(card.now)) ? card.now : null;
+  const nowLine = card.now && (card.state === "in_progress" ? wide : (card.state === "waiting" || card.state === "stopped") && !state.includes(card.now) && !restatesReason(card.reason, card.now)) ? card.now : null;
   // No title: the kind word (a card's detail) or 제목 없음 (a list row) stands in its place, grey.
   const titleClass = card.title ? "title" : "title is-kind";
   return (

@@ -18,7 +18,7 @@ An agent's long report reaches the owner as one report card in the conversation 
 - Images: only the report's own (`images/<n>` or `/reports/<id>/images/<n>`, lina#263's image route); any other address shows a grey note and is never fetched. One image in a paragraph is wide, several stand side by side, each with its caption (its title, else its alt) under it. A tap opens it large with `이전 그림`, `다음 그림` among the document's images, `n / m`, `닫기`, Escape and the arrow keys.
 - Blocks in fenced code: ````lina:chart [bar|line|share|stacked] [title]```` then a table (first column the labels, up to four series; `share` is a donut of one series or stacked bars; one row is a stat row; `type:` and `title:` lines say the same), ````mermaid```` (theme colours light and dark, `−`, `맞춤`, `+` and a sideways drag in its own box), ````lina:callout [note|decision|warning] [title]```` (a quiet box), and `````lina:fold <title>````` (closed; it may hold blocks in shorter fences; one holding a decision or warning box shows `안에 결정 필요` or `안에 주의` on its closed line, the box staying in place inside).
 - A block that does not parse (a non-number cell, no table, more than four series, an unknown chart or callout kind, an unknown `lina:` name, an empty diagram, a fold without a title, a diagram Mermaid refuses) shows its source and one line `<kind> 블록을 그리지 못함: <why>`. Nothing is dropped.
-- When the agent edits the open report (the core's `reports` change event), the viewer shows the new version in place with a small `업데이트됨`; a tap on it clears it. `버전 N개` lists every version (number, time, line); one opens with `이전 버전 vN을 보는 중` and `최신 보기`.
+- When the agent edits the open report (the core's `reports` change event), the viewer shows the new version in place with a small `업데이트됨`; a tap on it clears it. A `reports` event that replaces only the report's image files (a Desk sync: same version, time and body) redraws its images in place; each image stays on screen until its new copy is in. `버전 N개` lists every version (number, time, line); one opens with `이전 버전 vN을 보는 중` and `최신 보기`.
 - A work card's detail shows a `보고서` box with the same card for each report that belongs to the card.
 
 ## Sub-features
@@ -29,7 +29,7 @@ An agent's long report reaches the owner as one report card in the conversation 
 - `report-reading` header, text sizes, headings, tables with sticky headers, number columns and row cards
 - `report-images` own images only, wide, side by side, captions, lightbox with previous and next
 - `report-blocks` charts, diagram, callouts, folds, and broken blocks with their source
-- `report-updates` in-place update with its mark, version history
+- `report-updates` in-place update with its mark, version history, and images redrawn when only they change
 
 ## How to get to it (user POV)
 
@@ -42,13 +42,14 @@ An agent's long report reaches the owner as one report card in the conversation 
 Preconditions:
 
 - `verify.mjs doctor` reports `"healthy": true` for this run.
-- The page is `/app/?source=synthetic&reports=demo`: three synthetic reports (`rep_5e1f0a7c2b90` long, three versions, on `k-101` and `G1`, with a wide table, three generated images and one outside image, line, bar, share and stat charts, a diagram, callouts and a fold holding a decision; `rep_0b5d3c6e8a14` plain markdown with no blocks; `rep_9c2e7f41d6a3` six broken blocks), and the first agent's window holds the lines that sent the first two and a sentence linking the third and an old `/r/` address. `window.__linaReportElsewhere.edit(<id>)` edits a report as its agent would, with the `reports` event after it.
+- The page is `/app/?source=synthetic&reports=demo`: three synthetic reports (`rep_5e1f0a7c2b90` long, three versions, on `k-101` and `G1`, with a wide table, three generated images and one outside image, line, bar, share and stat charts, a diagram, callouts and a fold holding a decision; `rep_0b5d3c6e8a14` plain markdown with no blocks; `rep_9c2e7f41d6a3` six broken blocks), and the first agent's window holds the lines that sent the first two and a sentence linking the third and an old `/r/` address. `window.__linaReportElsewhere.edit(<id>)` edits a report as its agent would, and `window.__linaReportElsewhere.images(<id>)` replaces only its images (same version and body), each with the `reports` event after it.
 
 - **Cards.** Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive reports`. On `#/talk/ag-1` two cards read `가상 릴리스 변경 정리 · 중간 보고` and `가상 백업 점검 메모`, each with `<agent> · 업데이트 …`; the window holds neither `묶음별 변경` nor `[[report:`.
 - **Open.** Choose the first card. At 1280 the inspector reads the title, the chat beside it is at least 360 px with its `메시지` field visible; at 390 the sheet's top is between 300 and 520 px and `data-height` is `half`.
 - **Resize or drag.** At 1280 drag `report-resize` 160 px left: its `aria-valuenow` grows by more than 100. At 390 drag `report-sheet-bar` 250 px up: `data-height` is `full`.
 - **Images.** Choose the first image: `1 / 3`; `다음 그림` twice reads `3 / 3` with `다음 그림` disabled; `이전 그림` reads `2 / 3`; one `report-image-outside` note.
 - **Update and history.** `__linaReportElsewhere.edit("rep_5e1f0a7c2b90")`: `업데이트됨` shows and the report's `data-version` is `4`; `버전 4개` lists `v4 v3 v2 v1`; `v1` shows `이전 버전 v1을 보는 중`, `최신 보기` takes it away.
+- **Images alone.** `__linaReportElsewhere.images("rep_5e1f0a7c2b90")`: the first image's address changes and its picture reads `교체 1`, the report's `data-version` stays the same.
 - **Broken blocks.** `#/reports/rep_9c2e7f41d6a3`: six `report-block-broken` blocks, each with its error line and its source.
 - **Proof.** `verify-runs/$VERIFY_RUN_ID/evidence/reports/reports-1280.{png,aria.yml,json}` and `reports-390.{png,aria.yml,json}`.
 

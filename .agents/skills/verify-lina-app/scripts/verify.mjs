@@ -4709,6 +4709,17 @@ const drivers = {
       await viewer().getByTestId("report-older").waitFor({ state: "detached", timeout: 5_000 });
       return "v4 with the mark; v1 opened and back";
     });
+    await step("only the report's images change: the open viewer redraws them at the same version", async () => {
+      const first = viewer().locator(".report-body img").first();
+      const before = await first.getAttribute("src");
+      const version = await viewer().getByTestId("report").getAttribute("data-version");
+      await page.evaluate((id) => window.__linaReportElsewhere.images(id), LONG);
+      await page.waitForFunction(([selector, old]) => document.querySelector(selector)?.getAttribute("src") !== old, [(wide ? "[data-testid=report-inspector]" : "[data-testid=detail-frame]") + " .report-body img", before], { timeout: 10_000 });
+      const after = await first.getAttribute("src");
+      check(decodeURIComponent(after ?? "").includes("교체 1"), "the first image is not the replaced one");
+      check((await viewer().getByTestId("report").getAttribute("data-version")) === version, "the version moved from " + version);
+      return "image redrawn at v" + version;
+    });
     await step("open a report of broken blocks: each shows its source and one error line", async () => {
       await openApp(page, "#/reports/" + BROKEN, "&reports=demo");
       const broken = (wide ? page.getByTestId("detail-pane") : page.getByTestId("detail-frame")).getByTestId("report-block-broken");

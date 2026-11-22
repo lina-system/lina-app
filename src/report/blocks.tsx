@@ -1,4 +1,4 @@
-import type { VNode } from "preact";
+import type { ComponentChildren, VNode } from "preact";
 import { cellNumber, tableOf, type DocRules } from "../markdown";
 import { Chart, MAX_SERIES, type ChartData, type ChartKind } from "../ui/chart";
 import { REPORT_WORD } from "../words";
@@ -116,8 +116,8 @@ function foldHolds(body: readonly string[]): CalloutKind | null {
   return null;
 }
 
-/** A block drawn; a fold's and a callout's own markdown is drawn by `inner` with the same rules (src/report/body.tsx). */
-export function BlockView({ block, inner }: { block: Exclude<Block, { kind: "broken" }>; inner: (lines: readonly string[]) => VNode[] }): VNode {
+/** A block drawn; a fold's and a callout's own markdown comes drawn already, as its children (blockFence). */
+export function BlockView({ block, children }: { block: Exclude<Block, { kind: "broken" }>; children?: ComponentChildren }): VNode {
   switch (block.kind) {
     case "chart":
       return <Chart data={block.data} />;
@@ -130,7 +130,7 @@ export function BlockView({ block, inner }: { block: Exclude<Block, { kind: "bro
             <span class="report-callout-word">{REPORT_WORD.calloutWord[block.tone]}</span>
             {block.title ? <span class="report-callout-title">{block.title}</span> : null}
           </p>
-          {block.body.join("").trim() ? <div class="report-callout-body">{inner(block.body)}</div> : null}
+          {block.body.join("").trim() ? <div class="report-callout-body">{children}</div> : null}
         </aside>
       );
     case "fold":
@@ -144,18 +144,27 @@ export function BlockView({ block, inner }: { block: Exclude<Block, { kind: "bro
               </span>
             ) : null}
           </summary>
-          <div class="report-fold-body">{inner(block.body)}</div>
+          <div class="report-fold-body">{children}</div>
         </details>
       );
   }
 }
 
-/** The `fence` rule of a report body: a block's drawing, a broken block with its source, or null for plain code. */
+/**
+ * The `fence` rule of a report body: a block's drawing, a broken block with its source, or null for plain code. A
+ * fold's and a callout's own markdown is drawn here, with the same rules, not later inside their component: a pass
+ * that reads the body for its images (src/report/body.tsx) meets those inside them too, in document order.
+ */
 export function blockFence(inner: (lines: readonly string[]) => VNode[]): DocRules["fence"] {
   return (info, body, key) => {
     const block = parseBlock(info, body);
     if (!block) return null;
     if (block.kind === "broken") return <BrokenBlock key={key} kind={block.name} error={block.error} source={[`\`\`\`${info}`, ...body, "```"].join("\n")} />;
-    return <BlockView key={key} block={block} inner={inner} />;
+    const children = block.kind === "fold" || block.kind === "callout" ? inner(block.body) : null;
+    return (
+      <BlockView key={key} block={block}>
+        {children}
+      </BlockView>
+    );
   };
 }

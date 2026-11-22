@@ -1,5 +1,5 @@
 import { fireEvent, render, waitFor, within } from "@testing-library/preact";
-import { expect, test, vi } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import type { ReportImage } from "./data/source";
 import { ownImage, ReportBody } from "./report/body";
 
@@ -115,3 +115,57 @@ test("a new revision reads the images again: the drawn one stays until its answe
   view.unmount();
   await waitFor(() => expect(released).toEqual(["b", "a", "c"]));
 });
+
+// lina-app#274 review: an image written only inside a fold, a callout or a table cell is one of the report's own images
+// like any other: it is read, drawn, opened large in document order, read again on a new revision and released.
+describe("an image inside a block", () => {
+  const nested = [
+    '![밖](images/0 "본문")',
+    "",
+    "````lina:fold 접힌 부분",
+    '![접힘](images/1 "접힌 곳")',
+    "````",
+    "",
+    "```lina:callout note 상자",
+    '![상자](images/2 "상자 안")',
+    "```",
+    "",
+    "| 이름 | 화면 |",
+    "| --- | --- |",
+    '| 가 | ![칸](images/3 "칸 안") |',
+  ].join("\n");
+
+  test("a fold, a callout and a table cell each read and draw their image", async () => {
+    const load = vi.fn(loaded);
+    const view = body(nested, load);
+    await waitFor(() => expect(view.container.querySelectorAll("img")).toHaveLength(4));
+    expect(load.mock.calls.map(([position]) => position).sort()).toEqual([0, 1, 2, 3]);
+    expect(view.queryAllByTestId("report-image-loading")).toHaveLength(0);
+    expect(view.container.querySelector("details.report-fold img")?.getAttribute("src")).toBe("/test-images/1.svg");
+    expect(view.container.querySelector(".report-callout img")?.getAttribute("src")).toBe("/test-images/2.svg");
+    expect(view.container.querySelector(".report-table td img")?.getAttribute("src")).toBe("/test-images/3.svg");
+  });
+
+  test("their large view steps through them in document order", async () => {
+    const view = body(nested);
+    await waitFor(() => expect(view.container.querySelectorAll("img")).toHaveLength(4));
+    fireEvent.click(view.getByRole("button", { name: "그림 크게 보기: 상자 안" }));
+    const box = within(view.getByTestId("report-lightbox"));
+    expect(box.getByTestId("report-lightbox-count").textContent).toBe("3 / 4");
+    fireEvent.click(box.getByRole("button", { name: "다음 그림" }));
+    expect(box.getByRole("img").getAttribute("src")).toBe("/test-images/3.svg");
+  });
+
+  test("a new revision replaces them and every drawn address is released", async () => {
+    const released: string[] = [];
+    const load = (revision: string) => async (position: number): Promise<ReportImage> => ({ ok: true, url: `/${revision}/${position}.svg`, release: () => released.push(`${revision}/${position}`) });
+    const view = render(<ReportBody reportId={ID} body={nested} revision="a" loadImage={load("a")} />);
+    await waitFor(() => expect(view.container.querySelectorAll("img")).toHaveLength(4));
+    view.rerender(<ReportBody reportId={ID} body={nested} revision="b" loadImage={load("b")} />);
+    await waitFor(() => expect([...view.container.querySelectorAll("img")].map((image) => image.getAttribute("src"))).toEqual(["/b/0.svg", "/b/1.svg", "/b/2.svg", "/b/3.svg"]));
+    expect(released.sort()).toEqual(["a/0", "a/1", "a/2", "a/3"]);
+    view.unmount();
+    await waitFor(() => expect(released).toHaveLength(8));
+  });
+});
+

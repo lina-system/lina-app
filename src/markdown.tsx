@@ -180,7 +180,9 @@ function blocks(lines: readonly string[], doc?: DocRules): VNode[] {
       at += 2;
       while (at < lines.length && lines[at].includes("|") && lines[at].trim()) rows.push(cells(lines[at++]));
       if (doc) {
-        out.push(<DocTable key={key} head={head} rows={rows} align={align} inline={inline} />);
+        // The cells are drawn here, not later inside the table's component: a pass reading the body for its images
+        // meets those in cells too, in document order (lina-app#274).
+        out.push(<DocTable key={key} head={head} rows={rows} align={align} cells={rows.map((row) => head.map((_, column) => inline(row[column] ?? "")))} heads={head.map(inline)} />);
         continue;
       }
       out.push(
@@ -254,7 +256,7 @@ function numberColumns(head: readonly string[], rows: readonly string[][]): bool
  * A report's table: its header row stays while its rows scroll, a number column aligns right, and every cell carries
  * its column's name, which a narrow reader shows before it when each row folds into a card (app.css).
  */
-function DocTable({ head, rows, align, inline }: { head: readonly string[]; rows: readonly string[][]; align: readonly (string | undefined)[]; inline: (text: string) => ComponentChildren[] }) {
+function DocTable({ head, rows, align, heads, cells }: { head: readonly string[]; rows: readonly string[][]; align: readonly (string | undefined)[]; heads: readonly ComponentChildren[]; cells: readonly (readonly ComponentChildren[])[] }) {
   const numbers = numberColumns(head, rows);
   const style = (column: number) => (align[column] ? { textAlign: align[column] } : undefined);
   return (
@@ -262,19 +264,19 @@ function DocTable({ head, rows, align, inline }: { head: readonly string[]; rows
       <table>
         <thead>
           <tr>
-            {head.map((cell, index) => (
+            {head.map((_, index) => (
               <th key={index} scope="col" class={numbers[index] ? "is-number" : undefined} style={style(index)}>
-                {inline(cell)}
+                {heads[index]}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, index) => (
+          {rows.map((_, index) => (
             <tr key={index}>
               {head.map((name, column) => (
                 <td key={column} class={numbers[column] ? "is-number" : undefined} style={style(column)} data-label={plainLine(name)}>
-                  {inline(row[column] ?? "")}
+                  {cells[index][column]}
                 </td>
               ))}
             </tr>

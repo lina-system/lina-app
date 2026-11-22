@@ -225,7 +225,11 @@ export class Store {
 
   /** The kept copy on screen at once, before anything is read; the stream says what changed since. */
   private restore(kept: StoredSnapshot): void {
-    for (const [key, route] of Object.entries(kept.routes)) this.entries.set(key, { data: route.data, receivedAt: route.receivedAt, status: "ok" });
+    for (const [key, route] of Object.entries(kept.routes)) {
+      const name = key.split(":")[0] as RouteName;
+      if (WORK_ONLY && AGENT_OPS_ROUTES.has(name)) continue;
+      this.entries.set(key, { data: route.data, receivedAt: route.receivedAt, status: "ok" });
+    }
     this.keptOwner = kept.owner;
     this.lastOk = this.entries.get("board")?.receivedAt ?? null;
     this.catchingUp = true;

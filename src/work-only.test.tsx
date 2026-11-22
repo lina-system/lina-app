@@ -175,6 +175,30 @@ describe("work-only mode", () => {
     goals.view.unmount();
   });
 
+  test("a restored snapshot does not keep kanban cards, inbox or worker runs", () => {
+    const stored = {
+      load: () => ({
+        cursor: "s.1",
+        owner: "o",
+        routes: {
+          board: { data: { inbox: { decide: [], mine: [], review: [] } } },
+          items: { data: { items: [], agents: [] } },
+          cards: { data: { cards: [{ id: "k-1" }] } },
+          inbox: { data: { questions: [] } },
+          "record:r1": { data: { id: "r1" } },
+        },
+      }),
+      save() {},
+      clear() {},
+    };
+    const store = new Store(new SyntheticSource({ now: Math.floor(Date.now() / 1000) }), { stored, afterPaint: async () => {} });
+    expect(store.get("board")).toBeDefined();
+    expect(store.get("items")).toBeDefined();
+    expect(store.get("cards")).toBeUndefined();
+    expect(store.get("inbox")).toBeUndefined();
+    expect(store.get("record", "r1")).toBeUndefined();
+  });
+
   test("an item detail keeps comments and 맡은 봇, with no talk, runs or talk SSE", async () => {
     const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000) });
     const spy = asked(source);

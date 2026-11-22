@@ -36,8 +36,9 @@ export const SETTINGS_REVISED: Want = [...SETTINGS_ROUTES, ["settingsModels"]];
  * settings: a new revision of the work settings (the settings, their history and the model list); notices: the owner's
  * read marks (the board, which holds the bell's lines and counts). talk: a turn added to an agent's app conversation
  * names no snapshot route; the stream tells the store, and the agent's row and open window read it again (talkAgents).
- * reports: a report written or given a new version (lina#263): the report, read again only where a screen read it,
- * and every card's report list a screen read.
+ * reports: a report written or given a new version (lina#263): the report and each of its versions a screen read
+ * (`<id>@<n>`, whose history and newest move too, lina-app#274), read again only where a screen read them, and every
+ * card's report list a screen read.
  */
 export function routesFor(events: readonly ChangeEvent[], store: Pick<Store, "cardsWithRun" | "readIds">): Want {
   const routes: (readonly [Parameters<Store["get"]>[0], string?])[] = [];
@@ -62,7 +63,11 @@ export function routesFor(events: readonly ChangeEvent[], store: Pick<Store, "ca
       case "talk":
         break;
       case "reports":
-        routes.push(["report", event.id], ...store.readIds("reports").map((card) => ["reports", card] as const));
+        routes.push(
+          ["report", event.id],
+          ...store.readIds("report").filter((key) => key.startsWith(`${event.id}@`)).map((key) => ["report", key] as const),
+          ...store.readIds("reports").map((card) => ["reports", card] as const),
+        );
         break;
     }
   }

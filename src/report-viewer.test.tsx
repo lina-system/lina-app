@@ -267,6 +267,31 @@ test("the inspector marks an edit after going back to the newest version, and a 
   expect(within(inspector()).queryByTestId("report-versions")).toBeNull();
 });
 
+test("an earlier version on screen stays when a newer one comes in, its history lists the new one, and each listed version opens itself (lina-app#274)", async () => {
+  const { view, source } = await open("#/talk/ag-1", true);
+  fireEvent.click(await waitFor(() => view.getAllByTestId("report-card")[0]));
+  const inspector = () => view.getByTestId("report-inspector");
+  const listed = () => within(within(inspector()).getByTestId("report-versions")).getAllByRole("button");
+  await waitFor(() => expect(within(inspector()).getByTestId("report").dataset.version).toBe("3"));
+  fireEvent.click(within(inspector()).getByTestId("report-history"));
+  fireEvent.click(listed()[2]);
+  await waitFor(() => expect(within(inspector()).getByTestId("report").dataset.version).toBe("1"));
+  const body = within(inspector()).getByTestId("report").querySelector(".report-body")!.textContent;
+  source.reportEditedElsewhere(REPORT_IDS.long);
+  // v4 came in while v1 is read: v1 stays with its own body, and its history and `업데이트` read v4.
+  await waitFor(() => expect(listed().map((button) => button.querySelector(".report-version-n")!.textContent)).toEqual(["v4", "v3", "v2", "v1"]));
+  expect(within(inspector()).getByTestId("report").dataset.version).toBe("1");
+  expect(within(inspector()).getByTestId("report").querySelector(".report-body")!.textContent).toBe(body);
+  expect(within(inspector()).getByTestId("report-older")).toBeTruthy();
+  // v3 is no longer the newest: choosing it opens v3, not v4; v4 opens the newest.
+  fireEvent.click(listed()[1]);
+  await waitFor(() => expect(within(inspector()).getByTestId("report").dataset.version).toBe("3"));
+  expect(within(inspector()).getByTestId("report-older")).toBeTruthy();
+  fireEvent.click(listed()[0]);
+  await waitFor(() => expect(within(inspector()).getByTestId("report").dataset.version).toBe("4"));
+  expect(within(inspector()).queryByTestId("report-older")).toBeNull();
+});
+
 test("a click on a report page link's own text opens the viewer, as a click on the link does", async () => {
   const { view } = await open("#/talk/ag-1", true);
   const link = await waitFor(() => view.getByRole("link", { name: "오류 예시" }));

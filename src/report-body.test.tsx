@@ -182,3 +182,19 @@ test("a paragraph of images alone is told from any other in one pass, also a ver
   const view = body(near.slice(0, 2_000) + " x");
   expect(view.container.querySelector(".report-gallery")).toBeNull();
 });
+
+// lina-app#274 Aside run5: the large image covers the whole window, never just the viewer or under the phone's bar.
+test("the large image is drawn in the page's body, outside the report, and its Escape closes only itself", async () => {
+  const view = body(['![가](images/0 "첫째")'].join("\n"));
+  await waitFor(() => expect(view.container.querySelectorAll("img")).toHaveLength(1));
+  fireEvent.click(view.getByRole("button", { name: "그림 크게 보기: 첫째" }));
+  const box = document.querySelector("[data-testid=report-lightbox]");
+  expect(box?.parentElement).toBe(document.body);
+  expect(view.container.contains(box)).toBe(false);
+  const outside = vi.fn();
+  document.addEventListener("keydown", outside);
+  fireEvent.keyDown(window, { key: "Escape" });
+  document.removeEventListener("keydown", outside);
+  expect(document.querySelector("[data-testid=report-lightbox]")).toBeNull();
+  expect(outside).not.toHaveBeenCalled();
+});

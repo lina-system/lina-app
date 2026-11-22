@@ -1,4 +1,5 @@
 import type { VNode } from "preact";
+import { createPortal } from "preact/compat";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ReportImage } from "../data/source";
 import { docBlocks, type DocImage, type DocRules } from "../markdown";
@@ -139,7 +140,11 @@ export function ReportBody({ reportId, body, revision = "", loadImage }: { repor
   );
 }
 
-/** One image large over the report, its caption and place, the previous and next of the document, and a way out. */
+/**
+ * One image large over the report, its caption and place, the previous and next of the document, and a way out. It is
+ * drawn in the page's body, not in the report: the viewer is a size container (`container-type`), which makes it the
+ * box a fixed layer is placed in, and the phone's bar stands over the sheet; from the body it covers the whole window.
+ */
 function Lightbox({ images, at, onMove, onClose }: { images: readonly Shown[]; at: number; onMove: (index: number) => void; onClose: () => void }) {
   const close = useRef<HTMLButtonElement>(null);
   const image = images[at];
@@ -162,7 +167,7 @@ function Lightbox({ images, at, onMove, onClose }: { images: readonly Shown[]; a
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [at, prev, next]);
-  return (
+  return createPortal(
     <div class="report-lightbox" role="dialog" aria-modal="true" aria-label={image.caption || REPORT_WORD.image} data-testid="report-lightbox" onClick={(event) => event.target === event.currentTarget && onClose()}>
       <div class="report-lightbox-bar">
         <span class="report-lightbox-count" data-testid="report-lightbox-count">
@@ -182,6 +187,7 @@ function Lightbox({ images, at, onMove, onClose }: { images: readonly Shown[]; a
           {REPORT_WORD.imageNext}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { WORK_ONLY } from "./mode";
 
 export type ListName = "inbox" | "running" | "due" | "done" | "goals" | "status" | "settings" | "today" | "talks";
 export type Route =
@@ -30,6 +31,17 @@ const LISTS: readonly ListName[] = ["inbox", "running", "due", "done", "goals", 
 const PATHS: Record<string, Route["name"]> = { agents: "agent", goals: "goal", items: "item", cards: "card", runs: "run", talk: "talk" };
 const SEGMENT: Record<string, string> = { agent: "agents", goal: "goals", item: "items", card: "cards", run: "runs", talk: "talk" };
 
+/**
+ * Talk, status, agent-ops and worker-card routes: a work-only build has no screens for them, so their addresses
+ * open the work home. Default builds never pass this set.
+ */
+const HIDDEN_IN_WORK: ReadonlySet<Route["name"]> = new Set(["talks", "talk", "status", "settings", "setting", "running", "agent", "card", "run", "round", "group"]);
+
+/** Whether a route is gone from a work-only install (talk, status, running cards, worker runs). */
+export function isHiddenInWork(name: Route["name"]): boolean {
+  return HIDDEN_IN_WORK.has(name);
+}
+
 /** The three tabs at the top: 대화, 작업 and 상태. Every screen belongs to one. */
 export type Tab = "talk" | "work" | "status";
 export const TABS: readonly Tab[] = ["talk", "work", "status"];
@@ -55,31 +67,31 @@ export function tabRoot(tab: Tab): Route {
   return { name: "home" };
 }
 
-export function parse(hash: string): Route {
+export function parse(hash: string, workOnly: boolean = WORK_ONLY): Route {
   const [path, query = ""] = hash.replace(/^#\/?/, "").split("?");
   const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
-  if (parts.length === 0) return { name: "home" };
-  if (parts.length === 1 && parts[0] === "done") {
+  let route: Route = { name: "home" };
+  if (parts.length === 0) route = { name: "home" };
+  else if (parts.length === 1 && parts[0] === "done") {
     const agent = new URLSearchParams(query).get("agent");
-    return agent ? { name: "done", agent } : { name: "done" };
-  }
-  if (parts.length === 2 && parts[0] === "group") {
+    route = agent ? { name: "done", agent } : { name: "done" };
+  } else if (parts.length === 2 && parts[0] === "group") {
     const scope = new URLSearchParams(query);
     const agent = scope.get("agent");
     const goal = scope.get("goal");
-    return { name: "group", id: parts[1], ...(agent ? { agent } : {}), ...(goal ? { goal } : {}) };
-  }
-  if (parts.length === 1 && parts[0] === "talk") return { name: "talks" };
-  if (parts.length === 2 && parts[0] === "talk") {
+    route = { name: "group", id: parts[1], ...(agent ? { agent } : {}), ...(goal ? { goal } : {}) };
+  } else if (parts.length === 1 && parts[0] === "talk") route = { name: "talks" };
+  else if (parts.length === 2 && parts[0] === "talk") {
     const goal = new URLSearchParams(query).get("goal");
-    return goal ? { name: "talk", id: parts[1], goal } : { name: "talk", id: parts[1] };
+    route = goal ? { name: "talk", id: parts[1], goal } : { name: "talk", id: parts[1] };
+  } else if (parts.length === 1 && (LISTS as readonly string[]).includes(parts[0]) && parts[0] !== "talks") route = { name: parts[0] as ListName };
+  else if (parts[0] === "settings") route = { name: "setting", page: parts.slice(1).join("/") };
+  else if (parts.length === 4 && parts[0] === "cards" && parts[2] === "runs" && /^[1-9]\d*$/.test(parts[3])) route = { name: "round", card: parts[1], n: Number(parts[3]) };
+  else {
+    const name = PATHS[parts[0]];
+    if (parts.length === 2 && name && name !== "home") route = { name, id: parts[1] } as Route;
   }
-  if (parts.length === 1 && (LISTS as readonly string[]).includes(parts[0]) && parts[0] !== "talks") return { name: parts[0] as ListName };
-  if (parts[0] === "settings") return { name: "setting", page: parts.slice(1).join("/") };
-  if (parts.length === 4 && parts[0] === "cards" && parts[2] === "runs" && /^[1-9]\d*$/.test(parts[3])) return { name: "round", card: parts[1], n: Number(parts[3]) };
-  const name = PATHS[parts[0]];
-  if (parts.length === 2 && name && name !== "home") return { name, id: parts[1] } as Route;
-  return { name: "home" };
+  return workOnly && isHiddenInWork(route.name) ? { name: "home" } : route;
 }
 
 export function href(route: Route): string {
@@ -163,6 +175,21 @@ function currentHash(): string {
   return window.location.hash || "#/";
 }
 
+/**
+ * A work-only install has no talk / status / agent-ops screens: replace those addresses with the work home so a
+ * pasted or bookmarked hash does not stay in the bar after the screen has already opened as home.
+ */
+function rewriteHiddenHash(): void {
+  if (!WORK_ONLY) return;
+  const hash = currentHash();
+  if (!isHiddenInWork(parse(hash, false).name)) return;
+  const home = href({ name: "home" });
+  if (hash === home) return;
+  const current = readState();
+  const stack = current.stack.map((entry) => (isHiddenInWork(parse(entry, false).name) ? home : entry));
+  window.history.replaceState({ stack: stack.length ? stack : [home], scroll: current.scroll }, "", home);
+}
+
 function readState(): NavState {
   const state = window.history.state as Partial<NavState> | null;
   return { stack: state?.stack ?? [currentHash()], scroll: state?.scroll ?? {} };
@@ -221,7 +248,10 @@ export function back(): void {
 }
 
 export function useNav(): { route: Route; state: NavState; hash: string } {
-  const read = () => ({ route: parse(currentHash()), state: readState(), hash: currentHash() });
+  const read = () => {
+    rewriteHiddenHash();
+    return { route: parse(currentHash()), state: readState(), hash: currentHash() };
+  };
   const [nav, setNav] = useState(read);
   const shown = useRef(nav);
   const committed = useRef(nav);

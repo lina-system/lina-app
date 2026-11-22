@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-work/
 captures/
 verify-runs/
 test-results/

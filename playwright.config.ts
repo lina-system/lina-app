@@ -14,7 +14,7 @@ export default defineConfig({
     locale: "ko-KR",
   },
   webServer: {
-    command: `npm run preview -- --host 127.0.0.1 --port ${port} --strictPort`,
+    command: process.env.LINA_WORK_ONLY === "1" ? `npx vite preview --outDir dist-work --host 127.0.0.1 --port ${port} --strictPort` : `npm run preview -- --host 127.0.0.1 --port ${port} --strictPort`,
     url: `http://127.0.0.1:${port}/app/`,
     reuseExistingServer: false,
     timeout: 60_000,

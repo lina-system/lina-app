@@ -10,6 +10,7 @@ import { stopReason } from "../model/stop-reason";
 import { answerOf, commentHistory, decisionHistory, goalHistory, historyLines, isMachineNotice, outcomeOf, ownerWrote, roundResult, roundSentence } from "../model/timeline";
 import type { CardKind } from "../model/kind";
 import { isRunId, newestFirst, type Store } from "../data/store";
+import { WORK_ONLY } from "../mode";
 import { back, baseOf, href, isFrame, navigate, parse, tabOf, type Route } from "../router";
 import { ago, clockAt, dayLabel } from "../time";
 import { useActions } from "../ui/actions";
@@ -340,6 +341,11 @@ function DoneHead({ detail }: { detail: ItemDetail }) {
           <span class={`due-date${detail.due < model.today ? " is-overdue" : detail.due === model.today ? " is-today" : ""}`}>{dayLabel(detail.due)}</span>
         </span>
       ) : null}
+      {WORK_ONLY && detail.agent && model.agents.some((each) => each.id === detail.agent) ? (
+        <span class="sub" data-testid="assigned-bot">
+          {W.assignedBot(agentName(model, detail.agent))}
+        </span>
+      ) : null}
       {asking ? (
         <div class="confirm" role="group" aria-label={W.withOpenQuestion(open.length)} data-testid="with-open">
           <p class="box-text">{W.withOpenQuestion(open.length)}</p>
@@ -434,7 +440,7 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
         </Box>
       ) : null}
       {/* Every linked card, a stopped one too (`count` leaves those out): the rows the work tab shows (lina-app#170). */}
-      {cards.rows.length ? (
+      {!WORK_ONLY && cards.rows.length ? (
         <Box title={W.cards}>
           <ul class="rows" aria-label={W.cards}>
             {/* The finished cards nothing names are one line, drawn as 완료 draws it (lina-app#242). */}
@@ -458,7 +464,7 @@ function GoalBody({ detail }: { detail: ItemDetail }) {
         </Box>
       ) : null}
       <Comments detail={withoutAnswer(plain)} />
-      {talkWindowOpen(wide) ? null : <Talk key={detail.id} detail={detail} />}
+      {WORK_ONLY || talkWindowOpen(wide) ? null : <Talk key={detail.id} detail={detail} />}
     </article>
   );
 }
@@ -492,7 +498,7 @@ function TodoBody({ detail }: { detail: ItemDetail }) {
           <p class="box-text">{detail.doneCondition}</p>
         </Box>
       ) : null}
-      {detail.runs.length ? (
+      {!WORK_ONLY && detail.runs.length ? (
         <Box title={W.runs}>
           <ul class="rows" aria-label={W.runs}>
             {detail.runs.map((run) => {
@@ -527,7 +533,7 @@ function TodoBody({ detail }: { detail: ItemDetail }) {
         </Box>
       ) : null}
       <Comments detail={withoutAnswer(plain)} />
-      {talkWindowOpen(wide) ? null : <Talk key={detail.id} detail={detail} />}
+      {WORK_ONLY || talkWindowOpen(wide) ? null : <Talk key={detail.id} detail={detail} />}
     </article>
   );
 }

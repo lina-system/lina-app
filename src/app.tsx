@@ -5,7 +5,7 @@ import { LIVE_SETTLE_MS, startLive } from "./data/live";
 import { nowSeconds } from "./data/source";
 import { newestFirst, SLOW_ROUTES, useClock, useStore, type Store, type Want } from "./data/store";
 import { buildModel, runRow, type Model } from "./model";
-import { back, baseOf, defaultListFor, href, isFrame, isList, linkClick, navigate, onSaveScroll, onStackMotion, parse, tabOf, tabRoot, TABS, useNav, type Route, type Tab } from "./router";
+import { back, baseOf, defaultListFor, href, isFrame, isHiddenInWork, isList, linkClick, navigate, onSaveScroll, onStackMotion, parse, tabOf, tabRoot, TABS, useNav, type Route, type Tab } from "./router";
 import { slideMotion } from "./stack-motion";
 import { bindSwipeBack, isStandalone, stackBusy } from "./swipe-back";
 import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RestartSheet, RunningScreen, StatusScreen, TodayScreen } from "./screens/lists";
@@ -19,6 +19,7 @@ import { ActionsCtx, useActions, useActionsFor } from "./ui/actions";
 import { SettingsCtx, useSettingsEditsFor } from "./ui/settings-edits";
 import { browserPushHost, type OpenRequest, type PushHost } from "./push";
 import { PushCtx, PushRow, usePushFor } from "./ui/push-row";
+import { WORK_ONLY } from "./mode";
 import { APP_VERSION } from "./version";
 import { SEP, STATE_WORD, W } from "./words";
 
@@ -81,6 +82,10 @@ export function titleOf(route: Route, model: Model, store: Store): string {
 }
 
 function wantsFor(route: Route, store: Store): Want {
+  if (WORK_ONLY) {
+    // Item and goal pages read the record; everything else is in the first-refresh lists.
+    return route.name === "goal" || route.name === "item" ? [["item", route.id]] : [];
+  }
   switch (route.name) {
     case "talk":
       return route.goal ? wantsFor({ name: "goal", id: route.goal }, store) : [];
@@ -130,6 +135,7 @@ function wantsFor(route: Route, store: Store): Want {
  * few (lina-app#186). A card the list does not hold may be a finished one not read yet.
  */
 function readsEveryFinished(route: Route, store: Store): boolean {
+  if (WORK_ONLY) return false;
   switch (route.name) {
     case "goals":
     case "done":
@@ -159,6 +165,22 @@ function readsEveryFinished(route: Route, store: Store): boolean {
 }
 
 function Screen({ route }: { route: Route }) {
+  if (WORK_ONLY) {
+    switch (route.name) {
+      case "talks":
+      case "talk":
+      case "status":
+      case "settings":
+      case "setting":
+      case "running":
+      case "agent":
+      case "card":
+      case "group":
+      case "run":
+      case "round":
+        return <RunningScreen />;
+    }
+  }
   switch (route.name) {
     case "home":
       return <RunningScreen />;
@@ -242,8 +264,9 @@ function NavRow({ to, icon, label, name, count, stopped, stoppedMark = false, cu
 
 const TAB_WORD: Record<Tab, string> = { talk: W.tabTalk, work: W.tabWork, status: W.tabStatus };
 
-/** The three tabs at the top. Each opens its own first screen; the tab of the screen shown is the current one. */
+/** The three tabs at the top. Each opens its own first screen; the tab of the screen shown is the current one. A work-only build is only 작업, so the bar is not drawn. */
 export function Tabs({ current }: { current: Tab }) {
+  if (WORK_ONLY) return null;
   return (
     <nav class="tabs" aria-label={W.tabs} data-testid="tabs">
       {TABS.map((tab) => (
@@ -325,13 +348,14 @@ function TalkRows({ current }: { current?: Route }) {
 export function Sidebar({ current, tab = "work", settings = false }: { current?: Route; tab?: Tab; settings?: boolean }) {
   const { model } = useApp();
   const is = (name: string, id?: string) => Boolean(current && current.name === name && (id === undefined || ("id" in current && current.id === id)));
-  if (tab === "talk") return <TalkRows current={current} />;
-  if (tab === "status")
+  if (!WORK_ONLY && tab === "talk") return <TalkRows current={current} />;
+  if (!WORK_ONLY && tab === "status")
     return (
       <nav class="sidebar-list" aria-label={W.sidebar} data-testid="sidebar" data-version={APP_VERSION}>
         <StatusRows current={current} />
       </nav>
     );
+  const doneCount = WORK_ONLY ? [...model.items.values()].filter((item) => item.state === "done").length : model.counts.done;
   return (
     <nav class="sidebar-list" aria-label={W.sidebar} data-testid="sidebar" data-version={APP_VERSION}>
       <ul class="nav-group">
@@ -339,11 +363,11 @@ export function Sidebar({ current, tab = "work", settings = false }: { current?:
       </ul>
       <ul class="nav-group">
         <NavRow to={{ name: "inbox" }} icon={<InboxIcon />} label={W.inbox} count={model.counts.inbox} current={is("inbox")} testid="nav-inbox" />
-        <NavRow to={{ name: "running" }} icon={<RunningIcon />} label={W.running} count={model.counts.running} stopped={model.counts.stopped} stoppedMark current={is("running")} testid="nav-running" />
+        {WORK_ONLY ? null : <NavRow to={{ name: "running" }} icon={<RunningIcon />} label={W.running} count={model.counts.running} stopped={model.counts.stopped} stoppedMark current={is("running")} testid="nav-running" />}
         <NavRow to={{ name: "due" }} icon={<CalendarIcon />} label={W.due} count={model.counts.due} current={is("due")} testid="nav-due" />
-        <NavRow to={{ name: "done" }} icon={<DoneIcon />} label={W.done} count={model.counts.done} current={is("done")} testid="nav-done" />
+        <NavRow to={{ name: "done" }} icon={<DoneIcon />} label={W.done} count={doneCount} current={is("done")} testid="nav-done" />
       </ul>
-      {model.agents.length ? (
+      {!WORK_ONLY && model.agents.length ? (
         <>
           <h2 class="nav-head">{W.agents}</h2>
           <ul class="nav-group" aria-label={W.agents}>
@@ -356,7 +380,7 @@ export function Sidebar({ current, tab = "work", settings = false }: { current?:
       <ul class="nav-group">
         <NavRow to={{ name: "goals" }} icon={<GoalIcon />} label={W.goals} count={model.counts.goals} current={is("goals")} testid="nav-goals" />
       </ul>
-      {settings ? (
+      {settings && !WORK_ONLY ? (
         <ul class="nav-group">
           <NavRow to={{ name: "settings" }} icon={<GearIcon />} label={W.settings} current={is("settings")} testid="nav-settings" />
         </ul>
@@ -422,6 +446,10 @@ export function Freshness() {
 }
 
 function noticeHref(model: Model, target: string): string {
+  if (WORK_ONLY) {
+    const item = model.items.get(target);
+    return item ? href({ name: item.kind === "goal" ? "goal" : "item", id: target }) : href({ name: "home" });
+  }
   if (model.cards.has(target)) return href({ name: "card", id: target });
   if (model.runs.has(target)) return href({ name: "run", id: target });
   const item = model.items.get(target);
@@ -432,8 +460,8 @@ function noticeHref(model: Model, target: string): string {
 export function pushHref(model: Model, request: OpenRequest): string {
   if (request.kind === "ask") return href({ name: "inbox" });
   if (request.kind === "reply") return noticeHref(model, request.target);
-  if (request.kind === "blocked" || request.kind === "question") return href({ name: "card", id: request.target });
-  return request.hash;
+  if (request.kind === "blocked" || request.kind === "question") return WORK_ONLY ? href({ name: "home" }) : href({ name: "card", id: request.target });
+  return WORK_ONLY && isHiddenInWork(parse(request.hash, false).name) ? href({ name: "home" }) : request.hash;
 }
 
 /** Which install the app is open on, in the operator's words; `test` has its own tint. No label, no element. */
@@ -679,7 +707,7 @@ function TalkShell({ route, frame, stack }: { route: Route; frame: Route | null;
     else navigate(card, { replace: true });
   };
   return (
-    <div class="split is-talk" data-layout="wide" data-tab="talk">
+    <div class="split is-talk" data-layout="wide" data-tab="talk" data-lina-mode={WORK_ONLY ? "work" : "full"}>
       <aside class="sidebar">
         <Sidebar tab="talk" current={route} />
       </aside>
@@ -734,7 +762,7 @@ function WideShell({ route, stack, scroll }: { route: Route; stack: readonly str
   const detailRef = useRef<HTMLElement>(null);
   useScrollKeeping({ list: listRef, detail: detailRef }, { list: href(listRoute), detail: detailRoute ? href(detailRoute) : "", main: "" }, scroll);
   return (
-    <div class="split" data-layout="wide">
+    <div class="split" data-layout="wide" data-lina-mode={WORK_ONLY ? "work" : "full"}>
       <aside class="sidebar">
         <Sidebar tab={tab} current={listRoute} />
       </aside>
@@ -801,7 +829,7 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
     };
   }, []);
   return (
-    <div class="stack" data-layout="phone">
+    <div class="stack" data-layout="phone" data-lina-mode={WORK_ONLY ? "work" : "full"}>
       <header class={talkAgent ? "navbar is-talk" : "navbar"}>
         {talkAgent ? (
           <>
@@ -919,10 +947,14 @@ export function App({ store, pushHost, label = null }: { store: Store; pushHost?
       <ActionsCtx.Provider value={actions}>
         <PushCtx.Provider value={push}>
           <SettingsCtx.Provider value={settingsEdits}>
-            {wide && tabOf(base) === "talk" ? <TalkShell route={base} frame={isFrame(nav.route) ? nav.route : null} stack={nav.state.stack} /> : wide ? <WideShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} /> : <PhoneShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} />}
+            {wide && !WORK_ONLY && tabOf(base) === "talk" ? <TalkShell route={base} frame={isFrame(nav.route) ? nav.route : null} stack={nav.state.stack} /> : wide ? <WideShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} /> : <PhoneShell route={nav.route} stack={nav.state.stack} scroll={nav.state.scroll} />}
             <Toast />
-            <RollbackSheet />
-            <RestartSheet />
+            {WORK_ONLY ? null : (
+              <>
+                <RollbackSheet />
+                <RestartSheet />
+              </>
+            )}
           </SettingsCtx.Provider>
         </PushCtx.Provider>
       </ActionsCtx.Provider>

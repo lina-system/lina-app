@@ -9,11 +9,14 @@
   "scripts": {
     "generate": "node scripts/generate-client.mjs",
     "dev": "vite",
+    "dev:work": "VITE_LINA_MODE=work vite",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "check:personal": "node scripts/check-personal-data.ts",
     "test": "npm run generate && npm run check:personal && npm run typecheck && vitest run && node scripts/renamed-field-fails.mjs",
     "build": "npm run generate && tsc -p tsconfig.json --noEmit && vite build",
+    "build:work": "npm run generate && tsc -p tsconfig.json --noEmit && VITE_LINA_MODE=work vite build --outDir dist-work",
     "preview": "vite preview",
+    "preview:work": "vite preview --outDir dist-work",
     "capture": "npm run build && playwright test"
   },
   "dependencies": {

@@ -4,6 +4,57 @@
  */
 
 export interface paths {
+    "/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reports, newest change first, optionally of one work card and one goal (no bodies). */
+        get: operations["listReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One report with its newest body, or with one earlier version's. */
+        get: operations["getReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/{id}/page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The report as a plain HTML page, for a browser that opens the link a chat message carries. Its newest version; it reloads itself every 30 s. Raw HTML in the body is shown as text, only http(s), mailto and same-site addresses are kept, and the Content-Security-Policy allows no script. */
+        get: operations["getReportPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/work/cards": {
         parameters: {
             query?: never;
@@ -207,6 +258,54 @@ export interface components {
         };
         /** @description One word after the state, when there is one: the column for planned; review or gate for waiting; the block kind, gate, budget or unresponsive for stopped. */
         Reason: string | null;
+        /** @description A report: the ReportSummary fields, the body of `shownVersion` (markdown; `title` and `summary` are that version's too) and every version's number, time and line. */
+        Report: {
+            agent: string;
+            body: string;
+            card: string | null;
+            createdAt: number;
+            goal: string | null;
+            id: string;
+            page: string;
+            private: boolean;
+            shownVersion: number;
+            summary: string;
+            title: string;
+            updatedAt: number;
+            version: number;
+            versions: components["schemas"]["ReportVersion"][];
+        };
+        ReportList: {
+            reports: components["schemas"]["ReportSummary"][];
+        };
+        /** @description A chat message's reference to a report: a line of its own, `[[report:<id>|<page address>|<summary>]]`, that the `report` tool returns (gateway/report_reference.py). Fields: `id` the report's id, `page` the page address (the dashboard's public URL and /reports/{id}/page), `summary` its one line. A client with report cards shows a card for the line and reads GET /reports/{id}; a platform without cards (Telegram) sends the summary line and the page link instead. The report's body is never in the message. */
+        ReportReference: string;
+        /** @description One report without its body. The app's report card (lina-app#50) shows `title`, `summary`, `agent`, `updatedAt` and `version`, and opens `page` or GET /reports/{id}. */
+        ReportSummary: {
+            /** @description The agent that wrote it. */
+            agent: string;
+            card: string | null;
+            createdAt: number;
+            goal: string | null;
+            /** @description rep_ and 12 hex digits. */
+            id: string;
+            /** @description The page's path on this server (GET /reports/{id}/page). */
+            page: string;
+            /** @description Written from the owner's private material; served only to the owner's session. */
+            private: boolean;
+            /** @description One line, the line the chat shows. */
+            summary: string;
+            title: string;
+            updatedAt: number;
+            /** @description The newest version's number (1 for a report never edited). */
+            version: number;
+        };
+        ReportVersion: {
+            at: number;
+            summary: string;
+            title: string;
+            version: number;
+        };
         Todo: {
             done: boolean;
             /** @description owner/repo#n for an issue; check-N for a checklist item. */
@@ -310,6 +409,113 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listReports: {
+        parameters: {
+            query?: {
+                /** @description Only reports of this work card (the id `/work/cards/{id}` takes). */
+                card?: string;
+                /** @description Only reports of this goal. */
+                goal?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The reports. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportList"];
+                };
+            };
+            /** @description The store cannot be read. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getReport: {
+        parameters: {
+            query?: {
+                /** @description Show this version's title, summary and body instead of the newest. */
+                version?: number;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            /** @description No such report or version, or a private report and the request is not the owner's session. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The store cannot be read. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getReportPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
+                };
+            };
+            /** @description Not signed in; to the dashboard sign-in, which returns here (the dashboard's auth gate). */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such report, or a private report and the request is not the owner's session. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     listWorkCards: {
         parameters: {
             query?: {

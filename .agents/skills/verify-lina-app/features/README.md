@@ -79,6 +79,7 @@ A card's run history is `기록`, whether the card runs or stopped. A card with 
 - [할 일 detail](./item-detail.md) covers a to-do with its runs and comment thread.
 - [대화 tab](./talk-tab.md) covers the three tabs at the top and talking with one agent in its own app window, its card beside it.
 - [대화](./talk.md) covers talking with the agent that owns a goal or to-do, from its page.
+- [보고서](./reports.md) covers a report's card in the chat and in its work card, the inspector and the phone sheet, reading layout, images, blocks, updates and versions.
 - [작업 detail](./card-detail.md) covers a work card or a worker run outside any card.
 - [상태](./status.md) covers machines and their runners, sign-in, restart, the owner's own Macs, quota, each account's state, usage and OCX's own line.
 - [설정](./settings.md) covers the work settings: runners, models, routing rules, machine caps, their history and the one-step rollback.

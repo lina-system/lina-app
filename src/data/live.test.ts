@@ -275,21 +275,31 @@ describe("the change stream", () => {
 
 describe("what a change touches", () => {
   test("work, worker and kanban events name only their routes", () => {
-    const store = { cardsWithRun: (id: string) => (id === "job-1" ? ["k-101"] : []) };
+    const store = { cardsWithRun: (id: string) => (id === "job-1" ? ["k-101"] : []), readIds: () => [] };
     expect(routesFor([{ source: "work", kind: "commented", id: "T4", at: 1 }], store)).toEqual([["board"], ["items"], ["item", "T4"]]);
     expect(routesFor([{ source: "worker", kind: "exec_end", id: "job-1", at: 1 }], store)).toEqual([["board"], ["record", "job-1"], ["card", "k-101"]]);
     expect(routesFor([{ source: "kanban", kind: "moved", id: "k-102", at: null }], store)).toEqual([["cards"], ["goals"], ["inbox"], ["card", "k-102"], ["goal", "k-102"]]);
   });
 
   test("a settings event reads the settings, the history lists a screen read and the model list", () => {
-    const store = { cardsWithRun: () => [] };
+    const store = { cardsWithRun: () => [], readIds: () => [] };
     expect(routesFor([{ source: "settings", kind: "revised", id: "r4", at: 1 }], store)).toEqual([["settings"], ["settingsHistory", "5"], ["settingsHistory", "500"], ["settingsModels"]]);
   });
 
   test("a notices event reads the board, which holds the bell's lines and counts; a talk event names no snapshot route", () => {
-    const store = { cardsWithRun: () => [] };
+    const store = { cardsWithRun: () => [], readIds: () => [] };
     expect(routesFor([{ source: "notices", kind: "read", id: "owner", at: 1 }], store)).toEqual([["board"]]);
     expect(routesFor([{ source: "talk", kind: "message", id: "alpha", at: 1 }], store)).toEqual([]);
+  });
+
+  test("a reports event reads the report again and every card's report list a screen read (lina-app#50)", () => {
+    const store = { cardsWithRun: () => [], readIds: (name: string) => (name === "reports" ? ["k-101", "k-102"] : []) };
+    expect(routesFor([{ source: "reports", kind: "updated", id: "rep_5e1f0a7c2b90", at: 1 }], store)).toEqual([["report", "rep_5e1f0a7c2b90"], ["reports", "k-101"], ["reports", "k-102"]]);
+  });
+
+  test("a reports event reads again each version of that report a screen read, whose history and newest move too, and no other report (lina-app#274)", () => {
+    const store = { cardsWithRun: () => [], readIds: (name: string) => (name === "report" ? ["rep_a", "rep_a@1", "rep_a@3", "rep_ab@1", "rep_b@2"] : []) };
+    expect(routesFor([{ source: "reports", kind: "updated", id: "rep_a", at: 1 }], store)).toEqual([["report", "rep_a"], ["report", "rep_a@1"], ["report", "rep_a@3"]]);
   });
 });
 

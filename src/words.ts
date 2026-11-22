@@ -461,6 +461,64 @@ export const W = {
   answeredWhat: (kind: string) => `${kind}에 답함`,
 };
 
+/** The report viewer, its card and its blocks (lina-app#50, #83, #114). */
+export const REPORT_WORD = {
+  report: "보고서",
+  /** The card's grey line: the agent and when the report last changed (`<agent> · 업데이트 · 12분 전`). */
+  updated: "업데이트",
+  /** The small mark beside the time when the open report got a new version. */
+  updatedNow: "업데이트됨",
+  version: (n: number) => `v${n}`,
+  versions: (count: number) => `버전 ${count}개`,
+  history: "버전 기록",
+  /** The line over an earlier version, with the way back to the newest. */
+  olderShown: (n: number) => `이전 버전 v${n}을 보는 중`,
+  newest: "최신 보기",
+  goal: "목표",
+  close: "닫기",
+  resize: "보고서 폭 조절",
+  textSize: "글자 크기",
+  sizes: { s: "작게", m: "보통", l: "크게" } as const,
+  /** The sheet on a phone: drag up for the whole screen. */
+  sheetFull: "크게 보기",
+  sheetHalf: "반만 보기",
+  missing: "보고서를 찾을 수 없음",
+  failed: "보고서를 읽지 못함",
+  /** An image whose address is not one of the report's own files is not drawn. */
+  imageOutside: "보고서 밖 그림이라 보이지 않음",
+  /** One of the report's own images the core did not give (refused, gone or no answer). */
+  imageFailed: "그림을 불러오지 못함",
+  imageOpen: (caption: string) => `그림 크게 보기: ${caption}`,
+  imagePrev: "이전 그림",
+  imageNext: "다음 그림",
+  imageCount: (n: number, of: number) => `${n} / ${of}`,
+  image: "그림",
+  // Report blocks (lina-app#83).
+  blockBroken: (kind: string) => `${kind} 블록을 그리지 못함`,
+  chart: "차트",
+  diagram: "다이어그램",
+  callout: "알림 상자",
+  fold: "접힌 부분",
+  unknownBlock: (name: string) => `모르는 블록 ${name}`,
+  noTable: "표가 없음",
+  noRows: "값이 있는 행이 없음",
+  tooManySeries: (count: number) => `계열이 ${count}개: 4개까지 그림`,
+  notNumber: (cell: string) => `숫자가 아닌 칸 "${cell}"`,
+  chartKind: (kind: string) => `모르는 차트 종류 "${kind}"`,
+  negativeShare: (cell: string) => `비율 차트에 음수 값 "${cell}"`,
+  calloutKind: (kind: string) => `모르는 상자 종류 "${kind}"`,
+  emptyBlock: "내용이 없음",
+  noTitle: "제목이 없음",
+  calloutWord: { note: "참고", decision: "결정 필요", warning: "주의" } as const,
+  /** The mark on a closed fold that holds a decision or warning box. */
+  foldHolds: (word: string) => `안에 ${word}`,
+  zoomIn: "확대",
+  zoomOut: "축소",
+  zoomFit: "맞춤",
+  drawing: "그리는 중",
+  total: "합계",
+} as const;
+
 /**
  * A push notification's first body line, by the kind of item it is about (push-client.yaml ShowMessage.kind).
  * public/sw.js keeps a copy; src/sw.test.ts holds the two equal.

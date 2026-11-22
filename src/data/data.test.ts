@@ -1,4 +1,4 @@
-import { expect, test, vi } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { bootstrapLabel, bootstrapOptions, HttpSource } from "./http-source";
 import { chooseSource } from "./select";
 import { Store } from "./store";
@@ -586,4 +586,55 @@ test("a route read once with ensure whose read failed is healable and is read ag
   expect(store.status("item", "T4")).toBe("ok");
   expect(store.ensuredFailed()).toBe(false);
   expect(store.healable()).toBe(false);
+});
+
+// lina-app#114: a report's own image route sits outside /api and admits a request by the session token header or the
+// gate's cookie only, so an <img> pointed at it fails on a loopback core. The source reads the bytes itself.
+describe("a report image", () => {
+  const png = () => new Response(new Blob([new Uint8Array([137, 80, 78, 71])], { type: "image/png" }), { status: 200, headers: { "Content-Type": "image/png" } });
+  const record = (answer: () => Response) => {
+    const calls: { url: string; headers: Record<string, string>; credentials?: RequestCredentials }[] = [];
+    const fetchImpl = (async (url: string, init?: RequestInit) => {
+      calls.push({ url, headers: { ...(init?.headers as Record<string, string>) }, credentials: init?.credentials });
+      return answer();
+    }) as typeof fetch;
+    return { calls, fetchImpl };
+  };
+
+  test("on a loopback core carries the session token in its header, never in the address, and draws from an object address it releases", async () => {
+    const created = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:report-image-1");
+    const revoked = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    try {
+      const { calls, fetchImpl } = record(png);
+      const image = await new HttpSource({ fetch: fetchImpl, token: "token-a", basePath: "/core" }).reportImage("rep_5e1f0a7c2b90", 2);
+      expect(calls).toEqual([{ url: "/core/reports/rep_5e1f0a7c2b90/images/2", headers: { Accept: "image/*", "X-Hermes-Session-Token": "token-a" }, credentials: "same-origin" }]);
+      expect(calls[0].url).not.toContain("token");
+      expect(image).toMatchObject({ ok: true, url: "blob:report-image-1" });
+      expect(created).toHaveBeenCalledTimes(1);
+      if (image.ok) image.release();
+      expect(revoked).toHaveBeenCalledWith("blob:report-image-1");
+    } finally {
+      created.mockRestore();
+      revoked.mockRestore();
+    }
+  });
+
+  test("behind the gate sends no token, only the page's cookie, and reads a sign-in page or a refusal as not given", async () => {
+    const created = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:report-image-2");
+    try {
+      const gated = record(png);
+      expect(await new HttpSource({ fetch: gated.fetchImpl }).reportImage("rep_5e1f0a7c2b90", 0)).toMatchObject({ ok: true, url: "blob:report-image-2" });
+      expect(gated.calls[0].headers).toEqual({ Accept: "image/*" });
+      expect(gated.calls[0].credentials).toBe("same-origin");
+      const signIn = record(() => new Response("<html>sign in</html>", { status: 200, headers: { "Content-Type": "text/html" } }));
+      expect(await new HttpSource({ fetch: signIn.fetchImpl }).reportImage("rep_5e1f0a7c2b90", 0)).toEqual({ ok: false, status: 401 });
+      const refused = record(() => new Response(JSON.stringify({ detail: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } }));
+      expect(await new HttpSource({ fetch: refused.fetchImpl, token: "stale" }).reportImage("rep_5e1f0a7c2b90", 0)).toEqual({ ok: false, status: 401 });
+      const offline = new HttpSource({ fetch: (async () => Promise.reject(new TypeError("network"))) as typeof fetch });
+      expect(await offline.reportImage("rep_5e1f0a7c2b90", 0)).toEqual({ ok: false, status: 0 });
+      expect(created).toHaveBeenCalledTimes(1);
+    } finally {
+      created.mockRestore();
+    }
+  });
 });

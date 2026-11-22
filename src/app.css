@@ -3665,3 +3665,861 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 .answer-where a {
   color: var(--accent);
 }
+
+/* Reports (lina-app#50, #83, #114): the card in the chat and in a work card, and the viewer in the inspector, the
+   phone's sheet and the detail pane. The document alone: its head, then the body at a reading width. */
+
+/* A message with a report card stacks its bubbles and cards, each on its own line. */
+.talk-turn:has(> .report-card) {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.report-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(100%, 360px);
+  min-height: var(--row);
+  margin: 4px 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: var(--line) solid var(--separator);
+  background: var(--bg);
+  color: var(--label);
+  text-decoration: none;
+}
+
+.report-card:hover {
+  background: color-mix(in srgb, var(--label) 4%, var(--bg));
+}
+
+.report-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.report-card-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.report-card-lines {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.report-card-title {
+  font-weight: 600;
+}
+
+.report-card-meta {
+  font-size: var(--text-small);
+  color: var(--label-2);
+}
+
+.report-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.report-cards .report-card {
+  max-width: none;
+  margin: 0;
+}
+
+/* The viewer. Three text sizes; the line spacing and heading steps follow the size. */
+.report {
+  --report-text: 16px;
+  container-type: inline-size;
+  padding: 0 var(--inset) 40px;
+  font-size: var(--report-text);
+  line-height: 1.7;
+  color: var(--label);
+}
+
+.report[data-size="s"] {
+  --report-text: 14px;
+}
+
+.report[data-size="l"] {
+  --report-text: 19px;
+}
+
+[data-layout="phone"] .report {
+  --report-text: 17px;
+}
+
+[data-layout="phone"] .report[data-size="s"] {
+  --report-text: 15px;
+}
+
+[data-layout="phone"] .report[data-size="l"] {
+  --report-text: 20px;
+}
+
+.report > * {
+  max-width: 44rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.report-tools {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  max-width: none;
+  margin: 0 calc(-1 * var(--inset));
+  padding: 6px var(--inset);
+  background: color-mix(in srgb, var(--bg-2) 92%, transparent);
+  backdrop-filter: blur(12px);
+  font-size: var(--text-small);
+  line-height: 1.2;
+}
+
+.report-sizes {
+  display: flex;
+  margin-right: auto;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--tab-track);
+}
+
+.report-size {
+  min-width: 32px;
+  min-height: 28px;
+  border-radius: 6px;
+  color: var(--label-2);
+  font-weight: 600;
+}
+
+.report-size[data-size="s"] {
+  font-size: 11px;
+}
+
+.report-size[data-size="m"] {
+  font-size: 14px;
+}
+
+.report-size[data-size="l"] {
+  font-size: 17px;
+}
+
+.report-size[aria-checked="true"] {
+  background: var(--tab-current);
+  color: var(--label);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.report-head {
+  padding: 14px 0 12px;
+  border-bottom: var(--line) solid var(--separator);
+}
+
+.report-title {
+  margin: 0;
+  font-size: 1.6em;
+  line-height: 1.25;
+  font-weight: 700;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.report-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 2px;
+  margin: 6px 0 0;
+  font-size: var(--text-small);
+  line-height: 1.4;
+  color: var(--label-2);
+}
+
+.report-updated {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+
+.report-goal {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: var(--text-small);
+  color: var(--accent);
+}
+
+.report-older {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 6px 6px 6px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--orange) 14%, transparent);
+  font-size: var(--text-small);
+  line-height: 1.4;
+}
+
+.report-versions {
+  list-style: none;
+  margin-top: 8px;
+  padding: 4px 0;
+  border-bottom: var(--line) solid var(--separator);
+  font-size: var(--text-small);
+  line-height: 1.4;
+}
+
+.report-version {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  text-align: left;
+  align-items: center;
+}
+
+.report-version:hover {
+  background: var(--fill);
+}
+
+.report-version[aria-current="true"] {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.report-version-n {
+  font-weight: 600;
+}
+
+.report-version-at,
+.report-version-line {
+  color: var(--label-2);
+}
+
+/* The body: real heading steps, paragraph spacing at the reading size. */
+.report-body.md > * + * {
+  margin-top: 0.9em;
+}
+
+.report-body {
+  padding-top: 8px;
+}
+
+.report-body h2,
+.report-body h3,
+.report-body h4 {
+  margin: 1.6em 0 0;
+  line-height: 1.3;
+  font-weight: 700;
+  word-break: keep-all;
+}
+
+.report-body h2 {
+  font-size: 1.35em;
+}
+
+.report-body h3 {
+  font-size: 1.15em;
+}
+
+.report-body h4 {
+  font-size: 1em;
+  color: var(--label-2);
+}
+
+.report-body li + li {
+  margin-top: 0.25em;
+}
+
+.report-body .md-code {
+  font-size: 0.82em;
+}
+
+/* Tables: the header row stays while the rows scroll in their own box; numbers align right in even figures. */
+.report-table {
+  max-height: 70vh;
+  overflow: auto;
+  border: var(--line) solid var(--separator);
+  border-radius: 10px;
+  overscroll-behavior: contain;
+}
+
+.report-table table {
+  width: 100%;
+  font-size: 0.86em;
+  line-height: 1.45;
+}
+
+.report-table th,
+.report-table td {
+  padding: 6px 10px;
+  border: 0;
+  border-bottom: var(--line) solid var(--separator);
+  white-space: nowrap;
+}
+
+.report-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-2);
+  color: var(--label-2);
+  font-weight: 600;
+}
+
+.report-table .is-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A narrow reader: each row folds into a card, every cell after its column's name. */
+@container (max-width: 520px) {
+  .report-table {
+    max-height: none;
+    overflow: visible;
+    border: 0;
+  }
+
+  .report-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .report-table table,
+  .report-table tbody,
+  .report-table tr,
+  .report-table td {
+    display: block;
+  }
+
+  .report-table tr {
+    margin-bottom: 8px;
+    padding: 6px 12px;
+    border-radius: 10px;
+    background: var(--bg);
+    border: var(--line) solid var(--separator);
+  }
+
+  .report-table td {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0;
+    white-space: normal;
+    text-align: right;
+  }
+
+  .report-table td:last-child {
+    border-bottom: 0;
+  }
+
+  .report-table td::before {
+    content: attr(data-label);
+    flex: none;
+    max-width: 50%;
+    color: var(--label-2);
+    text-align: left;
+  }
+
+  .report-table td:first-child {
+    font-weight: 600;
+  }
+}
+
+/* Images: wide, the caption under each, several side by side; a tap opens it large. */
+.report-figure-one,
+.report-gallery {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.report-figure {
+  display: block;
+}
+
+.report-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 12px;
+}
+
+.report-image {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  border: var(--line) solid var(--separator);
+  background: var(--bg-2);
+  cursor: zoom-in;
+}
+
+.report-image.is-loading {
+  aspect-ratio: 16 / 9;
+  cursor: default;
+}
+
+.report-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.report-caption {
+  display: block;
+  margin-top: 6px;
+  font-size: var(--text-small);
+  line-height: 1.4;
+  color: var(--label-2);
+  text-align: center;
+}
+
+.report-image-outside {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 6px;
+  background: var(--fill);
+  font-size: var(--text-small);
+  color: var(--label-2);
+}
+
+.report-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: calc(12px + var(--safe-top)) 12px calc(12px + var(--safe-bottom));
+  background: rgba(0, 0, 0, 0.86);
+  color: #fff;
+}
+
+.report-lightbox-bar,
+.report-lightbox-steps {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(100%, 1100px);
+}
+
+.report-lightbox .text-button {
+  color: #fff;
+}
+
+.report-lightbox .text-button:disabled {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.report-lightbox-image {
+  max-width: min(100%, 1400px);
+  max-height: calc(100% - 140px);
+  object-fit: contain;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.report-lightbox-caption {
+  margin: 0;
+  font-size: var(--text-small);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Blocks (lina-app#83): quiet but easy to find. */
+.report-callout {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border-left: 3px solid var(--label-3);
+  background: color-mix(in srgb, var(--label) 4%, transparent);
+}
+
+.report-callout[data-tone="decision"] {
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.report-callout[data-tone="warning"] {
+  border-left-color: var(--orange);
+  background: color-mix(in srgb, var(--orange) 10%, transparent);
+}
+
+.report-callout-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.report-callout-word {
+  font-size: var(--text-small);
+  font-weight: 700;
+  color: var(--label-2);
+}
+
+.report-callout[data-tone="decision"] .report-callout-word {
+  color: var(--accent);
+}
+
+.report-callout-title {
+  font-weight: 600;
+}
+
+.report-callout-body {
+  margin-top: 4px;
+}
+
+.report-callout-body > * + * {
+  margin-top: 0.6em;
+}
+
+.report-fold {
+  border-radius: 10px;
+  border: var(--line) solid var(--separator);
+}
+
+.report-fold > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-height: var(--row);
+  padding: 6px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+
+.report-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.report-fold > summary::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--label-2);
+  border-bottom: 1.5px solid var(--label-2);
+  transform: rotate(-45deg);
+  transition: transform var(--motion);
+}
+
+.report-fold[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+.report-fold-mark {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: var(--text-small);
+}
+
+.report-fold-mark[data-tone="warning"] {
+  background: color-mix(in srgb, var(--orange) 16%, transparent);
+  color: color-mix(in srgb, var(--orange) 70%, var(--label));
+}
+
+.report-fold[open] .report-fold-mark {
+  display: none;
+}
+
+.report-fold-body {
+  padding: 0 14px 12px;
+}
+
+.report-fold-body > * + * {
+  margin-top: 0.9em;
+}
+
+.report-block.is-broken {
+  border-radius: 10px;
+  border: 1px dashed color-mix(in srgb, var(--red) 60%, transparent);
+  padding: 8px 10px;
+}
+
+.report-block-error {
+  margin: 0 0 6px;
+  font-size: var(--text-small);
+  line-height: 1.4;
+  color: var(--red-text);
+}
+
+/* Charts: the series take the app's colours, the axes stay grey. */
+.chart {
+  margin: 0;
+}
+
+.chart-title {
+  margin-bottom: 6px;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.chart-box {
+  width: 100%;
+  overflow: hidden;
+}
+
+.chart-box.is-donut {
+  display: flex;
+  justify-content: center;
+}
+
+.chart-svg {
+  display: block;
+  max-width: 100%;
+}
+
+.chart-grid {
+  stroke: var(--separator);
+  stroke-width: 1;
+}
+
+.chart-tick {
+  fill: var(--label-2);
+  font-size: 11px;
+}
+
+.chart-s0 {
+  --series: var(--accent);
+}
+
+.chart-s1 {
+  --series: var(--orange);
+}
+
+.chart-s2 {
+  --series: var(--agent-1);
+}
+
+.chart-s3 {
+  --series: var(--agent-2);
+}
+
+.chart-s4 {
+  --series: var(--agent-4);
+}
+
+.chart-s5 {
+  --series: var(--agent-0);
+}
+
+.chart-mark {
+  fill: var(--series);
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--series);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+.chart-dot {
+  fill: var(--bg);
+  stroke: var(--series);
+  stroke-width: 2;
+}
+
+.chart-arc {
+  fill: none;
+  stroke: var(--series);
+  stroke-width: 26;
+}
+
+.chart-total {
+  fill: var(--label-2);
+  font-size: 12px;
+}
+
+.chart-total-value {
+  fill: var(--label);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.md .chart-legend,
+.chart-legend {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 6px;
+  font-size: var(--text-small);
+  line-height: 1.4;
+  color: var(--label-2);
+}
+
+.chart-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 5px;
+  border-radius: 3px;
+  background: var(--series);
+  vertical-align: -1px;
+}
+
+.chart-share {
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  margin: 0;
+}
+
+.chart-stat dt {
+  font-size: var(--text-small);
+  color: var(--label-2);
+}
+
+.chart-stat dd {
+  margin: 0;
+  font-size: 1.8em;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A diagram zooms by steps and drags sideways in its own box on a narrow screen. */
+.report-diagram {
+  margin: 0;
+}
+
+.report-diagram-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  font-size: var(--text-small);
+}
+
+.report-diagram-zoom {
+  min-width: 3.5em;
+  color: var(--label-2);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-diagram-box {
+  max-height: 70vh;
+  overflow: auto;
+  border-radius: 10px;
+  border: var(--line) solid var(--separator);
+  background: var(--bg);
+  touch-action: pan-x pan-y pinch-zoom;
+  cursor: grab;
+}
+
+.report-diagram-svg {
+  padding: 12px;
+  box-sizing: content-box;
+}
+
+.report-diagram-svg svg {
+  display: block;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto;
+}
+
+.report-diagram-wait {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--label-2);
+}
+
+/* The inspector on a wide window: the report beside a conversation that keeps its own width and stays usable. */
+.talk-panes:has(> .card-pane.is-report) {
+  grid-template-columns: minmax(360px, 1fr) var(--inspector, 460px);
+}
+
+.card-pane.is-report {
+  position: relative;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg-2);
+}
+
+.report-resize {
+  position: sticky;
+  float: left;
+  top: 0;
+  z-index: 3;
+  width: 8px;
+  height: 100%;
+  margin-right: -8px;
+  margin-bottom: -100vh;
+  min-height: 100vh;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.report-resize:hover,
+.report-resize:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* The phone's sheet for a report opens at about half the screen and drags up to the whole of it. */
+.detail-sheet.is-report {
+  top: 50%;
+  transition: top var(--stack-motion), transform var(--stack-motion);
+}
+
+.detail-sheet.is-report[data-height="full"] {
+  top: calc(var(--safe-top) + var(--navbar) + 12px);
+}
+
+.detail-sheet.is-report .detail-sheet-bar {
+  cursor: grab;
+  touch-action: none;
+}
+
+.detail-sheet.is-report .report {
+  padding-bottom: 24px;
+}
+
+/* A wide window too narrow for the report's inspector beside the chat shows the report in this sheet, under the
+   window's toolbar rather than the phone's bar (lina-app#274). */
+.split > .detail-scrim {
+  inset: calc(var(--safe-top) + var(--toolbar)) 0 0;
+}
+
+.split > .detail-sheet.is-report[data-height="full"] {
+  top: calc(var(--safe-top) + var(--toolbar) + 12px);
+}

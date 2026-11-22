@@ -24,7 +24,9 @@ export type Route =
    */
   | { readonly name: "talk"; readonly id: string; readonly goal?: string }
   /** A list the settings push (`#/settings/runner/codex/model`): `page` is the path after `settings/`. */
-  | { readonly name: "setting"; readonly page: string };
+  | { readonly name: "setting"; readonly page: string }
+  /** A report in the viewer (`#/reports/<id>`), or one earlier version of it (`?v=<n>`, lina-app#50). */
+  | { readonly name: "report"; readonly id: string; readonly version?: number };
 
 const LISTS: readonly ListName[] = ["inbox", "running", "due", "done", "goals", "status", "settings", "today", "talks"];
 const PATHS: Record<string, Route["name"]> = { agents: "agent", goals: "goal", items: "item", cards: "card", runs: "run", talk: "talk" };
@@ -76,6 +78,10 @@ export function parse(hash: string): Route {
   }
   if (parts.length === 1 && (LISTS as readonly string[]).includes(parts[0]) && parts[0] !== "talks") return { name: parts[0] as ListName };
   if (parts[0] === "settings") return { name: "setting", page: parts.slice(1).join("/") };
+  if (parts.length === 2 && parts[0] === "reports") {
+    const version = new URLSearchParams(query).get("v");
+    return version && /^[1-9]\d*$/.test(version) ? { name: "report", id: parts[1], version: Number(version) } : { name: "report", id: parts[1] };
+  }
   if (parts.length === 4 && parts[0] === "cards" && parts[2] === "runs" && /^[1-9]\d*$/.test(parts[3])) return { name: "round", card: parts[1], n: Number(parts[3]) };
   const name = PATHS[parts[0]];
   if (parts.length === 2 && name && name !== "home") return { name, id: parts[1] } as Route;
@@ -87,6 +93,7 @@ export function href(route: Route): string {
   if (route.name === "setting") return `#/settings/${route.page.split("/").map(encodeURIComponent).join("/")}`;
   if (route.name === "talk" && route.goal) return `#/talk/${encodeURIComponent(route.id)}?${new URLSearchParams({ goal: route.goal })}`;
   if (route.name === "round") return `#/cards/${encodeURIComponent(route.card)}/runs/${route.n}`;
+  if (route.name === "report") return `#/reports/${encodeURIComponent(route.id)}${route.version ? `?v=${route.version}` : ""}`;
   if (route.name === "group") {
     const scope = String(new URLSearchParams(route.agent ? { agent: route.agent } : route.goal ? { goal: route.goal } : {}));
     return `#/group/${encodeURIComponent(route.id)}${scope ? `?${scope}` : ""}`;
@@ -107,7 +114,7 @@ export function isList(route: Route): boolean {
  * So does a goal chosen on an agent's card in 대화 (`#/talk/<agent>?goal=<id>`, lina-app#143).
  */
 export function isFrame(route: Route): boolean {
-  return route.name === "goal" || route.name === "item" || route.name === "card" || route.name === "group" || route.name === "run" || route.name === "round" || (route.name === "talk" && Boolean(route.goal));
+  return route.name === "goal" || route.name === "item" || route.name === "card" || route.name === "group" || route.name === "run" || route.name === "round" || route.name === "report" || (route.name === "talk" && Boolean(route.goal));
 }
 
 /**
@@ -137,6 +144,7 @@ export function defaultListFor(route: Route): Route {
     case "card":
     case "run":
     case "round":
+    case "report":
       return { name: "running" };
     case "goal":
       return { name: "goals" };

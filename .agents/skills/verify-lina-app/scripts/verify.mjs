@@ -4691,6 +4691,11 @@ const drivers = {
       check((await count()) === "3 / 3" && (await box.getByRole("button", { name: "다음 그림" }).isDisabled()), "next stopped at " + (await count()));
       await box.getByRole("button", { name: "이전 그림" }).click();
       check((await count()) === "2 / 3", "previous went to " + (await count()));
+      // It covers the whole window, above the app's bars (lina-app#274).
+      const size = page.viewportSize();
+      const rect = await box.boundingBox();
+      const top = await page.evaluate(() => Boolean(document.elementFromPoint(window.innerWidth / 2, 20)?.closest("[data-testid=report-lightbox]")));
+      check(rect.x === 0 && rect.y === 0 && Math.round(rect.width) === size.width && Math.round(rect.height) === size.height && top, "the large image covers " + JSON.stringify(rect) + ", on top " + top);
       await box.getByRole("button", { name: "닫기" }).click();
       const outside = await viewer().getByTestId("report-image-outside").count();
       check(outside === 1, "outside images shown as notes: " + outside);
@@ -4703,8 +4708,11 @@ const drivers = {
       await viewer().getByTestId("report-history").click();
       const versions = await viewer().getByTestId("report-versions").locator(".report-version-n").allInnerTexts();
       check(JSON.stringify(versions) === JSON.stringify(["v4", "v3", "v2", "v1"]), "the versions read " + JSON.stringify(versions));
+      const v1At = await viewer().getByTestId("report-versions").locator(".report-version-at").last().innerText();
       await viewer().getByTestId("report-versions").getByRole("button").last().click();
       await viewer().getByTestId("report-older").waitFor({ timeout: 5_000 });
+      const shownAt = await viewer().getByTestId("report-time").getAttribute("title");
+      check(shownAt === v1At.trim(), "v1's head reads " + shownAt + ", its version line " + v1At);
       await viewer().getByTestId("report-older").getByRole("button", { name: "최신 보기" }).click();
       await viewer().getByTestId("report-older").waitFor({ state: "detached", timeout: 5_000 });
       return "v4 with the mark; v1 opened and back";
@@ -4720,6 +4728,29 @@ const drivers = {
       check((await viewer().getByTestId("report").getAttribute("data-version")) === version, "the version moved from " + version);
       return "image redrawn at v" + version;
     });
+    await step("맞춤 fits the whole diagram in its box; minus stops at the smallest step", async () => {
+      const figure = viewer().locator(".report-diagram");
+      await figure.scrollIntoViewIfNeeded();
+      await figure.locator(".report-diagram-box svg").waitFor({ timeout: 10_000 });
+      await figure.getByRole("button", { name: "맞춤" }).click();
+      const fit = await figure.evaluate((element) => {
+        const box = element.querySelector(".report-diagram-box").getBoundingClientRect();
+        const svg = element.querySelector(".report-diagram-box svg").getBoundingClientRect();
+        return { inside: svg.left >= box.left - 0.5 && svg.right <= box.right + 0.5, zoom: element.querySelector("[data-testid=diagram-zoom]").textContent, minus: element.querySelector('button[aria-label="축소"]').disabled };
+      });
+      check(fit.inside && fit.minus, "at 맞춤 " + JSON.stringify(fit));
+      return "맞춤 " + fit.zoom + ", inside its box, minus disabled";
+    });
+    await step("Escape closes the large image first, then the viewer", async () => {
+      await viewer().locator(".report-image").first().click();
+      await page.getByTestId("report-lightbox").waitFor();
+      await page.keyboard.press("Escape");
+      await page.getByTestId("report-lightbox").waitFor({ state: "detached" });
+      check(await viewer().isVisible(), "the viewer closed with the large image");
+      await page.keyboard.press("Escape");
+      await viewer().waitFor({ state: "detached", timeout: 5_000 });
+      return "image, then viewer; " + new URL(page.url()).hash;
+    });
     await step("open a report whose images sit only inside blocks: each is drawn, none stays loading", async () => {
       await openApp(page, "#/reports/rep_3a7c0e5f9b21", "&reports=demo");
       const view = wide ? page.getByTestId("detail-pane") : page.getByTestId("detail-frame");
@@ -4727,7 +4758,9 @@ const drivers = {
       const placed = await view.locator(".report-body img").evaluateAll((images) => images.map((image) => (image.closest("details") ? "fold" : image.closest(".report-callout") ? "callout" : image.closest("td") ? "cell" : "body")));
       const loading = await view.getByTestId("report-image-loading").count();
       check(JSON.stringify(placed) === JSON.stringify(["fold", "callout", "cell"]) && loading === 0, "images " + JSON.stringify(placed) + ", loading " + loading);
-      return placed.join(", ");
+      const failed = await view.getByTestId("report-image-failed").allInnerTexts();
+      check(failed.length === 1 && failed[0].includes("그림을 불러오지 못함"), "the image the core does not give reads " + JSON.stringify(failed));
+      return placed.join(", ") + "; one image not given";
     });
     await step("open a report of broken blocks: each shows its source and one error line", async () => {
       await openApp(page, "#/reports/" + BROKEN, "&reports=demo");

@@ -12,7 +12,8 @@ import { AgentScreen, DoneScreen, DueScreen, GoalsScreen, InboxScreen, RestartSh
 import { AgentCard, AgentTalk, TalkAgents, TalkHead, TalkNameLine, TalkPreview, talkRowName } from "./screens/talk";
 import { CardScreen, GoalScreen, GroupScreen, groupOf, ItemScreen, RoundScreen, roundRunId, RunScreen, workerTitle } from "./screens/details";
 import { RollbackSheet, SettingPage, settingParent, SettingsScreen, settingTitle } from "./screens/settings";
-import { SETTINGS_HISTORY } from "./api/client";
+import { reportKey, SETTINGS_HISTORY } from "./api/client";
+import { ReportView, useInspectorWidth, useSheetDrag } from "./report/viewer";
 import { BackIcon, BellIcon, CalendarIcon, DeviceIcon, DoneIcon, GearIcon, GoalIcon, InboxIcon, MenuIcon, RunningIcon } from "./ui/icons";
 import { AgentMark, CountPair, Ctx, Disclosure, useApp, type AppContext } from "./ui/parts";
 import { ActionsCtx, useActions, useActionsFor } from "./ui/actions";
@@ -20,7 +21,7 @@ import { SettingsCtx, useSettingsEditsFor } from "./ui/settings-edits";
 import { browserPushHost, type OpenRequest, type PushHost } from "./push";
 import { PushCtx, PushRow, usePushFor } from "./ui/push-row";
 import { APP_VERSION } from "./version";
-import { SEP, STATE_WORD, W } from "./words";
+import { REPORT_WORD, SEP, STATE_WORD, W } from "./words";
 
 export const WIDE_QUERY = "(min-width: 900px)";
 
@@ -77,6 +78,8 @@ export function titleOf(route: Route, model: Model, store: Store): string {
       const id = roundRunId(store, route.card, route.n);
       return id ? titleOf({ name: "run", id }, model, store) : workerTitle(model, route.card);
     }
+    case "report":
+      return store.get("report", reportKey(route.id, route.version))?.title ?? store.get("report", route.id)?.title ?? REPORT_WORD.report;
   }
 }
 
@@ -99,7 +102,8 @@ function wantsFor(route: Route, store: Store): Want {
       // a time in that order, and each adds under the history that stands (lina-app#253).
       const runs = newestFirst(store.get("card", route.id)?.workerRuns ?? []);
       const records = runs.length && store.status("record", runs[0]) === "pending" ? [runs[0]] : runs;
-      return [["card", route.id], ...records.map((id) => ["record", id] as const)];
+      // The reports that belong to the card stand in its detail as cards (lina-app#50).
+      return [["card", route.id], ["reports", route.id], ...records.map((id) => ["record", id] as const)];
     }
     case "run": {
       // The card that started the run, named by its record: a run page opened on its own still finds its card.
@@ -111,6 +115,8 @@ function wantsFor(route: Route, store: Store): Want {
       const id = roundRunId(store, route.card, route.n);
       return id ? [["card", route.card], ["record", id]] : [["card", route.card]];
     }
+    case "report":
+      return [["report", reportKey(route.id, route.version)]];
     case "status":
       // Its machines, quota, usage, OCX's state and checks are drawn on its first screen, so they come with the lists.
       return SLOW_ROUTES.filter(([name]) => name !== "settingsModels");
@@ -206,7 +212,23 @@ function Screen({ route }: { route: Route }) {
       return <RunScreen id={route.id} />;
     case "round":
       return <RoundScreen card={route.card} n={route.n} />;
+    case "report":
+      return <PanelReport id={route.id} version={route.version} />;
   }
+}
+
+/**
+ * A report in the detail pane of a wide window, or in the sheet of a phone (lina-app#50). The pane's report closes
+ * like the detail it replaced; the sheet has its own close in its bar.
+ */
+function PanelReport({ id, version }: { id: string; version?: number }) {
+  const { wide } = useApp();
+  const close = () => {
+    const stack = (window.history.state as { stack?: readonly string[] } | null)?.stack ?? [];
+    if (stack.length > 1) back();
+    else navigate(defaultListFor({ name: "report", id }), { replace: true });
+  };
+  return <ReportView id={id} version={version} onClose={wide ? close : undefined} />;
 }
 
 /**
@@ -672,6 +694,9 @@ function TalkShell({ route, frame, stack }: { route: Route; frame: Route | null;
   const { model, store } = useApp();
   const agent = route.name === "talk" ? route.id : null;
   const windowRoute: Route = agent ? { name: "talk", id: agent } : route;
+  const panes = useRef<HTMLDivElement>(null);
+  const inspector = useInspectorWidth(panes);
+  const report = frame?.name === "report" ? frame : null;
   // Back from the frame stands on the agent's card, or on the bare 대화 list when no agent is chosen.
   const toCard = () => {
     const card = href(agent ? { name: "talk", id: agent } : { name: "talks" });
@@ -699,11 +724,18 @@ function TalkShell({ route, frame, stack }: { route: Route; frame: Route | null;
             <Bell />
           </div>
         </header>
-        <div class="talk-panes" data-testid="panes">
+        <div class="talk-panes" data-testid="panes" ref={panes} style={report ? { "--inspector": `${inspector.width}px` } : undefined}>
           <section class="pane talk-pane" aria-label={titleOf(windowRoute, model, store)}>
             {agent ? <AgentTalk key={agent} agent={agent} /> : <p class="empty" data-testid="pick-agent">{W.pickAgent}</p>}
           </section>
-          {frame ? (
+          {report ? (
+            // The inspector (lina-app#50): the report beside the conversation, resizable and closeable; a second report
+            // replaces its content.
+            <aside class="pane card-pane is-report" aria-label={titleOf(report, model, store)} data-testid="report-inspector">
+              {inspector.handle}
+              <ReportView key={report.id} id={report.id} version={report.version} onClose={toCard} />
+            </aside>
+          ) : frame ? (
             <aside key={href(frame)} class="pane card-pane is-goal" aria-label={titleOf(frame, model, store)} data-testid="card-pane">
               <button type="button" class="back card-back" onClick={toCard} data-testid="back">
                 <BackIcon />
@@ -788,6 +820,8 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
     if (stack.length > 1) back();
     else navigate(sheet ? screen : parent, { replace: true, direction: sheet ? "none" : "pop" });
   };
+  const reportSheet = sheet?.name === "report";
+  const drag = useSheetDrag(goBack);
   const current = useRef({ isRoot, goBack, sheet: Boolean(sheet) });
   current.current = { isRoot: isRoot && !sheet, goBack, sheet: Boolean(sheet) };
   useLayoutEffect(() => {
@@ -849,8 +883,17 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
       {sheet ? (
         <>
           <div class="detail-scrim" aria-hidden="true" onClick={goBack} />
-          <section class="detail-sheet" role="dialog" aria-modal="true" aria-label={titleOf(sheet, model, store)} data-testid="detail-frame" data-frame="sheet">
-            <div class="detail-sheet-bar">
+          <section
+            class={reportSheet ? "detail-sheet is-report" : "detail-sheet"}
+            role="dialog"
+            aria-modal="true"
+            aria-label={titleOf(sheet, model, store)}
+            data-testid="detail-frame"
+            data-frame="sheet"
+            data-height={reportSheet ? drag.height : undefined}
+            style={reportSheet && drag.offset > 0 ? { transform: `translateY(${drag.offset}px)`, transition: "none" } : undefined}
+          >
+            <div class="detail-sheet-bar" {...(reportSheet ? drag.bar : {})} data-testid={reportSheet ? "report-sheet-bar" : undefined}>
               <span class="detail-sheet-grabber" aria-hidden="true" />
               <button type="button" class="text-button" onClick={goBack} data-testid="frame-close">
                 {W.close}

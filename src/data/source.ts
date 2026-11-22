@@ -78,6 +78,8 @@ export interface Source {
   restartDevice(name: string, service: "worker" | "ocx"): Promise<WriteResult<DeviceAction>>;
   /** Starts sign-in for one runner on a node (lina#234). 202 means it started; the next devices read says whether it took. */
   signInDevice(name: string, runner: string): Promise<WriteResult<DeviceAction>>;
+  /** The address of one of a report's own images, by its place (lina#263); a report draws no other image. */
+  reportImage(id: string, position: number): string;
 }
 
 export function nowSeconds(): number {

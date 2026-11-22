@@ -33,7 +33,8 @@ const POWER_VARIANTS: readonly string[] = ["stopped", "none"] satisfies PowerVar
  * device only reads, that were never written, that another device writes just before this page's first write (412) or
  * just after it lands (the changes queued behind it are dropped), whose models OCX did not answer for (the last
  * good list, with an error), or that leave four models warned about, `&records=slow` one where every worker run of k-101
- * serves the card's one record and each read of it takes 1.5 s (lina-app#232).
+ * serves the card's one record and each read of it takes 1.5 s (lina-app#232), `&reports=demo` the synthetic reports with
+ * the first agent's lines that sent them and the long one on k-101 (lina-app#50, #83, #114).
  */
 export function chooseSource(location: Pick<Location, "search"> = window.location, flag: string | undefined = import.meta.env.VITE_LINA_SOURCE): Source {
   const params = new URLSearchParams(location.search);
@@ -67,6 +68,7 @@ export function chooseSource(location: Pick<Location, "search"> = window.locatio
       settings: settings && SETTINGS_SCRIPTS.includes(settings) ? (settings as SettingsScript) : null,
       power: power && POWER_VARIANTS.includes(power) ? (power as PowerVariant) : null,
       slowRecords: params.get("records") === "slow",
+      reports: params.get("reports") === "demo",
     });
     // verify.mjs reads the synthetic copy after a write to check the record changed, not only the screen.
     if (typeof window !== "undefined") {
@@ -84,6 +86,8 @@ export function chooseSource(location: Pick<Location, "search"> = window.locatio
           model: (id: string, changes: Partial<Pick<SettingsModel, "state" | "left" | "resetAt">>) => synthetic.modelChangedElsewhere(id, changes),
         },
       });
+      // verify.mjs edits a report as its agent would, with the reports event that follows (lina-app#50).
+      Object.defineProperty(window, "__linaReportElsewhere", { configurable: true, value: { edit: (id: string) => synthetic.reportEditedElsewhere(id) } });
       Object.defineProperty(window, "__linaStream", { configurable: true, get: () => ({ connections: structuredClone(synthetic.stream), reads: synthetic.reads, renewals: synthetic.renewals }) });
     }
     return synthetic;

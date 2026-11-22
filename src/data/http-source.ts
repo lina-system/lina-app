@@ -1,4 +1,4 @@
-import { ADD_ITEM_PATH, agentTalkPath, BOARD_BASE, cardAnswerPath, EVENTS_PATH, NOTICES_READ_PATH, PUSH_KEY_PATH, PUSH_REMOVE_PATH, PUSH_SUBSCRIPTIONS_PATH, routePath, SETTINGS_PATH, SETTINGS_ROLLBACK_PATH, talkPath, writePath, type ActionResult, type AddItemRequest, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest } from "../api/client";
+import { ADD_ITEM_PATH, agentTalkPath, BOARD_BASE, cardAnswerPath, EVENTS_PATH, NOTICES_READ_PATH, PUSH_KEY_PATH, PUSH_REMOVE_PATH, PUSH_SUBSCRIPTIONS_PATH, reportImagePath, routePath, SETTINGS_PATH, SETTINGS_ROLLBACK_PATH, talkPath, writePath, type ActionResult, type AddItemRequest, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest } from "../api/client";
 import { nowSeconds, type AgentTalkResult, type ChangeHandlers, type ChangeSocket, type ReadResult, type Renewal, type Source, type TalkResult, type WriteResult } from "./source";
 import { readSse } from "./sse";
 
@@ -176,6 +176,10 @@ export class HttpSource implements Source {
 
   read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {
     return this.get(`${this.basePath}${routePath(name, id)}`);
+  }
+
+  reportImage(id: string, position: number): string {
+    return `${this.basePath}${reportImagePath(id, position)}`;
   }
 
   pushKey(): Promise<ReadResult<PushKey>> {

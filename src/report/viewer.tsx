@@ -1,0 +1,322 @@
+import type { ComponentChildren } from "preact";
+import { useEffect, useRef, useState } from "preact/hooks";
+import { reportKey, type ReportSummary } from "../api/client";
+import { href, navigate, parse } from "../router";
+import { ago, dateClock } from "../time";
+import { ReportIcon } from "../ui/icons";
+import { agentName, Box, useApp } from "../ui/parts";
+import { REPORT_WORD, SEP, W } from "../words";
+import { ReportBody } from "./body";
+import { reportOfPage, type ReportReference } from "./reference";
+
+/**
+ * Opens a report in the viewer (lina-app#50): beside the conversation on a wide window, in a sheet on a phone, in the
+ * detail pane elsewhere. Opening one pushes one history entry; one opened while a report is open replaces it.
+ */
+export function openReport(id: string): void {
+  const open = parse(window.location.hash).name === "report";
+  navigate({ name: "report", id }, { replace: open });
+}
+
+/**
+ * A click on a report's page address in a message (`…/reports/<id>/page`) opens the viewer instead; a modified or
+ * middle click, and any other address (the old dashboard's `/r/…` among them), stays the browser's.
+ */
+export function reportLinkClick(event: MouseEvent): void {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const anchor = (event.target as Element | null)?.closest?.("a[href]");
+  const id = anchor ? reportOfPage(anchor.getAttribute("href") ?? "") : null;
+  if (!id) return;
+  event.preventDefault();
+  openReport(id);
+}
+
+/** Reads a report a chat card draws without making it the open screen's; a card given its summary reads nothing. */
+function useReport(id: string, known?: ReportSummary): ReportSummary | undefined {
+  const { store } = useApp();
+  useEffect(() => {
+    if (!known) store.ensure([["report", id]]);
+  }, [id, Boolean(known)]);
+  return store.get("report", id) ?? known;
+}
+
+/**
+ * One report as a card (lina-app#50), styled like a work card's row: its icon, its title on one line and one grey line
+ * with the agent and when it last changed. No body: the report opens in the viewer.
+ */
+export function ReportCard({ id, reference, known }: { id: string; reference?: ReportReference; known?: ReportSummary }) {
+  const { model, now } = useApp();
+  const report = useReport(id, known);
+  const title = report?.title ?? reference?.summary ?? REPORT_WORD.report;
+  const meta = report ? [agentName(model, report.agent) || report.agent, `${REPORT_WORD.updated} ${ago(Math.max(0, now - report.updatedAt))}`].join(SEP) : REPORT_WORD.report;
+  return (
+    <a
+      class="report-card"
+      href={href({ name: "report", id })}
+      data-testid="report-card"
+      data-report={id}
+      onClick={(event) => {
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        openReport(id);
+      }}
+    >
+      <span class="report-card-icon">
+        <ReportIcon />
+      </span>
+      <span class="report-card-lines">
+        <span class="report-card-title one-line">{title}</span>
+        <span class="report-card-meta one-line">{meta}</span>
+      </span>
+    </a>
+  );
+}
+
+/**
+ * The reports that belong to a work card, as the same cards the conversation shows (lina-app#50): a report is reachable
+ * from its work as well as from the chat. Nothing when the card has none, or the core serves no reports.
+ */
+export function CardReports({ id }: { id: string }) {
+  const { store } = useApp();
+  const reports = store.get("reports", id)?.reports ?? [];
+  if (!reports.length) return null;
+  return (
+    <Box title={REPORT_WORD.report} testid="card-reports">
+      <div class="report-cards">
+        {reports.map((report) => (
+          <ReportCard key={report.id} id={report.id} known={report} />
+        ))}
+      </div>
+    </Box>
+  );
+}
+
+type TextSize = "s" | "m" | "l";
+const SIZE_KEY = "lina.report.size";
+
+function savedSize(): TextSize {
+  try {
+    const kept = window.localStorage.getItem(SIZE_KEY);
+    return kept === "s" || kept === "l" ? kept : "m";
+  } catch {
+    return "m";
+  }
+}
+
+/**
+ * The report viewer (lina-app#114, #50): the document alone, its title, the agent that wrote it, when, and its goal,
+ * then the body at a reading width in one of three text sizes. One viewer for the inspector, the sheet and the detail
+ * pane. The open report follows the core's change event in place, with a small mark when a newer version came in, and
+ * every earlier version is one tap away.
+ */
+export function ReportView({ id, version, onClose }: { id: string; version?: number; onClose?: () => void }) {
+  const { model, store, now } = useApp();
+  const key = reportKey(id, version);
+  const report = store.get("report", key);
+  const status = store.status("report", key);
+  const [size, setSize] = useState<TextSize>(savedSize);
+  const [history, setHistory] = useState(false);
+  // The version on screen when the viewer opened or the owner last looked at the mark.
+  const [seen, setSeen] = useState<number | null>(null);
+  useEffect(() => {
+    if (report && seen === null && version === undefined) setSeen(report.version);
+  }, [report?.version]);
+  const choose = (next: TextSize) => {
+    setSize(next);
+    try {
+      window.localStorage.setItem(SIZE_KEY, next);
+    } catch {
+      // A private window keeps the size for this report only.
+    }
+  };
+  const close = onClose ? (
+    <button type="button" class="text-button report-close" onClick={onClose} data-testid="report-close">
+      {REPORT_WORD.close}
+    </button>
+  ) : null;
+  if (!report) {
+    const line = status === "missing" ? REPORT_WORD.missing : status === "failed" ? REPORT_WORD.failed : W.loading;
+    return (
+      <article class="report" data-testid="report">
+        <div class="report-tools">{close}</div>
+        <p class="empty" data-testid="report-state">
+          {line}
+        </p>
+      </article>
+    );
+  }
+  const updated = version === undefined && seen !== null && report.version > seen;
+  const goal = report.goal ? (store.get("item", report.goal)?.title ?? model.items.get(report.goal)?.title ?? null) : null;
+  const versions = [...report.versions].sort((a, b) => b.version - a.version);
+  const show = (n: number) => navigate({ name: "report", id, ...(n === report.version ? {} : { version: n }) }, { replace: true });
+  return (
+    <article class="report" data-size={size} data-testid="report" data-version={report.shownVersion}>
+      <div class="report-tools">
+        <div class="report-sizes" role="radiogroup" aria-label={REPORT_WORD.textSize}>
+          {(["s", "m", "l"] as const).map((each) => (
+            <button key={each} type="button" role="radio" aria-checked={size === each} class="report-size" data-size={each} onClick={() => choose(each)} aria-label={REPORT_WORD.sizes[each]}>
+              가
+            </button>
+          ))}
+        </div>
+        <button type="button" class="text-button" aria-expanded={history} onClick={() => setHistory(!history)} data-testid="report-history">
+          {REPORT_WORD.versions(versions.length)}
+        </button>
+        {close}
+      </div>
+      <header class="report-head">
+        <h1 class="report-title">{report.title}</h1>
+        <p class="report-meta">
+          <span>{agentName(model, report.agent) || report.agent}</span>
+          {SEP}
+          <time dateTime={new Date(report.updatedAt * 1000).toISOString()} title={dateClock(report.updatedAt)}>
+            {`${REPORT_WORD.updated} ${ago(Math.max(0, now - report.updatedAt))}`}
+          </time>
+          {SEP}
+          <span>{REPORT_WORD.version(report.shownVersion)}</span>
+          {updated ? (
+            <button type="button" class="report-updated" data-testid="report-updated" onClick={() => setSeen(report.version)}>
+              {REPORT_WORD.updatedNow}
+            </button>
+          ) : null}
+        </p>
+        {report.goal ? (
+          <a class="report-goal" href={href({ name: "goal", id: report.goal })} data-testid="report-goal">
+            {[REPORT_WORD.goal, goal ?? report.goal].join(SEP)}
+          </a>
+        ) : null}
+      </header>
+      {version !== undefined ? (
+        <p class="report-older" data-testid="report-older">
+          {REPORT_WORD.olderShown(report.shownVersion)}
+          <button type="button" class="text-button" onClick={() => navigate({ name: "report", id }, { replace: true })}>
+            {REPORT_WORD.newest}
+          </button>
+        </p>
+      ) : null}
+      {history ? (
+        <ol class="report-versions" aria-label={REPORT_WORD.history} data-testid="report-versions">
+          {versions.map((each) => (
+            <li key={each.version}>
+              <button type="button" class="report-version" aria-current={each.version === report.shownVersion ? "true" : undefined} onClick={() => show(each.version)}>
+                <span class="report-version-n">{REPORT_WORD.version(each.version)}</span>
+                <span class="report-version-at">{dateClock(each.at)}</span>
+                <span class="report-version-line one-line">{each.summary}</span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+      <ReportBody key={key} reportId={id} body={report.body} imageUrl={(position) => store.source.reportImage(id, position)} />
+    </article>
+  );
+}
+
+const WIDTH_KEY = "lina.report.width";
+const MIN_WIDTH = 320;
+/** The conversation keeps at least this much beside the inspector. */
+const CHAT_ROOM = 360;
+
+function savedWidth(): number {
+  try {
+    const kept = Number(window.localStorage.getItem(WIDTH_KEY));
+    return Number.isFinite(kept) && kept >= MIN_WIDTH ? kept : 460;
+  } catch {
+    return 460;
+  }
+}
+
+/**
+ * The inspector on a wide window (lina-app#50): the report beside the conversation, which stays usable. Its left edge
+ * drags (or takes the arrow keys) to make it wider or narrower, and the width is kept for the next report.
+ */
+export function useInspectorWidth(panes: { current: HTMLElement | null }): { width: number; handle: ComponentChildren } {
+  const [width, setWidth] = useState(savedWidth);
+  const clamp = (value: number) => {
+    const room = panes.current?.clientWidth ?? value + CHAT_ROOM;
+    return Math.round(Math.max(MIN_WIDTH, Math.min(value, room - CHAT_ROOM)));
+  };
+  const keep = (value: number) => {
+    const next = clamp(value);
+    setWidth(next);
+    try {
+      window.localStorage.setItem(WIDTH_KEY, String(next));
+    } catch {
+      // A private window keeps the width for this page only.
+    }
+  };
+  const dragging = useRef(false);
+  const handle = (
+    <div
+      class="report-resize"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={REPORT_WORD.resize}
+      aria-valuenow={width}
+      aria-valuemin={MIN_WIDTH}
+      tabIndex={0}
+      data-testid="report-resize"
+      onPointerDown={(event) => {
+        dragging.current = true;
+        (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+        event.preventDefault();
+      }}
+      onPointerMove={(event) => {
+        if (!dragging.current || !panes.current) return;
+        keep(panes.current.getBoundingClientRect().right - event.clientX);
+      }}
+      onPointerUp={() => {
+        dragging.current = false;
+      }}
+      onPointerCancel={() => {
+        dragging.current = false;
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        keep(width + (event.key === "ArrowLeft" ? 32 : -32));
+      }}
+    />
+  );
+  return { width: clamp(width), handle };
+}
+
+/** How far down a sheet must be dragged to close: a quarter of its height (the old panel's rule, lina-app#50). */
+const CLOSE_SHARE = 0.25;
+
+/**
+ * The report's sheet on a phone (lina-app#50): it opens at about half the screen, its bar drags up to the whole screen
+ * or down past a quarter to close (the same close as its button, the scrim and back), and snaps back otherwise.
+ */
+export function useSheetDrag(onClose: () => void): { height: "half" | "full"; offset: number; bar: Record<string, unknown> } {
+  const [height, setHeight] = useState<"half" | "full">("half");
+  const [offset, setOffset] = useState(0);
+  const start = useRef<{ y: number; size: number } | null>(null);
+  const bar = {
+    onPointerDown: (event: PointerEvent) => {
+      if ((event.target as Element).closest("button")) return;
+      const sheet = (event.currentTarget as HTMLElement).parentElement;
+      start.current = { y: event.clientY, size: sheet?.getBoundingClientRect().height ?? window.innerHeight };
+      (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+    },
+    onPointerMove: (event: PointerEvent) => {
+      if (start.current) setOffset(event.clientY - start.current.y);
+    },
+    onPointerUp: (event: PointerEvent) => {
+      const from = start.current;
+      start.current = null;
+      setOffset(0);
+      if (!from) return;
+      const moved = event.clientY - from.y;
+      if (moved > from.size * CLOSE_SHARE) onClose();
+      else if (moved < -40) setHeight("full");
+      else if (moved > 40 && height === "full") setHeight("half");
+    },
+    onPointerCancel: () => {
+      start.current = null;
+      setOffset(0);
+    },
+    onDblClick: () => setHeight(height === "full" ? "half" : "full"),
+  };
+  return { height, offset, bar };
+}

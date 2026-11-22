@@ -1,3 +1,4 @@
+import type { SceneReport } from "./reports";
 import type {
   BoardSnapshot,
   DevicesView,
@@ -183,6 +184,8 @@ export interface Scene {
   /** Worker runs' own records (lina#201), by run id; a run without one answers 404. */
   readonly records: Record<string, RunRecord>;
   readonly settings: SettingsScene;
+  /** Reports by id (lina#263): none unless `&reports=demo` adds the synthetic ones (src/fixtures/reports.ts). */
+  readonly reports: Record<string, SceneReport>;
 }
 
 const MIN = 60;
@@ -1092,6 +1095,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     runs: runCards,
     records: records(now),
     settings: settingsScene(now, options.settings ?? null),
+    reports: {},
   };
 }
 

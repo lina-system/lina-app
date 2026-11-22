@@ -122,3 +122,11 @@ export const DeviceKindIcon = () => (
     <path d="M9 19.5h6M12 16v3.5" />
   </Icon>
 );
+
+/** A report: a page with lines (lina-app#50). */
+export const ReportIcon = () => (
+  <Icon>
+    <path d="M6.5 3.5h7.5l4 4v13h-11.5z" />
+    <path d="M14 3.5v4h4M9.5 12h5.5M9.5 15h5.5M9.5 18h3.5" />
+  </Icon>
+);

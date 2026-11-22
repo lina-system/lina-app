@@ -1,4 +1,5 @@
 import { SETTINGS_HISTORY, type ActionResult, type AddItemRequest, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type BoardSnapshot, type ChangeEvent, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemDetail, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type RunRecord, type Settings, type SettingsAuditLine, type SettingsModel, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest, type WorkCardDetail, type WorkState } from "../api/client";
+import { editedReport, reportImageData, reportMessages, reportOf, summaryOf, syntheticReports } from "../fixtures/reports";
 import { generateScene, SYNTHETIC_OWNER, SYNTHETIC_SEED, type PowerVariant, type Scene, type SettingsVariant } from "../fixtures/synthetic";
 import { localDay, type CardSummary } from "../model";
 import { mergePatch } from "../model/settings";
@@ -787,7 +788,22 @@ function bodyOf(scene: Scene, name: RouteName, id?: string): unknown {
       return historyView(scene.settings, Number(id ?? SETTINGS_HISTORY.recent), Math.floor(nowSeconds()));
     case "settingsModels":
       return modelsView(scene.settings, Math.floor(nowSeconds()));
+    case "report": {
+      const [report, version] = (id ?? "").split("@");
+      const found = scene.reports[report];
+      return (found && reportOf(found, version ? Number(version) : undefined)) ?? undefined;
+    }
+    case "reports":
+      return { reports: Object.values(scene.reports).filter((report) => report.summary.card === id).map(summaryOf) };
   }
+}
+
+/**
+ * `&reports=demo` (lina-app#50, #83, #114): the synthetic reports (src/fixtures/reports.ts), the long one on k-101 and
+ * goal G1; the first agent's window holds the lines that sent them.
+ */
+export function reportsScene(scene: Scene): Scene {
+  return { ...scene, reports: syntheticReports(scene.now, scene.items.agents.map((agent) => agent.id), { card: "k-101", goal: "G1" }) };
 }
 
 /**
@@ -1133,6 +1149,8 @@ export class SyntheticSource implements Source {
   /** The last record per item: the owner's own done mark, or null once anything else was written after it. */
   private readonly marks = new Map<string, DoneMark | null>();
   private readonly talkRefusal: TalkRefusal | null;
+  /** `&reports=demo`: the first agent's window holds the lines that sent the synthetic reports. */
+  private readonly reportsDemo: boolean;
   /** The owner's window on each agent, as its gateway keeps it: the first agent has two earlier turns, the rest none. */
   get agentTalks(): Map<string, AgentTalkHistory["messages"]> {
     let talks = agentTalksOf.get(this.scene);
@@ -1178,7 +1196,8 @@ export class SyntheticSource implements Source {
   private readonly signing = new Set<string>();
 
   /** `scene` shares another source's copy, like a second device reading the same core. */
-  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; hubRound23?: boolean; hubRound24?: boolean; hubRound25?: boolean; hubRound26?: boolean; hubNow?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean; serialRecordMs?: number | null; longCard?: boolean } = {}) {
+  constructor(options: { seed?: number; now?: number; sourceError?: boolean; checksError?: boolean; noRunning?: boolean; writerStopped?: boolean; endedRuns?: boolean; manyTodos?: boolean; hubRound9?: boolean; hubRound11?: boolean; hubRound18?: boolean; hubRound20?: boolean; hubRound22?: boolean; hubRound23?: boolean; hubRound24?: boolean; hubRound25?: boolean; hubRound26?: boolean; hubNow?: boolean; manyFinished?: boolean; scene?: Scene; talk?: TalkRefusal | null; live?: StreamScript; pushOff?: boolean; settings?: SettingsScript | null; power?: PowerVariant | null; slowRecords?: boolean; serialRecordMs?: number | null; longCard?: boolean; reports?: boolean } = {}) {
+    this.reportsDemo = options.reports ?? false;
     this.slowRecords = options.slowRecords ?? false;
     this.serialRecordMs = options.serialRecordMs ?? null;
     this.staleNext = options.settings === "stale";
@@ -1205,7 +1224,21 @@ export class SyntheticSource implements Source {
         power: options.power,
       });
     const scene = options.scene ? generated : options.hubRound18 ? round18Scene(generated) : options.hubRound20 ? round20Scene(generated) : options.hubRound22 ? round22Scene(generated) : options.hubRound23 ? round23Scene(generated) : options.hubRound24 ? round24Scene(generated) : options.hubRound25 ? round25Scene(generated) : options.hubRound26 ? round26Scene(generated) : options.hubNow ? nowScene(round24Scene(generated)) : generated;
-    this.scene = options.longCard ? longCardScene(scene) : scene;
+    const long = options.longCard ? longCardScene(scene) : scene;
+    this.scene = this.reportsDemo ? reportsScene(long) : long;
+  }
+
+  reportImage(id: string, position: number): string {
+    return (this.scene.reports[id] && reportImageData(position)) ?? `/reports/${encodeURIComponent(id)}/images/${position}`;
+  }
+
+  /** The report's agent edits it (verify.mjs, `window.__linaReportElsewhere`): a new version and the core's `reports` event. */
+  reportEditedElsewhere(id: string): boolean {
+    const report = this.scene.reports[id];
+    if (!report) return false;
+    editedReport(report, Math.floor(nowSeconds()));
+    this.changed({ source: "reports", kind: "updated", id });
+    return true;
   }
 
   read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {
@@ -1446,6 +1479,7 @@ export class SyntheticSource implements Source {
           ? [
               { role: "user", content: `${APP_FIRST_LINE}\n어디까지 왔어요?`, timestamp: day },
               { role: "assistant", content: "변경 목록을 모으는 중이에요. 배포 순서는 답을 기다려요.", timestamp: day + 60 },
+              ...(this.reportsDemo ? reportMessages(day + 120) : []),
             ]
           : [];
       this.agentTalks.set(agent, kept);

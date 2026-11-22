@@ -76,6 +76,10 @@ export type WorkCardSummary = Work["schemas"]["WorkCardSummary"];
 export type WorkCardDetail = Work["schemas"]["WorkCardDetail"];
 export type PlainHistoryLine = Work["schemas"]["PlainHistoryLine"];
 export type WorkInbox = Work["schemas"]["Inbox"];
+/** A report (lina#263): its card line without the body, and the report with one version's body and every version's line. */
+export type ReportSummary = Work["schemas"]["ReportSummary"];
+export type Report = Work["schemas"]["Report"];
+export type ReportVersion = Work["schemas"]["ReportVersion"];
 
 /** The work settings (settings-client.yaml, lina#256): the keys, their revisions, rollback and OCX's models. */
 export type Settings = SettingsApi["schemas"]["Settings"];
@@ -123,6 +127,10 @@ export type Routes = {
   /** The audit lines, newest first: the route's id is the `limit` (see routePath). */
   settingsHistory: Json<SettingsPaths["/work/settings/history"]["get"]>;
   settingsModels: Json<SettingsPaths["/work/settings/models"]["get"]>;
+  /** One report: the route's id is the report's id, or `<id>@<version>` for an earlier version (see reportKey). */
+  report: Json<WorkPaths["/reports/{id}"]["get"]>;
+  /** The reports of one work card: the route's id is the card's id. */
+  reports: Json<WorkPaths["/reports"]["get"]>;
 };
 
 export type RouteName = keyof Routes;
@@ -193,6 +201,19 @@ export function cardAnswerPath(cardId: string): string {
   return `${WORK_BASE}/work/inbox/${encodeURIComponent(cardId)}/answer`;
 }
 
+/** The report route's id for one report, or for one earlier version of it. */
+export function reportKey(id: string, version?: number): string {
+  return version === undefined ? id : `${id}@${version}`;
+}
+
+/**
+ * The address of one of a report's own images (lina#263's image route): the only images a report draws. The route
+ * serves the images a Desk report was registered with, by their place in it.
+ */
+export function reportImagePath(id: string, position: number): string {
+  return `/reports/${encodeURIComponent(id)}/images/${position}`;
+}
+
 export function routePath(name: RouteName, id?: string): string {
   const enc = id === undefined ? "" : encodeURIComponent(id);
   switch (name) {
@@ -231,5 +252,11 @@ export function routePath(name: RouteName, id?: string): string {
       return `${SETTINGS_PATH}/history?limit=${encodeURIComponent(id ?? SETTINGS_HISTORY.recent)}`;
     case "settingsModels":
       return `${SETTINGS_PATH}/models`;
+    case "report": {
+      const [report, version] = (id ?? "").split("@");
+      return `${BOARD_BASE}/reports/${encodeURIComponent(report)}${version ? `?version=${encodeURIComponent(version)}` : ""}`;
+    }
+    case "reports":
+      return `${BOARD_BASE}/reports?card=${enc}`;
   }
 }

@@ -4627,6 +4627,97 @@ const drivers = {
     });
   },
 
+  // lina-app#50, #83, #114: the report card in the chat, the inspector beside it or the sheet over it, the reading
+  // layout, images, blocks, updates and history, on the synthetic reports (`&reports=demo`).
+  async reports(page, step) {
+    const wide = page.viewportSize().width >= 900;
+    const LONG = "rep_5e1f0a7c2b90";
+    const BROKEN = "rep_9c2e7f41d6a3";
+    const viewer = () => (wide ? page.getByTestId("report-inspector") : page.getByTestId("detail-frame"));
+    const heading = () => viewer().getByRole("heading", { level: 1 });
+    await step("open the first agent's window: one card per report, title and agent, no body", async () => {
+      await openApp(page, "#/talk/ag-1", "&reports=demo");
+      const cards = page.getByTestId("agent-talk").getByTestId("report-card");
+      await cards.nth(1).waitFor({ timeout: 10_000 });
+      const lines = (await cards.allInnerTexts()).map((line) => line.replace(/\s+/g, " ").trim());
+      check(lines.length === 2 && lines[0].startsWith("가상 릴리스 변경 정리 · 중간 보고") && / · 업데이트 /.test(lines[0]), "the cards read " + JSON.stringify(lines));
+      const words = await page.getByTestId("agent-talk").innerText();
+      check(!words.includes("묶음별 변경") && !words.includes("[[report:"), "the chat holds the report's body or its reference line");
+      return lines.join(" / ");
+    });
+    await step(wide ? "tap the card: the report opens beside the chat, which stays usable" : "tap the card: a sheet rises to about half the screen over the chat", async () => {
+      await page.getByTestId("report-card").first().click();
+      await heading().waitFor({ timeout: 10_000 });
+      check((await text(heading())) === "가상 릴리스 변경 정리 · 중간 보고", "the viewer reads " + (await text(heading())));
+      if (wide) {
+        check(await page.getByRole("textbox", { name: "메시지" }).isVisible(), "the chat's field is hidden");
+        const [chat, inspector] = await Promise.all([page.locator(".talk-pane").boundingBox(), viewer().boundingBox()]);
+        check(chat.width >= 360 && inspector.x >= chat.x + chat.width - 1, "the chat is " + Math.round(chat.width) + " px beside the inspector at " + Math.round(inspector.x));
+        return "chat " + Math.round(chat.width) + " px, inspector " + Math.round(inspector.width) + " px";
+      }
+      const sheet = await viewer().boundingBox();
+      check((await viewer().getAttribute("data-height")) === "half" && sheet.y > 300 && sheet.y < 520, "the sheet starts at " + Math.round(sheet.y));
+      return "sheet top " + Math.round(sheet.y);
+    });
+    await step(wide ? "drag the inspector's edge: it widens and the chat keeps its room" : "drag the sheet's bar up: it takes the whole screen", async () => {
+      if (wide) {
+        const edge = await page.getByTestId("report-resize").boundingBox();
+        const before = Number(await page.getByTestId("report-resize").getAttribute("aria-valuenow"));
+        await page.mouse.move(edge.x + 4, edge.y + 200);
+        await page.mouse.down();
+        await page.mouse.move(edge.x - 160, edge.y + 200, { steps: 8 });
+        await page.mouse.up();
+        const after = Number(await page.getByTestId("report-resize").getAttribute("aria-valuenow"));
+        check(after > before + 100, "the width went " + before + " -> " + after);
+        return before + " -> " + after + " px";
+      }
+      const bar = await page.getByTestId("report-sheet-bar").boundingBox();
+      await page.mouse.move(bar.x + 40, bar.y + bar.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(bar.x + 40, bar.y - 250, { steps: 8 });
+      await page.mouse.up();
+      await page.waitForFunction(() => document.querySelector("[data-testid=detail-frame]")?.getAttribute("data-height") === "full");
+      return "full";
+    });
+    await step("tap the wide image: it opens large; next and previous stay inside the report's three images", async () => {
+      await viewer().locator(".report-image").first().click();
+      const box = page.getByTestId("report-lightbox");
+      const count = () => text(box.getByTestId("report-lightbox-count"));
+      check((await count()) === "1 / 3", "the lightbox opened at " + (await count()));
+      await box.getByRole("button", { name: "다음 그림" }).click();
+      await box.getByRole("button", { name: "다음 그림" }).click();
+      check((await count()) === "3 / 3" && (await box.getByRole("button", { name: "다음 그림" }).isDisabled()), "next stopped at " + (await count()));
+      await box.getByRole("button", { name: "이전 그림" }).click();
+      check((await count()) === "2 / 3", "previous went to " + (await count()));
+      await box.getByRole("button", { name: "닫기" }).click();
+      const outside = await viewer().getByTestId("report-image-outside").count();
+      check(outside === 1, "outside images shown as notes: " + outside);
+      return "1/3 -> 3/3 -> 2/3, one outside image refused";
+    });
+    await step("the agent edits the report: it updates in place with a small mark; its versions open from the viewer", async () => {
+      await page.evaluate((id) => window.__linaReportElsewhere.edit(id), LONG);
+      await viewer().getByTestId("report-updated").waitFor({ timeout: 10_000 });
+      check((await viewer().getByTestId("report").getAttribute("data-version")) === "4", "the viewer shows v" + (await viewer().getByTestId("report").getAttribute("data-version")));
+      await viewer().getByTestId("report-history").click();
+      const versions = await viewer().getByTestId("report-versions").locator(".report-version-n").allInnerTexts();
+      check(JSON.stringify(versions) === JSON.stringify(["v4", "v3", "v2", "v1"]), "the versions read " + JSON.stringify(versions));
+      await viewer().getByTestId("report-versions").getByRole("button").last().click();
+      await viewer().getByTestId("report-older").waitFor({ timeout: 5_000 });
+      await viewer().getByTestId("report-older").getByRole("button", { name: "최신 보기" }).click();
+      await viewer().getByTestId("report-older").waitFor({ state: "detached", timeout: 5_000 });
+      return "v4 with the mark; v1 opened and back";
+    });
+    await step("open a report of broken blocks: each shows its source and one error line", async () => {
+      await openApp(page, "#/reports/" + BROKEN, "&reports=demo");
+      const broken = (wide ? page.getByTestId("detail-pane") : page.getByTestId("detail-frame")).getByTestId("report-block-broken");
+      await broken.nth(5).waitFor({ timeout: 10_000 });
+      const errors = await broken.locator(".report-block-error").allInnerTexts();
+      const sources = await broken.locator("pre").count();
+      check(errors.length === 6 && sources === 6, "broken blocks " + errors.length + ", sources " + sources);
+      return errors.join(" | ");
+    });
+  },
+
   async install(page, step) {
     await step("open the app", async () => {
       await openApp(page, "#/");

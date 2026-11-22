@@ -565,6 +565,12 @@ export class Store {
     return SLOW_ROUTES;
   }
 
+  /** The ids a route was read for (each card's report list), for an event that may touch any of them. */
+  readIds(name: RouteName): string[] {
+    const prefix = `${name}:`;
+    return [...this.entries.keys()].filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length));
+  }
+
   /** Loaded card details that list a worker run, for a worker event about it. */
   cardsWithRun(runId: string): string[] {
     const ids: string[] = [];

@@ -4,6 +4,8 @@ import type { AgentTalkHistory, ItemDetail } from "../api/client";
 import type { Source, TalkResult } from "../data/source";
 import { KoreanInput } from "../korean-input";
 import { Markdown, plainLine } from "../markdown";
+import { messageParts, referencesAsSummaries } from "../report/reference";
+import { ReportCard, reportLinkClick } from "../report/viewer";
 import { agentView, foldTitle } from "../model";
 import { href, linkClick } from "../router";
 import { clock } from "../time";
@@ -160,6 +162,37 @@ function SendWhy({ replying, sending }: { replying: boolean; sending: boolean })
 }
 
 /**
+ * An agent's message: its markdown in bubbles, and each report reference line as one report card between them, never
+ * the report's body (lina-app#50). A report's page address in the words opens the viewer on a plain click.
+ */
+function AgentLine({ text, streaming }: { text: string; streaming: boolean }) {
+  const parts = messageParts(text);
+  const typing = streaming ? (
+    <span class="talk-typing" role="img" aria-label={W.replying} data-testid="talk-live">
+      <span />
+      <span />
+      <span />
+    </span>
+  ) : null;
+  const last = parts.at(-1);
+  return (
+    <>
+      {parts.map((part, index) =>
+        part.kind === "report" ? (
+          <ReportCard key={index} id={part.reference.id} reference={part.reference} />
+        ) : (
+          <div key={index} class="talk-bubble" onClick={reportLinkClick}>
+            <Markdown text={part.text} />
+            {part === last ? typing : null}
+          </div>
+        ),
+      )}
+      {typing && last?.kind !== "text" ? <div class="talk-bubble">{typing}</div> : null}
+    </>
+  );
+}
+
+/**
  * A window's messages: the owner's on the right, plain text; the agent's on the left under its mark and name, its
  * markdown drawn; a date between days. A new message keeps the window at the bottom, and the owner's own always goes
  * there; read up, the window stays put and 맨 아래로 counts what came in (lina-app#187). `after` draws one line under
@@ -233,16 +266,7 @@ function Thread({ lines, agent, after }: { lines: readonly ThreadLine[]; agent: 
                     </div>
                   ) : (
                     <div key={line.key} class="talk-turn is-agent" data-testid="talk-reply" aria-busy={line.state === "streaming" ? "true" : undefined}>
-                      <div class="talk-bubble">
-                        {line.text ? <Markdown text={line.text} /> : null}
-                        {line.state === "streaming" ? (
-                          <span class="talk-typing" role="img" aria-label={W.replying} data-testid="talk-live">
-                            <span />
-                            <span />
-                            <span />
-                          </span>
-                        ) : null}
-                      </div>
+                      <AgentLine text={line.text} streaming={line.state === "streaming"} />
                     </div>
                   ),
                 )}
@@ -429,7 +453,7 @@ function lastLineOf(history: AgentTalkHistory, brokenOff: readonly string[] = []
   // (`brokenOff`) is read as the owner's words.
   for (let at = history.messages.length - 1; at >= 0; at -= 1) {
     const message = history.messages[at];
-    if (message.role !== "user") return plainLine(message.content);
+    if (message.role !== "user") return plainLine(referencesAsSummaries(message.content));
     if (brokenOff.includes(ownText(message.content))) return firstLine(ownText(message.content));
   }
   return "";
@@ -888,7 +912,7 @@ export function AgentTalk({ agent, children }: { agent: string; children?: Compo
             turn.state = "done";
             turn.replyAt = Date.now() / 1000;
             settle(box, turn);
-            keepLastLine(store.source, agent, plainLine(turn.reply));
+            keepLastLine(store.source, agent, plainLine(referencesAsSummaries(turn.reply)));
             break;
           case "error":
           case "run.failed":

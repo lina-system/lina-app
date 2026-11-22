@@ -1915,7 +1915,9 @@ const drivers = {
       const marks = going.map(([, mark]) => mark.map((each) => each.replace(/^(어제 )?\d\d:\d\d /, "")));
       check(JSON.stringify(going.map(([line]) => line)) === JSON.stringify(["가짜 안내 문구 셋을 고쳐 씀", "가짜 검사 넷을 돌려 모두 통과함", "가짜 안내 화면의 빈칸을 찾음"]) && JSON.stringify(marks) === JSON.stringify([[], ["검토 통과"], []]) && going[1][1].every((mark) => /^(어제 )?\d\d:\d\d 검토 통과$/.test(mark)), "k-480's 기록 reads " + JSON.stringify(going));
       const done = await read("#/cards/k-481");
-      check(JSON.stringify(done.map(([, marks]) => marks)) === JSON.stringify([[], ["검토 통과"], [], ["검토 필요"], []]) && done.every(([text]) => !/검토|[A-Za-z]/.test(text) || text === "고친 묶음을 다시 검토받아 통과함" || text === "검토에서 받은 지적 둘을 고침"), "k-481's 기록 reads " + JSON.stringify(done));
+      const doneMarks = done.map(([, mark]) => mark.map((each) => each.replace(/^(어제 )?\d\d:\d\d /, "")));
+      // A rejected round's mark is 검토 지적, a word no card state or reason reads (W.mark, dbb9a81).
+      check(JSON.stringify(doneMarks) === JSON.stringify([[], ["검토 통과"], [], ["검토 지적"], []]) && done.every(([, mark]) => mark.every((each) => /^(어제 )?\d\d:\d\d 검토 (통과|지적)$/.test(each))) && done.every(([text]) => !/검토|[A-Za-z]/.test(text) || text === "고친 묶음을 다시 검토받아 통과함" || text === "검토에서 받은 지적 둘을 고침"), "k-481's 기록 reads " + JSON.stringify(done));
       await openApp(page, "#/cards/k-482", "&hub=round26");
       const fold = page.getByTestId("earlier-records");
       await fold.waitFor();
@@ -3975,7 +3977,7 @@ const drivers = {
         const time = String(at.getHours()).padStart(2, "0") + ":" + String(at.getMinutes()).padStart(2, "0");
         return at.toDateString() === new Date(window.__linaScene.now * 1000).toDateString() ? time : "어제 " + time;
       });
-      check(rounds[2] === end + " · 완료 · 병합된 변경 41개를 모음", "round 1 ends " + rounds[2] + ", its run at " + end);
+      check(rounds[2] === end + " · 완료 · 병합된 변경을 41개 모음", "round 1 ends " + rounds[2] + ", its run at " + end);
       return heads.join(", ") + "; " + rounds.join(" | ");
     });
     await step("the running and stopped groups have their heading and one number each; finished cards say when they ended", async () => {
@@ -4061,7 +4063,7 @@ const drivers = {
       // The comments between rounds are the card's own, read in its 댓글 box: the record heads no block 댓글 with them (lina-app#171).
       check(JSON.stringify(outcomes) === JSON.stringify(["going", "rejected", "ended"]), "the blocks read " + JSON.stringify(outcomes));
       const titles = await timeline.locator(".timeline-head").allInnerTexts();
-      check(/^(어제 )?\d\d:\d\d · 진행 중 · 변경마다 한 줄 요약을 붙이는 중$/.test(titles[0]) && /^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/.test(titles[1]) && /^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/.test(titles[2]) && !titles.some((title) => title.includes("라운드")) && !titles.some((title) => title.includes(" –") || title.startsWith("–")), "the heads read " + JSON.stringify(titles));
+      check(/^(어제 )?\d\d:\d\d · 진행 중 · 변경마다 한 줄 요약을 붙이는 중$/.test(titles[0]) && /^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/.test(titles[1]) && /^(어제 )?\d\d:\d\d · 완료 · 병합된 변경을 41개 모음$/.test(titles[2]) && !titles.some((title) => title.includes("라운드")) && !titles.some((title) => title.includes(" –") || title.startsWith("–")), "the heads read " + JSON.stringify(titles));
       const rows = await blocks.first().locator(".timeline-row").evaluateAll((items) =>
         items.map((item) => ({ kind: item.getAttribute("data-kind"), text: item.textContent.trim(), colour: getComputedStyle(item).color })),
       );

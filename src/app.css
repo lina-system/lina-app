@@ -2560,7 +2560,9 @@ html:has(.stack) body {
 }
 
 .stack .fold > summary,
-.stack .resolved > summary {
+.stack .resolved > summary,
+.stack .timeline-earlier > summary,
+.stack .round-fold > summary {
   display: flex;
   align-items: center;
   min-height: var(--hit);

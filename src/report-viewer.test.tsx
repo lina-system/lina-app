@@ -225,3 +225,20 @@ test("the nested-image report also holds an image the core does not give, shown 
   await waitFor(() => expect(view.getByTestId("report-image-failed").textContent).toBe("[그림: 불러오지 못하는 그림] 그림을 불러오지 못함"));
   expect(view.getByTestId("report").querySelectorAll(".report-body img")).toHaveLength(3);
 });
+
+test("the viewer's Escape leaves a large image's layer to close itself, whenever the key comes", async () => {
+  const { view } = await open("#/talk/ag-1", true);
+  fireEvent.click(await waitFor(() => view.getAllByTestId("report-card")[0]));
+  await waitFor(() => expect(view.getByTestId("report-inspector")).toBeTruthy());
+  // A layer in the page that has not taken the key yet, as the large image right after it is drawn.
+  const layer = document.createElement("div");
+  layer.setAttribute("data-testid", "report-lightbox");
+  document.body.append(layer);
+  // The viewer marks an Escape it acts on as taken; one it leaves to the layer stays untaken.
+  const left = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+  document.dispatchEvent(left);
+  expect(left.defaultPrevented).toBe(false);
+  layer.remove();
+  fireEvent.keyDown(document, { key: "Escape" });
+  await waitFor(() => expect(view.queryByTestId("report-inspector")).toBeNull());
+});

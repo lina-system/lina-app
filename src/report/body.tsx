@@ -1,6 +1,6 @@
 import type { VNode } from "preact";
 import { createPortal } from "preact/compat";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { ReportImage } from "../data/source";
 import { docBlocks, type DocImage, type DocRules } from "../markdown";
 import { REPORT_WORD } from "../words";
@@ -150,12 +150,13 @@ function Lightbox({ images, at, onMove, onClose }: { images: readonly Shown[]; a
   const image = images[at];
   const prev = at > 0 ? at - 1 : null;
   const next = at < images.length - 1 ? at + 1 : null;
-  useEffect(() => {
+  // Before the first paint, not after it: a key pressed the moment the image shows is already this layer's.
+  useLayoutEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     close.current?.focus();
     return () => opener?.focus?.();
   }, []);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
       else if (event.key === "ArrowLeft" && prev !== null) onMove(prev);

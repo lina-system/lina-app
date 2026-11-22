@@ -115,14 +115,14 @@ function savedSize(): TextSize {
  */
 /**
  * The viewer's Escape (lina-app#50): it closes the inspector, the pane or the sheet, as Esc closes a detail pane
- * (details.tsx FrameClose). Esc typed while a syllable is composed, already taken (the large image takes it first and
- * closes only itself), or while the bell's list is open, is not this one's.
+ * (details.tsx FrameClose). Esc typed while a syllable is composed, already taken, while the bell's list is open, or
+ * while a large image is open (it closes only itself), is not this one's.
  */
 function useEscape(close: (() => void) | undefined): void {
   useEffect(() => {
     if (!close) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.isComposing || event.defaultPrevented || document.querySelector(".popover")) return;
+      if (event.key !== "Escape" || event.isComposing || event.defaultPrevented || document.querySelector(".popover, [data-testid=report-lightbox]")) return;
       event.preventDefault();
       close();
     };

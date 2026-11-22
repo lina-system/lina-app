@@ -17,6 +17,7 @@
     "capture": "npm run build && playwright test"
   },
   "dependencies": {
+    "mermaid": "12.3.0",
     "preact": "11.1.1"
   },
   "devDependencies": {

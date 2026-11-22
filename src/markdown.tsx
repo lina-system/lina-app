@@ -16,9 +16,37 @@ import { W } from "./words";
  *
  * A mark with no end yet is text, so a reply that streams in shows `**굵` and a code fence with no closing line as
  * written until the closing mark arrives.
+ *
+ * A report (lina-app#114) reads the same markdown with `doc` rules: headings at their levels, images, report blocks in
+ * fences, and tables whose number columns align right and whose rows can fold into cards (src/report/body.tsx).
  */
 export function Markdown({ text }: { text: string }) {
-  return <div class="md">{blocks(text.replace(/\r\n?/g, "\n").split("\n"))}</div>;
+  return <div class="md">{blocks(lines(text))}</div>;
+}
+
+/** What a document draws beyond a reply's markdown (a report's body, src/report/body.tsx). */
+export interface DocRules {
+  /** A fenced block's drawing by its info string (a report block), or null to draw it as code. */
+  fence(info: string, body: readonly string[], key: number): VNode | null;
+  /** One image `![alt](src "caption")`, alone or among others in its paragraph. */
+  image(image: DocImage, key: number): VNode;
+  /** A paragraph of two or more images and nothing else, drawn side by side. */
+  gallery(images: readonly VNode[], key: number): VNode;
+}
+
+export interface DocImage {
+  readonly alt: string;
+  readonly src: string;
+  readonly title: string | null;
+}
+
+/** A document's blocks under `doc` rules; a block's own markdown (a fold's) is drawn by the same call. */
+export function docBlocks(text: string | readonly string[], doc: DocRules): VNode[] {
+  return blocks(typeof text === "string" ? lines(text) : text, doc);
+}
+
+function lines(text: string): string[] {
+  return text.replace(/\r\n?/g, "\n").split("\n");
 }
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
@@ -29,6 +57,11 @@ const BULLET = /^\s*[-*+]\s+(.*)$/;
 const NUMBER = /^\s*(\d{1,9})[.)]\s+(.*)$/;
 const TABLE_RULE = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
 const TASK = /^\[([ xX])\]\s+(.*)$/;
+/** `![alt](src)` or `![alt](src "caption")`; the alt may be empty. */
+const IMAGE = /^!\[([^\]\n]*)\]\(([^()\s]+)(?:\s+"([^"\n]*)")?\)/;
+const IMAGES_ONLY = /^(?:\s*!\[[^\]\n]*\]\([^()\s]+(?:\s+"[^"\n]*")?\)\s*)+$/;
+/** A cell that reads as a number: digits with grouping commas, a sign, a decimal part, and a short unit or %. */
+const NUMBER_CELL = /^[-+−]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?\s*(?:%|[A-Za-z]{1,3}|원|건|개|명|시간|분|초|배)?$/;
 
 function startsBlock(lines: readonly string[], at: number): boolean {
   const line = lines[at];
@@ -40,8 +73,9 @@ function isTableStart(lines: readonly string[], at: number): boolean {
   return lines[at].includes("|") && next !== undefined && next.includes("|") && TABLE_RULE.test(next) && next.includes("-");
 }
 
-function blocks(lines: readonly string[]): VNode[] {
+function blocks(lines: readonly string[], doc?: DocRules): VNode[] {
   const out: VNode[] = [];
+  const inline = (text: string) => inlineOf(text, doc);
   let at = 0;
   while (at < lines.length) {
     const line = lines[at];
@@ -59,6 +93,12 @@ function blocks(lines: readonly string[]): VNode[] {
         out.push(<p key={key}>{breaks(lines.slice(at).map((each) => [each]))}</p>);
         break;
       }
+      const drawn = doc?.fence(fence[2].trim(), lines.slice(at + 1, end), key);
+      if (drawn) {
+        out.push(drawn);
+        at = end + 1;
+        continue;
+      }
       out.push(
         <pre key={key} class="md-code">
           <code>{lines.slice(at + 1, end).join("\n")}</code>
@@ -68,6 +108,14 @@ function blocks(lines: readonly string[]): VNode[] {
       continue;
     }
     const heading = HEADING.exec(line);
+    if (heading && doc) {
+      // The report's own title is the page's h1: its body's # is h2, ## h3, and anything deeper h4.
+      const level = Math.min(4, (/#+/.exec(line)?.[0].length ?? 1) + 1);
+      const Tag = `h${level}` as "h2" | "h3" | "h4";
+      out.push(<Tag key={key}>{inline(heading[1])}</Tag>);
+      at += 1;
+      continue;
+    }
     if (heading) {
       out.push(
         <p key={key} class="md-heading">
@@ -88,7 +136,7 @@ function blocks(lines: readonly string[]): VNode[] {
         inner.push(match[1]);
         at += 1;
       }
-      out.push(<blockquote key={key}>{blocks(inner)}</blockquote>);
+      out.push(<blockquote key={key}>{blocks(inner, doc)}</blockquote>);
       continue;
     }
     if (BULLET.test(line) || NUMBER.test(line)) {
@@ -131,6 +179,10 @@ function blocks(lines: readonly string[]): VNode[] {
       const rows: string[][] = [];
       at += 2;
       while (at < lines.length && lines[at].includes("|") && lines[at].trim()) rows.push(cells(lines[at++]));
+      if (doc) {
+        out.push(<DocTable key={key} head={head} rows={rows} align={align} inline={inline} />);
+        continue;
+      }
       out.push(
         <div key={key} class="md-table">
           <table>
@@ -162,9 +214,75 @@ function blocks(lines: readonly string[]): VNode[] {
     const paragraph = [line];
     at += 1;
     while (at < lines.length && lines[at].trim() && !startsBlock(lines, at)) paragraph.push(lines[at++]);
+    const joined = paragraph.join(" ");
+    if (doc && IMAGES_ONLY.test(joined)) {
+      // A paragraph of images alone: one is a wide figure, several stand side by side.
+      const images = [...joined.matchAll(new RegExp(IMAGE.source.slice(1), "g"))].map((match, index) => doc.image({ alt: match[1], src: match[2], title: match[3] ?? null }, index));
+      out.push(images.length === 1 ? <div key={key} class="report-figure-one">{images[0]}</div> : doc.gallery(images, key));
+      continue;
+    }
     out.push(<p key={key}>{breaks(paragraph.map(inline))}</p>);
   }
   return out;
+}
+
+/** The first table in some lines (a header row, its |---| row, then body rows), as cell text; null when there is none. */
+export function tableOf(lines: readonly string[]): { readonly head: string[]; readonly rows: string[][] } | null {
+  const at = lines.findIndex((_, index) => isTableStart(lines, index));
+  if (at < 0) return null;
+  const rows: string[][] = [];
+  for (let row = at + 2; row < lines.length && lines[row].includes("|") && lines[row].trim(); row += 1) rows.push(cells(lines[row]));
+  return { head: cells(lines[at]), rows };
+}
+
+/** A cell's number (grouping commas, a unit or % after it), or null when the cell does not read as one. */
+export function cellNumber(cell: string): number | null {
+  const text = cell.replace(/[*_`]/g, "").trim();
+  if (!NUMBER_CELL.test(text)) return null;
+  return Number(text.replace(/−/, "-").replace(/,/g, "").replace(/[^\d.+-]+$/u, "").trim());
+}
+
+/** A column every one of whose filled body cells reads as a number aligns right (lina-app#114). */
+function numberColumns(head: readonly string[], rows: readonly string[][]): boolean[] {
+  return head.map((_, column) => {
+    const filled = rows.map((row) => (row[column] ?? "").trim()).filter(Boolean);
+    return filled.length > 0 && filled.every((cell) => NUMBER_CELL.test(cell.replace(/[*_`]/g, "")));
+  });
+}
+
+/**
+ * A report's table: its header row stays while its rows scroll, a number column aligns right, and every cell carries
+ * its column's name, which a narrow reader shows before it when each row folds into a card (app.css).
+ */
+function DocTable({ head, rows, align, inline }: { head: readonly string[]; rows: readonly string[][]; align: readonly (string | undefined)[]; inline: (text: string) => ComponentChildren[] }) {
+  const numbers = numberColumns(head, rows);
+  const style = (column: number) => (align[column] ? { textAlign: align[column] } : undefined);
+  return (
+    <div class="md-table report-table" tabIndex={0}>
+      <table>
+        <thead>
+          <tr>
+            {head.map((cell, index) => (
+              <th key={index} scope="col" class={numbers[index] ? "is-number" : undefined} style={style(index)}>
+                {inline(cell)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={index}>
+              {head.map((name, column) => (
+                <td key={column} class={numbers[column] ? "is-number" : undefined} style={style(column)} data-label={plainLine(name)}>
+                  {inline(row[column] ?? "")}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function breaks(lines: readonly ComponentChildren[]): ComponentChildren[] {
@@ -213,7 +331,8 @@ const WORD = /[\p{L}\p{N}]/u;
 const LINK = /^\[([^\]\n]+)\]\(([^()\s]+(?:\([^()\s]*\)[^()\s]*)*)\)/;
 
 /** One line's inline marks. A mark with no closing mark is text. */
-function inline(text: string): ComponentChildren[] {
+function inlineOf(text: string, doc?: DocRules): ComponentChildren[] {
+  const inline = (inner: string) => inlineOf(inner, doc);
   const out: ComponentChildren[] = [];
   let plain = "";
   const flush = () => {
@@ -240,6 +359,13 @@ function inline(text: string): ComponentChildren[] {
       }
       plain += run;
       at += run.length;
+      continue;
+    }
+    const docImage = doc && char === "!" && text[at + 1] === "[" ? IMAGE.exec(text.slice(at)) : null;
+    if (doc && docImage) {
+      flush();
+      out.push(doc.image({ alt: docImage[1], src: docImage[2], title: docImage[3] ?? null }, out.length));
+      at += docImage[0].length;
       continue;
     }
     const image = char === "!" && text[at + 1] === "[" ? LINK.exec(text.slice(at + 1)) : null;

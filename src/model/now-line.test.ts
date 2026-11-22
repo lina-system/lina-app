@@ -51,3 +51,15 @@ test("an English worker hand-out line is a machine notice, as a receipt is; an E
   expect(isMachineNotice("가짜 묶음을 맡김 (assigned to workers)", "ag-1")).toBe(false);
   expect(isMachineNotice("Assigned worker w-1 to run 1", "owner")).toBe(false);
 });
+
+// lina-app#273: a row shows its reason once; a now line that only rewords it is left to the detail's 지금.
+test("a wait line made from the reason the state already reads is a restatement; the core's own line and a set time are not", async () => {
+  const { restatesReason } = await import("./index");
+  expect(restatesReason("review", "검토를 기다리는 중")).toBe(true);
+  expect(restatesReason("blocked_by_item", "다른 일을 기다리는 중")).toBe(true);
+  expect(restatesReason("decision", "결정 대기")).toBe(true);
+  expect(restatesReason("review", "실패 화면 세 곳 문구 비교 중")).toBe(false);
+  expect(restatesReason("hold", "정한 시각을 기다리는 중")).toBe(false);
+  expect(restatesReason("gate", "검사를 기다리는 중")).toBe(false);
+  expect(restatesReason(null, "검토를 기다리는 중")).toBe(false);
+});

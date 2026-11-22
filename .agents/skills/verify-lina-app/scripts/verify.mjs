@@ -543,7 +543,9 @@ export async function rowLines(page) {
       // A row whose own card's name differs from its title adds it as its second line (lina-app#148, #152); a goal's done
       // condition is that line of a goal row, under its state line (lina-app#231).
       const subs = children.filter((child) => child.getAttribute("data-testid") === "row-sub" || (child.matches(".sub.wrap-line") && Boolean(child.closest(".goal-row")))).length;
-      return children.length > 2 + Math.min(asks, 1) + Math.min(subs, 1) || tall.length ? [lines.textContent.trim().slice(0, 40) + " (" + children.length + " lines)"] : [];
+      // A stopped or waiting row says its now line under its state line (lina-app#269), one line like the rest.
+      const nows = children.filter((child) => child.getAttribute("data-testid") === "row-now").length;
+      return children.length > 2 + Math.min(asks, 1) + Math.min(subs, 1) + Math.min(nows, 1) || tall.length ? [lines.textContent.trim().slice(0, 40) + " (" + children.length + " lines)"] : [];
     }),
   );
 }
@@ -1911,14 +1913,61 @@ const drivers = {
         return lines.evaluateAll((items) => items.map((item) => [(item.querySelector(".timeline-text")?.textContent ?? "").replace(/^(?:어제 )?\d\d:\d\d · /, ""), [...item.querySelectorAll("[data-testid=history-mark]")].map((mark) => mark.textContent)]));
       };
       const going = await read("#/cards/k-480");
-      check(JSON.stringify(going) === JSON.stringify([["가짜 안내 문구 셋을 고쳐 씀", []], ["가짜 검사 넷을 돌려 모두 통과함", ["검토 통과"]], ["가짜 안내 화면의 빈칸을 찾음", []]]), "k-480's 기록 reads " + JSON.stringify(going));
+      // A verdict mark reads its round's time before its word (dbb9a81, card-detail.md): `18:08 검토 통과`.
+      const marks = going.map(([, mark]) => mark.map((each) => each.replace(/^(어제 )?\d\d:\d\d /, "")));
+      check(JSON.stringify(going.map(([line]) => line)) === JSON.stringify(["가짜 안내 문구 셋을 고쳐 씀", "가짜 검사 넷을 돌려 모두 통과함", "가짜 안내 화면의 빈칸을 찾음"]) && JSON.stringify(marks) === JSON.stringify([[], ["검토 통과"], []]) && going[1][1].every((mark) => /^(어제 )?\d\d:\d\d 검토 통과$/.test(mark)), "k-480's 기록 reads " + JSON.stringify(going));
       const done = await read("#/cards/k-481");
-      check(JSON.stringify(done.map(([, marks]) => marks)) === JSON.stringify([[], ["검토 통과"], [], ["검토 필요"], []]) && done.every(([text]) => !/검토|[A-Za-z]/.test(text) || text === "고친 묶음을 다시 검토받아 통과함" || text === "검토에서 받은 지적 둘을 고침"), "k-481's 기록 reads " + JSON.stringify(done));
+      const doneMarks = done.map(([, mark]) => mark.map((each) => each.replace(/^(어제 )?\d\d:\d\d /, "")));
+      // A rejected round's mark is 검토 지적, a word no card state or reason reads (W.mark, dbb9a81).
+      check(JSON.stringify(doneMarks) === JSON.stringify([[], ["검토 통과"], [], ["검토 지적"], []]) && done.every(([, mark]) => mark.every((each) => /^(어제 )?\d\d:\d\d 검토 (통과|지적)$/.test(each))) && done.every(([text]) => !/검토|[A-Za-z]/.test(text) || text === "고친 묶음을 다시 검토받아 통과함" || text === "검토에서 받은 지적 둘을 고침"), "k-481's 기록 reads " + JSON.stringify(done));
       await openApp(page, "#/cards/k-482", "&hub=round26");
       const fold = page.getByTestId("earlier-records");
       await fold.waitFor();
       check(!(await fold.evaluate((element) => element.open)) && (await page.getByTestId("history-line").count()) === 0 && !(await page.getByTestId("timeline-block").first().isVisible()), "k-482's old record is not one closed fold");
       return going.length + " lines on k-480, " + done.length + " on k-481; k-482 one closed 이전 기록";
+    });
+    // Aside run7 (lina-app#273): a verdict mark that links its run is tapped where it is drawn. On a phone it is a 44x44
+    // target (features/phone.md); at its middle and 11 px above and below, the point is that mark and no other line or
+    // link, and a tap there opens the run that mark links (two rounds of one run link the same run); a point just
+    // beside it is not that mark. No two links of the 기록 overlap. Wide, the mark stays its pill.
+    await step("on &hub=round26, each verdict mark on k-480 and k-481 opens the run it links where it is tapped: 44x44 on a phone, at its middle and 11 px above and below, never under another link (lina-app#273)", async () => {
+      const phone = page.viewportSize().width < 900;
+      const read = [];
+      for (const card of ["k-480", "k-481"]) {
+        await openApp(page, "#/cards/" + card, "&hub=round26");
+        const marks = page.getByTestId("timeline").locator("a[data-testid=history-mark]");
+        await marks.first().waitFor();
+        const count = await marks.count();
+        check(count === (card === "k-480" ? 1 : 2), card + " links " + count + " verdict marks");
+        const overlaps = await page.getByTestId("timeline").locator("a, summary, button").evaluateAll((items) => {
+          const boxes = items.map((item) => [item.textContent.trim().slice(0, 20), item.getBoundingClientRect()]).filter(([, box]) => box.width && box.height);
+          return boxes.flatMap(([a, p], i) => boxes.slice(i + 1).filter(([, q]) => p.left < q.right - 0.5 && q.left < p.right - 0.5 && p.top < q.bottom - 0.5 && q.top < p.bottom - 0.5).map(([b]) => a + " / " + b));
+        });
+        check(overlaps.length === 0, card + ": links of 기록 overlap: " + overlaps.join("; "));
+        const hrefs = [];
+        for (let index = 0; index < count; index += 1) {
+          const mark = marks.nth(index);
+          await mark.scrollIntoViewIfNeeded();
+          const href = await mark.getAttribute("href");
+          const box = await mark.boundingBox();
+          if (phone) check(box.width >= 43.5 && box.height >= 43.5, card + " mark " + index + " is " + Math.round(box.width) + "x" + Math.round(box.height) + " on a phone");
+          else check(box.height < 30, card + " mark " + index + " is " + Math.round(box.height) + " px tall at " + page.viewportSize().width + ", not its pill");
+          const x = box.x + box.width / 2;
+          const ys = phone ? [box.y + box.height / 2, box.y + box.height / 2 - 11, box.y + box.height / 2 + 11] : [box.y + box.height / 2];
+          const hits = await page.evaluate(({ x, ys, href }) => ys.map((y) => document.elementFromPoint(x, y)?.closest("a")?.getAttribute("href") === href), { x, ys, href });
+          check(hits.every(Boolean), card + " mark " + index + ": a point of it is another element: " + JSON.stringify(hits));
+          const beside = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("a[data-testid=history-mark]") ?? null, { x: box.x - 3, y: box.y + box.height / 2 });
+          check(beside === null, card + " mark " + index + " takes a tap 3 px left of its box");
+          await page.mouse.click(x, ys[ys.length - 1]);
+          await page.waitForURL((url) => url.hash === href);
+          await page.getByTestId("screen-run").waitFor();
+          hrefs.push(href);
+          await page.goBack();
+          await marks.nth(index).waitFor();
+        }
+        read.push(card + " " + hrefs.join(" "));
+      }
+      return (phone ? "44x44, middle ±11 px; " : "pill; ") + read.join("; ");
     });
     // lina-app#241, &hub=round24: the hub's long card shapes, field by field, in made-up words. A folded line is a button
     // that opens what it holds, whole and as written, with its time and its author's name, without moving the detail's
@@ -3135,12 +3184,15 @@ const drivers = {
       ["worker run outside a card", "#/runs/r7"],
       ["card with folded comments", "#/cards/k-103"],
       ["완료 filtered to one agent", "#/done?agent=ag-1"],
+      // A card whose 기록 marks link their runs (Aside run7: the marks were 102x20, lina-app#273).
+      ["card with a verdict mark (&hub=round26)", "#/cards/k-480", "&hub=round26"],
+      ["card with two verdict marks (&hub=round26)", "#/cards/k-481", "&hub=round26"],
     ];
     for (const width of [390, 430]) {
       await page.setViewportSize({ width, height: 844 });
-      for (const [where, hash] of screens) {
+      for (const [where, hash, query] of screens) {
         await step("at " + width + ", " + where + ": every hit area is 44x44 and every text 13px or larger", async () => {
-          await openApp(page, hash);
+          await openApp(page, hash, query);
           await page.locator("[data-testid=screen-title], .detail-head").first().waitFor();
           const lines = await rowLines(page);
           check(lines.length === 0, "rows with more than two lines: " + lines.join("; "));
@@ -3963,7 +4015,7 @@ const drivers = {
       check(JSON.stringify(heads) === JSON.stringify(["지금", "할 일", "기록", "댓글"]), "the boxes read " + JSON.stringify(heads));
       const rounds = await detail.getByTestId("timeline-link").allInnerTexts();
       check(
-        rounds.length === 3 && /^(어제 )?\d\d:\d\d · 진행 중 · 변경마다 한 줄 요약을 붙이는 중$/.test(rounds[0]) && /^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/.test(rounds[1]) && /^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/.test(rounds[2]),
+        rounds.length === 3 && /^(어제 )?\d\d:\d\d · 진행 중 · 변경마다 한 줄 요약을 붙이는 중$/.test(rounds[0]) && /^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/.test(rounds[1]) && /^(어제 )?\d\d:\d\d · 완료 · 병합된 변경을 41개 모음$/.test(rounds[2]),
         "the rounds read " + JSON.stringify(rounds),
       );
       // Round 1's end is r9's own end (2시간 40분 전), so the head and the run agree.
@@ -3973,7 +4025,7 @@ const drivers = {
         const time = String(at.getHours()).padStart(2, "0") + ":" + String(at.getMinutes()).padStart(2, "0");
         return at.toDateString() === new Date(window.__linaScene.now * 1000).toDateString() ? time : "어제 " + time;
       });
-      check(rounds[2] === end + " · 완료 · 병합된 변경 41개를 모음", "round 1 ends " + rounds[2] + ", its run at " + end);
+      check(rounds[2] === end + " · 완료 · 병합된 변경을 41개 모음", "round 1 ends " + rounds[2] + ", its run at " + end);
       return heads.join(", ") + "; " + rounds.join(" | ");
     });
     await step("the running and stopped groups have their heading and one number each; finished cards say when they ended", async () => {
@@ -4059,7 +4111,7 @@ const drivers = {
       // The comments between rounds are the card's own, read in its 댓글 box: the record heads no block 댓글 with them (lina-app#171).
       check(JSON.stringify(outcomes) === JSON.stringify(["going", "rejected", "ended"]), "the blocks read " + JSON.stringify(outcomes));
       const titles = await timeline.locator(".timeline-head").allInnerTexts();
-      check(/^(어제 )?\d\d:\d\d · 진행 중 · 변경마다 한 줄 요약을 붙이는 중$/.test(titles[0]) && /^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/.test(titles[1]) && /^(어제 )?\d\d:\d\d · 완료 · 병합된 변경 41개를 모음$/.test(titles[2]) && !titles.some((title) => title.includes("라운드")) && !titles.some((title) => title.includes(" –") || title.startsWith("–")), "the heads read " + JSON.stringify(titles));
+      check(/^(어제 )?\d\d:\d\d · 진행 중 · 변경마다 한 줄 요약을 붙이는 중$/.test(titles[0]) && /^(어제 )?\d\d:\d\d · 검토 필요 · 문서만 바뀐 변경을 따로 묶음$/.test(titles[1]) && /^(어제 )?\d\d:\d\d · 완료 · 병합된 변경을 41개 모음$/.test(titles[2]) && !titles.some((title) => title.includes("라운드")) && !titles.some((title) => title.includes(" –") || title.startsWith("–")), "the heads read " + JSON.stringify(titles));
       const rows = await blocks.first().locator(".timeline-row").evaluateAll((items) =>
         items.map((item) => ({ kind: item.getAttribute("data-kind"), text: item.textContent.trim(), colour: getComputedStyle(item).color })),
       );

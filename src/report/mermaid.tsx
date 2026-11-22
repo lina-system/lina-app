@@ -133,15 +133,26 @@ const FIRST_ZOOM_MIN = 0.75;
  */
 function Zoomable({ svg, width }: { svg: string; width: number }) {
   const box = useRef<HTMLDivElement>(null);
-  const [zoom, setZoom] = useState<number | null>(null);
-  const [fit, setFit] = useState(1);
+  // The room the box has now (lina-app#274): it changes when the inspector is resized, and is none inside a closed fold
+  // until the fold opens.
+  const [room, setRoom] = useState(0);
   useLayoutEffect(() => {
-    const room = (box.current?.clientWidth ?? 0) - DIAGRAM_PADDING;
-    const fits = width > 0 && room > 0 ? Math.min(1, room / width) : 1;
-    setFit(fits);
-    setZoom((current) => current ?? Math.max(fits, Math.min(1, FIRST_ZOOM_MIN)));
-  }, [width]);
-  const scale = zoom ?? fit;
+    const element = box.current;
+    if (!element) return;
+    const measure = () => setRoom(Math.max(0, element.clientWidth - DIAGRAM_PADDING));
+    measure();
+    if (typeof ResizeObserver !== "function") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  const fit = width > 0 && room > 0 ? Math.min(1, room / width) : 1;
+  // A zoom the owner chose stays; 맞춤 (`fit`) follows the box. The first zoom is set once the box has room.
+  const [zoom, setZoom] = useState<number | "fit" | null>(null);
+  useLayoutEffect(() => {
+    if (room > 0) setZoom((current) => current ?? Math.max(fit, Math.min(1, FIRST_ZOOM_MIN)));
+  }, [room > 0]);
+  const scale = zoom === "fit" ? fit : (zoom ?? fit);
   // The steps are the fixed ones and the fit, in order; minus stops at the smallest, plus at the largest.
   const steps = [...new Set([...ZOOMS, fit])].sort((a, b) => a - b);
   const lower = [...steps].reverse().find((each) => each < scale - 0.005);
@@ -170,7 +181,7 @@ function Zoomable({ svg, width }: { svg: string; width: number }) {
         <button type="button" class="text-button" onClick={() => step(-1)} aria-label={REPORT_WORD.zoomOut} disabled={lower === undefined}>
           −
         </button>
-        <button type="button" class="text-button" onClick={() => setZoom(fit)}>
+        <button type="button" class="text-button" onClick={() => setZoom("fit")}>
           {REPORT_WORD.zoomFit}
         </button>
         <button type="button" class="text-button" onClick={() => step(1)} aria-label={REPORT_WORD.zoomIn} disabled={higher === undefined}>

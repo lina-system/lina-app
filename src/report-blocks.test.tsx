@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@testing-library/preact";
+import { act, fireEvent, render, waitFor } from "@testing-library/preact";
 import { beforeEach, expect, test, vi } from "vitest";
 import { parseBlock } from "./report/blocks";
 import { ReportBody } from "./report/body";
@@ -130,4 +130,43 @@ test("a share chart refuses a negative value with its source; bar and line keep 
   expect(view.getByTestId("report-block-broken").querySelector(".report-block-error")?.textContent).toBe('차트 블록을 그리지 못함: 비율 차트에 음수 값 "-10"');
   expect(view.getByTestId("report-block-broken").querySelector("pre")?.textContent).toContain("| 가 | -10 |");
   expect(view.container.querySelector(".chart")).toBeNull();
+});
+
+// lina-app#274 (Codex r4659640947): 맞춤 follows the room the diagram's box has now: after the inspector narrows, and once
+// a closed fold opens.
+test("맞춤 fits the box's width as it is now: after it narrows, and after the fold around it opens", async () => {
+  mermaid.render.mockResolvedValue({ svg: '<svg viewBox="4 4 1200 190"><g class="node"></g></svg>' });
+  const room = { width: 0 };
+  const observers: (() => void)[] = [];
+  const width = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+  Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get() { return (this as HTMLElement).classList.contains("report-diagram-box") ? room.width : 0; } });
+  vi.stubGlobal("ResizeObserver", class { constructor(private readonly callback: () => void) { observers.push(() => this.callback()); } observe() {} disconnect() {} });
+  try {
+    const view = body(["````lina:fold 흐름", "```mermaid", "flowchart LR", "  A --> B", "```", "````"].join("\n"));
+    await waitFor(() => expect(view.container.querySelector(".report-diagram-svg svg")).not.toBeNull());
+    const zoom = () => view.getByTestId("diagram-zoom").textContent;
+    // The fold opens: the box has room now and says so.
+    room.width = 624;
+    act(() => observers.forEach((notify) => notify()));
+    expect(zoom()).toBe("75%");
+    fireEvent.click(view.getByRole("button", { name: "맞춤" }));
+    expect(zoom()).toBe("50%");
+    // The inspector narrows: 맞춤 stays the fit of the box as it is.
+    room.width = 324;
+    act(() => observers.forEach((notify) => notify()));
+    expect(zoom()).toBe("25%");
+    const drawn = Number((view.container.querySelector(".report-diagram-svg") as HTMLElement).style.width.replace("px", ""));
+    expect(drawn + 24).toBeLessThanOrEqual(324);
+    // A zoom the owner chose stays when the box changes.
+    fireEvent.click(view.getByRole("button", { name: "확대" }));
+    expect(zoom()).toBe("50%");
+    room.width = 924;
+    act(() => observers.forEach((notify) => notify()));
+    expect(zoom()).toBe("50%");
+    fireEvent.click(view.getByRole("button", { name: "맞춤" }));
+    expect(zoom()).toBe("75%");
+  } finally {
+    if (width) Object.defineProperty(HTMLElement.prototype, "clientWidth", width);
+    vi.unstubAllGlobals();
+  }
 });

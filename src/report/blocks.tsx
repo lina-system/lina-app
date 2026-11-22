@@ -11,7 +11,8 @@ import { MermaidBlock } from "./mermaid";
  * first among them (hermes_cli/lina_reports_page.py keeps that fence name):
  *
  * - ```` ```lina:chart [bar|line|share|stacked] [title] ```` then a markdown table: the first column is the labels,
- *   each other column one series (four at most). `share` is a donut of one series, or stacked bars of several. A
+ *   each other column one series (four at most). `share` is a donut of one series, or stacked bars of several, and
+ *   refuses a negative value (bar and line take them). A
  *   `type:` or `title:` line before the table says the same as the info string.
  * - ```` ```mermaid ```` (or `lina:mermaid`): a Mermaid diagram.
  * - ```` ```lina:callout [note|decision|warning] [title] ```` then markdown: a quiet box.
@@ -95,6 +96,12 @@ export function parseChart(args: string, body: readonly string[]): Block {
   }
   const drawn: ChartKind = kind === "share" ? (series.length === 1 ? "donut" : "stacked") : kind;
   if (drawn === "donut" && series.length > 1) return fail(REPORT_WORD.tooManySeries(series.length));
+  // A share of a whole has no negative part: a donut or stacked chart with one is refused, not drawn with it clamped.
+  if (drawn === "donut" || drawn === "stacked")
+    for (const [column, each] of series.entries()) {
+      const at = each.values.findIndex((value) => value < 0);
+      if (at >= 0) return fail(REPORT_WORD.negativeShare(rows[at][column + 1] ?? ""));
+    }
   return { kind: "chart", data: { kind: drawn, title, labels: rows.map((row) => row[0] ?? ""), series } };
 }
 

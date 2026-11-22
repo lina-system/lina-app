@@ -505,6 +505,7 @@ export const REPORT_WORD = {
   tooManySeries: (count: number) => `계열이 ${count}개: 4개까지 그림`,
   notNumber: (cell: string) => `숫자가 아닌 칸 "${cell}"`,
   chartKind: (kind: string) => `모르는 차트 종류 "${kind}"`,
+  negativeShare: (cell: string) => `비율 차트에 음수 값 "${cell}"`,
   calloutKind: (kind: string) => `모르는 상자 종류 "${kind}"`,
   emptyBlock: "내용이 없음",
   noTitle: "제목이 없음",

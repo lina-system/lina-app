@@ -115,3 +115,19 @@ test("맞춤 fits the diagram with its padding inside the box, and minus stops a
     if (width) Object.defineProperty(HTMLElement.prototype, "clientWidth", width);
   }
 });
+
+// lina-app#274 (Codex r4659537405): a share of a whole has no negative part; a donut or stacked chart with one is
+// refused with its source, and bar and line charts keep their negative values.
+test("a share chart refuses a negative value with its source; bar and line keep theirs", () => {
+  const signed = ["| 항목 | 값 |", "| --- | ---: |", "| 가 | -10 |", "| 나 | 20 |"];
+  for (const kind of ["share", "ratio", "donut", "pie"]) expect(parseBlock(`lina:chart ${kind}`, signed)).toEqual({ kind: "broken", name: "차트", error: '비율 차트에 음수 값 "-10"' });
+  const stacked = ["| 달 | 가 | 나 |", "| --- | ---: | ---: |", "| 1월 | 3 | 4 |", "| 2월 | 5 | −2 |"];
+  expect(parseBlock("lina:chart stacked", stacked)).toEqual({ kind: "broken", name: "차트", error: '비율 차트에 음수 값 "−2"' });
+  expect(parseBlock("lina:chart share", stacked)).toMatchObject({ kind: "broken", error: '비율 차트에 음수 값 "−2"' });
+  expect(parseBlock("lina:chart bar", signed)).toMatchObject({ kind: "chart", data: { kind: "bar", series: [{ values: [-10, 20] }] } });
+  expect(parseBlock("lina:chart line", signed)).toMatchObject({ kind: "chart", data: { kind: "line", series: [{ values: [-10, 20] }] } });
+  const view = body(["```lina:chart share 손익", ...signed, "```"].join("\n"));
+  expect(view.getByTestId("report-block-broken").querySelector(".report-block-error")?.textContent).toBe('차트 블록을 그리지 못함: 비율 차트에 음수 값 "-10"');
+  expect(view.getByTestId("report-block-broken").querySelector("pre")?.textContent).toContain("| 가 | -10 |");
+  expect(view.container.querySelector(".chart")).toBeNull();
+});

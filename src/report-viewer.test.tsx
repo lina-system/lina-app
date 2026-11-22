@@ -37,6 +37,41 @@ test("a reference line is a card part between the message's words; a page addres
   expect(reportOfPage("https://hub.invalid/r/old-note")).toBeNull();
 });
 
+test("a kept width wider than the window leaves the conversation 360 px inside its own line, and the separator says its widest (lina-app#274)", async () => {
+  window.localStorage.setItem("lina.report.width", "680");
+  // Aside run9: at 1280 a kept 680 left the conversation 359.5 px, as the chat's hairline sits inside its 360. The panes
+  // have 1039.5 px (their parent's width, a fraction the integer clientWidth rounds away) and the line is 0.5 px, as a
+  // 2x screen draws it.
+  const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    const width = this.querySelector(":scope > [data-testid=panes]") ? 1039.5 : 0;
+    return { x: 0, y: 0, left: 0, top: 0, right: width, bottom: 0, width, height: 0, toJSON: () => ({}) } as DOMRect;
+  });
+  try {
+    const { view } = await open("#/talk/ag-1", true);
+    const chat = view.container.querySelector<HTMLElement>(".talk-pane")!;
+    chat.style.borderRightWidth = "0.5px";
+    chat.style.borderRightStyle = "solid";
+    const talk = within(view.getByTestId("agent-talk"));
+    await waitFor(() => expect(talk.getAllByTestId("report-card")).toHaveLength(2));
+    fireEvent.click(talk.getAllByTestId("report-card")[0]);
+    const edge = await waitFor(() => view.getByTestId("report-resize"));
+    // 1039.5 - 360 - 0.5 = 679: the inspector draws 679, never 680, and the separator reads it as its value and its max.
+    await waitFor(() => expect(edge.getAttribute("aria-valuenow")).toBe("679"));
+    expect(edge.getAttribute("aria-valuemin")).toBe("320");
+    expect(edge.getAttribute("aria-valuemax")).toBe("679");
+    expect(view.getByTestId("panes").style.getPropertyValue("--inspector")).toBe("679px");
+    // At its widest an arrow key wider keeps it there; one narrower moves the value it reads by 32.
+    fireEvent.keyDown(edge, { key: "ArrowLeft" });
+    expect(edge.getAttribute("aria-valuenow")).toBe("679");
+    expect(window.localStorage.getItem("lina.report.width")).toBe("679");
+    fireEvent.keyDown(edge, { key: "ArrowRight" });
+    expect(edge.getAttribute("aria-valuenow")).toBe("647");
+  } finally {
+    rect.mockRestore();
+    window.localStorage.removeItem("lina.report.width");
+  }
+});
+
 test("a report has its own address, opens in the detail frame and reads one version by query", () => {
   expect(parse(`#/reports/${REPORT_IDS.long}`)).toEqual({ name: "report", id: REPORT_IDS.long });
   expect(parse(`#/reports/${REPORT_IDS.long}?v=2`)).toEqual({ name: "report", id: REPORT_IDS.long, version: 2 });

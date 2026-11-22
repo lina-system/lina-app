@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { reportKey, type ReportSummary } from "../api/client";
 import { href, navigate, parse } from "../router";
 import { ago, dateClock } from "../time";
@@ -239,7 +239,7 @@ export function ReportView({ id, version, onClose, onEscape }: { id: string; ver
 
 const WIDTH_KEY = "lina.report.width";
 const MIN_WIDTH = 320;
-/** The conversation keeps at least this much beside the inspector. */
+/** The conversation keeps at least this much beside the inspector, inside its own separator line. */
 const CHAT_ROOM = 360;
 
 function savedWidth(): number {
@@ -257,10 +257,28 @@ function savedWidth(): number {
  */
 export function useInspectorWidth(panes: { current: HTMLElement | null }): { width: number; handle: ComponentChildren } {
   const [width, setWidth] = useState(savedWidth);
-  const clamp = (value: number) => {
-    const room = panes.current?.clientWidth ?? value + CHAT_ROOM;
-    return Math.round(Math.max(MIN_WIDTH, Math.min(value, room - CHAT_ROOM)));
+  // The panes' room as laid out, its fraction kept (clientWidth rounds it), measured again when the window resizes. It
+  // is their parent's width: the panes themselves grow past a narrowed window to hold a wide inspector.
+  const [room, setRoom] = useState(0);
+  useLayoutEffect(() => {
+    const box = panes.current?.parentElement;
+    if (!box) return;
+    const measure = () => setRoom(box.getBoundingClientRect().width);
+    measure();
+    if (typeof ResizeObserver !== "function") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, []);
+  // The widest the inspector may be (lina-app#274): the conversation keeps CHAT_ROOM inside its separator line, at the
+  // width that line is drawn (0.5 px on a 2x screen, 1 px on others), rounded down so no fraction takes from it.
+  const widest = () => {
+    const chat = panes.current?.firstElementChild;
+    if (!room || !chat) return Infinity;
+    const line = getComputedStyle(chat);
+    return Math.floor(room - CHAT_ROOM - (parseFloat(line.borderLeftWidth) || 0) - (parseFloat(line.borderRightWidth) || 0));
   };
+  const clamp = (value: number) => Math.max(MIN_WIDTH, Math.min(Math.round(value), widest()));
   const keep = (value: number) => {
     const next = clamp(value);
     setWidth(next);
@@ -271,14 +289,17 @@ export function useInspectorWidth(panes: { current: HTMLElement | null }): { wid
     }
   };
   const dragging = useRef(false);
+  const shown = clamp(width);
+  const max = widest();
   const handle = (
     <div
       class="report-resize"
       role="separator"
       aria-orientation="vertical"
       aria-label={REPORT_WORD.resize}
-      aria-valuenow={width}
+      aria-valuenow={shown}
       aria-valuemin={MIN_WIDTH}
+      aria-valuemax={Number.isFinite(max) ? Math.max(MIN_WIDTH, max) : undefined}
       tabIndex={0}
       data-testid="report-resize"
       onPointerDown={(event) => {
@@ -299,11 +320,11 @@ export function useInspectorWidth(panes: { current: HTMLElement | null }): { wid
       onKeyDown={(event) => {
         if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
         event.preventDefault();
-        keep(width + (event.key === "ArrowLeft" ? 32 : -32));
+        keep(shown + (event.key === "ArrowLeft" ? 32 : -32));
       }}
     />
   );
-  return { width: clamp(width), handle };
+  return { width: shown, handle };
 }
 
 /** How far down a sheet must be dragged to close: a quarter of its height (the old panel's rule, lina-app#50). */

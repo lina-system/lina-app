@@ -4651,9 +4651,10 @@ const drivers = {
       check((await text(heading())) === "가상 릴리스 변경 정리 · 중간 보고", "the viewer reads " + (await text(heading())));
       if (wide) {
         check(await page.getByRole("textbox", { name: "메시지" }).isVisible(), "the chat's field is hidden");
-        const [chat, inspector] = await Promise.all([page.locator(".talk-pane").boundingBox(), viewer().boundingBox()]);
-        check(chat.width >= 360 && inspector.x >= chat.x + chat.width - 1, "the chat is " + Math.round(chat.width) + " px beside the inspector at " + Math.round(inspector.x));
-        return "chat " + Math.round(chat.width) + " px, inspector " + Math.round(inspector.width) + " px";
+        // The chat is measured inside its own separator line (lina-app#274: a 360 px pane held 359.5 px of chat).
+        const [chat, inspector] = await Promise.all([page.getByTestId("agent-talk").boundingBox(), viewer().boundingBox()]);
+        check(chat.width >= 360 && inspector.x >= chat.x + chat.width - 1, "the chat is " + chat.width + " px beside the inspector at " + inspector.x);
+        return "chat " + chat.width + " px, inspector " + inspector.width + " px";
       }
       // Measured once the sheet's rise has ended, not part way up.
       await viewer().evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
@@ -4671,7 +4672,32 @@ const drivers = {
         await page.mouse.up();
         const after = Number(await page.getByTestId("report-resize").getAttribute("aria-valuenow"));
         check(after > before + 100, "the width went " + before + " -> " + after);
-        return before + " -> " + after + " px";
+        // Past its widest (lina-app#274): it stops where the chat keeps 360 px inside its line, and says so.
+        await page.mouse.move(edge.x - 160, edge.y + 200);
+        await page.mouse.down();
+        await page.mouse.move(edge.x - 900, edge.y + 200, { steps: 8 });
+        await page.mouse.up();
+        const separator = await page.getByTestId("report-resize").evaluate((element) => ({ now: Number(element.getAttribute("aria-valuenow")), max: Number(element.getAttribute("aria-valuemax")), min: Number(element.getAttribute("aria-valuemin")) }));
+        const [chat, drawn] = await Promise.all([page.getByTestId("agent-talk").boundingBox(), viewer().boundingBox()]);
+        check(separator.max >= separator.min && separator.now === separator.max && Math.abs(drawn.width - separator.max) < 0.5 && chat.width >= 360, "at its widest " + JSON.stringify(separator) + ", inspector " + drawn.width + " px, chat " + chat.width + " px");
+        // Back to where the first drag left it, so the steps after read the width they always have.
+        const widestEdge = await page.getByTestId("report-resize").boundingBox();
+        await page.mouse.move(widestEdge.x + 4, edge.y + 200);
+        await page.mouse.down();
+        await page.mouse.move(edge.x - 160, edge.y + 200, { steps: 8 });
+        await page.mouse.up();
+        const restored = Number(await page.getByTestId("report-resize").getAttribute("aria-valuenow"));
+        check(Math.abs(restored - after) <= 1, "back from its widest the width is " + restored + ", not " + after);
+        // A window narrowed under it: the inspector gives way so the chat keeps its 360 px, and takes its width back after.
+        const size = page.viewportSize();
+        await page.setViewportSize({ width: 1100, height: size.height });
+        await page.waitForFunction((width) => Number(document.querySelector("[data-testid=report-resize]").getAttribute("aria-valuenow")) < width, restored);
+        const narrowed = await page.getByTestId("report-resize").evaluate((element) => ({ now: Number(element.getAttribute("aria-valuenow")), max: Number(element.getAttribute("aria-valuemax")) }));
+        const narrowChat = await page.getByTestId("agent-talk").boundingBox();
+        check(narrowed.now === narrowed.max && narrowChat.width >= 360, "at 1100 " + JSON.stringify(narrowed) + ", chat " + narrowChat.width + " px");
+        await page.setViewportSize(size);
+        await page.waitForFunction((width) => Number(document.querySelector("[data-testid=report-resize]").getAttribute("aria-valuenow")) === width, restored);
+        return before + " -> " + after + " px; widest " + separator.max + " px, chat " + chat.width + " px; back to " + restored + "; at 1100 " + narrowed.now + " px, chat " + narrowChat.width + " px";
       }
       const bar = await page.getByTestId("report-sheet-bar").boundingBox();
       await page.mouse.move(bar.x + 40, bar.y + bar.height / 2);

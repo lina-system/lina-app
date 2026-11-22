@@ -122,6 +122,8 @@ export function MermaidBlock({ source }: { source: string }) {
 }
 
 const ZOOMS = [0.5, 0.75, 1, 1.5, 2, 3];
+/** The space around the diagram inside its box (`.report-diagram-svg` padding, both sides): the fit leaves room for it. */
+const DIAGRAM_PADDING = 24;
 /** Below this a diagram's words are too small to read: a wider one starts here and drags sideways instead. */
 const FIRST_ZOOM_MIN = 0.75;
 
@@ -134,15 +136,19 @@ function Zoomable({ svg, width }: { svg: string; width: number }) {
   const [zoom, setZoom] = useState<number | null>(null);
   const [fit, setFit] = useState(1);
   useLayoutEffect(() => {
-    const room = box.current?.clientWidth ?? 0;
+    const room = (box.current?.clientWidth ?? 0) - DIAGRAM_PADDING;
     const fits = width > 0 && room > 0 ? Math.min(1, room / width) : 1;
     setFit(fits);
     setZoom((current) => current ?? Math.max(fits, Math.min(1, FIRST_ZOOM_MIN)));
   }, [width]);
   const scale = zoom ?? fit;
+  // The steps are the fixed ones and the fit, in order; minus stops at the smallest, plus at the largest.
+  const steps = [...new Set([...ZOOMS, fit])].sort((a, b) => a - b);
+  const lower = [...steps].reverse().find((each) => each < scale - 0.005);
+  const higher = steps.find((each) => each > scale + 0.005);
   const step = (way: 1 | -1) => {
-    const next = way > 0 ? ZOOMS.find((each) => each > scale + 0.01) : [...ZOOMS].reverse().find((each) => each < scale - 0.01);
-    setZoom(next ?? scale);
+    const next = way > 0 ? higher : lower;
+    if (next !== undefined) setZoom(next);
   };
   const drag = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const onPointerDown = (event: PointerEvent) => {
@@ -161,13 +167,13 @@ function Zoomable({ svg, width }: { svg: string; width: number }) {
   return (
     <>
       <div class="report-diagram-tools">
-        <button type="button" class="text-button" onClick={() => step(-1)} aria-label={REPORT_WORD.zoomOut}>
+        <button type="button" class="text-button" onClick={() => step(-1)} aria-label={REPORT_WORD.zoomOut} disabled={lower === undefined}>
           −
         </button>
         <button type="button" class="text-button" onClick={() => setZoom(fit)}>
           {REPORT_WORD.zoomFit}
         </button>
-        <button type="button" class="text-button" onClick={() => step(1)} aria-label={REPORT_WORD.zoomIn}>
+        <button type="button" class="text-button" onClick={() => step(1)} aria-label={REPORT_WORD.zoomIn} disabled={higher === undefined}>
           +
         </button>
         <span class="report-diagram-zoom" data-testid="diagram-zoom">

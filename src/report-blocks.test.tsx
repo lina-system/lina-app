@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/preact";
+import { fireEvent, render, waitFor } from "@testing-library/preact";
 import { beforeEach, expect, test, vi } from "vitest";
 import { parseBlock } from "./report/blocks";
 import { ReportBody } from "./report/body";
@@ -92,4 +92,26 @@ test("a diagram Mermaid refuses shows its source and the first line of the reaso
   const broken = view.getByTestId("report-block-broken");
   expect(broken.querySelector(".report-block-error")?.textContent).toBe("다이어그램 블록을 그리지 못함: Parse error on line 2:");
   expect(broken.querySelector("pre")?.textContent).toBe("flowchart LR\n  A --> ");
+});
+
+test("맞춤 fits the diagram with its padding inside the box, and minus stops at the smallest step", async () => {
+  mermaid.render.mockResolvedValue({ svg: '<svg viewBox="4 4 1200 190"><g class="node"></g></svg>' });
+  const width = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+  Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get() { return (this as HTMLElement).classList.contains("report-diagram-box") ? 448 : 0; } });
+  try {
+    const view = body(["```mermaid", "flowchart LR", "  A --> B", "```"].join("\n"));
+    await waitFor(() => expect(view.container.querySelector(".report-diagram-svg svg")).not.toBeNull());
+    fireEvent.click(view.getByRole("button", { name: "맞춤" }));
+    const drawn = Number((view.container.querySelector(".report-diagram-svg") as HTMLElement).style.width.replace("px", ""));
+    expect(drawn + 24).toBeLessThanOrEqual(448);
+    expect(view.getByTestId("diagram-zoom").textContent).toBe("35%");
+    expect((view.getByRole("button", { name: "축소" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(view.getByRole("button", { name: "확대" }));
+    expect(view.getByTestId("diagram-zoom").textContent).toBe("50%");
+    for (let press = 0; press < 8; press += 1) fireEvent.click(view.getByRole("button", { name: "확대" }));
+    expect(view.getByTestId("diagram-zoom").textContent).toBe("300%");
+    expect((view.getByRole("button", { name: "확대" }) as HTMLButtonElement).disabled).toBe(true);
+  } finally {
+    if (width) Object.defineProperty(HTMLElement.prototype, "clientWidth", width);
+  }
 });

@@ -4720,6 +4720,15 @@ const drivers = {
       check((await viewer().getByTestId("report").getAttribute("data-version")) === version, "the version moved from " + version);
       return "image redrawn at v" + version;
     });
+    await step("open a report whose images sit only inside blocks: each is drawn, none stays loading", async () => {
+      await openApp(page, "#/reports/rep_3a7c0e5f9b21", "&reports=demo");
+      const view = wide ? page.getByTestId("detail-pane") : page.getByTestId("detail-frame");
+      await view.locator(".report-body img").nth(2).waitFor({ state: "attached", timeout: 10_000 });
+      const placed = await view.locator(".report-body img").evaluateAll((images) => images.map((image) => (image.closest("details") ? "fold" : image.closest(".report-callout") ? "callout" : image.closest("td") ? "cell" : "body")));
+      const loading = await view.getByTestId("report-image-loading").count();
+      check(JSON.stringify(placed) === JSON.stringify(["fold", "callout", "cell"]) && loading === 0, "images " + JSON.stringify(placed) + ", loading " + loading);
+      return placed.join(", ");
+    });
     await step("open a report of broken blocks: each shows its source and one error line", async () => {
       await openApp(page, "#/reports/" + BROKEN, "&reports=demo");
       const broken = (wide ? page.getByTestId("detail-pane") : page.getByTestId("detail-frame")).getByTestId("report-block-broken");

@@ -5,7 +5,7 @@ import type { Report, ReportSummary } from "../api/client";
  * report text. `&reports=demo` puts them in the scene, links the long one to k-101 and goal G1, and has the first agent
  * send reference lines for them in its window. The images are SVG drawn here, served as the report's own images 0-2.
  */
-export const REPORT_IDS = { long: "rep_5e1f0a7c2b90", legacy: "rep_0b5d3c6e8a14", broken: "rep_9c2e7f41d6a3" } as const;
+export const REPORT_IDS = { long: "rep_5e1f0a7c2b90", legacy: "rep_0b5d3c6e8a14", broken: "rep_9c2e7f41d6a3", nested: "rep_3a7c0e5f9b21" } as const;
 
 /** The page address a reference line carries: the core's `/reports/<id>/page` on a host that resolves nowhere. */
 export function pageOf(id: string): string {
@@ -245,7 +245,23 @@ const BROKEN_BODY = [
   "틀린 블록 뒤의 문단도 그대로 보입니다.",
 ].join("\n");
 
-/** The three reports at `now`: the long one with three versions (k-101, G1), the legacy one, the broken one. */
+const NESTED_BODY = [
+  "그림이 블록 안에만 있는 보고서입니다.",
+  "",
+  "````lina:fold 접힌 곳의 그림",
+  '![접힌 곳](images/0 "접힌 곳 안의 그림")',
+  "````",
+  "",
+  "```lina:callout note 상자 안의 그림",
+  '![상자](images/1 "상자 안의 그림")',
+  "```",
+  "",
+  "| 이름 | 화면 |",
+  "| --- | --- |",
+  '| 가상 표 | ![칸](images/2 "칸 안의 그림") |',
+].join("\n");
+
+/** The four reports at `now`: the long one with three versions (k-101, G1), the legacy one, the broken one, and one whose images sit only inside blocks. */
 export function syntheticReports(now: number, agents: readonly string[], options: { card: string; goal: string }): Record<string, SceneReport> {
   const base = { private: false, page: "" };
   return {
@@ -260,6 +276,10 @@ export function syntheticReports(now: number, agents: readonly string[], options
     [REPORT_IDS.legacy]: {
       summary: { ...base, id: REPORT_IDS.legacy, agent: agents[0], card: null, goal: null, createdAt: now - 3 * 86_400, page: `/reports/${REPORT_IDS.legacy}/page` },
       versions: [{ version: 1, at: now - 3 * 86_400, title: "가상 백업 점검 메모", summary: "백업 세 곳의 상태", body: LEGACY_BODY }],
+    },
+    [REPORT_IDS.nested]: {
+      summary: { ...base, id: REPORT_IDS.nested, agent: agents[0], card: null, goal: null, createdAt: now - 30 * MIN, page: `/reports/${REPORT_IDS.nested}/page` },
+      versions: [{ version: 1, at: now - 30 * MIN, title: "가상 블록 안 그림 예시", summary: "접힌 곳·상자·표 칸의 그림", body: NESTED_BODY }],
     },
     [REPORT_IDS.broken]: {
       summary: { ...base, id: REPORT_IDS.broken, agent: agents[1] ?? agents[0], card: null, goal: null, createdAt: now - HOUR, page: `/reports/${REPORT_IDS.broken}/page` },

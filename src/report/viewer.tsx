@@ -286,10 +286,18 @@ const CLOSE_SHARE = 0.25;
 
 /**
  * The report's sheet on a phone (lina-app#50): it opens at about half the screen, its bar drags up to the whole screen
- * or down past a quarter to close (the same close as its button, the scrim and back), and snaps back otherwise.
+ * or down past a quarter to close (the same close as its button, the scrim and back), and snaps back otherwise. Each
+ * report the sheet opens (`report`, its id; empty while none is open) starts at half again.
  */
-export function useSheetDrag(onClose: () => void): { height: "half" | "full"; offset: number; bar: Record<string, unknown> } {
-  const [height, setHeight] = useState<"half" | "full">("half");
+export function useSheetDrag(onClose: () => void, report: string): { height: "half" | "full"; offset: number; bar: Record<string, unknown> } {
+  // The height belongs to the report it was set for: another report reads half from its first frame.
+  const [kept, setKept] = useState<{ report: string; height: "half" | "full" }>({ report, height: "half" });
+  const height = kept.report === report ? kept.height : "half";
+  const setHeight = (next: "half" | "full") => setKept({ report, height: next });
+  // Closed: the next opening, of this report too, starts at half (nothing is drawn while none is open).
+  useEffect(() => {
+    if (!report && kept.report) setKept({ report: "", height: "half" });
+  }, [report]);
   const [offset, setOffset] = useState(0);
   const start = useRef<{ y: number; size: number } | null>(null);
   const bar = {

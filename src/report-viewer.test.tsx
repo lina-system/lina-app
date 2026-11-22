@@ -122,3 +122,23 @@ test("on a phone the card opens a sheet at half height over the chat; its close 
   await waitFor(() => expect(view.queryByTestId("detail-frame")).toBeNull());
   expect(window.location.hash).toBe("#/talk/ag-1");
 });
+
+test("on a phone every report opens its sheet at half height again, however the last one was left", async () => {
+  const { view } = await open("#/talk/ag-1", false);
+  const cards = () => view.getAllByTestId("report-card");
+  await waitFor(() => expect(cards()).toHaveLength(2));
+  fireEvent.click(cards()[0]);
+  await waitFor(() => expect(view.getByTestId("detail-frame").dataset.height).toBe("half"));
+  fireEvent.dblClick(view.getByTestId("report-sheet-bar"));
+  expect(view.getByTestId("detail-frame").dataset.height).toBe("full");
+  fireEvent.click(view.getByTestId("frame-close"));
+  await waitFor(() => expect(view.queryByTestId("detail-frame")).toBeNull());
+  fireEvent.click(cards()[1]);
+  await waitFor(() => expect(within(view.getByTestId("detail-frame")).getByRole("heading", { level: 1 }).textContent).toBe("가상 백업 점검 메모"));
+  expect(view.getByTestId("detail-frame").dataset.height).toBe("half");
+  fireEvent.dblClick(view.getByTestId("report-sheet-bar"));
+  fireEvent.click(view.getByTestId("frame-close"));
+  await waitFor(() => expect(view.queryByTestId("detail-frame")).toBeNull());
+  fireEvent.click(cards()[1]);
+  await waitFor(() => expect(view.getByTestId("detail-frame").dataset.height).toBe("half"));
+});

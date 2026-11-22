@@ -821,7 +821,7 @@ function PhoneShell({ route, stack, scroll }: { route: Route; stack: readonly st
     else navigate(sheet ? screen : parent, { replace: true, direction: sheet ? "none" : "pop" });
   };
   const reportSheet = sheet?.name === "report";
-  const drag = useSheetDrag(goBack);
+  const drag = useSheetDrag(goBack, sheet?.name === "report" ? sheet.id : "");
   const current = useRef({ isRoot, goBack, sheet: Boolean(sheet) });
   current.current = { isRoot: isRoot && !sheet, goBack, sheet: Boolean(sheet) };
   useLayoutEffect(() => {

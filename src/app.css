@@ -3852,6 +3852,7 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 }
 
 .report-versions {
+  list-style: none;
   margin-top: 8px;
   padding: 4px 0;
   border-bottom: var(--line) solid var(--separator);

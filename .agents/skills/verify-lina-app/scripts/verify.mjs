@@ -4655,6 +4655,8 @@ const drivers = {
         check(chat.width >= 360 && inspector.x >= chat.x + chat.width - 1, "the chat is " + Math.round(chat.width) + " px beside the inspector at " + Math.round(inspector.x));
         return "chat " + Math.round(chat.width) + " px, inspector " + Math.round(inspector.width) + " px";
       }
+      // Measured once the sheet's rise has ended, not part way up.
+      await viewer().evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
       const sheet = await viewer().boundingBox();
       check((await viewer().getAttribute("data-height")) === "half" && sheet.y > 300 && sheet.y < 520, "the sheet starts at " + Math.round(sheet.y));
       return "sheet top " + Math.round(sheet.y);

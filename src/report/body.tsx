@@ -24,27 +24,44 @@ interface Shown {
 type Loaded = string | "failed";
 
 /**
- * Loads the report's own images at these places through the page's source (with its credentials) and releases every
- * address it made when the report or its places change, or the body goes. A late answer after that is released at once.
+ * Loads the report's own images at these places through the page's source (with its credentials), again whenever the
+ * report's revision moves: a new version, or a change event that replaced only its image files (lina-app#114). An image
+ * on screen stays until its new answer comes, then its old address is released; an answer to a read that a newer one
+ * replaced is released and never drawn; a place the body no longer holds, and every place when the body goes, is
+ * released at once.
  */
-function useImages(reportId: string, positions: readonly number[], load: (position: number, signal: AbortSignal) => Promise<ReportImage>): ReadonlyMap<number, Loaded> {
+function useImages(reportId: string, revision: string, positions: readonly number[], load: (position: number, signal: AbortSignal) => Promise<ReportImage>): ReadonlyMap<number, Loaded> {
   const [loaded, setLoaded] = useState<ReadonlyMap<number, Loaded>>(new Map());
-  const key = `${reportId}:${positions.join(",")}`;
+  const drawn = useRef(new Map<number, () => void>());
+  const key = `${reportId}:${revision}:${positions.join(",")}`;
   useEffect(() => {
     const abort = new AbortController();
-    const releases: (() => void)[] = [];
-    setLoaded(new Map());
+    for (const [position, release] of drawn.current)
+      if (!positions.includes(position)) {
+        release();
+        drawn.current.delete(position);
+      }
+    setLoaded((before) => new Map([...before].filter(([position]) => positions.includes(position))));
     for (const position of positions)
       void load(position, abort.signal).then((image) => {
-        if (image.ok && abort.signal.aborted) return image.release();
-        if (image.ok) releases.push(() => image.release());
-        if (!abort.signal.aborted) setLoaded((before) => new Map(before).set(position, image.ok ? image.url : "failed"));
+        if (abort.signal.aborted) {
+          if (image.ok) image.release();
+          return;
+        }
+        drawn.current.get(position)?.();
+        if (image.ok) drawn.current.set(position, () => image.release());
+        else drawn.current.delete(position);
+        setLoaded((before) => new Map(before).set(position, image.ok ? image.url : "failed"));
       });
-    return () => {
-      abort.abort();
-      for (const release of releases) release();
-    };
+    return () => abort.abort();
   }, [key]);
+  useEffect(
+    () => () => {
+      for (const release of drawn.current.values()) release();
+      drawn.current.clear();
+    },
+    [],
+  );
   return loaded;
 }
 
@@ -53,7 +70,7 @@ function useImages(reportId: string, positions: readonly number[], load: (positi
  * images. An image is drawn wide with its caption under it (its title, else its alt), several in one paragraph side by
  * side; a tap opens it large, with the document's other images one step away.
  */
-export function ReportBody({ reportId, body, loadImage }: { reportId: string; body: string; loadImage: (position: number, signal: AbortSignal) => Promise<ReportImage> }) {
+export function ReportBody({ reportId, body, revision = "", loadImage }: { reportId: string; body: string; revision?: string; loadImage: (position: number, signal: AbortSignal) => Promise<ReportImage> }) {
   const [open, setOpen] = useState<number | null>(null);
   const shown: Shown[] = [];
   // The report's own image places, in document order, read by the same rules before the body is drawn.
@@ -68,7 +85,7 @@ export function ReportBody({ reportId, body, loadImage }: { reportId: string; bo
     gallery: (images, key) => <span key={key}>{images}</span>,
   };
   docBlocks(body, collect);
-  const images = useImages(reportId, positions, loadImage);
+  const images = useImages(reportId, revision, positions, loadImage);
   const rules: DocRules = {
     fence: blockFence((lines) => docBlocks(lines, rules)),
     image: (image, key) => imageNode(image, key),

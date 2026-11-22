@@ -16,6 +16,11 @@ export interface SceneReport {
   readonly summary: Omit<ReportSummary, "title" | "summary" | "version" | "updatedAt">;
   /** Every version, oldest first: its number, time, title, line and body. */
   readonly versions: { version: number; at: number; title: string; summary: string; body: string }[];
+  /**
+   * How many times its images were replaced without a new version: a Desk sync that changes only the image files
+   * sends the `reports` event and leaves the report's version, time and body as they were (hermes_cli/desk_reports.py).
+   */
+  imageRevision?: number;
 }
 
 const MIN = 60;
@@ -49,11 +54,13 @@ const IMAGE_SHAPES = [
   { width: 900, height: 640, hue: 28, word: "가상 화면 3 · 확인 표" },
 ] as const;
 
-/** One of the long report's three images: a generated SVG with a word on it, as a data address. */
-export function reportImageData(position: number): string | null {
+/** One of the long report's three images: a generated SVG with a word on it, as a data address; a replaced one says so. */
+export function reportImageData(position: number, revision = 0): string | null {
   const shape = IMAGE_SHAPES[position];
   if (!shape) return null;
-  const { width, height, hue, word } = shape;
+  const { width, height } = shape;
+  const hue = (shape.hue + revision * 120) % 360;
+  const word = revision ? `${shape.word} · 교체 ${revision}` : shape.word;
   const rows = Array.from({ length: 6 }, (_, index) => `<rect x="${width * 0.08}" y="${height * (0.32 + index * 0.1)}" width="${width * (0.84 - index * 0.09)}" height="${height * 0.05}" rx="8" fill="hsl(${hue} 60% ${70 - index * 4}%)"/>`).join("");
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="hsl(${hue} 45% 94%)"/><rect x="${width * 0.04}" y="${height * 0.06}" width="${width * 0.92}" height="${height * 0.88}" rx="24" fill="#ffffff" stroke="hsl(${hue} 40% 70%)" stroke-width="4"/><text x="${width * 0.08}" y="${height * 0.22}" font-family="sans-serif" font-size="${Math.round(height * 0.075)}" fill="hsl(${hue} 50% 30%)">${word}</text>${rows}</svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;

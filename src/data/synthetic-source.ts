@@ -1229,8 +1229,21 @@ export class SyntheticSource implements Source {
   }
 
   async reportImage(id: string, position: number): Promise<ReportImage> {
-    const url = this.scene.reports[id] ? reportImageData(position) : null;
+    const report = this.scene.reports[id];
+    const url = report ? reportImageData(position, report.imageRevision ?? 0) : null;
     return url ? { ok: true, url, release: () => {} } : { ok: false, status: 404 };
+  }
+
+  /**
+   * The report's image files change and nothing else (verify.mjs, `window.__linaReportElsewhere`): the core's `reports`
+   * event as a Desk sync sends it, with the same version, time and body.
+   */
+  reportImagesChangedElsewhere(id: string): boolean {
+    const report = this.scene.reports[id];
+    if (!report) return false;
+    report.imageRevision = (report.imageRevision ?? 0) + 1;
+    this.changed({ source: "reports", kind: "updated", id });
+    return true;
   }
 
   /** The report's agent edits it (verify.mjs, `window.__linaReportElsewhere`): a new version and the core's `reports` event. */

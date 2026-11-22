@@ -90,3 +90,28 @@ test("an image waits for its load, a refused one says so, and every loaded addre
   answer({ ok: true, url: url(2), release: () => releases.push(2) });
   await waitFor(() => expect(releases).toEqual([0, 2]));
 });
+
+test("a new revision reads the images again: the drawn one stays until its answer, a superseded answer is released unseen, the old one is released after", async () => {
+  const released: string[] = [];
+  const answers = new Map<string, (image: ReportImage) => void>();
+  const load = (revision: string) => (position: number) =>
+    new Promise<ReportImage>((resolve) => answers.set(`${revision}:${position}`, resolve));
+  const give = (revision: string) => answers.get(`${revision}:0`)?.({ ok: true, url: `/r/${revision}.svg`, release: () => released.push(revision) });
+  const text = '![가](images/0 "첫째")';
+  const view = render(<ReportBody reportId={ID} body={text} revision="a" loadImage={load("a")} />);
+  give("a");
+  await waitFor(() => expect(view.container.querySelector("img")?.getAttribute("src")).toBe("/r/a.svg"));
+  view.rerender(<ReportBody reportId={ID} body={text} revision="b" loadImage={load("b")} />);
+  await waitFor(() => expect(answers.has("b:0")).toBe(true));
+  view.rerender(<ReportBody reportId={ID} body={text} revision="c" loadImage={load("c")} />);
+  await waitFor(() => expect(answers.has("c:0")).toBe(true));
+  expect(view.container.querySelector("img")?.getAttribute("src")).toBe("/r/a.svg");
+  give("b");
+  await waitFor(() => expect(released).toEqual(["b"]));
+  expect(view.container.querySelector("img")?.getAttribute("src")).toBe("/r/a.svg");
+  give("c");
+  await waitFor(() => expect(view.container.querySelector("img")?.getAttribute("src")).toBe("/r/c.svg"));
+  expect(released).toEqual(["b", "a"]);
+  view.unmount();
+  await waitFor(() => expect(released).toEqual(["b", "a", "c"]));
+});

@@ -12,10 +12,11 @@ import { href, isFrame, parse } from "./router";
 // the report beside the conversation on a wide window and in a sheet on a phone, and the open report follows its
 // agent's edits with a small mark and its earlier versions one tap away.
 
-async function open(hash: string, wide: boolean) {
+async function open(hash: string, wide: boolean, prepare: (source: SyntheticSource) => void = () => {}) {
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: wide && !query.includes("prefers-color-scheme"), media: query, addEventListener() {}, removeEventListener() {} }));
   window.history.replaceState(null, "", `/app/${hash}`);
   const source = new SyntheticSource({ now: Math.floor(Date.now() / 1000), reports: true });
+  prepare(source);
   const view = render(<App store={new Store(source)} />);
   await waitFor(() => expect(view.getByTestId("freshness-line").textContent).toBe(""));
   return { view, source };
@@ -141,4 +142,45 @@ test("on a phone every report opens its sheet at half height again, however the 
   await waitFor(() => expect(view.queryByTestId("detail-frame")).toBeNull());
   fireEvent.click(cards()[1]);
   await waitFor(() => expect(view.getByTestId("detail-frame").dataset.height).toBe("half"));
+});
+
+test("a reports event that replaces only a report's images redraws them and releases the ones it drew before (lina-app#114)", async () => {
+  const released: string[] = [];
+  const { view, source } = await open(`#/reports/${REPORT_IDS.long}`, true, (synthetic) => {
+    const read = synthetic.reportImage.bind(synthetic);
+    synthetic.reportImage = async (id: string, position: number) => {
+      const image = await read(id, position);
+      return image.ok ? { ...image, release: () => released.push(image.url) } : image;
+    };
+  });
+  const shown = () => [...view.getByTestId("report").querySelectorAll(".report-body img")].map((image) => image.getAttribute("src") ?? "");
+  await waitFor(() => expect(shown()).toHaveLength(3));
+  const before = shown();
+  expect(source.reportImagesChangedElsewhere(REPORT_IDS.long)).toBe(true);
+  await waitFor(() => expect(shown().every((src, index) => src !== before[index])).toBe(true));
+  expect(view.getByTestId("report").dataset.version).toBe("3");
+  expect(decodeURIComponent(shown()[0])).toContain("교체 1");
+  expect(new Set(released)).toEqual(new Set(before));
+});
+
+test("the inspector marks an edit after going back to the newest version, and a report that replaces it starts with no mark and its history shut", async () => {
+  const { view, source } = await open("#/talk/ag-1", true);
+  const card = await waitFor(() => view.getAllByTestId("report-card")[0]);
+  fireEvent.click(card);
+  const inspector = () => view.getByTestId("report-inspector");
+  await waitFor(() => expect(within(inspector()).getByTestId("report").dataset.version).toBe("3"));
+  fireEvent.click(within(inspector()).getByTestId("report-history"));
+  fireEvent.click(within(within(inspector()).getByTestId("report-versions")).getAllByRole("button")[2]);
+  await waitFor(() => expect(within(inspector()).getByTestId("report-older")).toBeTruthy());
+  fireEvent.click(within(within(inspector()).getByTestId("report-older")).getByRole("button", { name: "최신 보기" }));
+  await waitFor(() => expect(within(inspector()).queryByTestId("report-older")).toBeNull());
+  source.reportEditedElsewhere(REPORT_IDS.long);
+  await waitFor(() => expect(within(inspector()).getByTestId("report").dataset.version).toBe("4"));
+  expect(within(inspector()).getByTestId("report-updated")).toBeTruthy();
+  // The history list stays open across its own version choices in the inspector.
+  expect(within(inspector()).getByTestId("report-history").getAttribute("aria-expanded")).toBe("true");
+  fireEvent.click(view.getAllByTestId("report-card")[1]);
+  await waitFor(() => expect(within(inspector()).getByRole("heading", { level: 1 }).textContent).toBe("가상 백업 점검 메모"));
+  expect(within(inspector()).queryByTestId("report-updated")).toBeNull();
+  expect(within(inspector()).queryByTestId("report-versions")).toBeNull();
 });

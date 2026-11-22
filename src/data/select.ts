@@ -87,7 +87,7 @@ export function chooseSource(location: Pick<Location, "search"> = window.locatio
         },
       });
       // verify.mjs edits a report as its agent would, with the reports event that follows (lina-app#50).
-      Object.defineProperty(window, "__linaReportElsewhere", { configurable: true, value: { edit: (id: string) => synthetic.reportEditedElsewhere(id) } });
+      Object.defineProperty(window, "__linaReportElsewhere", { configurable: true, value: { edit: (id: string) => synthetic.reportEditedElsewhere(id), images: (id: string) => synthetic.reportImagesChangedElsewhere(id) } });
       Object.defineProperty(window, "__linaStream", { configurable: true, get: () => ({ connections: structuredClone(synthetic.stream), reads: synthetic.reads, renewals: synthetic.renewals }) });
     }
     return synthetic;

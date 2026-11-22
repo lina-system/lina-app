@@ -278,13 +278,18 @@ export class Live {
     // The first tail has no events; anything written between the first snapshot and it is read once more, and so is
     // the open conversation (a turn another device completed after its history was read; lina-app#209). A resync may
     // have missed talk turns too: every conversation on screen is read again.
-    if ("resync" in message) this.store.talkChanged();
+    if ("resync" in message) {
+      this.store.talkChanged();
+      this.store.reportsChanged();
+    }
     else if (fromTail) this.store.talkTailed();
     if ("resync" in message || fromTail) void this.store.refresh();
     else {
       if (message.events.length) void this.store.invalidate(routesFor(message.events, this.store));
       const agents = talkAgents(message.events);
       if (agents.length) this.store.talkChanged(agents);
+      const reports = [...new Set(message.events.filter((event) => event.source === "reports").map((event) => event.id))];
+      if (reports.length) this.store.reportsChanged(reports);
       // A connection that opens says the core answers again: what failed meanwhile is read now (lina-app#199).
       if (opened) this.healNow();
     }

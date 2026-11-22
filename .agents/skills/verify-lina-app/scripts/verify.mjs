@@ -4739,7 +4739,18 @@ const drivers = {
         return { inside: svg.left >= box.left - 0.5 && svg.right <= box.right + 0.5, zoom: element.querySelector("[data-testid=diagram-zoom]").textContent, minus: element.querySelector('button[aria-label="축소"]').disabled };
       });
       check(fit.inside && fit.minus, "at 맞춤 " + JSON.stringify(fit));
-      return "맞춤 " + fit.zoom + ", inside its box, minus disabled";
+      if (!wide) return "맞춤 " + fit.zoom + ", inside its box, minus disabled";
+      // The inspector narrowed: 맞춤 is the fit of the box as it is now (lina-app#274).
+      await page.getByTestId("report-resize").focus();
+      for (let press = 0; press < 4; press += 1) await page.keyboard.press("ArrowRight");
+      await figure.getByRole("button", { name: "맞춤" }).click();
+      const narrow = await figure.evaluate((element) => {
+        const box = element.querySelector(".report-diagram-box").getBoundingClientRect();
+        const svg = element.querySelector(".report-diagram-box svg").getBoundingClientRect();
+        return { inside: svg.right <= box.right + 0.5 && svg.left >= box.left - 0.5, zoom: element.querySelector("[data-testid=diagram-zoom]").textContent };
+      });
+      check(narrow.inside && narrow.zoom !== fit.zoom, "at 맞춤 after narrowing " + JSON.stringify(narrow) + ", before " + fit.zoom);
+      return "맞춤 " + fit.zoom + " then " + narrow.zoom + " after narrowing, inside its box, minus disabled";
     });
     await step("Escape closes the large image first, then the viewer", async () => {
       await viewer().locator(".report-image").first().click();

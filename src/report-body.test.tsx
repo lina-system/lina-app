@@ -1,6 +1,7 @@
 import { fireEvent, render, waitFor, within } from "@testing-library/preact";
 import { describe, expect, test, vi } from "vitest";
 import type { ReportImage } from "./data/source";
+import { imagesOnly } from "./markdown";
 import { ownImage, ReportBody } from "./report/body";
 
 // lina-app#114: a report reads as a document: real heading steps, tables whose numbers align right and whose rows can
@@ -169,3 +170,15 @@ describe("an image inside a block", () => {
   });
 });
 
+// lina-app#274 (CodeQL): the scan that tells a paragraph of images alone from any other must read a long run of
+// near-images once, not backtrack over it.
+test("a paragraph of images alone is told from any other in one pass, also a very long malicious one", () => {
+  expect(imagesOnly('![가](images/0 "첫째")  ![나](images/1)')).toEqual([{ alt: "가", src: "images/0", title: "첫째" }, { alt: "나", src: "images/1", title: null }]);
+  expect(imagesOnly("![가](images/0) 그리고")).toBeNull();
+  expect(imagesOnly("   ")).toBeNull();
+  const near = "![](!)" + " ![](!)".repeat(50_000);
+  expect(imagesOnly(near + " x")).toBeNull();
+  expect(imagesOnly(near)).toHaveLength(50_001);
+  const view = body(near.slice(0, 2_000) + " x");
+  expect(view.container.querySelector(".report-gallery")).toBeNull();
+});

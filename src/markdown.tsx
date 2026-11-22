@@ -59,7 +59,27 @@ const TABLE_RULE = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
 const TASK = /^\[([ xX])\]\s+(.*)$/;
 /** `![alt](src)` or `![alt](src "caption")`; the alt may be empty. */
 const IMAGE = /^!\[([^\]\n]*)\]\(([^()\s]+)(?:\s+"([^"\n]*)")?\)/;
-const IMAGES_ONLY = /^(?:\s*!\[[^\]\n]*\]\([^()\s]+(?:\s+"[^"\n]*")?\)\s*)+$/;
+/** The same image, matched where a scan stands (sticky): each character is read once, whatever the text holds. */
+const IMAGE_AT = new RegExp(IMAGE.source.slice(1), "y");
+
+/**
+ * The images of a paragraph that holds images and white space only, in order, or null when it holds anything else.
+ * One pass from left to right, so a long run of near-images costs as much as its length (lina-app#274: a nested
+ * repeat here backtracked exponentially).
+ */
+export function imagesOnly(text: string): DocImage[] | null {
+  const images: DocImage[] = [];
+  let at = 0;
+  for (;;) {
+    while (at < text.length && /\s/.test(text[at])) at += 1;
+    if (at === text.length) return images.length ? images : null;
+    IMAGE_AT.lastIndex = at;
+    const match = IMAGE_AT.exec(text);
+    if (!match) return null;
+    images.push({ alt: match[1], src: match[2], title: match[3] ?? null });
+    at = IMAGE_AT.lastIndex;
+  }
+}
 /** A cell that reads as a number: digits with grouping commas, a sign, a decimal part, and a short unit or %. */
 const NUMBER_CELL = /^[-+−]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?\s*(?:%|[A-Za-z]{1,3}|원|건|개|명|시간|분|초|배)?$/;
 
@@ -216,10 +236,10 @@ function blocks(lines: readonly string[], doc?: DocRules): VNode[] {
     const paragraph = [line];
     at += 1;
     while (at < lines.length && lines[at].trim() && !startsBlock(lines, at)) paragraph.push(lines[at++]);
-    const joined = paragraph.join(" ");
-    if (doc && IMAGES_ONLY.test(joined)) {
+    const alone = doc ? imagesOnly(paragraph.join(" ")) : null;
+    if (doc && alone) {
       // A paragraph of images alone: one is a wide figure, several stand side by side.
-      const images = [...joined.matchAll(new RegExp(IMAGE.source.slice(1), "g"))].map((match, index) => doc.image({ alt: match[1], src: match[2], title: match[3] ?? null }, index));
+      const images = alone.map((image, index) => doc.image(image, index));
       out.push(images.length === 1 ? <div key={key} class="report-figure-one">{images[0]}</div> : doc.gallery(images, key));
       continue;
     }

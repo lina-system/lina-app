@@ -4390,6 +4390,24 @@ const drivers = {
   "talk-tab": async (page, step) => {
     const wide = page.viewportSize().width >= 900;
     const box = () => page.getByTestId("agent-talk");
+    const agentsList = page.getByRole("list", { name: "에이전트", exact: true });
+    await step("open the full app without a hash: 대화 is current and the conversation list is visible", async () => {
+      await openApp(page, "");
+      const current = await text(page.getByTestId("tabs").locator("[aria-current=page]"));
+      check(current === "대화", "the current tab is " + current);
+      await agentsList.getByRole("link").first().waitFor({ state: "visible" });
+      return `${new URL(page.url()).search}; current ${current}; ${await agentsList.getByRole("link").count()} agents`;
+    });
+    await step("open a delegated 할 일 from the agent's card to its item detail", async () => {
+      await openApp(page, "", "&todos=delegated");
+      await agentsList.locator('a[href="#/talk/ag-4"]').click();
+      const card = page.getByTestId("agent-card");
+      if (!wide) await card.getByRole("button", { expanded: false }).click();
+      await card.getByRole("list", { name: "할 일" }).getByRole("link", { name: /Review invoices/ }).click();
+      await page.waitForURL((url) => url.hash === "#/items/T1");
+      await page.getByTestId("screen-item").waitFor({ state: "visible" });
+      return `ag-4 · 할 일 · Review invoices → ${new URL(page.url()).hash}`;
+    });
     await step("open 대화 from the tabs: the agents, no window on all of them", async () => {
       // The tabs show on each tab's first screen on a phone, and on every screen on a wide window.
       await openApp(page, wide ? "#/inbox" : "#/");

@@ -11,6 +11,13 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
+test("the full app opens the conversation list on a hashless visit", async () => {
+  window.history.replaceState(null, "", "/app/");
+  const view = render(<App store={new Store(new SyntheticSource())} />);
+  expect(await view.findByRole("link", { name: "대화", current: "page" })).toBeTruthy();
+  expect(await view.findByRole("list", { name: "에이전트" })).toBeTruthy();
+});
+
 test.each([true, false])("delegated ledger rows open their own evidence and parent without closing the to-do (wide %s)", async (wide) => {
   const scene = generateScene(undefined, { now: Math.floor(Date.now() / 1000), delegatedTodos: true, hubRound11: true });
   const source = new SyntheticSource({ scene });

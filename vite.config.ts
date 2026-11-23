@@ -51,5 +51,6 @@ export default defineConfig({
   plugins: [preact(), linaModePlugin()],
   define: {
     __APP_VERSION__: JSON.stringify(version),
+    __LINA_WORK_ONLY__: JSON.stringify(WORK_ONLY),
   },
 });

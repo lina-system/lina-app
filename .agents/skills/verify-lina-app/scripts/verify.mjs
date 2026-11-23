@@ -4679,6 +4679,237 @@ const drivers = {
     });
   },
 
+  // lina-app#50, #83, #114: the report card in the chat, the inspector beside it or the sheet over it, the reading
+  // layout, images, blocks, updates and history, on the synthetic reports (`&reports=demo`).
+  async reports(page, step) {
+    const wide = page.viewportSize().width >= 900;
+    const LONG = "rep_5e1f0a7c2b90";
+    const BROKEN = "rep_9c2e7f41d6a3";
+    const viewer = () => (wide ? page.getByTestId("report-inspector") : page.getByTestId("detail-frame"));
+    const heading = () => viewer().getByRole("heading", { level: 1 });
+    await step("open the first agent's window: one card per report, title and agent, no body", async () => {
+      await openApp(page, "#/talk/ag-1", "&reports=demo");
+      const cards = page.getByTestId("agent-talk").getByTestId("report-card");
+      await cards.nth(1).waitFor({ timeout: 10_000 });
+      const lines = (await cards.allInnerTexts()).map((line) => line.replace(/\s+/g, " ").trim());
+      check(lines.length === 2 && lines[0].startsWith("가상 릴리스 변경 정리 · 중간 보고") && / · 업데이트 /.test(lines[0]), "the cards read " + JSON.stringify(lines));
+      const words = await page.getByTestId("agent-talk").innerText();
+      check(!words.includes("묶음별 변경") && !words.includes("[[report:"), "the chat holds the report's body or its reference line");
+      return lines.join(" / ");
+    });
+    await step(wide ? "tap the card: the report opens beside the chat, which stays usable" : "tap the card: a sheet rises to about half the screen over the chat", async () => {
+      await page.getByTestId("report-card").first().click();
+      await heading().waitFor({ timeout: 10_000 });
+      check((await text(heading())) === "가상 릴리스 변경 정리 · 중간 보고", "the viewer reads " + (await text(heading())));
+      if (wide) {
+        check(await page.getByRole("textbox", { name: "메시지" }).isVisible(), "the chat's field is hidden");
+        // The chat is measured inside its own separator line (lina-app#274: a 360 px pane held 359.5 px of chat).
+        const [chat, inspector] = await Promise.all([page.getByTestId("agent-talk").boundingBox(), viewer().boundingBox()]);
+        check(chat.width >= 360 && inspector.x >= chat.x + chat.width - 1, "the chat is " + chat.width + " px beside the inspector at " + inspector.x);
+        return "chat " + chat.width + " px, inspector " + inspector.width + " px";
+      }
+      // Measured once the sheet's rise has ended, not part way up.
+      await viewer().evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+      const sheet = await viewer().boundingBox();
+      check((await viewer().getAttribute("data-height")) === "half" && sheet.y > 300 && sheet.y < 520, "the sheet starts at " + Math.round(sheet.y));
+      return "sheet top " + Math.round(sheet.y);
+    });
+    await step(wide ? "drag the inspector's edge: it widens and the chat keeps its room" : "drag the sheet's bar up: it takes the whole screen", async () => {
+      if (wide) {
+        const edge = await page.getByTestId("report-resize").boundingBox();
+        const before = Number(await page.getByTestId("report-resize").getAttribute("aria-valuenow"));
+        await page.mouse.move(edge.x + 4, edge.y + 200);
+        await page.mouse.down();
+        await page.mouse.move(edge.x - 160, edge.y + 200, { steps: 8 });
+        await page.mouse.up();
+        const after = Number(await page.getByTestId("report-resize").getAttribute("aria-valuenow"));
+        check(after > before + 100, "the width went " + before + " -> " + after);
+        // Past its widest (lina-app#274): it stops where the chat keeps 360 px inside its line, and says so.
+        await page.mouse.move(edge.x - 160, edge.y + 200);
+        await page.mouse.down();
+        await page.mouse.move(edge.x - 900, edge.y + 200, { steps: 8 });
+        await page.mouse.up();
+        const separator = await page.getByTestId("report-resize").evaluate((element) => ({ now: Number(element.getAttribute("aria-valuenow")), max: Number(element.getAttribute("aria-valuemax")), min: Number(element.getAttribute("aria-valuemin")) }));
+        const [chat, drawn] = await Promise.all([page.getByTestId("agent-talk").boundingBox(), viewer().boundingBox()]);
+        check(separator.max >= separator.min && separator.now === separator.max && Math.abs(drawn.width - separator.max) < 0.5 && chat.width >= 360, "at its widest " + JSON.stringify(separator) + ", inspector " + drawn.width + " px, chat " + chat.width + " px");
+        // Back to where the first drag left it, so the steps after read the width they always have.
+        const widestEdge = await page.getByTestId("report-resize").boundingBox();
+        await page.mouse.move(widestEdge.x + 4, edge.y + 200);
+        await page.mouse.down();
+        await page.mouse.move(edge.x - 160, edge.y + 200, { steps: 8 });
+        await page.mouse.up();
+        const restored = Number(await page.getByTestId("report-resize").getAttribute("aria-valuenow"));
+        check(Math.abs(restored - after) <= 1, "back from its widest the width is " + restored + ", not " + after);
+        // A window narrowed under it: the inspector gives way so the chat keeps its 360 px, and takes its width back after.
+        const size = page.viewportSize();
+        await page.setViewportSize({ width: 1100, height: size.height });
+        await page.waitForFunction((width) => Number(document.querySelector("[data-testid=report-resize]").getAttribute("aria-valuenow")) < width, restored);
+        const narrowed = await page.getByTestId("report-resize").evaluate((element) => ({ now: Number(element.getAttribute("aria-valuenow")), max: Number(element.getAttribute("aria-valuemax")) }));
+        const narrowChat = await page.getByTestId("agent-talk").boundingBox();
+        check(narrowed.now === narrowed.max && narrowChat.width >= 360, "at 1100 " + JSON.stringify(narrowed) + ", chat " + narrowChat.width + " px");
+        // Too narrow for the chat's 360 px, its line and the inspector's 320 px (lina-app#274): at 920 the report alone is
+        // the narrow screen's sheet over a window that stays wide; 닫기 leaves the chat and the kept width as they were; at
+        // 921 the inspector stands again at its narrowest.
+        const frame = page.getByTestId("detail-frame");
+        const asSheet = async (at) => {
+          await frame.waitFor();
+          await frame.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+          const look = await page.evaluate(() => ({ frame: document.querySelector("[data-testid=detail-frame]")?.getAttribute("data-frame"), height: document.querySelector("[data-testid=detail-frame]")?.getAttribute("data-height"), inspector: Boolean(document.querySelector("[data-testid=report-inspector]")), wide: Boolean(document.querySelector("[data-layout=wide]")), overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
+          check(look.frame === "sheet" && look.height === "half" && !look.inspector && look.wide && look.overflow === 0, "at " + at + " " + JSON.stringify(look));
+          return look;
+        };
+        await page.setViewportSize({ width: 920, height: size.height });
+        await asSheet(920);
+        await frame.getByTestId("frame-close").click();
+        await frame.waitFor({ state: "detached" });
+        const stored = await page.evaluate(() => localStorage.getItem("lina.report.width"));
+        check(new URL(page.url()).hash === "#/talk/ag-1" && stored === String(restored), "closed at 920: " + page.url() + ", kept " + stored);
+        await page.getByTestId("report-card").first().click();
+        await asSheet(920);
+        await page.setViewportSize({ width: 921, height: size.height });
+        await page.getByTestId("report-inspector").waitFor();
+        const narrowest = await page.getByTestId("report-resize").evaluate((element) => Number(element.getAttribute("aria-valuenow")));
+        const chat921 = await page.getByTestId("agent-talk").boundingBox();
+        check(narrowest === 320 && chat921.width >= 360 && (await frame.count()) === 0, "at 921 the inspector is " + narrowest + " px, chat " + chat921.width + " px");
+        await page.setViewportSize(size);
+        await page.waitForFunction((width) => Number(document.querySelector("[data-testid=report-resize]").getAttribute("aria-valuenow")) === width, restored);
+        return before + " -> " + after + " px; widest " + separator.max + " px, chat " + chat.width + " px; back to " + restored + "; at 1100 " + narrowed.now + " px, chat " + narrowChat.width + " px; at 920 the sheet, closed and reopened; at 921 the inspector at " + narrowest + " px, chat " + chat921.width + " px";
+      }
+      const bar = await page.getByTestId("report-sheet-bar").boundingBox();
+      await page.mouse.move(bar.x + 40, bar.y + bar.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(bar.x + 40, bar.y - 250, { steps: 8 });
+      await page.mouse.up();
+      await page.waitForFunction(() => document.querySelector("[data-testid=detail-frame]")?.getAttribute("data-height") === "full");
+      return "full";
+    });
+    await step("tap the wide image: it opens large; next and previous stay inside the report's three images", async () => {
+      await viewer().locator(".report-image").first().click();
+      const box = page.getByTestId("report-lightbox");
+      const count = () => text(box.getByTestId("report-lightbox-count"));
+      check((await count()) === "1 / 3", "the lightbox opened at " + (await count()));
+      await box.getByRole("button", { name: "다음 그림" }).click();
+      await box.getByRole("button", { name: "다음 그림" }).click();
+      check((await count()) === "3 / 3" && (await box.getByRole("button", { name: "다음 그림" }).isDisabled()), "next stopped at " + (await count()));
+      await box.getByRole("button", { name: "이전 그림" }).click();
+      check((await count()) === "2 / 3", "previous went to " + (await count()));
+      // It covers the whole window, above the app's bars (lina-app#274).
+      const size = page.viewportSize();
+      const rect = await box.boundingBox();
+      const top = await page.evaluate(() => Boolean(document.elementFromPoint(window.innerWidth / 2, 20)?.closest("[data-testid=report-lightbox]")));
+      check(rect.x === 0 && rect.y === 0 && Math.round(rect.width) === size.width && Math.round(rect.height) === size.height && top, "the large image covers " + JSON.stringify(rect) + ", on top " + top);
+      await box.getByRole("button", { name: "닫기" }).click();
+      const outside = await viewer().getByTestId("report-image-outside").count();
+      check(outside === 1, "outside images shown as notes: " + outside);
+      return "1/3 -> 3/3 -> 2/3, one outside image refused";
+    });
+    await step("the agent edits the report: it updates in place with a small mark; its versions open from the viewer", async () => {
+      await page.evaluate((id) => window.__linaReportElsewhere.edit(id), LONG);
+      await viewer().getByTestId("report-updated").waitFor({ timeout: 10_000 });
+      check((await viewer().getByTestId("report").getAttribute("data-version")) === "4", "the viewer shows v" + (await viewer().getByTestId("report").getAttribute("data-version")));
+      await viewer().getByTestId("report-history").click();
+      const versions = await viewer().getByTestId("report-versions").locator(".report-version-n").allInnerTexts();
+      check(JSON.stringify(versions) === JSON.stringify(["v4", "v3", "v2", "v1"]), "the versions read " + JSON.stringify(versions));
+      const v1At = await viewer().getByTestId("report-versions").locator(".report-version-at").last().innerText();
+      await viewer().getByTestId("report-versions").getByRole("button").last().click();
+      await viewer().getByTestId("report-older").waitFor({ timeout: 5_000 });
+      const shownAt = await viewer().getByTestId("report-time").getAttribute("title");
+      check(shownAt === v1At.trim(), "v1's head reads " + shownAt + ", its version line " + v1At);
+      await viewer().getByTestId("report-older").getByRole("button", { name: "최신 보기" }).click();
+      await viewer().getByTestId("report-older").waitFor({ state: "detached", timeout: 5_000 });
+      return "v4 with the mark; v1 opened and back";
+    });
+    await step("only the report's images change: the open viewer redraws them at the same version", async () => {
+      const first = viewer().locator(".report-body img").first();
+      const before = await first.getAttribute("src");
+      const version = await viewer().getByTestId("report").getAttribute("data-version");
+      await page.evaluate((id) => window.__linaReportElsewhere.images(id), LONG);
+      await page.waitForFunction(([selector, old]) => document.querySelector(selector)?.getAttribute("src") !== old, [(wide ? "[data-testid=report-inspector]" : "[data-testid=detail-frame]") + " .report-body img", before], { timeout: 10_000 });
+      const after = await first.getAttribute("src");
+      check(decodeURIComponent(after ?? "").includes("교체 1"), "the first image is not the replaced one");
+      check((await viewer().getByTestId("report").getAttribute("data-version")) === version, "the version moved from " + version);
+      return "image redrawn at v" + version;
+    });
+    await step("맞춤 fits the whole diagram in its box; minus stops at the smallest step", async () => {
+      const figure = viewer().locator(".report-diagram");
+      await figure.scrollIntoViewIfNeeded();
+      await figure.locator(".report-diagram-box svg").waitFor({ timeout: 10_000 });
+      await figure.getByRole("button", { name: "맞춤" }).click();
+      const fit = await figure.evaluate((element) => {
+        const box = element.querySelector(".report-diagram-box").getBoundingClientRect();
+        const svg = element.querySelector(".report-diagram-box svg").getBoundingClientRect();
+        return { inside: svg.left >= box.left - 0.5 && svg.right <= box.right + 0.5, zoom: element.querySelector("[data-testid=diagram-zoom]").textContent, minus: element.querySelector('button[aria-label="축소"]').disabled };
+      });
+      check(fit.inside && fit.minus, "at 맞춤 " + JSON.stringify(fit));
+      if (!wide) return "맞춤 " + fit.zoom + ", inside its box, minus disabled";
+      // The inspector narrowed: 맞춤 is the fit of the box as it is now (lina-app#274).
+      await page.getByTestId("report-resize").focus();
+      for (let press = 0; press < 4; press += 1) await page.keyboard.press("ArrowRight");
+      await figure.getByRole("button", { name: "맞춤" }).click();
+      const narrow = await figure.evaluate((element) => {
+        const box = element.querySelector(".report-diagram-box").getBoundingClientRect();
+        const svg = element.querySelector(".report-diagram-box svg").getBoundingClientRect();
+        return { inside: svg.right <= box.right + 0.5 && svg.left >= box.left - 0.5, zoom: element.querySelector("[data-testid=diagram-zoom]").textContent };
+      });
+      check(narrow.inside && narrow.zoom !== fit.zoom, "at 맞춤 after narrowing " + JSON.stringify(narrow) + ", before " + fit.zoom);
+      return "맞춤 " + fit.zoom + " then " + narrow.zoom + " after narrowing, inside its box, minus disabled";
+    });
+    await step("Escape closes the large image first, then the viewer", async () => {
+      await viewer().locator(".report-image").first().click();
+      await page.getByTestId("report-lightbox").waitFor();
+      await page.keyboard.press("Escape");
+      await page.getByTestId("report-lightbox").waitFor({ state: "detached" });
+      check(await viewer().isVisible(), "the viewer closed with the large image");
+      await page.keyboard.press("Escape");
+      await viewer().waitFor({ state: "detached", timeout: 5_000 });
+      return "image, then viewer; " + new URL(page.url()).hash;
+    });
+    await step("open a report whose images sit only inside blocks: each is drawn, none stays loading", async () => {
+      await openApp(page, "#/reports/rep_3a7c0e5f9b21", "&reports=demo");
+      const view = wide ? page.getByTestId("detail-pane") : page.getByTestId("detail-frame");
+      await view.locator(".report-body img").nth(2).waitFor({ state: "attached", timeout: 10_000 });
+      const placed = await view.locator(".report-body img").evaluateAll((images) => images.map((image) => (image.closest("details") ? "fold" : image.closest(".report-callout") ? "callout" : image.closest("td") ? "cell" : "body")));
+      const loading = await view.getByTestId("report-image-loading").count();
+      check(JSON.stringify(placed) === JSON.stringify(["fold", "callout", "cell"]) && loading === 0, "images " + JSON.stringify(placed) + ", loading " + loading);
+      const failed = await view.getByTestId("report-image-failed").allInnerTexts();
+      check(failed.length === 1 && failed[0].includes("그림을 불러오지 못함"), "the image the core does not give reads " + JSON.stringify(failed));
+      return placed.join(", ") + "; one image not given";
+    });
+    await step("a late first image does not move the large image open on the third", async () => {
+      await openApp(page, "#/reports/rep_6c1e8d3f5a27", "&reports=demo");
+      const view = wide ? page.getByTestId("detail-pane") : page.getByTestId("detail-frame");
+      await view.locator(".report-body img").nth(1).waitFor({ state: "attached", timeout: 10_000 });
+      check((await view.getByTestId("report-image-loading").count()) === 1, "the first image is not still loading");
+      await view.getByRole("button", { name: "그림 크게 보기: 셋째 그림" }).click();
+      const box = page.getByTestId("report-lightbox");
+      const read = async () => [await text(box.locator(".report-lightbox-caption")), await text(box.getByTestId("report-lightbox-count"))];
+      const before = await read();
+      await view.locator(".report-body img").nth(2).waitFor({ state: "attached", timeout: 10_000 });
+      const after = await read();
+      check(JSON.stringify(before) === JSON.stringify(["셋째 그림", "2 / 2"]) && JSON.stringify(after) === JSON.stringify(["셋째 그림", "3 / 3"]), "the large image read " + JSON.stringify(before) + " then " + JSON.stringify(after));
+      await page.keyboard.press("Escape");
+      return before.join(" ") + " -> " + after.join(" ");
+    });
+    await step("a share chart with a negative value is refused with its source; bar and line draw theirs", async () => {
+      await openApp(page, "#/reports/rep_7d4b2e9a1c06", "&reports=demo");
+      const view = wide ? page.getByTestId("detail-pane") : page.getByTestId("detail-frame");
+      await view.getByTestId("report-block-broken").nth(1).waitFor({ timeout: 10_000 });
+      const errors = await view.getByTestId("report-block-broken").locator(".report-block-error").allInnerTexts();
+      const kinds = await view.locator(".chart").evaluateAll((charts) => charts.map((chart) => chart.getAttribute("data-kind")));
+      check(errors.length === 2 && errors.every((line) => line.includes("비율 차트에 음수 값")) && JSON.stringify(kinds) === JSON.stringify(["bar", "line"]), "errors " + JSON.stringify(errors) + ", charts " + JSON.stringify(kinds));
+      return errors.join(" | ") + "; drawn " + kinds.join(", ");
+    });
+    await step("open a report of broken blocks: each shows its source and one error line", async () => {
+      await openApp(page, "#/reports/" + BROKEN, "&reports=demo");
+      const broken = (wide ? page.getByTestId("detail-pane") : page.getByTestId("detail-frame")).getByTestId("report-block-broken");
+      await broken.nth(5).waitFor({ timeout: 10_000 });
+      const errors = await broken.locator(".report-block-error").allInnerTexts();
+      const sources = await broken.locator("pre").count();
+      check(errors.length === 6 && sources === 6, "broken blocks " + errors.length + ", sources " + sources);
+      return errors.join(" | ");
+    });
+  },
+
   async install(page, step) {
     await step("open the app", async () => {
       await openApp(page, "#/");

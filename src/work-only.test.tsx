@@ -86,9 +86,12 @@ describe("work-only mode", () => {
     expect(SLOW_ROUTES).toEqual([]);
     expect(AGENT_OPS_ROUTES.has("cards")).toBe(true);
     expect(AGENT_OPS_ROUTES.has("inbox")).toBe(true);
+    expect(AGENT_OPS_ROUTES.has("report")).toBe(true);
+    expect(AGENT_OPS_ROUTES.has("reports")).toBe(true);
     expect(parse("#/talk")).toEqual({ name: "home" });
     expect(parse("#/status")).toEqual({ name: "home" });
     expect(parse("#/cards/k-101")).toEqual({ name: "home" });
+    expect(parse("#/reports/rep_1")).toEqual({ name: "home" });
     expect(href({ name: "home" })).toBe("#/");
   });
 
@@ -102,9 +105,9 @@ describe("work-only mode", () => {
     expect(spy.talks).toEqual([]);
     expect(spy.retries).toEqual([]);
     expect(spy.answers).toEqual([]);
-    store.want([["card", "k-101"], ["record", "r1"], ["item", "T4"]]);
+    store.want([["card", "k-101"], ["record", "r1"], ["report", "rep_1"], ["reports", "k-101"], ["item", "T4"]]);
     await waitFor(() => expect(store.get("item", "T4")).toBeTruthy());
-    expect(spy.reads.filter((name) => name.startsWith("card") || name.startsWith("record"))).toEqual([]);
+    expect(spy.reads.filter((name) => name.startsWith("card") || name.startsWith("record") || name.startsWith("report"))).toEqual([]);
     expect(spy.reads).toContain("item:T4");
   });
 
@@ -135,7 +138,7 @@ describe("work-only mode", () => {
   });
 
   test("deep links to talk, status, running, cards and runs open the work home", async () => {
-    for (const hash of ["#/talk", "#/talk/ag-1", "#/status", "#/settings", "#/running", "#/cards/k-101", "#/runs/r1", "#/agents/ag-1"]) {
+    for (const hash of ["#/talk", "#/talk/ag-1", "#/status", "#/settings", "#/running", "#/cards/k-101", "#/runs/r1", "#/agents/ag-1", "#/reports/rep_1"]) {
       const { view } = await open(hash);
       expect(view.queryByTestId("tabs"), hash).toBeNull();
       expect(view.queryByTestId("screen-status"), hash).toBeNull();

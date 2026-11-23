@@ -20,6 +20,7 @@ import { PastEvents, RunModelLine, Timeline, type PastEvent } from "./timeline";
 import { Comments, FoldLine, SendButton } from "./comments";
 import { FinishedLine } from "./lists";
 import { Talk } from "./talk";
+import { CardReports } from "../report/viewer";
 
 function Missing() {
   return <p class="empty">{W.notFound}</p>;
@@ -1085,6 +1086,7 @@ export function CardScreen({ id }: { id: string }) {
         {readOnly && waitsOnOwner(state, reason, row) ? <AnswerWhere agent={row?.agent ?? detail.agent} /> : null}
       </CardHead>
       <FoldMembers id={id} fold={fold} byAgent={foldLine?.title === null && new Set(fold?.map((card) => card.agent)).size > 1} />
+      {WORK_ONLY ? null : <CardReports id={id} />}
       {/* Each question with the place to answer it, keyed as its 수신함 row, so answering here hides that row too. */}
       {questions.map((question) => (
         <Fragment key={question.commentId}>

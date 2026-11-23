@@ -1,5 +1,5 @@
-import { ADD_ITEM_PATH, agentTalkPath, BOARD_BASE, cardAnswerPath, EVENTS_PATH, NOTICES_READ_PATH, PUSH_KEY_PATH, PUSH_REMOVE_PATH, PUSH_SUBSCRIPTIONS_PATH, routePath, SETTINGS_PATH, SETTINGS_ROLLBACK_PATH, talkPath, writePath, type ActionResult, type AddItemRequest, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest } from "../api/client";
-import { nowSeconds, type AgentTalkResult, type ChangeHandlers, type ChangeSocket, type ReadResult, type Renewal, type Source, type TalkResult, type WriteResult } from "./source";
+import { ADD_ITEM_PATH, agentTalkPath, BOARD_BASE, cardAnswerPath, EVENTS_PATH, NOTICES_READ_PATH, PUSH_KEY_PATH, PUSH_REMOVE_PATH, PUSH_SUBSCRIPTIONS_PATH, reportImagePath, routePath, SETTINGS_PATH, SETTINGS_ROLLBACK_PATH, talkPath, writePath, type ActionResult, type AddItemRequest, type AgentTalkEvent, type AgentTalkHistory, type AnswerRequest, type AnswerResult, type ChangeMessage, type CommentRequest, type DeviceAction, type DoneRequest, type ItemSummary, type NoticesReadRequest, type NoticesReadResult, type PushKey, type PushRemoveRequest, type PushRemoveResult, type PushSubscriptionRequest, type PushSubscriptionResult, type RouteName, type Routes, type SettingsPatch, type SettingsWritten, type TalkEvent, type TalkRequest } from "../api/client";
+import { nowSeconds, type ReportImage, type AgentTalkResult, type ChangeHandlers, type ChangeSocket, type ReadResult, type Renewal, type Source, type TalkResult, type WriteResult } from "./source";
 import { readSse } from "./sse";
 
 /** Each frame's JSON `data` with its `event` name; a frame whose data is not JSON ends the turn as failed. */
@@ -176,6 +176,33 @@ export class HttpSource implements Source {
 
   read<N extends RouteName>(name: N, id?: string): Promise<ReadResult<Routes[N]>> {
     return this.get(`${this.basePath}${routePath(name, id)}`);
+  }
+
+  /**
+   * A report image read like every other route: with the session token in its header on a loopback core, with the
+   * sign-in cookie behind the gate. The core's image route (`/reports/{id}/images/{n}`) sits outside `/api` and admits
+   * a request by that header or that cookie only, so an `<img>` pointed at it fails on a loopback core: the bytes come
+   * here and are drawn from an object address, never with the token in an address.
+   */
+  async reportImage(id: string, position: number, signal?: AbortSignal): Promise<ReportImage> {
+    const headers: Record<string, string> = { Accept: "image/*" };
+    if (this.token) headers["X-Hermes-Session-Token"] = this.token;
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.basePath}${reportImagePath(id, position)}`, { headers, credentials: "same-origin", signal });
+    } catch {
+      return { ok: false, status: 0 };
+    }
+    // A signed-out request behind the gate is sent to the sign-in page, which answers 200 with HTML.
+    if (!response.ok || !(response.headers.get("Content-Type") ?? "").startsWith("image/")) return { ok: false, status: response.ok ? 401 : response.status };
+    let blob: Blob;
+    try {
+      blob = await response.blob();
+    } catch {
+      return { ok: false, status: 0 };
+    }
+    const url = URL.createObjectURL(blob);
+    return { ok: true, url, release: () => URL.revokeObjectURL(url) };
   }
 
   pushKey(): Promise<ReadResult<PushKey>> {

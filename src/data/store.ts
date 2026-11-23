@@ -67,7 +67,7 @@ export const LIST_ROUTES: readonly RouteName[] = WORK_ONLY ? ["board", "items"] 
  * Store routes a work-only install must never read: kanban cards and inbox, worker-run records, and status / settings.
  * `goals` here is work-client `/work/goals` (card links), not the `#/goals` screen, which is drawn from `/work/items`.
  */
-export const AGENT_OPS_ROUTES: ReadonlySet<RouteName> = new Set(["goals", "goal", "cards", "card", "inbox", "record", "devices", "quota", "usage", "modelsState", "checks", "settings", "settingsHistory", "settingsModels"]);
+export const AGENT_OPS_ROUTES: ReadonlySet<RouteName> = new Set(["goals", "goal", "cards", "card", "inbox", "record", "devices", "quota", "usage", "modelsState", "checks", "settings", "settingsHistory", "settingsModels", "report", "reports"]);
 
 /**
  * Machines, quota, usage, OCX's models and links, the hub's own checks and the settings' OCX model list change
@@ -199,6 +199,13 @@ export class Store {
    * themselves, again whenever this count moves.
    */
   private readonly talks = new Map<string, number>();
+  /**
+   * How many times the stream said each report changed, and how many resyncs said any may have (lina#263). A Desk sync
+   * that replaces only a report's images sends the event and leaves its version, time and body as they were, so the
+   * open viewer reads its images again at this count (lina-app#114).
+   */
+  private readonly reportEvents = new Map<string, number>();
+  private reportResyncs = 0;
   private talkResyncs = 0;
   private talkTails = 0;
   /**
@@ -405,6 +412,18 @@ export class Store {
     return this.talkChanges(agent) + this.talkTails;
   }
 
+  /** The count of change events for a report, resyncs included: an open report's images are read again when it moves. */
+  reportChanges(id: string): number {
+    return (this.reportEvents.get(id) ?? 0) + this.reportResyncs;
+  }
+
+  /** The stream said these reports changed, or with none, that any may have (a resync). */
+  reportsChanged(ids?: readonly string[]): void {
+    if (!ids) this.reportResyncs += 1;
+    else for (const id of ids) this.reportEvents.set(id, (this.reportEvents.get(id) ?? 0) + 1);
+    this.notify();
+  }
+
   /** The first tail came: a turn another device finished after a history was read is in no event, so a window reads again (lina-app#209). */
   talkTailed(): void {
     this.talkTails += 1;
@@ -582,6 +601,12 @@ export class Store {
     if (this.slowReadAt !== null && now - this.slowReadAt < SLOW_REFRESH_S - 1) return [];
     this.slowReadAt = now;
     return SLOW_ROUTES;
+  }
+
+  /** The ids a route was read for (each card's report list), for an event that may touch any of them. */
+  readIds(name: RouteName): string[] {
+    const prefix = `${name}:`;
+    return [...this.entries.keys()].filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length));
   }
 
   /** Loaded card details that list a worker run, for a worker event about it. */

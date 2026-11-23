@@ -78,7 +78,15 @@ export interface Source {
   restartDevice(name: string, service: "worker" | "ocx"): Promise<WriteResult<DeviceAction>>;
   /** Starts sign-in for one runner on a node (lina#234). 202 means it started; the next devices read says whether it took. */
   signInDevice(name: string, runner: string): Promise<WriteResult<DeviceAction>>;
+  /**
+   * One of a report's own images, by its place (lina#263); a report draws no other image. The answer is an address the
+   * page may draw until `release` is called, or the status it was refused with (0: no answer).
+   */
+  reportImage(id: string, position: number, signal?: AbortSignal): Promise<ReportImage>;
 }
+
+/** A report image loaded for drawing: an object or data address, released when nothing draws it any more. */
+export type ReportImage = { readonly ok: true; readonly url: string; release(): void } | { readonly ok: false; readonly status: number };
 
 export function nowSeconds(): number {
   return Date.now() / 1000;

@@ -83,12 +83,14 @@ describe("the three tabs", () => {
     expect(parse("#/status")).toEqual({ name: "status" });
     expect(parse("#/running")).toEqual({ name: "running" });
     expect(parse("#/cards/k-1")).toEqual({ name: "card", id: "k-1" });
+    expect(parse("#/reports/rep_1")).toEqual({ name: "report", id: "rep_1" });
+    expect(parse("#/reports/rep_1?v=2")).toEqual({ name: "report", id: "rep_1", version: 2 });
   });
 });
 
 describe("a work-only build lands hidden addresses on the work home", () => {
   test("talk, status, running, cards, runs, rounds, groups and settings parse as home; work screens stay", () => {
-    for (const hash of ["#/talk", "#/talk/ag-1", "#/talk/ag-1?goal=G1", "#/status", "#/settings", "#/settings/runner/codex", "#/running", "#/agents/ag-1", "#/cards/k-1", "#/runs/r1", "#/cards/k-1/runs/1", "#/group/k-1"]) {
+    for (const hash of ["#/talk", "#/talk/ag-1", "#/talk/ag-1?goal=G1", "#/status", "#/settings", "#/settings/runner/codex", "#/running", "#/agents/ag-1", "#/cards/k-1", "#/runs/r1", "#/cards/k-1/runs/1", "#/group/k-1", "#/reports/rep_1", "#/reports/rep_1?v=2"]) {
       expect(parse(hash, true), hash).toEqual({ name: "home" });
       expect(isHiddenInWork(parse(hash, false).name), hash).toBe(true);
     }

@@ -1350,6 +1350,13 @@ button:disabled {
   line-height: 1.2;
 }
 
+.detail-title > a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.14em;
+}
+
 .head-check {
   display: flex;
   align-items: center;
@@ -3522,7 +3529,8 @@ html[data-nav="pop"]::view-transition-new(phone-screen) {
 }
 
 .stack .agent-card.is-open > .agent-card-body {
-  max-height: max(88px, calc(100cqh - 76px - var(--hit) - 12px - var(--talk-error-line, 0px)));
+  /* Keep the 44px jump-to-latest control and its 12px gap accessible below a long list. */
+  max-height: max(88px, calc(100cqh - 76px - var(--hit) - 12px - 56px - var(--talk-error-line, 0px)));
   overflow-y: auto;
 }
 

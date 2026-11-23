@@ -80,6 +80,17 @@ async function open(hash: string, source = new SyntheticSource({ now: Math.floor
 }
 
 describe("work-only mode", () => {
+  test("opening without a hash starts on work and reads only the ledger lists", async () => {
+    const source = new SyntheticSource();
+    const spy = asked(source);
+    const { view } = await open("", source);
+    expect(view.getByTestId("screen-running")).toBeTruthy();
+    // Startup and the synthetic stream's first synchronization each read the same lists.
+    expect(spy.reads).toEqual(["board", "items", "board", "items"]);
+    expect(spy.talks).toEqual([]);
+    expect(window.location.hash).toBe("");
+  });
+
   test("the mock is on, lists are the board and items, and no slow agent-ops routes", () => {
     expect(WORK_ONLY).toBe(true);
     expect(LIST_ROUTES).toEqual(["board", "items"]);

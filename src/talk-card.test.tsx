@@ -1,13 +1,78 @@
-import { fireEvent, render, waitFor } from "@testing-library/preact";
+import { act, fireEvent, render, waitFor } from "@testing-library/preact";
 import { afterEach, expect, test, vi } from "vitest";
 import type { ItemSummary } from "./api/client";
 import { App } from "./app";
 import { SyntheticSource } from "./data/synthetic-source";
 import { Store } from "./data/store";
+import { generateScene } from "./fixtures/synthetic";
 
 afterEach(() => {
   vi.unstubAllGlobals();
   document.body.innerHTML = "";
+});
+
+test("the full app opens the conversation list on a hashless visit", async () => {
+  window.history.replaceState(null, "", "/app/");
+  const view = render(<App store={new Store(new SyntheticSource())} />);
+  expect(await view.findByRole("link", { name: "대화", current: "page" })).toBeTruthy();
+  expect(await view.findByRole("list", { name: "에이전트" })).toBeTruthy();
+});
+
+test.each([true, false])("delegated ledger rows open their own evidence and parent without closing the to-do (wide %s)", async (wide) => {
+  const scene = generateScene(undefined, { now: Math.floor(Date.now() / 1000), delegatedTodos: true, hubRound11: true });
+  const source = new SyntheticSource({ scene });
+  const done = vi.spyOn(source, "done");
+  vi.stubGlobal("matchMedia", (media: string) => ({ media, matches: wide, addEventListener() {}, removeEventListener() {} }));
+  window.history.replaceState(null, "", "/app/#/talk/ag-4");
+  const view = render(<App store={new Store(source)} />);
+  const card = await view.findByTestId("agent-card");
+  if (!wide) fireEvent.click(card.querySelector("button")!);
+  const list = await view.findByRole("list", { name: "할 일" });
+  const links = [...list.querySelectorAll("a")];
+  expect(links.map((link) => link.hash)).toEqual(["#/items/T1", "#/items/T2"]);
+  expect(links[0].textContent).toContain(scene.itemDetails.T1.title);
+  expect(links[0].textContent).toContain(scene.items.agents.find((agent) => agent.id === "ag-4")!.name);
+  expect(links[0].textContent).toContain("진행 중");
+  expect(links[1].textContent).toContain("결정 대기");
+  expect(links[0].textContent).toContain(scene.itemDetails.T1.doneCondition);
+  expect(list.textContent).not.toMatch(/합쳐|병합|merged/i);
+  fireEvent.click(links[0]);
+  const detail = await view.findByTestId("screen-item");
+  expect(detail.querySelector(".detail-title")?.textContent).toContain(scene.itemDetails.T1.title);
+  expect(detail.textContent).toContain(scene.itemDetails.T1.doneCondition);
+  expect(detail.querySelector('a[href="#/cards/k-101"]')).toBeTruthy();
+  const runs = detail.querySelectorAll('ul[aria-label="실행"] a');
+  expect(runs).toHaveLength(2);
+  fireEvent.click(detail.querySelector('a[href="#/runs/r1"]')!);
+  const record = await view.findByTestId("timeline");
+  expect(record.textContent).toContain("검토 필요");
+  expect(record.textContent).toContain(scene.records.r1.rounds[1].result);
+  expect(record.textContent).toContain("완료 기록이 없다");
+  expect(record.textContent).toContain(scene.records.r1.rounds[2].result);
+  expect(record.textContent).not.toMatch(/합쳐|병합|merged/i);
+  await act(async () => {
+    window.history.back();
+    await new Promise((resolve) => window.addEventListener("popstate", resolve, { once: true }));
+  });
+  const reopened = await view.findByTestId("screen-item");
+  expect(reopened.querySelector('[role="checkbox"]')?.getAttribute("aria-checked")).toBe("false");
+  const parent = reopened.querySelector('a[href="#/goals/G1"]');
+  expect(parent).toBeTruthy();
+  fireEvent.click(parent!);
+  const goal = await view.findByTestId("screen-goal");
+  expect(goal.textContent).toContain(scene.itemDetails.G1.why);
+  expect(done).not.toHaveBeenCalled();
+});
+
+test("a namesake parent opened from its to-do shows only attributable work", async () => {
+  const source = new SyntheticSource({ scene: generateScene(undefined, { now: Math.floor(Date.now() / 1000), delegatedTodos: true }) });
+  window.history.replaceState(null, "", "/app/#/items/T4");
+  const view = render(<App store={new Store(source)} />);
+  const item = await view.findByTestId("screen-item");
+  fireEvent.click(item.querySelector('a[href="#/goals/G2"]')!);
+  const goal = await view.findByTestId("screen-goal");
+  await waitFor(() => expect(goal.querySelector('a[href="#/cards/k-102"]')).toBeTruthy());
+  expect(goal.querySelector('a[href="#/cards/k-101"]')).toBeNull();
 });
 
 // lina-app#167 item 1: the hub lists goals with no to-dos (14 of 49 on 11-15). The folded card on a phone read

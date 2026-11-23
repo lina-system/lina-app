@@ -6,7 +6,7 @@ import { KoreanInput } from "../korean-input";
 import { Markdown, plainLine } from "../markdown";
 import { messageParts, referencesAsSummaries } from "../report/reference";
 import { ReportCard, reportLinkClick } from "../report/viewer";
-import { agentView, foldTitle } from "../model";
+import { agentView, foldTitle, itemWords, todoItemLine } from "../model";
 import { href, linkClick } from "../router";
 import { clock } from "../time";
 import { AgentMark, agentName, Box, Disclosure, ErrorLine, Link, ListSection, useApp } from "../ui/parts";
@@ -1008,6 +1008,25 @@ export function AgentCard({ agent, folded = false }: { agent: string; folded?: b
   // (lina-app#200); the goal's page keeps the owner's own done check.
   const body = (
     <>
+      {view.todos.length > 0 && (
+        <section class="list-section">
+          <h2 class="section-head">{W.todos}</h2>
+          <ul class="rows" aria-label={W.todos}>
+            {view.todos.map((todo) => (
+              <li key={todo.id} class="row">
+                <Link href={href({ name: "item", id: todo.id })}>
+                  <span class="lines">
+                    <span class="title wrap-line">{todo.title || W.untitled}</span>
+                    <span class="sub">{view.agent.name}{SEP}{itemWords(todoItemLine(model, todo))}</span>
+                    {todo.doneCondition && <span class="sub">{todo.doneCondition}</span>}
+                  </span>
+                  <Disclosure />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <ListSection section={folded ? { ...view.goals, title: "" } : view.goals} label={view.goals.title} render={(goal) => <GoalLine key={goal.id} goal={{ ...goal, state: goal.allDone ? "done" : goal.state, href: href({ name: "talk", id: agent, goal: goal.id }) }} showAgent={false} count />} />
       <ul class="rows" aria-label={W.done}>
         <li class="row" data-testid="card-done-today">

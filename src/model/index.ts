@@ -229,6 +229,7 @@ export interface AgentView {
   /** Cards just created and not started (예정), newest first; only here, never on the home. */
   readonly planned: Section<CardRow>;
   readonly goals: Section<GoalRow>;
+  readonly todos: readonly ItemSummary[];
   /** Null while the page holds only the newest finished cards (lina-app#186): no count from a list not read. */
   readonly doneToday: Section<CardRow> | null;
 }
@@ -1165,13 +1166,18 @@ export function itemWords(line: ItemLine): string {
   return line.state === "planned" ? W.dueOverdue : [stateLabel(line.state, line.reason), W.dueOverdue].join(SEP);
 }
 
+/** A ledger to-do's list state, including an outstanding decision and its due date. */
+export function todoItemLine(model: Model, todo: ItemSummary): ItemLine {
+  return itemLine(model, todo.id, todoState(model, todo), undefined, todo.due);
+}
+
 /** A goal's or to-do's state line by its id, from the lists (its row's fold): what 수신함's decision row says; null when unlisted. */
 export function itemLineOf(model: Model, id: string): ItemLine | null {
   const due = model.items.get(id)?.due ?? null;
   const goal = model.goals.find((each) => each.id === id);
   if (goal) return itemLine(model, id, goal, undefined, due);
   const item = model.items.get(id);
-  return item ? itemLine(model, id, todoState(model, item), undefined, due) : null;
+  return item ? todoItemLine(model, item) : null;
 }
 
 export function agentView(model: Model, agentId: string): AgentView | null {
@@ -1185,12 +1191,13 @@ export function agentView(model: Model, agentId: string): AgentView | null {
   // An agent's goals: the ones it owns and the ones holding its to-dos, another agent's included. The dial and its
   // number are the goal's own (goalTodos), the to-dos its page lists (lina-app#175); the running number counts only
   // this agent's.
+  const todos = [...model.items.values()].filter((item) => item.kind === "todo" && item.agent === agentId);
   const goals = model.goals
     .map((goal) => {
-      const todos = [...model.items.values()].filter((item) => item.kind === "todo" && item.parent === goal.id && item.agent === agentId);
-      const runningTodos = todos.filter((todo) => todoState(model, todo).state === "in_progress");
+      const children = todos.filter((todo) => todo.parent === goal.id);
+      const runningTodos = children.filter((todo) => todoState(model, todo).state === "in_progress");
       const runningCards = goal.runningCards.filter((card) => card.agent === agentId);
-      return { goal, holds: todos.length > 0, row: { ...goal, runningTodos, runningCards, runningCount: Math.max(runningTodos.length, runningCards.length) } };
+      return { goal, holds: children.length > 0, row: { ...goal, runningTodos, runningCards, runningCount: Math.max(runningTodos.length, runningCards.length) } };
     })
     .filter(({ goal, holds }) => goal.agent === agentId || holds)
     .map(({ row }) => row);
@@ -1202,6 +1209,7 @@ export function agentView(model: Model, agentId: string): AgentView | null {
     review: section("review", W.agentReview, apart(review, model.now)),
     planned: section("planned", STATE_WORD.planned, apart(planned, model.now)),
     goals: section("goals", W.agentGoals, goals),
+    todos,
     doneToday: doneToday && section("done", W.done, doneToday),
   };
 }
@@ -1247,7 +1255,9 @@ function linkedCards(parts: FoldParts, ids: ReadonlySet<string>, cardIds: readon
     .filter((run) => run.todo !== null && ids.has(run.todo))
     .map((run) => parts.runOwner.get(run.id))
     .filter((id): id is string => id !== undefined);
-  const byTitle = goalTitle ? [...parts.cards.values()].filter((card) => card.goalTitle === goalTitle).map((card) => card.id) : [];
+  // Legacy cards can name just their goal's title. Only use it when another ledger goal cannot claim it.
+  const unambiguousTitle = goalTitle && ![...parts.items.values()].some((item) => item.kind === "goal" && item.title === goalTitle && !ids.has(item.id));
+  const byTitle = unambiguousTitle ? [...parts.cards.values()].filter((card) => card.goalTitle === goalTitle).map((card) => card.id) : [];
   return [...new Set([...cardIds, ...byRuns, ...byTitle])].map((id) => parts.cards.get(id)).filter((card): card is CardRow => card !== undefined && !parts.unlisted.has(card.id));
 }
 

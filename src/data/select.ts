@@ -15,7 +15,8 @@ const POWER_VARIANTS: readonly string[] = ["stopped", "none"] satisfies PowerVar
  * scene (tests, captures, verify.mjs); `&error=quota|checks` adds the failed-source variant for quota or the hub's checks,
  * `&running=none` one with no running card, `&writer=stopped` one whose writer of checked lines stopped, `&runs=ended`
  * one with ended runs and a card waiting on the owner (lina-app#116), `&todos=many` one where the owner holds 50 more
- * to-dos (lina-app#141), `&finished=many` one with 40 more finished cards (lina-app#186), `&hub=round18` the hub's 524
+ * to-dos (lina-app#141), `&todos=delegated` one where a fourth agent holds to-dos under another agent's goal,
+ * `&finished=many` one with 40 more finished cards (lina-app#186), `&hub=round18` the hub's 524
  * finished cards and an overdue to-do (lina-app#221), `&hub=round20` the hub's 13 stopped cards, a planned card with a
  * Latin goal title, 46 finished cards in ×n and unnamed lines and a waiting to-do past its due date (lina-app#225),
  * `&hub=round22` the hub's finished cards with titles drawn whole and titles with every hole shape (lina-app#231),
@@ -51,6 +52,7 @@ export function chooseSource(location: Pick<Location, "search"> = window.locatio
       writerStopped: params.get("writer") === "stopped",
       endedRuns: params.get("runs") === "ended",
       manyTodos: params.get("todos") === "many",
+      delegatedTodos: params.get("todos") === "delegated",
       hubRound9: params.get("hub") === "round9",
       hubRound11: params.get("hub") === "round11",
       hubRound18: params.get("hub") === "round18",

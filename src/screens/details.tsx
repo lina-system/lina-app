@@ -2,7 +2,7 @@ import { Fragment, type ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { ItemDetail, ItemSummary, RecordRow, WorkCardDetail, WorkState } from "../api/client";
 import { KoreanInput } from "../korean-input";
-import { cardNow, doneFor, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, ownTitle, runRow, todoState, waitsOnOwner, wholeTitle, type CardRow, type CardSummary, type ItemLine, type Model, type StopReasonText } from "../model";
+import { cardNow, doneFor, foldTitle, goalCards, goalState, isRetryRequest, itemContext, itemLine, itemWords, ownTitle, runRow, todoItemLine, todoState, waitsOnOwner, wholeTitle, type CardRow, type CardSummary, type ItemLine, type Model, type StopReasonText } from "../model";
 import { foldReason, wholeText } from "../model/fold";
 import { plainText } from "../model/plain";
 import { holds } from "../model/rounds";
@@ -15,7 +15,7 @@ import { back, baseOf, href, isFrame, navigate, parse, tabOf, type Route } from 
 import { ago, clockAt, dayLabel } from "../time";
 import { useActions } from "../ui/actions";
 import { agentName, Box, CardRowView, CheckBox, DoneCheck, ErrorLine, itemTime, KindMark, Link, Progress, sinceText, StateText, StateTime, cardTime, cardTook, stateWords, useApp } from "../ui/parts";
-import { DETAIL_WORD, reasonWord, ROUND11_WORD, ROUND9_WORD, RUN_LINE_WORD, SEP, STATE_WORD, stateLabel, W, waitWord } from "../words";
+import { CRUMB, DETAIL_WORD, reasonWord, ROUND11_WORD, ROUND9_WORD, RUN_LINE_WORD, SEP, STATE_WORD, stateLabel, W, waitWord } from "../words";
 import { PastEvents, RunModelLine, Timeline, type PastEvent } from "./timeline";
 import { Comments, FoldLine, SendButton } from "./comments";
 import { FinishedLine } from "./lists";
@@ -38,7 +38,7 @@ function Loading() {
  * A detail head. `line` is its second line when the head reads the two lines of the row that was pressed
  * (lina-app#157); it is no `.sub`, so the state line stays the head's first grey line.
  */
-function Header({ title, line, children }: { title: string; line?: string | null; children?: ComponentChildren }) {
+function Header({ title, line, children }: { title: ComponentChildren; line?: string | null; children?: ComponentChildren }) {
   return (
     <header class="detail-head">
       <FrameClose />
@@ -380,7 +380,7 @@ function TodoLine({ todo }: { todo: ItemSummary }) {
   const actions = useActions();
   const { model, now } = useApp();
   const shown = actions.isDone(todo.id, todo.state === "done");
-  const line = itemLine(model, todo.id, todoState(model, todo), undefined, todo.due);
+  const line = todoItemLine(model, todo);
   return (
     <li class={`row check-row${shown ? " is-checked" : ""}`} data-testid="row">
       <DoneCheck id={todo.id} title={todo.title} done={todo.state === "done"} />
@@ -483,6 +483,13 @@ function talkWindowOpen(wide: boolean): boolean {
 
 function TodoBody({ detail }: { detail: ItemDetail }) {
   const { model, store, wide } = useApp();
+  const parent = !WORK_ONLY && detail.parent ? model.items.get(detail.parent) : null;
+  const parentTitle = parent?.kind === "goal" ? foldTitle(parent.title) : null;
+  const ownName = foldTitle(detail.title) ?? detail.title;
+  const title = parent && parentTitle ? (
+    <><Link href={href({ name: "goal", id: parent.id })}>{parentTitle}</Link>{ownName && `${CRUMB}${ownName}`}</>
+  ) : itemHead(model, detail);
+  const cards = detail.workCards.flatMap((id) => model.cards.get(id) ?? []);
   // An answered decision's question and answer are history (lina-app#153); an open one is its box above.
   const owner = store.get("items")?.owner?.id;
   const plain = plainItem(detail, owner);
@@ -490,8 +497,9 @@ function TodoBody({ detail }: { detail: ItemDetail }) {
   const decisionRow = useDecisionRow(detail.id);
   return (
     <article class="detail" data-testid="screen-item">
-      <Header title={itemHead(model, detail)} line={decisionRow?.text}>
+      <Header title={title} line={decisionRow?.text}>
         <DoneHead detail={detail} />
+        {parent?.kind === "goal" && !parentTitle && <Link href={href({ name: "goal", id: parent.id })}>{W.agentGoals}</Link>}
       </Header>
       <ItemDecision key={detail.id} detail={detail} headLine={decisionRow?.text} />
       {detail.doneCondition ? (
@@ -499,8 +507,13 @@ function TodoBody({ detail }: { detail: ItemDetail }) {
           <p class="box-text">{detail.doneCondition}</p>
         </Box>
       ) : null}
-      {!WORK_ONLY && detail.runs.length ? (
+      {!WORK_ONLY && (cards.length || detail.runs.length) ? (
         <Box title={W.runs}>
+          {cards.length > 0 && (
+            <ul class="rows" aria-label={W.cards}>
+              {cards.map((card) => <CardRowView key={card.id} card={card} />)}
+            </ul>
+          )}
           <ul class="rows" aria-label={W.runs}>
             {detail.runs.map((run) => {
               const owner = model.runOwner.get(run.id);

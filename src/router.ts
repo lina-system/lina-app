@@ -70,6 +70,7 @@ export function tabRoot(tab: Tab): Route {
 }
 
 export function parse(hash: string, workOnly: boolean = WORK_ONLY): Route {
+  if (hash === "") return { name: workOnly ? "home" : "talks" };
   const [path, query = ""] = hash.replace(/^#\/?/, "").split("?");
   const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
   let route: Route = { name: "home" };
@@ -179,7 +180,7 @@ export interface NavState {
 }
 
 function currentHash(): string {
-  return window.location.hash || "#/";
+  return window.location.hash || href(parse(""));
 }
 
 /**

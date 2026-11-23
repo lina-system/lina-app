@@ -10,6 +10,8 @@ The first of the three tabs at the top (`대화 · 작업 · 상태`). The owner
 
 ## Intended behavior
 
+- Opening `/app/` without a hash shows the conversation list. `#/` opens the work home and a direct item address opens its detail. The work-only install starts on work.
+- The wide card and the expanded phone card list one link per assigned ledger to-do under `할 일`. Each row shows the title, agent, state and available completion condition. Assignment uses the to-do's agent ID, including when another agent owns its goal. The link opens `#/items/<id>`. Reading a result leaves the owner's completion control alone.
 - The tabs `대화`, `작업`, `상태` sit in the toolbar on a wide window and under the bar on a phone's first screen of each tab. The tab of the screen shown is pressed, and it is that screen's one title: no large title over it on a phone, and no title beside it in the wide toolbar on `#/talk` with no agent, `#/` and `#/status`; a list with a name of its own (`수신함`, `마감일`, …) keeps it in the toolbar (lina-app#193, `src/tab-root-head.test.tsx`). `대화` opens `#/talk`, `작업` opens `#/`, `상태` opens `#/status`. In the wide toolbar the tabs stand in its middle whatever the title beside them holds, so the list, an open agent (its mark and name in the title) and the other tabs' first screens draw them at one place: opening an agent moved them about 36 px before (lina-app#223, `tests/talk-tab.spec.ts`).
 - The pressed tab is one look at every width: a segment in `--tab-current` on the `--tab-track` the other tabs show. In dark it stands at least 3:1 against its neighbours, on a phone too (lina-app#143, `src/design/contrast.test.ts`).
 - Every text on the first screens of the three tabs (`#/talk`, `#/`, `#/status`) reaches 4.5:1 against what it is drawn on, 3:1 when large (24 px, or 18.66 px bold), at 390 and 1280, light and dark, measured from computed styles (lina-app#213). White words on red (the bell's count, the stopped pills) sit on `--red-fill`, the state red's hue at 4.78:1 (`src/design/contrast.test.ts`). The pairs only a palette change clears (white on the accent fill, the accent as a text button's colour in light, the state red and orange as words) are listed as open in `scripts/verify.mjs`; any other pair under its ratio is a defect. In dark the current sidebar row is filled with `--accent-fill` (white on it 4.7:1) and the sidebar's red counts (`중단됨 n` by 진행 중인 작업, an agent row's count) are drawn in `--red-text` (5.1:1 on the sidebar), so neither pair is open in dark; light keeps its colours (lina-app#232).
@@ -50,6 +52,7 @@ The first of the three tabs at the top (`대화 · 작업 · 상태`). The owner
 
 ## How to get to it (user POV)
 
+- Open the full app, choose an agent and expand `에이전트` on a phone. Choose a row in `할 일`, then its parent goal or linked work record.
 - Choose `대화` in the tabs, then an agent.
 - Address `/app/#/talk`, `/app/#/talk/<agent>` or `/app/#/talk/<agent>?goal=<id>`.
 
@@ -60,6 +63,8 @@ Preconditions:
 - `verify.mjs doctor` reports `"healthy": true` for this run.
 - The page is `/app/?source=synthetic`. The first agent has two earlier turns and `avatar: true` (the synthetic instance serves no picture route, so it draws its letter circle unless a step serves one), the others none; the synthetic agent answers every message with `네, 보고 있어요. 지금 하는 일을 정리해서 바로 알려 드릴게요.` in four pieces, one frame every 400 ms. `&talk=busy` and `&talk=down` refuse every turn with 429 and 503.
 
+- **Hashless start (1280 and 390).** Open `/app/?source=synthetic` with no hash. `대화` is the current tab and the conversation list shows an agent link.
+- **Delegated to-do (1280 and 390).** Open a fresh `/app/?source=synthetic&todos=delegated` and choose `ag-4`, who holds to-dos under another agent's goal. At 390, expand the agent card. Choose `Review invoices` in `할 일`. The item detail opens at `#/items/T1`. The following tab steps use the default three-agent scene.
 - **Open the tab.** On `#/inbox`, choose `대화`. Run `node .agents/skills/verify-lina-app/scripts/verify.mjs drive talk-tab`. The address is `#/talk`, `대화` is pressed, 3 agents are listed; on a wide window the middle reads `에이전트를 고르면 대화가 열림` and spans the panes (no empty 320 px column; `tests/talk-tab.spec.ts`). The first row reads `변경 목록을 모으는 중이에요. 배포 순서는 답을 기다려요.`, the second `아직 나눈 대화 없음`. A row with work reads `진행 중 n` and `중단됨 n` in words on its name's line, never a bare number, and its link's name holds the same words; every row's last message is as wide as the others (lina-app#219); on a wide window the sidebar shows no build string (lina-app#207).
 - **Choose an agent.** Choose the first agent. One earlier message of the owner reads `어디까지 왔어요?`; the one `screen-title` is in the bar (the phone's navbar, the wide toolbar), the agent's mark beside it, `agent-talk-name` shows once and not inside the window, no `메신저 대화와 따로 남음` shows; and the card's goals include `릴리스 노트 정리` and not `결제 화면 개편` (on a phone, after opening `에이전트 · 목표 n`).
 - **Send.** Type `오늘 어디까지 했어요?` and press Enter: the typing dots show, then the reply ends in `알려 드릴게요.`, the dots are gone and the field is empty.

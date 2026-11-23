@@ -83,6 +83,8 @@ function shuffle<T>(rng: Rng, values: readonly T[]): T[] {
 
 export interface SceneOptions {
   readonly now: number;
+  /** Two to-dos delegated across agents, with a namesake goal and mixed worker receipts. */
+  readonly delegatedTodos?: boolean;
   readonly sourceError?: boolean;
   /** The hub's checks did not answer (`&error=checks`): an empty list and a failed source. */
   readonly checksError?: boolean;
@@ -219,7 +221,7 @@ interface TodoSeed {
 export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptions): Scene {
   const { now } = options;
   const rng = mulberry32(seed);
-  const names = shuffle(rng, AGENT_NAMES).slice(0, 3);
+  const names = shuffle(rng, AGENT_NAMES).slice(0, options.delegatedTodos ? 4 : 3);
   const machines = shuffle(rng, MACHINE_NAMES).slice(0, 3);
   // The first agent has a picture (`avatar: true`, lina#738); the others are drawn as their letter circle.
   const agents = names.map((name, index) => ({ id: `ag-${index + 1}`, name, ...(index === 0 ? { avatar: true } : {}) }));
@@ -250,6 +252,11 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     { id: "T12", goal: "G5", agent: 2, title: "느린 질의 모으기", state: "waiting", reason: "feedback", sinceAgo: 1 * DAY, doneCondition: "느린 질의 목록이 정리됨" },
   ];
 
+  if (options.delegatedTodos) {
+    for (const todo of todoSeeds.slice(0, 2)) todo.agent = 3;
+    todoSeeds[0].title = "Review invoices";
+    todoSeeds[0].doneCondition = "변경 목록의 항목마다 근거가 있음";
+  }
   const summary = (fields: Omit<ItemSummary, "createdAt" | "lastActivityAt" | "closedAt" | "area" | "projects" | "runCount" | "commentCount"> & Partial<ItemSummary>): ItemSummary => ({
     createdAt: now - 7 * DAY,
     lastActivityAt: fields.stateSince,
@@ -285,7 +292,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
       id: goal.id,
       kind: "goal",
       parent: null,
-      title: goal.title,
+      title: options.delegatedTodos && goal.id === "G2" ? goalSeeds[0].title : goal.title,
       agent: agentId(goal.agent),
       addedBy: OWNER.id,
       mine: false,
@@ -318,6 +325,12 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     { id: "r9", title: "release-notes: collect merged PRs (round 1)", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[0], startedAt: now - 3 * HOUR, endedAt: now - 2 * HOUR - 40 * MIN, now: null, plain: plain("변경 목록 모으기", null, "병합된 변경을 41개 모음") },
     { id: "r10", title: "release-notes: collect merged PRs (round 2)", state: "done", reason: null, agent: agentId(0), kind: "ulw", todo: "T1", host: machines[1], startedAt: now - HOUR, endedAt: now - 40 * MIN, now: null, plain: plain("변경 목록 모으기", null, "문서만 바뀐 변경을 따로 묶음") },
   ] satisfies Omit<RunCard, "model" | "settingsRevision">[]).map((run): RunCard => ({ ...run, ...modelFields(run.id) }));
+
+  if (options.delegatedTodos) {
+    // The oldest run predates delegation. Only the other two belong to this ledger item.
+    runCards.find((run) => run.id === "r9")!.todo = null;
+    goalItems.reverse(); // A title lookup would now pick the namesake before the actual parent.
+  }
 
   // k-101 is in its third follow-up round (one card); k-102's checked lines are all missing, so its own title stands
   // in until they are written (its kind is read from that title too: 문서).
@@ -1078,6 +1091,13 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     Object.assign(cardDetails["k-106"], { todos: [], todoProgress: { done: 0, total: 0 } });
   }
 
+  const runRecords = records(now);
+  if (options.delegatedTodos) {
+    const delivered = cardList.cards.find((card) => card.id === "k-101")!;
+    Object.assign(delivered, { state: "done", endedAt: now });
+    Object.assign(cardDetails[delivered.id], { state: "done", endedAt: now });
+    Object.assign(runRecords.r1.rounds[2], { verdict: "accepted", result: "변경 목록 41건을 전달함" });
+  }
   return {
     now,
     board,
@@ -1093,7 +1113,7 @@ export function generateScene(seed: number = SYNTHETIC_SEED, options: SceneOptio
     cardDetails,
     inbox: { blocked, questions: [question] },
     runs: runCards,
-    records: records(now),
+    records: runRecords,
     settings: settingsScene(now, options.settings ?? null),
     reports: {},
   };

@@ -57,6 +57,12 @@ describe("설정 and the lists it pushes", () => {
 });
 
 describe("the three tabs", () => {
+  test("an address without a hash opens conversations, while the work root and item retain their addresses", () => {
+    expect(parse("")).toEqual({ name: "talks" });
+    expect(parse("#/")).toEqual({ name: "home" });
+    expect(parse("#/items/T4")).toEqual({ name: "item", id: "T4" });
+  });
+
   test("#/talk lists the agents and #/talk/<id> opens one agent's window; every screen belongs to one tab", () => {
     expect(parse("#/talk")).toEqual({ name: "talks" });
     expect(parse("#/talk/ag-1")).toEqual({ name: "talk", id: "ag-1" });

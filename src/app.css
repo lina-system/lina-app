@@ -2592,6 +2592,13 @@ html:has(.stack) body {
   min-height: var(--hit);
 }
 
+.stack .detail-title > a {
+  display: inline-flex;
+  align-items: center;
+  min-width: var(--hit);
+  min-height: var(--hit);
+}
+
 .stack .fold > summary,
 .stack .resolved > summary,
 .stack .timeline-earlier > summary,

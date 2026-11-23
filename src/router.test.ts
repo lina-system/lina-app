@@ -1,7 +1,8 @@
 import { act, cleanup, render } from "@testing-library/preact";
 import { h } from "preact";
 import { afterEach, describe, expect, test } from "vitest";
-import { back, baseOf, defaultListFor, directionOf, href, navigate, onSaveScroll, onStackMotion, parse, tabOf, tabRoot, TABS, useNav, type Direction } from "./router";
+import { back, baseOf, defaultListFor, directionOf, href, isHiddenInWork, navigate, onSaveScroll, onStackMotion, parse, tabOf, tabRoot, TABS, useNav, type Direction } from "./router";
+import { WORK_ONLY } from "./mode";
 
 // Preact runs a passive effect's cleanup after paint; unmounting inside act flushes it before the test ends, so no
 // timer outlives the test environment (and no old listener sees the next test's history).
@@ -73,6 +74,34 @@ describe("the three tabs", () => {
     expect(href({ name: "talk", id: "ag-1", goal: "G 1" })).toBe("#/talk/ag-1?goal=G+1");
     expect(parse(href({ name: "talk", id: "ag-1", goal: "G 1" }))).toEqual({ name: "talk", id: "ag-1", goal: "G 1" });
     expect(tabOf(parse("#/talk/ag-1?goal=G1"))).toBe("talk");
+  });
+
+  test("the default build still has the three tabs and does not remap talk, status or agent-ops addresses", () => {
+    expect(WORK_ONLY).toBe(false);
+    expect(TABS).toEqual(["talk", "work", "status"]);
+    expect(parse("#/talk")).toEqual({ name: "talks" });
+    expect(parse("#/status")).toEqual({ name: "status" });
+    expect(parse("#/running")).toEqual({ name: "running" });
+    expect(parse("#/cards/k-1")).toEqual({ name: "card", id: "k-1" });
+    expect(parse("#/reports/rep_1")).toEqual({ name: "report", id: "rep_1" });
+    expect(parse("#/reports/rep_1?v=2")).toEqual({ name: "report", id: "rep_1", version: 2 });
+  });
+});
+
+describe("a work-only build lands hidden addresses on the work home", () => {
+  test("talk, status, running, cards, runs, rounds, groups and settings parse as home; work screens stay", () => {
+    for (const hash of ["#/talk", "#/talk/ag-1", "#/talk/ag-1?goal=G1", "#/status", "#/settings", "#/settings/runner/codex", "#/running", "#/agents/ag-1", "#/cards/k-1", "#/runs/r1", "#/cards/k-1/runs/1", "#/group/k-1", "#/reports/rep_1", "#/reports/rep_1?v=2"]) {
+      expect(parse(hash, true), hash).toEqual({ name: "home" });
+      expect(isHiddenInWork(parse(hash, false).name), hash).toBe(true);
+    }
+    expect(parse("#/", true)).toEqual({ name: "home" });
+    expect(parse("#/inbox", true)).toEqual({ name: "inbox" });
+    expect(parse("#/due", true)).toEqual({ name: "due" });
+    expect(parse("#/today", true)).toEqual({ name: "today" });
+    expect(parse("#/done", true)).toEqual({ name: "done" });
+    expect(parse("#/goals", true)).toEqual({ name: "goals" });
+    expect(parse("#/goals/G1", true)).toEqual({ name: "goal", id: "G1" });
+    expect(parse("#/items/T4", true)).toEqual({ name: "item", id: "T4" });
   });
 });
 

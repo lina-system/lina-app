@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
+import { APP_NAME, stampManifest, WORK_ONLY } from "./mode";
 
 function pngSize(bytes: Buffer): { width: number; height: number } {
   expect(bytes.subarray(1, 4).toString("ascii")).toBe("PNG");
@@ -36,4 +37,15 @@ test("the manifest and icons can install on a phone Home Screen", () => {
   expect(pngSize(readFileSync("public/icons/icon-512.png"))).toEqual({ width: 512, height: 512 });
   expect(pngSize(readFileSync("public/icons/icon-maskable-512.png"))).toEqual({ width: 512, height: 512 });
   expect(pngSize(readFileSync("public/icons/apple-touch-icon.png"))).toEqual({ width: 180, height: 180 });
+});
+
+test("the default build keeps the LINA install name; work-only stamps LINA 작업", () => {
+  expect(WORK_ONLY).toBe(false);
+  expect(APP_NAME).toBe("LINA");
+  const raw = readFileSync("public/manifest.webmanifest", "utf8");
+  const stamped = JSON.parse(stampManifest(raw, "LINA 작업")) as { name: string; short_name: string; description: string };
+  expect(stamped.name).toBe("LINA 작업");
+  expect(stamped.short_name).toBe("LINA 작업");
+  expect(stamped.description).toContain("LINA 작업");
+  expect(JSON.parse(raw).name).toBe("LINA");
 });

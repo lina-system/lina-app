@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [preact()],
   define: {
     __APP_VERSION__: JSON.stringify(readVersion()),
+    __LINA_WORK_ONLY__: JSON.stringify(process.env.VITE_LINA_MODE === "work"),
   },
   test: {
     environment: "jsdom",

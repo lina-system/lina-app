@@ -296,6 +296,8 @@ export const W = {
   talkBusy: "에이전트가 바쁨",
   talkDown: "에이전트 연결 안 됨",
   talkNoAgent: "맡은 에이전트 없음",
+  /** A goal or to-do that names an agent, as a read-only label on the work-only item page. */
+  assignedBot: (name: string) => `맡은 봇${SEP}${name}`,
   talkTooLong: "글은 4000자까지",
   talkFailed: "답을 받지 못함",
   talkUnknownAgent: "없는 에이전트",

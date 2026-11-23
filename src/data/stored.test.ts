@@ -390,3 +390,34 @@ test("the settings are not kept: a page opened again reads them, so its edits ca
   expect(Object.keys(kept(storage).routes).filter((key) => key.startsWith("settings") && key !== "settingsModels")).toEqual([]);
   stop();
 });
+
+test("the default storage key is unchanged; a work-only install keeps its own key and will not restore the full app's lists", () => {
+  expect(storedKey(ORIGIN, "")).toBe(`lina-app:stored:${ORIGIN}`);
+  expect(storedKey(ORIGIN, "", false)).toBe(`lina-app:stored:${ORIGIN}`);
+  expect(storedKey(ORIGIN, "", true)).toBe(`lina-app:stored:${ORIGIN}:work`);
+  const storage = memory();
+  const core = new HttpSource({ fetch: (() => Promise.reject(new Error("no core"))) as typeof fetch, token: "token-a" });
+  const full = storedCopy(core, { storage: () => storage, origin: ORIGIN, app: "test-1", workOnly: false });
+  const work = storedCopy(core, { storage: () => storage, origin: ORIGIN, app: "test-1", workOnly: true });
+  if (!full || !work) throw new Error("the core's source keeps a copy");
+  full.save({ cursor: "s.full", owner: "o", routes: { board: { data: { inbox: { decide: [], mine: [], review: [] } } }, cards: { data: { cards: [{ id: "k-1" }] } }, inbox: { data: { questions: [] } } } });
+  expect(full.load()?.cursor).toBe("s.full");
+  expect(work.load()).toBeNull();
+  expect(kept(storage).mode).toBe("full");
+  work.save({ cursor: "s.work", owner: "o", routes: { board: { data: {} }, items: { data: {} } } });
+  expect(work.load()?.cursor).toBe("s.work");
+  expect(full.load()?.cursor).toBe("s.full");
+  storage.items.set(storedKey(ORIGIN, "", true), storage.items.get(KEY) ?? "");
+  expect(work.load()).toBeNull();
+  expect(storage.items.has(storedKey(ORIGIN, "", true))).toBe(false);
+});
+
+test("a copy written before mode existed still opens as the full app", () => {
+  const storage = memory();
+  storage.items.set(KEY, JSON.stringify({ format: STORED_FORMAT, app: "test-1", cursor: "s.old", owner: "o", routes: { board: { data: {} } } }));
+  expect(copyIn(storage).load()).toMatchObject({ cursor: "s.old" });
+  const core = new HttpSource({ fetch: (() => Promise.reject(new Error("no core"))) as typeof fetch, token: "token-a" });
+  const work = storedCopy(core, { storage: () => storage, origin: ORIGIN, app: "test-1", workOnly: true });
+  storage.items.set(storedKey(ORIGIN, "", true), storage.items.get(KEY) ?? "");
+  expect(work?.load() ?? null).toBeNull();
+});

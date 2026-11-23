@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 import { HttpSource } from "./http-source";
-import { FINISHED_SHOWN, SLOW_ROUTES, Store } from "./store";
+import { FINISHED_SHOWN, LIST_ROUTES, SLOW_ROUTES, Store } from "./store";
 import { MANY_FINISHED } from "../fixtures/synthetic";
 import { SyntheticSource } from "./synthetic-source";
 import type { Source } from "./source";
@@ -21,6 +21,11 @@ function asked(source: Source): string[] {
 }
 
 const slowNames = SLOW_ROUTES.map(([name, id]) => (id === undefined ? name : `${name}:${id}`));
+
+test("the default build still reads the kanban lists and the slow status routes", () => {
+  expect(LIST_ROUTES).toEqual(["board", "items", "goals", "cards", "inbox"]);
+  expect(SLOW_ROUTES.map(([name]) => name)).toEqual(["devices", "quota", "usage", "usage", "usage", "modelsState", "checks", "settingsModels"]);
+});
 
 test("the first refresh asks for the lists with the cards' finished_limit, and the slow routes only after the first paint", async () => {
   const source = new SyntheticSource({ now: NOW });

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { USAGE_RANGES, type RouteName, type Routes, type UsageRange, type UsageView } from "../api/client";
+import { WORK_ONLY } from "../mode";
 import type { ModelInput } from "../model";
 import { nowSeconds, type Source, type WriteResult } from "./source";
 import type { StoredCopy, StoredRoute, StoredSnapshot } from "./stored";
@@ -56,20 +57,33 @@ export const RECORDS_AT_ONCE = 4;
 /** The change stream: not opened yet, open (the screens are current), or down (they may be stale). */
 export type LiveState = "connecting" | "open" | "down";
 
-const LIST_ROUTES: readonly RouteName[] = ["board", "items", "goals", "cards", "inbox"];
+/**
+ * Snapshot lists the first refresh reads. A work-only build keeps the board and the item record (goals and to-dos);
+ * it never asks the kanban work-client (`goals`/`cards`/`inbox`) or agent-ops details.
+ */
+export const LIST_ROUTES: readonly RouteName[] = WORK_ONLY ? ["board", "items"] : ["board", "items", "goals", "cards", "inbox"];
+
+/**
+ * Store routes a work-only install must never read: kanban cards and inbox, worker-run records, and status / settings.
+ * `goals` here is work-client `/work/goals` (card links), not the `#/goals` screen, which is drawn from `/work/items`.
+ */
+export const AGENT_OPS_ROUTES: ReadonlySet<RouteName> = new Set(["goals", "goal", "cards", "card", "inbox", "record", "devices", "quota", "usage", "modelsState", "checks", "settings", "settingsHistory", "settingsModels", "report", "reports"]);
+
 /**
  * Machines, quota, usage, OCX's models and links, the hub's own checks and the settings' OCX model list change
  * slowly: read on the same refresh trigger, at most once a minute. Usage is one route per range, the route's id
- * being the range.
+ * being the range. A work-only build reads none of them.
  */
-export const SLOW_ROUTES: Want = [
-  ["devices"],
-  ["quota"],
-  ...USAGE_RANGES.map((range) => ["usage", range] as const),
-  ["modelsState"],
-  ["checks"],
-  ["settingsModels"],
-];
+export const SLOW_ROUTES: Want = WORK_ONLY
+  ? []
+  : [
+      ["devices"],
+      ["quota"],
+      ...USAGE_RANGES.map((range) => ["usage", range] as const),
+      ["modelsState"],
+      ["checks"],
+      ["settingsModels"],
+    ];
 export const SLOW_REFRESH_S = 60;
 
 /** How many finished cards the work tab reads first (lina-app#186); the rest are read when its fold opens. */
@@ -218,7 +232,11 @@ export class Store {
 
   /** The kept copy on screen at once, before anything is read; the stream says what changed since. */
   private restore(kept: StoredSnapshot): void {
-    for (const [key, route] of Object.entries(kept.routes)) this.entries.set(key, { data: route.data, receivedAt: route.receivedAt, status: "ok" });
+    for (const [key, route] of Object.entries(kept.routes)) {
+      const name = key.split(":")[0] as RouteName;
+      if (WORK_ONLY && AGENT_OPS_ROUTES.has(name)) continue;
+      this.entries.set(key, { data: route.data, receivedAt: route.receivedAt, status: "ok" });
+    }
     this.keptOwner = kept.owner;
     this.lastOk = this.entries.get("board")?.receivedAt ?? null;
     this.catchingUp = true;
@@ -289,6 +307,7 @@ export class Store {
 
   /** One read of a route. `wanted`: a record the open screen asked for, read in its order behind the others' re-reads. */
   private async load(name: RouteName, id?: string, wanted = false): Promise<boolean> {
+    if (WORK_ONLY && AGENT_OPS_ROUTES.has(name)) return false;
     const key = this.key(name, id);
     const cards = name === "cards";
     const record = name === "record";
@@ -499,7 +518,7 @@ export class Store {
   invalidate(routes: Want): Promise<void> {
     const run = async () => {
       const keys = new Map<string, readonly [RouteName, string?]>();
-      for (const [name, id] of routes) {
+      for (const [name, id] of WORK_ONLY ? routes.filter(([route]) => !AGENT_OPS_ROUTES.has(route)) : routes) {
         const key = this.key(name, id);
         if (id === undefined || this.entries.has(key)) keys.set(key, [name, id]);
       }
@@ -663,6 +682,7 @@ export class Store {
    * cards read already out or landed is followed by one without a limit; before the first, the first asks for them all.
    */
   showFinished(automatic = false): Promise<void> {
+    if (WORK_ONLY) return Promise.resolve();
     if (this.finishing) return this.finishing;
     // A screen asks again on every change of the store, a failed read included: only the user's own ask reads again after it.
     if (automatic && this.finishFailed) return Promise.resolve();
@@ -686,6 +706,7 @@ export class Store {
    * Read after the last cursor whose reads landed, so the kept copy written then stays at least as new as its cursor.
    */
   ensure(routes: Want): void {
+    if (WORK_ONLY) return;
     // Kept for every later read of the lists, so a resync after a missed event reads them again (lina-app#209).
     this.ensured = distinct([...this.ensured, ...routes]);
     const missing = distinct(routes).filter(([name, id]) => !this.entries.has(this.key(name, id)));
@@ -699,7 +720,7 @@ export class Store {
   }
 
   want(routes: Want): void {
-    this.wanted = distinct(routes);
+    this.wanted = distinct(WORK_ONLY ? routes.filter(([name]) => !AGENT_OPS_ROUTES.has(name)) : routes);
     // A record this screen asks for that is still waiting moves up to its place (a run page opened from a long card).
     this.orderRecords();
     const missing = this.wanted.filter(([name, id]) => !this.entries.has(this.key(name, id)));
